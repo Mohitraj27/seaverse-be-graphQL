@@ -126,8 +126,6 @@ module.exports.mutations = {
         const savedAppSettings = await existingAppSettings.save();
 
         if (!savedAppSettings) throw CustomError(ErrorName.FAILED);
-
-        //region logging
         LogHelper.logActivity({
             logType: LogType.APP_SETTINGS_LOG,
             operation: "UPDATE",
@@ -146,7 +144,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedAppSettings;
     },

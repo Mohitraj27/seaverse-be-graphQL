@@ -58,7 +58,6 @@ module.exports.queries = {
                 .populate(population);
             if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
 
-            // filter out null trainingRegistration
             if (existingUser.employee?.trainingCertificates?.length) {
                 existingUser.employee.trainingCertificates =
                     existingUser.employee.trainingCertificates.filter(
@@ -99,12 +98,6 @@ module.exports.queries = {
             .populate("organization")
             .lean();
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-
-        // const existingTrainingCertificates = await TrainingCertificate.find({
-        //     employee: existingEmployee._id,
-        // }).lean();
-
-        // filter out null trainingRegistration
         const existingTrainingCertificates = await TrainingCertificate.aggregate([
             {
                 $match: { employee: existingEmployee._id, isDeleted: { $ne: true } },
@@ -278,7 +271,6 @@ module.exports.mutations = {
     },
 
     resetPassword: async ({ email }, context) => {
-
         const existingUser = await User.findOne({ email });
 
         if (!existingUser) {
@@ -331,7 +323,6 @@ module.exports.mutations = {
     },
 
     verifyResetPassword: async ({ input }, context) => {
-
         const user = await User.findOne({ resetPasswordToken: input.token });
 
         if (!user) {
@@ -356,7 +347,6 @@ module.exports.mutations = {
 
     },
     newPasswordAfterReset: async ({ input }, context) => {
-
         const user = await User.findOne({ resetPasswordToken: input.token });
 
         if (!user) {

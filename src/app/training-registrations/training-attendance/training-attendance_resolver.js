@@ -19,10 +19,6 @@ module.exports.queries = {
 
         let filterConditions = {
             subscriber: subscriberId,
-            // $or: [
-            //     { status: TrainingRegistrationStatus.REGISTERED },
-            //     { status: TrainingRegistrationStatus.STARTED },
-            // ],
         };
 
         if (filterInput) {
@@ -81,13 +77,6 @@ module.exports.queries = {
                 {
                     $match: filterConditions,
                 },
-                // {
-                //     $group: {
-                //         _id: { employee: "$employee" },
-                //         trainingRegistration: { $first: "$$ROOT" },
-                //     },
-                // },
-                // { $replaceRoot: { newRoot: "$trainingRegistration" } },
                 {
                     $lookup: {
                         from: "employees",
@@ -131,7 +120,6 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createOrUpdateTrainingAttendance: async ({ input }, context) => {
-        //TODO: authentication and permission checking need to do with context.platform
         const { role, userPermissions, isOrganizationManager } = AuthUser(context);
 
         if (context.platform === Role.ADMIN) {

@@ -168,7 +168,7 @@ module.exports.mutations = {
 
         if (!savedTrainingCategory) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
+        
         TrainingCategoryHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             trainingCategory: savedTrainingCategory,
@@ -195,7 +195,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedTrainingCategory;
     },
@@ -234,7 +233,7 @@ module.exports.mutations = {
 
         if (!deletedTrainingCategory) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
+        
         TrainingCategoryHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             trainingCategory: deletedTrainingCategory,
@@ -261,7 +260,7 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
+        
 
         return deletedTrainingCategory;
     },

@@ -343,9 +343,6 @@ const errorType = {
 
 const formatError = error => {
     try {
-        // if (process.env.NODE_ENV === "development") {
-        // 	console.log(Date(), error.extensions.exception.stacktrace);
-        // }
         console.log(Date(), error.extensions.exception.stacktrace);
     } catch (e) {}
 

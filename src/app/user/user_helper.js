@@ -91,7 +91,6 @@ module.exports = {
         const existingUser = await User.findOne({
             $or: [
                 { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                // TODO: user phone existence check
             ],
         })
             .lean()
@@ -167,7 +166,6 @@ module.exports = {
                 existingUser.email = input.email;
             }
 
-            // TODO: user phone existence check
             if (input.phone) existingUser.phone = input.phone;
 
             if (input.avatar) {

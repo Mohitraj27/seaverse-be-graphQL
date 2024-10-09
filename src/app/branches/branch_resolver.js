@@ -20,7 +20,6 @@ module.exports.queries = {
         if (context.platform !== Role.ADMIN) filterConditions.isActive = true;
 
         if (filterInput?.search) {
-            // TODO: testing some optimization on search?
             filterConditions = {
                 ...filterConditions,
                 $and: [
@@ -118,8 +117,6 @@ module.exports.mutations = {
         );
 
         if (!savedBranch) throw CustomError(ErrorName.FAILED);
-
-        //region notification & logging
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.BRANCH_LOG,
@@ -139,7 +136,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedBranch;
     },
@@ -163,16 +159,7 @@ module.exports.mutations = {
             { lean: true }
         );
 
-        // TODO: soft delete or not
-        // const deletedBranch = await Branch.findOneAndUpdate(
-        //     { _id: id, subscriber: subscriberId },
-        //     { isDeleted: true },
-        //     { upsert: true, new: true, lean: true }
-        // );
-
         if (!deletedBranch) throw CustomError(ErrorName.FAILED);
-
-        //region notification & logging
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.BRANCH_LOG,
@@ -192,7 +179,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedBranch;
     },

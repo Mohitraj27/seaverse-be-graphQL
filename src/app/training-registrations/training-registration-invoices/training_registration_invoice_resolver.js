@@ -91,137 +91,11 @@ module.exports.queries = {
                 $match: filterConditions,
             },
 
-            // TODO: should populate organization? may need in pdf
-            // {
-            //     $lookup: {
-            //         from: Organization.collection.name,
-            //         localField: "organizationDetails.organization",
-            //         foreignField: "_id",
-            //         as: "organizationDetails.organization",
-            //     },
-            // },
-            // {
-            //     $unwind: '$organizationDetails.organization',
-            // },
-
-            // TODO: should populate training? may need in pdf
-            // {
-            //     $lookup: {
-            //         from: Training.collection.name,
-            //         localField: "orderItems.training",
-            //         foreignField: "_id",
-            //         as: "orderItems.training",
-            //     },
-            // },
-            // {
-            //     $unwind: '$orderItems.training',
-            // },
-
-            // TODO: should populate employee? may need in search
-            // {
-            //     $lookup: {
-            //         from: Employee.collection.name,
-            //         localField: "orderItems.trainingRegistrationDetailsList.employee",
-            //         foreignField: "_id",
-            //         pipeline: [
-            //             {
-            //                 $lookup: {
-            //                     from: "users",
-            //                     localField: "user",
-            //                     foreignField: "_id",
-            //                     pipeline: [
-            //                         {
-            //                             $project: {
-            //                                 firstName: true,
-            //                                 lastName: true,
-            //                             },
-            //                         },
-            //                     ],
-            //                     as: "user",
-            //                 },
-            //             },
-            //             {
-            //                 $project: {
-            //                     user: true,
-            //                 },
-            //             },
-            //             {
-            //                 $unwind: "$user",
-            //             },
-            //         ],
-            //         as: "orderItems.trainingRegistrationDetailsList.employee",
-            //     },
-            // },
-            // {
-            //     $unwind: "$orderItems.trainingRegistrationDetailsList.employee",
-            // },
-
             ...(filterInput?.search
                 ? [
                       {
                           $match: {
                               $or: [
-                                  // {
-                                  //     "organizationDetails.organizationName.value": {
-                                  //         $regex: ".*" + filterInput.search + ".*",
-                                  //         $options: "i",
-                                  //     },
-                                  // },
-
-                                  // {
-                                  //     "orderItems.trainingTitle.value": {
-                                  //         $regex: ".*" + filterInput.search + ".*",
-                                  //         $options: "i",
-                                  //     },
-                                  // },
-
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.firstName":
-                                  //         {
-                                  //             $regex: ".*" + filterInput.search + ".*",
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.lastName":
-                                  //         {
-                                  //             $regex: ".*" + filterInput.search + ".*",
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.civilIdOrPassport":
-                                  //         {
-                                  //             $regex: filterInput.search,
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.email":
-                                  //         {
-                                  //             $regex: filterInput.search,
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.companyEmail":
-                                  //         {
-                                  //             $regex: filterInput.search,
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.user.phone.number":
-                                  //         filterInput.search,
-                                  // },
-                                  // {
-                                  //     "orderItems.trainingRegistrationDetailsList.employee.employeeNo":
-                                  //         {
-                                  //             $regex: filterInput.search,
-                                  //             $options: "i",
-                                  //         },
-                                  // },
-
                                   {
                                       invoiceNo: {
                                           $regex: filterInput.search,
@@ -389,8 +263,6 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
-        // ConsoleLog("input:", input);
-
         if (
             !input.orderItems?.length ||
             input.orderItems.some(
@@ -428,8 +300,6 @@ module.exports.mutations = {
         })
             .lean()
             .populate("user");
-
-        //TODO: invoiceTaxRate
         const invoiceAmount = input.invoiceAmount;
         const invoiceTaxRate = existingSubscriberProfile?.vatDetails?.vatPercentage ?? 0;
         const invoiceTaxAmount = invoiceAmount * (invoiceTaxRate / 100);
@@ -495,16 +365,11 @@ module.exports.mutations = {
 
                 if (!savedTrainingRegistrations) throw CustomError(ErrorName.FAILED);
 
-                // ConsoleLog("savedTrainingRegistrationInvoice:", savedTrainingRegistrationInvoice);
-                // ConsoleLog("savedTrainingRegistrations:", savedTrainingRegistrations);
-                // throw CustomError(ErrorName.OTP_ERROR);
                 return savedTrainingRegistrationInvoice;
             }
         );
 
         if (!savedTrainingRegistrationInvoice) throw CustomError(ErrorName.FAILED);
-
-        //region notification & logging
         TrainingRegistrationInvoiceHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             trainingRegistrationInvoice: savedTrainingRegistrationInvoice,
@@ -531,7 +396,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedTrainingRegistrationInvoice;
     },

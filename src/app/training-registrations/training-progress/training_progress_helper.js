@@ -74,21 +74,6 @@ const sendCourseCompletionMail = async data => {
             receiverEmail,
             subject: "Course completion",
             htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
-            //  `
-            //         <div style="width: 600px; margin: 0 auto; text-align: center">
-            //             <h2>Congratulations!</h2>
-
-            //             <p>You have successfully completed the course</p>
-
-            //             <p>"${trainingTitle}"</p>
-
-            //             <a
-            //                 href="${process.env.EMPLOYEE_DOMAIN_URL}en/course-certificate/${trainingRegistrationId}"
-            //             >
-            //                 Click to view and download the certificate
-            //             </a>
-            //         </div>
-            //     `,
         }).catch(error => {
             console.log("training_progress_helper.sendCourseCompletionMail:error:", error?.message);
         });
@@ -121,7 +106,6 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
 
             let title = "";
             let message = "";
-            // const notifiers = [];
             const employeeNotifiers = [];
             const affected = [
                 {
@@ -259,7 +243,6 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                 message: [{ lang: "en", value: message }],
                 notificationType,
                 notifyAdmin: true,
-                // notifiers,
                 employeeNotifiers,
                 affected,
                 additionalInfo,
@@ -293,7 +276,6 @@ module.exports = {
         const findAndUpdateTrainingProgress = async filterConditions => {
             let savedTrainingCertificate, notificationTrainingRegistrationStatus;
 
-            //region current TrainingProgress find and set update data
             let currentExistingTrainingModuleContent;
             let currentExistingTrainingProgress;
             let quizStatus;
@@ -368,8 +350,6 @@ module.exports = {
                         status: quizStatus,
                         attemptedAt: CurrentDateTime().utcDateTime,
                     });
-
-                    // prevent completion of module content if quiz failed
                     if (quizStatus === "FAILED") {
                         delete input.currentTrainingModuleContentStatus;
                         delete input.nextTrainingModuleContentId;
@@ -405,9 +385,6 @@ module.exports = {
                         input.currentTrainingModuleContentLastAccessedDuration;
                 }
             }
-            //endregion
-
-            //region next TrainingProgress set update data
             let nextExistingTrainingModuleContent;
             let nextTrainingProgressUpdateData;
 
@@ -440,10 +417,6 @@ module.exports = {
                     createdBy: userId,
                 };
             }
-            //endregion
-
-            //region TrainingRegistration find and set update data
-
 
             existingTrainingRegistration ??= await TrainingRegistration.findOne({
                 _id: input.trainingRegistrationId,
@@ -463,11 +436,6 @@ module.exports = {
                 .lean()
                 .select("_id");
 
-            // if (
-            //     quizStatus ||
-            //     input.trainingRegistrationStatus === TrainingRegistrationStatus.STARTED ||
-            //     input.trainingRegistrationStatus === TrainingRegistrationStatus.COMPLETED
-            // ) {
             await existingTrainingRegistration
                 .populate([
                     { path: "training" },
@@ -482,8 +450,6 @@ module.exports = {
                     },
                 ])
                 .execPopulate();
-            //   }
-
 
             if (existingTrainingRegistration.training.scorm) {
                 if (existingTrainingRegistration.training.scorm.type == "CLOUD") {
@@ -546,15 +512,11 @@ module.exports = {
             if (input.trainingMode && !existingTrainingRegistration.trainingMode) {
                 existingTrainingRegistration.trainingMode = input.trainingMode;
             }
-            //endregion
 
-            //region db transaction
             const result = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedTrainingProgresses = [];
 
-                //region current TrainingProgress save update
                 if (currentExistingTrainingProgress) {
-                    //update current TrainingProgress
                     const currentSavedTrainingProgress = await currentExistingTrainingProgress.save(
                         { session }
                     );
@@ -568,11 +530,7 @@ module.exports = {
                         });
                     }
                 }
-                //endregion
-
-                //region next TrainingProgress save update
                 if (nextTrainingProgressUpdateData) {
-                    //create next TrainingProgress
                     const nextSavedTrainingProgress = await TrainingProgress.findOneAndUpdate(
                         {
                             trainingRegistration: input.trainingRegistrationId,
@@ -600,17 +558,11 @@ module.exports = {
                         });
                     }
                 }
-                //endregion
-
-                //region TrainingRegistration save update
                 const savedTrainingRegistration = await existingTrainingRegistration.save({
                     session,
                 });
 
                 if (!savedTrainingRegistration) throw CustomError(ErrorName.NOT_FOUND);
-                //endregion
-
-                //region TrainingAttendance update
                 if (input.trainingRegistrationStatus === TrainingRegistrationStatus.STARTED) {
                     savedTrainingRegistration.trainingAttendance =
                         await TrainingAttendanceHelper.createOrUpdateTrainingAttendance(
@@ -627,9 +579,6 @@ module.exports = {
                             context
                         );
                 }
-                //endregion
-
-                //region TrainingCertificate create on completion
                 if (
                     !existingTrainingCertificate &&
                     savedTrainingRegistration.status === TrainingRegistrationStatus.COMPLETED &&
@@ -728,8 +677,8 @@ module.exports = {
                                     existingTrainingRegistration.training?.duration,
                                 trainingCertificateValidity: certificateValidity,
                                 status: TrainingRegistrationStatus.COMPLETED,
-                                gradeMark: 0, //TODO: need to evaluate how to assign gradeMark for certificate
-                                badge: 0, //TODO: need to evaluate how to assign badge for certificate
+                                gradeMark: 0, 
+                                badge: 0, 
                                 certificateNumber:
                                     await TrainingCertificateHelper.generateTrainingCertificateNumber(
                                         {
@@ -757,14 +706,12 @@ module.exports = {
                             new: true,
                             setDefaultsOnInsert: true,
                             runValidators: true,
-                            // lean: true,
                             session,
                         }
                     );
 
                     if (!savedTrainingCertificate) throw CustomError(ErrorName.FAILED);
                 }
-                //endregion
                 let response = {
                     ...existingTrainingRegistration.toJSON(),
                     trainingProgresses: savedTrainingProgresses,
@@ -774,9 +721,6 @@ module.exports = {
             });
 
             if (!result) throw CustomError(ErrorName.FAILED);
-            //endregion
-
-            //region send course completion email
             if (savedTrainingCertificate) {
                 await savedTrainingCertificate
                     .populate({
@@ -791,9 +735,6 @@ module.exports = {
 
                 sendCourseCompletionMail(savedTrainingCertificate);
             }
-            //endregion
-
-            //region send notification
             const notificationsList = [];
 
             if (quizStatus === "PASSED" || quizStatus === "FAILED") {
@@ -835,7 +776,6 @@ module.exports = {
             if (notificationsList.length) {
                 sendTrainingProgressNotification(notificationsList, context);
             }
-            //endregion
 
             return result;
         };

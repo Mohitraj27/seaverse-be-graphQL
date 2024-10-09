@@ -31,8 +31,7 @@
             title: [LocalisedDataSchema],
             description: [LocalisedDataSchema],
             instructions: [LocalisedDataSchema],
-            feedback: FeedbackSchema, //will deprecate soon.
-            // TODO: feedbackContent
+            feedback: FeedbackSchema, 
             feedbackContent: {
                 type: ObjectId,
                 ref: "FeedbackContent",
@@ -127,7 +126,7 @@
                     url: String,
                 }
             ],
-            certificateValidity: Number, // days
+            certificateValidity: Number,
             courseId: { type: String, unique:true, required:true },
             skills:{ type: [String]},
             course_validity: { type: Date, default: null },

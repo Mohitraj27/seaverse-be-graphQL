@@ -61,17 +61,10 @@ module.exports.mutations = {
         throw CustomError(ErrorName.NOT_FOUND);
     },
     subscriberSignUp: async ({ input }) => {
-        //TODO: subscriberSignUp blocked for demo
         throw CustomError(ErrorName.FORBIDDEN);
-        // const savedSubscriber = await SubscriberHelper.createSubscriber({
-        //     input: { userInput: input },
-        // });
-        //
-        // return await UserHelper.makeAuthUser(savedSubscriber.user);
     },
     signUp: async ({ input, token }) => {
         if (token) {
-            //TODO: link resend option
             const user = await JwtHelper.verify(token, process.env.APP_SECRET, {
                 ignoreExpiration: true,
             });
@@ -191,22 +184,12 @@ module.exports.mutations = {
         if (existingUser) {
             const processValidUser = async () => {
                 if (input.firebaseToken) {
-                    // if (!existingUser.firebaseTokens.includes(input.firebaseToken))
-                    //     existingUser.firebaseTokens.push(input.firebaseToken);
-
                     existingUser.firebaseTokens = [input.firebaseToken];
                 }
 
                 if (input.deviceId) {
-                    // if (!existingUser.deviceIds.includes(input.deviceId))
-                    //     existingUser.deviceIds.push(input.deviceId);
-
                     existingUser.deviceIds = [input.deviceId];
                 }
-
-                // if (existingUser.role === Role.EMPLOYEE && existingUser.isRegistered !== true) {
-                //     throw CustomError(ErrorName.UNAUTHORIZED);
-                // }
 
                 existingUser.lastLoginAt = Moment().format();
                 await existingUser.save();

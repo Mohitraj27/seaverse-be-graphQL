@@ -20,13 +20,11 @@ const logSchema = new Schema(
         ipInfo: JSON,
         affected: [
             {
-                targetRef: String, // model name in pascal case
+                targetRef: String, 
                 target: {
                     type: ObjectId,
                     refPath: "affected.targetRef",
                 },
-                // notes: String,
-                // miscellaneous: [String],
             },
         ],
         additionalInfo: [
@@ -55,7 +53,6 @@ const logSchema = new Schema(
             default: function () {
                 return Moment.utc().add({ months: 12 });
             },
-            /* Remove doc 60 seconds after specified date */
             expires: 60,
         },
         count: {

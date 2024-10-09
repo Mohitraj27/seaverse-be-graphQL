@@ -33,9 +33,6 @@ const designationSchema = new Schema({
     timestamps: true
 });
 
-// it will ensure unique designation name per subscriber
 designationSchema.index({ _id: 1, subscriber: 1 });
 designationSchema.plugin(AggregatePaginate);
-// const Designation = mongoose.model('Designation', designationSchema);
-// module.exports = Designation;
 module.exports.Designation = Model("Designation", designationSchema);

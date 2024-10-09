@@ -56,8 +56,6 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId} =
             AuthUser(context);
 
-        // permission checking TODO..
-
         const designationFilterConditions = {
             _id: input._id ?? ObjectId(),
             subscriber: subscriberId,
@@ -123,7 +121,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedDesignation;
         
@@ -132,8 +129,6 @@ module.exports.mutations = {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
-        //Permisions TODO
 
         try {
             const designation = await Designation.findOne({_id: id, subscriber: subscriberId});

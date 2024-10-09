@@ -1,6 +1,6 @@
 const findHaversineDistance = ({ location1, location2 }) => {
     const toRadian = x => (x * Math.PI) / 180;
-    const R = 6371; //Radius of earth
+    const R = 6371; 
 
     const lat1 = location1.latitude;
     const lon1 = location1.longitude;

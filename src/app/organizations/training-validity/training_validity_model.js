@@ -19,7 +19,7 @@ const trainingValiditySchema = new Schema(
             required: true,
         },
         certificateValidity: {
-            type: Number, // days
+            type: Number,
             required: true,
         },
         createdBy: {

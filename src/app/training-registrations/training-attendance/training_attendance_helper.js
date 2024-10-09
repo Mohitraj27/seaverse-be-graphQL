@@ -20,8 +20,6 @@ module.exports = {
         }
 
         if (!attendanceUpdateData.employee) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
-
-        //TODO:FIX: $addToSet not working with date field duplicates field
         const savedTrainingAttendance = await TrainingAttendance.findOneAndUpdate(
             attendanceFilterConditions,
             {

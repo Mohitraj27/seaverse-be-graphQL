@@ -30,7 +30,6 @@ if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "developme
     process.env.PORT = process.env.PORT_DEVELOP;
 }
 
-//init servers
 const { httpsServer, httpServer, apolloServer } = (() => {
     const apolloServer = new ApolloServer({
         typeDefs: GraphqlSchema,
@@ -52,17 +51,9 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 
 
     var public = path.join(__dirname, 'uploads');
-    // ExpressServer.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
     ExpressServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-
-    //  ExpressServer.use('/', express.static(public));
-
     const httpsServer = HttpsHelper.createServer(
         {
-            // cert: FileHelper.readFileSync("./ssl/sea_verse_io.crt", "utf8"),
-            // ca: FileHelper.readFileSync("./ssl/sea_verse_io.ca-bundle", "utf8"),
-            // key: FileHelper.readFileSync("./ssl/sea_verse_io.key", "utf8"),
         },
         ExpressServer
     );
@@ -75,18 +66,13 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     return { httpsServer, httpServer, apolloServer };
 })();
 
-//init db
+
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
 
-// TODO: firebase service json init
-// FirebaseHelper.init();
 
-// TODO: subscription reminder cron job
-// SubscriptionRemainder.sendSubscriptionRemainder();
 
 TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
 BatchRemainder.batchCompletionRemainder();
-// BackupHelper.archivingOldLogsAndNotifications();

@@ -36,7 +36,7 @@ const notificationSchema = new Schema(
         ],
         affected: [
             {
-                targetRef: String, // model name in pascal case
+                targetRef: String, 
                 target: {
                     type: ObjectId,
                     refPath: "affected.targetRef",
@@ -71,7 +71,6 @@ const notificationSchema = new Schema(
             default: function () {
                 return Moment.utc().add({ months: 6 });
             },
-            /* Remove doc 60 seconds after specified date */
             expires: 60,
         },
     },
