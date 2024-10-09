@@ -191,22 +191,12 @@ module.exports.mutations = {
         if (existingUser) {
             const processValidUser = async () => {
                 if (input.firebaseToken) {
-                    // if (!existingUser.firebaseTokens.includes(input.firebaseToken))
-                    //     existingUser.firebaseTokens.push(input.firebaseToken);
-
                     existingUser.firebaseTokens = [input.firebaseToken];
                 }
 
                 if (input.deviceId) {
-                    // if (!existingUser.deviceIds.includes(input.deviceId))
-                    //     existingUser.deviceIds.push(input.deviceId);
-
                     existingUser.deviceIds = [input.deviceId];
                 }
-
-                // if (existingUser.role === Role.EMPLOYEE && existingUser.isRegistered !== true) {
-                //     throw CustomError(ErrorName.UNAUTHORIZED);
-                // }
 
                 existingUser.lastLoginAt = Moment().format();
                 await existingUser.save();

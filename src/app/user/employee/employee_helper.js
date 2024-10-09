@@ -27,7 +27,7 @@ const CounterHelper = require("../../counters/counter_helper");
 const LogHelper = require("../../logs/log_helper");
 const { BatchHelper } = require("../../batches/batch_helper");
 
-const { Group } = require("../group-user/group_model");
+const { Group, DeletedGroup } = require("../group-user/group_model");
 const { GroupMember } = require("../group-user/group_member_model");
 
 const BatchStatus = require("../../batches/batch_status.json");
@@ -390,14 +390,15 @@ const removeGroupMember = async ({ group, subscriberId, memberIDs }) => {
     }
 }
 
-const deleteUsers = async (users) => {
+const deleteUsers = async (users, errors) => {
 
     try {
 
         const getUsers = await User.find({ _id: { $in: users } });
 
         if (!getUsers || getUsers.length <= 0) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
+            errors.push("User not found");
+            return;
         }
 
         const deletedUsers = getUsers.map(user => {
@@ -406,7 +407,7 @@ const deleteUsers = async (users) => {
             return new DeletedUser(userObject);
         });
 
-        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);
+        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);        
 
         if (updateDeletedList) {
 
@@ -414,9 +415,19 @@ const deleteUsers = async (users) => {
 
             if (deleteUsers) {
 
-                const deleteGroup = await Group.updateMany({ groupAdmin: { $in: users }, isManagerDefault: true }, { $set: { isDeleted: true } });
+                const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
 
-                if (deleteGroup) throw new CustomError(ErrorName.ERROR_DELETING_GROUP);
+                if(getAdminGroups.length > 0) {
+
+                    const deletedGroups = getAdminGroups.map(group => {
+                        const groupObject = group.toObject();
+                        groupObject.isDeleted = true;
+                        return new DeletedGroup(groupObject);
+                    });
+
+                    await DeletedGroup.insertMany(deletedGroups);
+
+                }
 
                 let updateGroup;
 
@@ -442,18 +453,20 @@ const deleteUsers = async (users) => {
                     ]
                 );
 
-                let updateGroupMembers;
+                const updateGroupMember = await GroupMember.deleteMany({ member: { $in: users } });
 
-                if (updateGroup) {
-                    updateGroupMembers = await GroupMember.deleteMany({ member: { $in: users } });
+                if(updateGroupMember) {
+                    return deleteUsers
                 }
 
             } else {
-                throw CustomError(ErrorName.ERROR_REMOVING_FROM_USERS_COLLECTION);
+                errors.push("Error while deleting users");
+                return;
             }
-
+            
         } else {
-            throw CustomError(ErrorName.ERROR_REMOVING_FROM_USERS_COLLECTION);
+            errors.push("Error while deleting users");
+            return;
         }
 
     } catch (error) {
@@ -465,6 +478,7 @@ const deleteUsers = async (users) => {
 }
 
 module.exports = {
+    deleteUsers,
     sendInvitationMail,
     sendCourseInvitationMail,
     sendEnrollmentNotification,

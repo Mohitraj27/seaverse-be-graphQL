@@ -157,6 +157,14 @@ module.exports = {
             assignType: RoleEnum
             removeType: RemoveRoleInput
         }
+        enum deleteResponseType {
+            APPROVE
+            REJECT
+        }
+        input respondToDeleteInput {
+            users: [ID!]!
+            type: deleteResponseType!
+        }
         type manageRoleResponse {
             count: Int
             success: Boolean
@@ -216,7 +224,6 @@ module.exports = {
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
     `,
     mutations: `
-        """used for single and bulk registrations"""
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
         createEmployee(input: EmployeeInput!): Employee!
         updateEmployee(id: ID, input: EmployeeInput!): Employee!
@@ -225,5 +232,6 @@ module.exports = {
         deleteEmployees(input: EmployeesInput!): BulkDeleteResponse!
         changeRegisterEmployees(input: changeRegisterInput!): BulkChangeRegisterResponse!
         manageRole(input: manageRoleInput!): manageRoleResponse!
+        respondToDeleteRequest(input: respondToDeleteInput!): String!
     `,
 };

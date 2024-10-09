@@ -644,14 +644,14 @@ module.exports.queries = {
             limit = pageInput?.limit ?? 50;
 
         const searchCriteria = filterInput?.search
-        ? {
-              $or: [
-                  { firstName: { $regex: filterInput.search, $options: 'i' } },
-                  { lastName: { $regex: filterInput.search, $options: 'i' } },
-                  { email: { $regex: filterInput.search, $options: 'i' } },
-              ],
-          }
-        : {};
+            ? {
+                $or: [
+                    { firstName: { $regex: filterInput.search, $options: 'i' } },
+                    { lastName: { $regex: filterInput.search, $options: 'i' } },
+                    { email: { $regex: filterInput.search, $options: 'i' } },
+                ],
+            }
+            : {};
 
         const result = await User.find({ deleteRequest: true, ...searchCriteria })
             .skip(skip)
@@ -935,71 +935,7 @@ const manageRole = async ({ input }, context) => {
         }
     } else if (input.change === "Delete") {
 
-        try {
-            const getUsers = await User.find({ _id: { $in: input.users } });
-
-            if (!getUsers || getUsers.length <= 0) {
-                throw CustomError(ErrorName.VALIDATION_ERROR);
-            }
-
-            const deletedUsers = getUsers.map(user => {
-                const userObject = user.toObject();
-                userObject.isDeleted = true;
-                return new DeletedUser(userObject);
-            });
-
-            const updateDeletedList = await DeletedUser.insertMany(deletedUsers);
-
-            if (updateDeletedList) {
-                updateUserRole = await User.deleteMany({ _id: { $in: input.users } });
-
-                if (updateUserRole) {
-                    await Group.updateMany({ groupAdmin: { $in: input.users } }, { $set: { isDeleted: true } });
-                    const usersToRemove = input.users;
-                    let updateGroup;
-                    if (updateUserRole) {
-
-
-                        updateGroup = await Group.updateMany(
-                            { members: { $in: usersToRemove } },
-                            [
-                                {
-                                    $set: {
-                                        members: {
-                                            $filter: {
-                                                input: "$members",
-                                                as: "member",
-                                                cond: { $not: { $in: ["$$member", usersToRemove] } }
-                                            }
-                                        }
-                                    }
-                                },
-                                {
-                                    $set: {
-                                        memberCount: { $size: "$members" }
-                                    }
-                                }
-                            ]
-                        );
-
-                        await Group.deleteMany({ groupAdmin: { $in: usersToRemove }, isManagerDefault: true });
-
-                        let updateGroupMembers;
-                        if (updateGroup) {
-                            updateGroupMembers = await GroupMember.deleteMany({ member: { $in: usersToRemove } });
-                        }
-                    }
-                } else {
-                    throw CustomError(ErrorName.ERROR_REMOVING_FROM_USERS_COLLECTION);
-                }
-            } else {
-                throw CustomError(ErrorName.ERROR_REMOVING_FROM_USERS_COLLECTION);
-            }
-
-
-        } catch (error) {
-            console.error(error);
-        }
+        updateUserRole = await EmployeeHelper.deleteUsers(input.users);
 
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
@@ -1015,8 +951,69 @@ const manageRole = async ({ input }, context) => {
         throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
     }
 };
+const respondToDeleteRequest = async ({ input }, context) => {
+
+    const { role, userPermissions } = AuthUser(context);
+
+    if (
+        !SubRoleHelper.hasPermission({
+            currentRole: role,
+            currentPermissions: userPermissions,
+            requiredPermission: [
+                Permission.GET_EMPLOYEES,
+                Permission.CREATE_TRAINING_REGISTRATION,
+                Permission.GET_REGISTRATION_REPORTS,
+                Permission.GET_REVENUE_REPORTS,
+            ],
+            requiredAll: false,
+        })
+    ) {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+
+
+    if (input.users.length <= 0) {
+        throw CustomError(ErrorName.VALIDATION_ERROR);
+    }
+
+    if (input.type === "REJECT") {
+
+        const rejectDeleteRequest = await User.updateMany({ _id: { $in: input.users } }, {
+            $set: {
+                deleteRequest: false,
+                deleteRequestDate: null,
+            },
+        });
+
+        if (rejectDeleteRequest.nModified > 0) {
+
+            return "Successfully rejected";
+
+        } else {
+
+            throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
+
+        }
+
+    }
+
+    let errors = [];
+    const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+
+    if(errors.length > 0){
+        throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+    }
+
+    if (deleteUsers) {
+        return "Successfully deleted";
+    } else {
+        throw CustomError(ErrorName.ERROR_DELETING_USER);
+    }
+
+}
 
 module.exports.mutations = {
+    respondToDeleteRequest,
     manageRole,
     changeRegisterEmployees,
     createEmployees: async ({ input }, context) => {

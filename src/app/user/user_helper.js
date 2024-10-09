@@ -27,8 +27,6 @@ module.exports = {
             employeeId: user.employee?._id ?? user.employee,
         };
 
-        const options = user.masterLogin === true ? { expiresIn: "8h" } : {};
-
         if (tokenPayload.subscriberId) {
             const activeSubscriptionInfo = await SubscriptionHelper.getActiveSubscriptionInfo(
                 tokenPayload.subscriberId
@@ -42,7 +40,7 @@ module.exports = {
             user.subscriptionInfo = activeSubscriptionInfo;
         }
 
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, options);
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "8h" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
 
         return {
