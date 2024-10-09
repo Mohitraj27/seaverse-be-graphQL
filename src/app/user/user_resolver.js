@@ -192,6 +192,11 @@ module.exports.mutations = {
                 }
 
                 existingUser.lastLoginAt = Moment().format();
+
+                if (!existingUser.isResetPasswordDialog) {
+                    existingUser.isResetPasswordDialog = true;
+                }
+                
                 await existingUser.save();
                 return await UserHelper.makeAuthUser(existingUser);
             };
