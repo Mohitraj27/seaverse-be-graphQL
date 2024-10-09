@@ -1,0 +1,64 @@
+module.exports = {
+    types: `
+        type Group {
+            _id: ID!
+            groupName: String!
+            groupAdmin: User
+            isManagerDefault: Boolean!
+            memberCount: Int
+            description: String
+            members: [MemberDetails]   
+            isCustomGroup: Boolean  
+            isAutoSynced: Boolean
+            createdAt: String!
+            updatedAt: String!
+        }
+        input GroupInput {
+            _id: ID
+            groupName: String!
+            groupAdmin: ID
+            description: String,
+            members: [ID]
+            isCustomGroup: Boolean  
+            isAutoSynced: Boolean
+        }
+        enum GroupType {
+             All
+             Customgroups
+             Autosyncedgroups
+        }
+        type GroupList {
+            groups: [Group]
+            totalCount: Int
+        }
+        type GroupResponse {
+            message: String
+            group: Group
+        }
+        input GroupFilterInput {
+            search: String
+        }
+        type DeleteGroupResponse {
+            message: String
+        }
+        type GroupCSVResponse {
+            message: String!
+            csvData: String!
+            fileName: String!
+        }
+        type MemberDetails{
+            _id: ID
+            firstName: String!
+            lastName: String!
+            email: String!
+        }
+    `,
+    queries: `
+        getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
+        exportGroupToCSV(groupId: ID!): GroupCSVResponse!
+    `,
+    mutations: `
+        createOrUpdateGroup(input: GroupInput!): GroupResponse!
+        deleteGroup(ids: [ID!]!): DeleteGroupResponse!
+    `,
+};

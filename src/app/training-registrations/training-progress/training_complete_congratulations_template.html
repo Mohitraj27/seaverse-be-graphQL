@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Title</title>
+    </head>
+    <body>
+        <div style="width: 600px; margin: 0 auto; text-align: center">
+            <h2>Congratulations!</h2>
+
+            <p>You have successfully completed the course</p>
+
+            <p>"${trainingTitle}"</p>
+
+            <a
+                href="${process.env.EMPLOYEE_DOMAIN_URL}en/course-certificate/${trainingRegistrationId}"
+            >
+                Click to view and download the certificate
+            </a>
+        </div>
+    </body>
+</html>

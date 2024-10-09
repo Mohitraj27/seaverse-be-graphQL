@@ -1,0 +1,202 @@
+const { PathHelper, MimeHelper } = require("../tools");
+
+const { CustomError, ErrorName } = require("./error_helper");
+const AwsHelper = require("./aws_helper");
+
+// Supported file types to upload
+const fileType = {
+    videos: ["video/mp4"],
+    audios: ["audio/mpeg"],
+    images: ["image/png", "image/jpeg", "image/bmp", "image/jpg"],
+    allImages: "image/",
+    documents: [
+        "application/pdf",
+        "application/vnd.ms-powerpoint", // for .ppt files
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // for .pptx files
+        "application/vnd.openxmlformats-officedocument.presentationml.slideshow", // for .ppsx files
+        "application/vnd.ms-powerpoint.presentation.macroEnabled.12", // for .pptm files
+        "application/vnd.ms-powerpoint.slideshow.macroEnabled.12" // for .ppsm files
+   
+    ],
+    all: "*",
+};
+
+// Used to organise folder structure
+const uploadType = {
+    userImage: "userImage",
+    trainingImage: "trainingImage",
+    trainingContentVideo: "trainingContentVideo",
+    trainingContentAudio: "trainingContentAudio",
+    trainingContentImage: "trainingContentImage",
+    quizContentImage: "quizContentImage",
+    introVideo: "introVideo",
+    organizationImage: "organizationImage",
+    employeeSignatureImage: "employeeSignatureImage",
+    certificateImage: "certificateImage",
+    profileCardImage: "profileCardImage",
+    logJson: "logJson",
+    trainingContentFile: "trainingContentFile",
+    trainingCertificateImage: "trainingCertificateImage",
+    trainingBannerImage: "trainingBannerImage"
+};
+
+/** Generate path for storing files
+ * ex: files/users/<folder>/images/<filename>
+ */
+const getPathFromType = ({ type, folder, filename }) => {
+    const rootFolder = `files`;
+
+    if (type === uploadType.userImage) return `${rootFolder}/users/${folder}/images/${filename}`;
+    else if (type === uploadType.trainingImage)
+        return `${rootFolder}/trainings/${folder}/images/${filename}`;
+    else if (type === uploadType.trainingContentVideo)
+        return `${rootFolder}/training-contents/${folder}/videos/${filename}`;
+    else if (type === uploadType.trainingContentAudio)
+        return `${rootFolder}/training-contents/${folder}/audios/${filename}`;
+    else if (type === uploadType.trainingContentImage)
+        return `${rootFolder}/training-contents/${folder}/images/${filename}`;
+    else if (type === uploadType.quizContentImage)
+        return `${rootFolder}/quiz-contents/${folder}/images/${filename}`;
+    else if (type === uploadType.introVideo)
+        return `${rootFolder}/app-settings/${folder}/videos/${filename}`;
+    else if (type === uploadType.organizationImage)
+        return `${rootFolder}/organizations/${folder}/images/${filename}`;
+    else if (type === uploadType.employeeSignatureImage)
+        return `${rootFolder}/employees/${folder}/images/${filename}`;
+    else if (type === uploadType.certificateImage)
+        return `${rootFolder}/certificates/${folder}/images/${filename}`;
+    else if (type === uploadType.profileCardImage)
+        return `${rootFolder}/profile-card-images/${folder}/images/${filename}`;
+    else if (type === uploadType.logJson) return `${rootFolder}/logs/${folder}/${filename}`;
+    else if (type === uploadType.trainingContentFile) return `${rootFolder}/training-contents/${folder}/files/${filename}`;
+    else if (type === uploadType.trainingCertificateImage) return `${rootFolder}/trainings/${folder}/certificate-images/${filename}`;
+    else if (type === uploadType.trainingBannerImage) return `${rootFolder}/trainings/${folder}/training-banner-images/${filename}`;
+};
+
+const isPromise = data => data !== undefined && data instanceof Promise;
+
+// Do upload to cloud storage
+const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
+    if (isPromise(fileData)) {
+        const { filename, mimetype, createReadStream } = await fileData;
+        console.log("upload_helper.uploadFile:mimetype:", mimetype);
+        console.log("upload_helper.uploadFile:filename:", filename);
+
+        if (
+            acceptedTypes === fileType.all ||
+            mimetype?.startsWith(acceptedTypes) ||
+            acceptedTypes?.includes(mimetype)
+        ) {
+            let extension = PathHelper.extname(filename);
+            if (!extension) {
+                const ext = MimeHelper.extension(mimetype);
+                if (ext) extension = `.${ext}`;
+            }
+
+            fileName = `${fileName}${extension}`;
+
+            const filePath = getPathFromType({
+                type: uploadType,
+                folder: folderName,
+                filename: fileName,
+            });
+
+            if (filePath) {
+                const stream = createReadStream();
+                const s3Path = await AwsHelper.uploadFile({
+                    fileData: stream,
+                    filePath: filePath,
+                    originalFileName: filename,
+                    mimeType: mimetype,
+                });
+
+                stream.destroy()
+                if (s3Path) return s3Path;
+            }
+
+            throw CustomError(ErrorName.UPLOAD_FAILED);
+        }
+
+        throw CustomError(ErrorName.UNSUPPORTED_FILE);
+    }
+
+    throw CustomError(ErrorName.INVALID_FILE);
+};
+
+const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) => {
+    fileName = `${fileName}.json`;
+
+    const filePath = getPathFromType({
+        type: uploadType,
+        folder: folderName,
+        filename: fileName,
+    });
+
+    if (filePath) {
+        const s3Path = await AwsHelper.uploadFile({
+            fileData: JSON.stringify(jsonData),
+            filePath: filePath,
+            originalFileName: fileName,
+            mimeType: "application/json",
+        });
+
+        if (s3Path) return s3Path;
+    }
+};
+
+module.exports = {
+    uploadType,
+    uploadJsonObject,
+    uploadVideo: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.videos,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+    uploadAudio: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.audios,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+    uploadImage: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.allImages,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+    uploadDocument: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.documents, 
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+};
