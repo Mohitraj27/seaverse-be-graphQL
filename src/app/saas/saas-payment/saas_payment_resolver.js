@@ -16,14 +16,14 @@ module.exports.queries = {
     getSaasPayments: async ({ pageInput, filterInput }, context) => {
         const { role } = AuthUser(context);
 
-        if (role !== Role.SAAS_ADMIN) CustomError(ErrorName.UNAUTHORIZED); //TODO: authorize in graphql resolvers
+        if (role !== Role.SAAS_ADMIN) CustomError(ErrorName.UNAUTHORIZED);
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
         let filterConditions = {};
         
         if (filterInput) {
-            if (filterInput.dateFrom || filterInput.dateTo) filterConditions.createdAt = {}; //TODO: find a better way
+            if (filterInput.dateFrom || filterInput.dateTo) filterConditions.createdAt = {}; 
             if (filterInput.paymentId) {
                 filterConditions = { ...filterConditions, _id: filterInput.paymentId };
             }
@@ -48,7 +48,6 @@ module.exports.queries = {
                         },
                         {
                             "phone.number": {
-                                //TODO: type in model
                                 $regex: ".*" + filterInput?.searchPayment + ".*",
                             },
                             email: {
@@ -89,7 +88,6 @@ module.exports.mutations = {
     initiateSaasPayment: async ({ paymentInput, subscriptionInput }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
-        //TODO: validate if all required field have been passed as create subscription only requires invoiceId
         if (
             !paymentInput ||
             !paymentInput.firstName ||
@@ -101,10 +99,8 @@ module.exports.mutations = {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
         }
 
-        //TODO:QUESTION what to do with existing subscription?
         const existingSubscription = await Subscription.findOne({
             subscriber: subscriberId,
-            // subscriptionPlan: subscriptionInput.subscriptionPlanId,
             endDate: { $gte: Moment.utc().startOf("day").toDate() },
             isActivated: true,
             isTrial: { $ne: true },
@@ -138,7 +134,6 @@ module.exports.mutations = {
                 sms: true,
             },
             metadata: {
-                //TODO: include any other required metadata
             },
             reference: {
                 order: subscriptionId,
@@ -155,10 +150,10 @@ module.exports.mutations = {
                 id: "src_all",
             },
             post: {
-                url: "https://dummyurl/api/updatePendingSubscription", //TODO: give valid url
+                url: "https://dummyurl/api/updatePendingSubscription", 
             },
             redirect: {
-                url: paymentInput.redirectUrl || "https://armino.in", //TODO: give valid url
+                url: paymentInput.redirectUrl || "https://armino.in", 
             },
         };
 
@@ -190,9 +185,6 @@ module.exports.mutations = {
             });
 
         if (!response?.transaction) throw CustomError(ErrorName.EXTERNAL_API_ERROR);
-
-        console.log("saas_payment_resolver.initiatePayment:response:", response);
-
         const savedPayment = await new SaasPayment({
             subscriber: subscriberId,
             subscription: subscriptionId,
@@ -201,7 +193,6 @@ module.exports.mutations = {
             invoiceId: response.id,
             invoiceAmount: paymentInput.invoiceAmount,
             currency: paymentInput.currency,
-            // currencyRate: paymentInput.currencyRate,
             status: PaymentStatus.INITIATED,
             firstName: paymentInput.firstName,
             lastName: paymentInput.lastName,
@@ -220,7 +211,6 @@ module.exports.mutations = {
             x => x._id.toString() === subscriptionInput.subscriptionPlanPricingId.toString()
         );
 
-        //TODO: standardise all date variable
         const subscriptionStartDate = CurrentDateTime().utcDate;
 
         const savedSubscription = await new PendingSubscription({
@@ -240,7 +230,7 @@ module.exports.mutations = {
                 duration: selectedSubscriptionPlanPricing.duration,
             },
             payment: savedPayment,
-            isActivated: true, //TODO: check requirement
+            isActivated: true, 
             isTrial: false,
         }).save();
 

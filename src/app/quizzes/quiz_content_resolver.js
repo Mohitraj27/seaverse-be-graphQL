@@ -200,8 +200,6 @@ module.exports.mutations = {
             if (!savedQuizContent) throw CustomError(ErrorName.FAILED);
             return savedQuizContent;
         });
-
-        //region notification & logging
         QuizContentHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             quizContent: savedQuizContent,
@@ -228,7 +226,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedQuizContent;
     },
@@ -254,7 +251,6 @@ module.exports.mutations = {
 
         if (!deletedQuizContent) throw CustomError(ErrorName.NOT_FOUND);
 
-        //region notification & logging
         QuizContentHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             quizContent: deletedQuizContent,
@@ -281,8 +277,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
-
         return deletedQuizContent;
     },
     updateQuizContentStatus: async ({ id, isActive }, context) => {

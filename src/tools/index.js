@@ -4,7 +4,6 @@ const { insidePolygon, Location } = require("geolocation-utils");
 const mongoose = require("mongoose");
 const { inspect } = require("util");
 
-//Express server related
 const express = require("express");
 const expressServer = express();
 expressServer.use(express.json());
@@ -12,7 +11,6 @@ expressServer.use(require("compression")());
 expressServer.use(require("cors")());
 expressServer.use(require("graphql-upload").graphqlUploadExpress());
 
-//graphql subscription related
 const { EventEmitter } = require("events");
 const biggerEventEmitter = new EventEmitter();
 biggerEventEmitter.setMaxListeners(1000);

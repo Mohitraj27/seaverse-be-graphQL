@@ -202,7 +202,6 @@ module.exports.mutations = {
         const savedBatch = await existingBatch.save();
         if (!savedBatch) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
         BatchHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             batch: savedBatch,
@@ -229,7 +228,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedBatch;
     },
@@ -255,7 +253,6 @@ module.exports.mutations = {
 
         if (!deletedBatch) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
         BatchHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             batch: deletedBatch,
@@ -282,7 +279,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedBatch;
     },

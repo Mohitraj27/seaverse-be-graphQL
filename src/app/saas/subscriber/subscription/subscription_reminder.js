@@ -6,7 +6,6 @@ const { Subscription } = require("./subscription_model");
 module.exports = {
     sendSubscriptionRemainder: () => {
         try {
-            //Send email at 10 AM //Runs every day
             CronHelper.schedule("0 10 * * *", async () => {
                 const existingSubscriptions = await Subscription.aggregate([
                     {

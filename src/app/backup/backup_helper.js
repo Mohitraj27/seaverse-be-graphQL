@@ -57,8 +57,6 @@ const archiveOldData = async model => {
 module.exports = {
     archiveOldData,
     archivingOldLogsAndNotifications: () => {
-        // (second)|minute|hour|day|month|week
-        // make archive to s3 bucket at 1 AM every day
         CronHelper.schedule("0 1 * * *", async () => {
             await archiveOldData(Log);
             await archiveOldData(Notification);

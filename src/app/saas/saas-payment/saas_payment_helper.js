@@ -11,11 +11,10 @@ const SaasPaymentStatus = require("./saas_payment_status");
 module.exports = {
     updatePendingSubscription: async ({ input }) => {
         const generatedHash = Crypto.createHmac("sha256", process.env.PAYMENT_WEB_HOOK_SECRET_KEY)
-            .update(input.orderReference.toString()) //input.UserDefinedField
+            .update(input.orderReference.toString()) 
             .digest()
             .toString("base64");
 
-        //check hash for security
         if (generatedHash !== input.hash) throw CustomError(ErrorName.BAD_REQUEST);
 
         const existingPendingSubscription = await PendingSubscription.findById(
@@ -59,16 +58,6 @@ module.exports = {
 
                 if (savedSubscription) {
                     await existingPendingSubscription.deleteOne();
-
-                    // FirebaseHelper.sendMulticastNotification({
-                    //     tokens: await User.findById(savedOrder.customer)
-                    //         .lean()
-                    //         .distinct("firebaseToken"),
-                    //     title: "New Order",
-                    //     body: "New Order Placed",
-                    //     content: { messageType: "ORDER" },
-                    // });
-
                     return savedSubscription;
                 }
             } else {

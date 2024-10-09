@@ -40,7 +40,6 @@ const generateQuizContentUID = async ({ subscriberId, session }) => {
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
-    //QUIZ-1
     return `QUIZ-${savedCounter.count}`;
 };
 

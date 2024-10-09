@@ -14,7 +14,6 @@ const generateBatchUID = async ({ subscriberId, session }) => {
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
-    //BATCH-1
     return `BATCH-${savedCounter.count}`;
 };
 

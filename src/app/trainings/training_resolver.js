@@ -37,22 +37,6 @@ module.exports.queries = {
 
         let filterConditions = { subscriber: subscriberId };
 
-        // if (
-        //     !SubRoleHelper.hasPermission({
-        //         currentRole: role,
-        //         currentPermissions: userPermissions,
-        //         requiredPermission: [
-        //             Permission.GET_TRAININGS,
-        //             Permission.CREATE_TRAINING_REGISTRATION,
-        //             Permission.GET_TRAINING_REGISTRATIONS,
-        //             Permission.GET_REGISTRATION_REPORTS,
-        //         ],
-        //         requiredAll: false,
-        //     })
-        // ) {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-
         if (filterInput) {
             if (filterInput.trainingCategory)
                 filterConditions.trainingCategories = filterInput.trainingCategory;
@@ -73,7 +57,6 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
         }
 
-        //TODO:QUESTION: populate virtual or not?
         return Training.aggregatePaginate(
             Training.aggregate([
                 {
@@ -141,23 +124,6 @@ module.exports.queries = {
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
-
-        
-        // if (
-        //     !SubRoleHelper.hasPermission({
-        //         currentRole: role,
-        //         currentPermissions: userPermissions,
-        //         requiredPermission: [
-        //             Permission.GET_TRAININGS,
-        //             Permission.GET_QUIZ_REPORTS,
-        //             Permission.GET_FEEDBACK_REPORTS,
-        //         ],
-        //         requiredAll: false,
-        //     })
-        // ) {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-
         return Training.findOne({
             _id: id,
             subscriber: subscriberId,
@@ -181,43 +147,6 @@ module.exports.mutations = {
     createOrUpdateTraining: async ({ input }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
-        //  let scromUploadUrl = await ScromHelper.extractScromPackage(input);
-        // let courseInfo = await ScromHelper.uploadToScormCloud(input);
-
-
-        // if (courseInfo) {
-        //     const { filename } = await input.scorm.url;
-        //     input.scorm = {
-        //         courseId: courseInfo.courseId,
-        //         type: "CLOUD",
-        //         fileName: filename
-        //     }
-        // }
-        /*
-        if (!Object.keys(input).length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
-
-        if (
-            input._id &&
-            !SubRoleHelper.hasPermission({
-                currentRole: role,
-                currentPermissions: userPermissions,
-                requiredPermission: Permission.UPDATE_TRAINING,
-                restrictOrganizationManager: isOrganizationManager,
-            })
-        ) {
-            throw CustomError(ErrorName.FORBIDDEN);
-        } else if (
-            !SubRoleHelper.hasPermission({
-                currentRole: role,
-                currentPermissions: userPermissions,
-                requiredPermission: Permission.CREATE_TRAINING,
-                restrictOrganizationManager: isOrganizationManager,
-            })
-        ) {
-            throw CustomError(ErrorName.FORBIDDEN);
-        } */
-
         if (input.images) {
             input.images = await TrainingHelper.uploadTrainingImages({
                 images: input.images,
@@ -268,7 +197,6 @@ module.exports.mutations = {
             }
         }
 
-        // TODO:QUESTION: limit manager to particular trainings or not?
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, session },
@@ -277,7 +205,6 @@ module.exports.mutations = {
             savedTraining.trainingModules = [];
 
             if (input.trainingModules?.length) {
-                // Save all training modules under the training
                 for (const trainingModule of input.trainingModules) {
                     const savedTrainingModule =
                         await TrainingModuleHelper.createOrUpdateTrainingModule(
@@ -291,11 +218,9 @@ module.exports.mutations = {
                             context
                         );
 
-                    // console.log("savedTrainingModule:", savedTrainingModule._id);
                     savedTrainingModule.trainingModuleContents = [];
 
                     if (trainingModule.trainingModuleContents?.length) {
-                        // Save all training module contents under each training module
                         for (const trainingModuleContent of trainingModule.trainingModuleContents) {
                             const savedTrainingModuleContent =
                                 await TrainingModuleContentHelper.createOrUpdateTrainingModuleContent(
@@ -309,11 +234,6 @@ module.exports.mutations = {
                                     },
                                     context
                                 );
-
-                            // console.log(
-                            //     "savedTrainingModuleContent:",
-                            //     savedTrainingModuleContent._id
-                            // );
                             savedTrainingModule.trainingModuleContents.push(
                                 savedTrainingModuleContent
                             );
@@ -358,7 +278,6 @@ module.exports.mutations = {
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: savedTraining,
@@ -385,27 +304,15 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
+        
 
         return savedTraining;
     },
     deleteTraining: async ({ id }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
-        // if (
-        //     !SubRoleHelper.hasPermission({
-        //         currentRole: role,
-        //         currentPermissions: userPermissions,
-        //         requiredPermission: Permission.DELETE_TRAINING,
-        //         restrictOrganizationManager: isOrganizationManager,
-        //     })
-        // ) {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-
         const deletedTraining = await DbTransactionHelper.performDbTransaction(async session => {
-            // TODO:QUESTION: change to soft delete or not?
+            
             const deletedTraining = await Training.findOneAndDelete(
                 { _id: id, subscriber: subscriberId },
                 { lean: true, session }
@@ -427,8 +334,6 @@ module.exports.mutations = {
         });
 
         if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
-
-        //region notification & logging
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: deletedTraining,
@@ -455,29 +360,12 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedTraining;
     },
     updateTrainingStatus: async ({ id, isActive }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
-        // if (
-        //     !SubRoleHelper.hasPermission({
-        //         currentRole: role,
-        //         currentPermissions: userPermissions,
-        //         requiredPermission: [
-        //             Permission.ENABLE_DISABLE_TRAINING,
-        //             Permission.UPDATE_TRAINING,
-        //         ],
-        //         requiredAll: false,
-        //         restrictOrganizationManager: isOrganizationManager,
-        //     })
-        // ) {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-
         const savedTraining = await Training.findOneAndUpdate(
             {
                 _id: id,

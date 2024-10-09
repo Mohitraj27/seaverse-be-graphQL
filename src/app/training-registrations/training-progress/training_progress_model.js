@@ -22,9 +22,6 @@ const trainingProgressSchema = new Schema(
             ref: "TrainingModuleContent",
             required: true,
         },
-        // should be synced with fields in TrainingModuleContent
-        // this cloning will be useful when original referenced contents are deleted
-        // for quiz, original content will be saved in quizAttempts
         trainingModuleContentData: {
             trainingId: ObjectId,
             trainingModuleId: ObjectId,

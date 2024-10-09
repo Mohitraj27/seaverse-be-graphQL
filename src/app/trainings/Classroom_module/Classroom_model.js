@@ -30,7 +30,6 @@ const classroomModuleSchema = new Schema(
         courseId: { 
             type: ObjectId, 
             ref: "Training", 
-            // required: true
         }, 
         createdBy: {
             type: ObjectId,

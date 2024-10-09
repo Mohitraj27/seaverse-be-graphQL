@@ -86,50 +86,6 @@ module.exports.queries = {
             {
                 $unwind: { path: "$trainingRegistration" },
             },
-            // {
-            //     $lookup: {
-            //         from: "trainings",
-            //         localField: "training",
-            //         foreignField: "_id",
-            //         pipeline: [
-            //             {
-            //                 $project: {
-            //                     title: true,
-            //                 },
-            //             },
-            //         ],
-            //         as: "training",
-            //     },
-            // },
-            // {
-            //     $set: {
-            //         training: {
-            //             $first: "$training",
-            //         },
-            //     },
-            // },
-            // {
-            //     $lookup: {
-            //         from: "organizations",
-            //         localField: "organization",
-            //         foreignField: "_id",
-            //         pipeline: [
-            //             {
-            //                 $project: {
-            //                     name: true,
-            //                 },
-            //             },
-            //         ],
-            //         as: "organization",
-            //     },
-            // },
-            // {
-            //     $set: {
-            //         organization: {
-            //             $first: "$organization",
-            //         },
-            //     },
-            // },
             {
                 $lookup: {
                     from: "employees",
@@ -173,24 +129,12 @@ module.exports.queries = {
                                           $options: "i",
                                       },
                                   },
-                                  // {
-                                  //     "training.title.value": {
-                                  //         $regex: ".*" + filterInput.search + ".*",
-                                  //         $options: "i",
-                                  //     },
-                                  // },
                                   {
                                       "trainingTitle.value": {
                                           $regex: ".*" + filterInput.search + ".*",
                                           $options: "i",
                                       },
                                   },
-                                  // {
-                                  //     "organization.name.value": {
-                                  //         $regex: ".*" + filterInput.search + ".*",
-                                  //         $options: "i",
-                                  //     },
-                                  // },
                                   {
                                       "organizationName.value": {
                                           $regex: ".*" + filterInput.search + ".*",
@@ -276,7 +220,6 @@ module.exports.queries = {
         const existingTrainingCertificate = await TrainingCertificate.findOne({
             $or: [{ _id: id }, { trainingRegistration: id }],
             isActive: true,
-            // isDeleted: { $ne: true },
         })
             .lean()
             .populate({

@@ -190,7 +190,6 @@ const facet = valueObj => {
                 {
                     $group: {
                         _id: "$monthlyDate",
-                        // _id: "monthly",
                         value: valueObj,
                     },
                 },
