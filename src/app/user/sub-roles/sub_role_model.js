@@ -25,11 +25,11 @@ const subRoleSchema = new Schema(
             type: Boolean,
             default: true,
         },
-        isPredefined: { // Added a predefined field to specify whether the role is predefined
+        isPredefined: { 
             type: Boolean,
             default: false,
         },
-        description: { // Added description field
+        description: { 
             type: String,
             default: null,
         },

@@ -35,7 +35,7 @@ module.exports.queries = {
 
         if (!Object.keys(filterConditions).length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-        const currentDate = CurrentDateTime().kwtDateTimeObj; //TODO:confirm timezone
+        const currentDate = CurrentDateTime().kwtDateTimeObj; 
 
         const statistics = await TrainingRegistration.aggregate([
             { $match: filterConditions },
@@ -138,12 +138,6 @@ module.exports.queries = {
             {
                 $match: filterConditions,
             },
-            // {
-            //     $project: {
-            //         _id: 0,
-            //         subscriber: 1,
-            //     },
-            // },
             {
                 $facet: {
                     totalRegistrations: [

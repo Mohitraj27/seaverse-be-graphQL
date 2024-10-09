@@ -139,8 +139,6 @@ module.exports.subscriptions = {
 
                     if (notificationSubscriberId?.toString() === subscriberId.toString()) {
                         if (role === Role.ADMIN && notification.notifyAdmin === true) return true;
-
-                        //TODO:onNotification: do further filter
                         if (
                             notification.notifiers
                                 ?.map(x => x.toString())

@@ -8,11 +8,6 @@ const trainingCategorySchema = new Schema(
             ref: "Subscriber",
             index: true,
         },
-        // TODO: need to verify working with categories and sub categories
-        // parentCategory: {
-        //     type: ObjectId,
-        //     ref: "TrainingCategory",
-        // },
         name: [LocalisedDataSchema],
         isActive: {
             type: Boolean,

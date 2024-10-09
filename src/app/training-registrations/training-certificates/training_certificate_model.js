@@ -82,8 +82,8 @@ const trainingCertificateSchema = new Schema(
         trainingImages: [{ url: String }],
         trainingCategories: [ObjectId],
         trainingSubCategories: [ObjectId],
-        trainingDuration: Number, // days
-        trainingCertificateValidity: Number, // days
+        trainingDuration: Number, 
+        trainingCertificateValidity: Number, 
         status: String,
         gradeMark: String,
         badge: String,
@@ -95,7 +95,7 @@ const trainingCertificateSchema = new Schema(
         generatedAt: Date,
         expiresAt: Date,
         trainingMode: {
-            type: String, //ONLINE, OFFLINE
+            type: String, 
             uppercase: true,
         },
         mdName: String,
@@ -106,7 +106,6 @@ const trainingCertificateSchema = new Schema(
             type: Boolean,
             default: true,
         },
-        //TODO: isRenewed
         isRenewed: {
             type: Boolean,
             default: false,

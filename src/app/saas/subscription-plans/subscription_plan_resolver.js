@@ -93,8 +93,6 @@ module.exports.mutations = {
         );
 
         if (!savedSubscriptionPlan) throw CustomError(ErrorName.FAILED);
-
-        //region logging
         LogHelper.logActivity({
             logType: LogType.SAAS_SUBSCRIPTION_PLAN_LOG,
             operation: input._id ? "UPDATE" : "CREATE",
@@ -113,7 +111,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedSubscriptionPlan;
     },
@@ -134,7 +131,6 @@ module.exports.mutations = {
 
         if (!deletedSubscriptionPlan) throw CustomError(ErrorName.FAILED);
 
-        //region logging
         LogHelper.logActivity({
             logType: LogType.SAAS_SUBSCRIPTION_PLAN_LOG,
             operation: "DELETE",
@@ -153,7 +149,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedSubscriptionPlan;
     },

@@ -25,7 +25,7 @@ const batchSchema = new Schema(
             required: true,
         },
         trainingTitle: [LocalisedDataSchema],
-        trainingDuration: Number, // days
+        trainingDuration: Number, 
         trainer: {
             type: ObjectId,
             ref: "Employee",
@@ -69,18 +69,17 @@ const batchSchema = new Schema(
         startDate: Date,
         endDate: Date,
         trainingMode: {
-            type: String, //ONLINE, OFFLINE
+            type: String, 
             uppercase: true,
         },
-        ///////
         status: {
-            type: String, //PENDING, COMPLETED
+            type: String,
             default: "PENDING",
             uppercase: true,
         },
         purchaseInfo: {
             status: {
-                type: String, //PENDING, COMPLETED
+                type: String, 
                 default: "PENDING",
                 uppercase: true,
             },
@@ -88,7 +87,7 @@ const batchSchema = new Schema(
         },
         certificateInfo: {
             status: {
-                type: String, //PENDING, COMPLETED
+                type: String, 
                 default: "PENDING",
                 uppercase: true,
             },
@@ -96,7 +95,7 @@ const batchSchema = new Schema(
         },
         invoiceInfo: {
             status: {
-                type: String, //PENDING, COMPLETED
+                type: String,
                 default: "PENDING",
                 uppercase: true,
             },
@@ -104,13 +103,12 @@ const batchSchema = new Schema(
         },
         paymentInfo: {
             status: {
-                type: String, //PENDING, COMPLETED
+                type: String, 
                 default: "PENDING",
                 uppercase: true,
             },
             markedAt: Date,
         },
-        ///////
         createdBy: {
             type: ObjectId,
             ref: "User",

@@ -26,15 +26,6 @@ module.exports.mutations = {
         if (role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-        // else if (
-        //     !SubRoleHelper.hasPermission({
-        //         currentRole: role,
-        //         currentPermissions: userPermissions,
-        //         requiredPermission: Permission.CREATE_ORGANIZATION,
-        //     })
-        // ) {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
 
         const existingSubscriber = await Subscriber.findOne({ user: userId });
         let subscriberProfileUpdateData = await SubscriberProfile.findOne({ user: userId });

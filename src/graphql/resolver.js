@@ -80,7 +80,6 @@ module.exports = {
         },
     }),
     MultiMediaInfo: {
-        // Resolver to generate a signed S3 URL
         s3Path: async (parent) => {
           if (parent.url) {
             const s3url = await AwsHelper.fetchFile(parent.url);

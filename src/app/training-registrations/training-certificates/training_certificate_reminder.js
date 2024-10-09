@@ -89,7 +89,6 @@ const fetchAndSendEmailToTrainingCertificateEmployeesAboutDue = async () => {
         })
             .lean()
             .select("training employee trainingTitle expiresAt")
-            // .populate({ path: "training", select: "title" })
             .populate({
                 path: "employee",
                 select: "user",
@@ -101,8 +100,6 @@ const fetchAndSendEmailToTrainingCertificateEmployeesAboutDue = async () => {
             const trainingTitle = trainingCertificate.trainingTitle?.find(
                 x => x.lang === "en" || x.lang === "ar"
             )?.value;
-
-            //TODO: civil id with email remainder of training certificate due
             const emailObject = {
                 employeeEmail: trainingCertificate.employee?.user?.email,
                 subject: "Certificate Expiry warning",
@@ -146,8 +143,6 @@ const fetchAndSendEmailToTrainingCertificateEmployeesAboutDue = async () => {
 
 module.exports = {
     trainingCertificateRemainder: () => {
-        // (second)|minute|hour|day|month|week
-        // send reminder email at 10 AM every day
         CronHelper.schedule("0 10 * * *", async () => {
             await fetchAndSendEmailToTrainingCertificateEmployeesAboutDue();
         });

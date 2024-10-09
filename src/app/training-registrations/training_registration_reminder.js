@@ -48,17 +48,6 @@ const sendTrainingRegistrationReminderMail = async data => {
             receiverEmail,
             subject,
             htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
-            // `
-            //     <div style="width: 600px; margin: 0 auto; text-align: center">
-            //         <h2>Hi, ${employeeName}</h2>
-
-            //         <p>${message}</p>
-
-            //         <a href="${process.env.EMPLOYEE_DOMAIN_URL}en/course-details/${trainingRegistrationId}">
-            //             Click to view and resume the course
-            //         </a>
-            //     </div>
-            // `,
         }).catch(e => {
             console.log(
                 "training_registration_reminder.sendTrainingRegistrationReminderMail:error:",
@@ -116,7 +105,6 @@ const fetchAndSendEmailToTrainingRegistrationEmployeesAboutDue = async () => {
                 x => x.lang === "en" || x.lang === "ar"
             )?.value;
 
-            //TODO: civil id with email remainder of training registration due
             const emailObject = {
                 employeeEmail: trainingRegistration.employee?.user?.email,
                 subject: "Course due warning",
@@ -160,8 +148,6 @@ const fetchAndSendEmailToTrainingRegistrationEmployeesAboutDue = async () => {
 
 module.exports = {
     trainingRegistrationRemainder: () => {
-        // (second)|minute|hour|day|month|week
-        // send reminder email at 9:30 AM every day
         CronHelper.schedule("30 9 * * *", async () => {
             await fetchAndSendEmailToTrainingRegistrationEmployeesAboutDue();
         });

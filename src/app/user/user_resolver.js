@@ -61,17 +61,10 @@ module.exports.mutations = {
         throw CustomError(ErrorName.NOT_FOUND);
     },
     subscriberSignUp: async ({ input }) => {
-        //TODO: subscriberSignUp blocked for demo
         throw CustomError(ErrorName.FORBIDDEN);
-        // const savedSubscriber = await SubscriberHelper.createSubscriber({
-        //     input: { userInput: input },
-        // });
-        //
-        // return await UserHelper.makeAuthUser(savedSubscriber.user);
     },
     signUp: async ({ input, token }) => {
         if (token) {
-            //TODO: link resend option
             const user = await JwtHelper.verify(token, process.env.APP_SECRET, {
                 ignoreExpiration: true,
             });
@@ -199,6 +192,11 @@ module.exports.mutations = {
                 }
 
                 existingUser.lastLoginAt = Moment().format();
+
+                if (!existingUser.isResetPasswordDialog) {
+                    existingUser.isResetPasswordDialog = true;
+                }
+                
                 await existingUser.save();
                 return await UserHelper.makeAuthUser(existingUser);
             };

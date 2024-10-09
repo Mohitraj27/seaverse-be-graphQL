@@ -27,7 +27,6 @@ module.exports = {
                 savedUser.subscriber = savedSubscriber;
                 await savedUser.save();
 
-                //TODO: things to consider: there's no permission set initially and createdBy on sub role
                 await SubRole.create([
                     {
                         subscriber: savedSubscriber._id,

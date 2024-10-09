@@ -19,12 +19,6 @@ module.exports = {
         };
 
         const invoiceUpdateData = {};
-
-        // if (input.invoiceReference) invoiceUpdateData.invoiceReference = input.invoiceReference;
-        // if (input.price) invoiceUpdateData.price = input.price;
-        // if (input.invoiceAmount) invoiceUpdateData.invoiceAmount = input.invoiceAmount;
-        // if (input.invoiceDate) invoiceUpdateData.invoiceDate = input.invoiceDate;
-        // if (input.discount) invoiceUpdateData.discount = input.discount;
         if (input.remarks) invoiceUpdateData.remarks = input.remarks;
         if (input.status) invoiceUpdateData.status = input.status;
         if (typeof input.isActive === "boolean") invoiceUpdateData.isActive = input.isActive;
@@ -109,25 +103,16 @@ module.exports = {
         }
     },
     generateTrainingRegistrationInvoiceNumber: async ({ subscriberId, session }) => {
-        // const existingSubscriber = await Subscriber.findById(subscriberId)
-        //     .lean()
-        //     .select("name")
-        //     .populate({ path: "user", select: "firstName" });
-        //
-        // if (!existingSubscriber) throw CustomError(ErrorName.FAILED);
 
         const currentUtcDateTime = CurrentDateTime().utcDateTimeObj;
 
         const savedCounter = await CounterHelper.updateCounter({
             subscriberId,
             modelName: TrainingRegistrationInvoice.modelName,
-            // filterConditions: { year: currentUtcDateTime.year() },
             session,
         });
 
         if (!savedCounter) throw CustomError(ErrorName.FAILED);
-        //5M/2022/NOV/024
-        // const subscriberName = existingSubscriber.user?.firstName ?? "";
         const subscriberName = process.env.SUBSCRIBER;
         return `${subscriberName
             .slice(0, 2)

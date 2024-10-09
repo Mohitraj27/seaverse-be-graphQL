@@ -34,7 +34,7 @@ const subscriptionSchema = new Schema(
             pricing: [
                 {
                     title: String,
-                    duration: Number, // days
+                    duration: Number, 
                     price: {
                         type: Number,
                         required: true,
@@ -42,7 +42,7 @@ const subscriptionSchema = new Schema(
                 },
             ],
             price: Number,
-            duration: Number, // days
+            duration: Number,
         },
         payment: {
             type: ObjectId,

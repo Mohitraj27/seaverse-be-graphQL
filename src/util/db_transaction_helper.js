@@ -3,10 +3,6 @@ const mongoose = require("mongoose");
 const { CustomError, ErrorName } = require("./error_helper");
 
 module.exports = {
-    /**
-     * Perform mongo transaction.
-     * Note: have timeout of 60 seconds.
-     */
     performDbTransaction: async transaction => {
         let result;
         const session = await mongoose.startSession();

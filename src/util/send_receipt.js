@@ -674,7 +674,7 @@ module.exports = {
   </body>
 </html>
 `;
-        // htmlContent = html;
+        
         await AwsHelper.sendEmail(email, "Homey Order Receipt", htmlContent);
     },
 };

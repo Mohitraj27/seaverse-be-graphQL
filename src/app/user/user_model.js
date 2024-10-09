@@ -127,7 +127,11 @@ const userSchema = new Schema(
         },
         deleteRequestDate: {
             type: Date
-        }
+        },
+        isResetPasswordDialog: {
+            type: Boolean,
+            default: false, 
+        },
     },
     { timestamps: true }
 );
