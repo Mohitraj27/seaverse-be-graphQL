@@ -1,0 +1,72 @@
+const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools");
+const {
+    TrainingModuleContentSpecificSchema,
+} = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
+const { QuizAttemptSpecificSchema } = require("../../quizzes/quiz-attempts/quiz_attempt_model");
+
+const trainingProgressSchema = new Schema(
+    {
+        subscriber: {
+            type: ObjectId,
+            ref: "Subscriber",
+            required: true,
+        },
+        trainingRegistration: {
+            type: ObjectId,
+            ref: "TrainingRegistration",
+            required: true,
+            index: true,
+        },
+        trainingModuleContent: {
+            type: ObjectId,
+            ref: "TrainingModuleContent",
+            required: true,
+        },
+        // should be synced with fields in TrainingModuleContent
+        // this cloning will be useful when original referenced contents are deleted
+        // for quiz, original content will be saved in quizAttempts
+        trainingModuleContentData: {
+            trainingId: ObjectId,
+            trainingModuleId: ObjectId,
+            trainingModuleContentId: ObjectId,
+            ...TrainingModuleContentSpecificSchema,
+        },
+        retryCount: Number,
+        status: {
+            type: String,
+            uppercase: true,
+        },
+        lastAccessedItem: String,
+        lastAccessedAt: Date,
+        lastAccessedDuration: Number,
+
+        quizAttempts: [QuizAttemptSpecificSchema],
+
+        startedAt: Date,
+        completedAt: Date,
+        createdBy: {
+            type: ObjectId,
+            ref: "User",
+        },
+        updatedBy: {
+            type: ObjectId,
+            ref: "User",
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false,
+        },
+    },
+    { timestamps: true }
+);
+
+trainingProgressSchema.index({
+    _id: 1,
+    subscriber: 1,
+    trainingRegistration: 1,
+    trainingModuleContent: 1,
+});
+
+trainingProgressSchema.plugin(AggregatePaginate);
+
+module.exports.TrainingProgress = Model("TrainingProgress", trainingProgressSchema);
