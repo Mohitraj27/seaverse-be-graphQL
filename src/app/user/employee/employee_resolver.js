@@ -145,6 +145,7 @@ module.exports.queries = {
         ]);
     },
     getManagerList: async ({ pageInput, filterInput }, context) => {
+
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
 
@@ -618,7 +619,57 @@ module.exports.queries = {
         return result;
 
     },
+    getDeleteRequests: async ({ pageInput, filterInput }, context) => {
 
+        const { role, userPermissions } =
+            AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                    Permission.CREATE_TRAINING_REGISTRATION,
+                    Permission.GET_REGISTRATION_REPORTS,
+                    Permission.GET_REVENUE_REPORTS,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        const skip = pageInput?.skip ?? 0,
+            limit = pageInput?.limit ?? 50;
+
+        const searchCriteria = filterInput?.search
+        ? {
+              $or: [
+                  { firstName: { $regex: filterInput.search, $options: 'i' } },
+                  { lastName: { $regex: filterInput.search, $options: 'i' } },
+                  { email: { $regex: filterInput.search, $options: 'i' } },
+              ],
+          }
+        : {};
+
+        const result = await User.find({ deleteRequest: true, ...searchCriteria })
+            .skip(skip)
+            .limit(limit)
+            .sort({ deleteRequestDate: -1 });
+
+        if (!result) {
+            return { totalCount: 0 }
+        }
+
+        const totalCount = await User.countDocuments({ deleteRequest: true });
+
+        return {
+            users: result,
+            totalCount
+        };
+
+    },
     getImportLogs: async () => {
         const combinedLogs = await Log.aggregate([
             {
@@ -1386,43 +1437,6 @@ module.exports.mutations = {
         });
 
         return savedEmployees;
-    },
-    getDeleteRequests: async ({ pageInput, filterInput }, context) => {
-        const { role, userPermissions } =
-            AuthUser(context);
-
-        if (
-            !SubRoleHelper.hasPermission({
-                currentRole: role,
-                currentPermissions: userPermissions,
-                requiredPermission: [
-                    Permission.GET_EMPLOYEES,
-                    Permission.CREATE_TRAINING_REGISTRATION,
-                    Permission.GET_REGISTRATION_REPORTS,
-                    Permission.GET_REVENUE_REPORTS,
-                ],
-                requiredAll: false,
-            })
-        ) {
-            throw CustomError(ErrorName.FORBIDDEN);
-        }
-
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
-
-        const result = await User.find({ deleteRequest: true })
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .sort({ deleteRequestDate: -1 });
-
-        if (!result) {
-            return {totalCount: 0}
-        }
-
-        return {
-            employees: result,
-            totalCount: result.length,
-        };
     },
 };
 

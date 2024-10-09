@@ -56,6 +56,7 @@ const errorName = {
     PROVIDE_PASSWORDS: "PROVIDE_PASSWORDS",
     EXPIRED_TOKEN: "EXPIRED_TOKEN",
     INVALID_TOKEN: "INVALID_TOKEN",
+    ERROR_DELETING_GROUP: "ERROR_DELETING_GROUP",
 };
 
 const errorType = {
@@ -320,7 +321,7 @@ const errorType = {
         type: "NO_REFRESH_TOKEN"
     },
     USER_NOT_FOUND: {
-        message: "User Not Found",
+        message: "User(s) Not Found",
         statusCode: 400,
         type: "USER_NOT_FOUND"
     },
@@ -339,13 +340,15 @@ const errorType = {
         statusCode: 400,
         type: "INVALID_TOKEN"
     },
+    ERROR_DELETING_GROUP: {
+        message: "Error Deleting Group",
+        statusCode: 400,
+        type: "ERROR_DELETING_GROUP"
+    }
 };
 
 const formatError = error => {
     try {
-        // if (process.env.NODE_ENV === "development") {
-        // 	console.log(Date(), error.extensions.exception.stacktrace);
-        // }
         console.log(Date(), error.extensions.exception.stacktrace);
     } catch (e) {}
 

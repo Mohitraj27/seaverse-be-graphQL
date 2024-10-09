@@ -46,6 +46,6 @@ module.exports = {
         resetPassword(email: String!): resetPasswordRes!
         verifyResetPassword(input: verifyResetInput!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
-        selfDeleteRequest(input: ID!): String!
+        selfDeleteRequest: String!
     `,
 };

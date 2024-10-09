@@ -152,9 +152,8 @@ userSchema.index({ _id: 1, role: 1 });
 
 userSchema.plugin(AggregatePaginate);
 
-// module.exports.User = Model("User", userSchema);
 const User = Model("User", userSchema);
-const DeletedUser = Model("DeletedUser", userSchema, "DeletedUser");
+const DeletedUser = Model("DeletedUser", userSchema);
 
 module.exports = {
     User,
