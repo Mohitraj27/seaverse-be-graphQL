@@ -356,7 +356,7 @@ const errorType = {
         message: "Passwords do not match",
         statusCode: 400,
         type: "PASSWORDS_NOT_MATCH"
-    },
+    }
 };
 
 const formatError = error => {
