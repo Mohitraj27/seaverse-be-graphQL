@@ -4,13 +4,10 @@ const isAlphanumeric = (password) => {
     if (password.length < 8) {
         throw new CustomError(ErrorName.PASSWORD_TOO_SHORT);
     }
-    
     if (!regex.test(password)) {
         throw new CustomError(ErrorName.PASSWORD_NOT_ALPHANUMERIC);
     }
-
     return true;
-  
 };
 
 module.exports = { isAlphanumeric };
