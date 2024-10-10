@@ -17,6 +17,7 @@ const UserAddressHelper = require("../user-addresses/user_address_helper");
 const TrainingRegistrationStatus = require("../../training-registrations/training_registration_status.json");
 const AwsHelper = require("../../../util/aws_helper");
 const user = require("..");
+const { isAlphanumeric } = require('../../../util/password_helper'); 
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
@@ -244,30 +245,47 @@ module.exports.mutations = {
 
         throw CustomError(ErrorName.FAILED);
     },
-    updatePassword: async ({ input }, context) => {
-        const { userId } = AuthUser(context);
-
-        if (!input.currentPassword || !input.newPassword) {
-            throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
-        }
-
-        const existingUser = await User.findById(userId);
-
-        if (existingUser) {
-            const valid = await CryptoHelper.compare(input.currentPassword, existingUser.password);
-
-            if (valid) {
-                existingUser.password = await CryptoHelper.hash(input.newPassword, 10);
-                const savedUser = await existingUser.save();
-
-                if (savedUser) return "Password updated successfully!";
-                throw CustomError(ErrorName.FAILED);
+    changePassword: async ({ input }, context) => {
+        try {
+            const { userId } = AuthUser(context);
+            const { currentPassword, newPassword, confirmPassword } = input;
+        
+            const existingUser = await User.findById(userId);
+            if (!existingUser) {
+                throw new CustomError(ErrorName.NOT_FOUND);
             }
-
-            throw CustomError(ErrorName.WRONG_PASSWORD);
+            if (newPassword !== confirmPassword) {
+                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
+            }
+            const isResetPasswordDialog = existingUser.isResetPasswordDialog;
+            if (isResetPasswordDialog) {
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                }
+            }else{
+                if (!newPassword || !confirmPassword) {
+                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                }
+            }
+            if (!isAlphanumeric(newPassword)) {
+                throw new CustomError(ErrorName.INVALID_PASSWORD);
+            }
+            if (isResetPasswordDialog) {
+                const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
+                if (!isPasswordValid) {
+                    throw new CustomError(ErrorName.INVALID_PASSWORD);
+                }
+            }
+            existingUser.password = await CryptoHelper.hash(newPassword, 10);
+    
+            existingUser.isResetPasswordDialog = false;
+    
+            await existingUser.save();
+    
+            return "Password updated successfully!";
+        } catch (error) {
+            throw error instanceof CustomError ? error : new CustomError(ErrorName.SERVER_ERROR, error.message);
         }
-
-        throw CustomError(ErrorName.NOT_FOUND);
     },
 
     resetPassword: async ({ email }, context) => {

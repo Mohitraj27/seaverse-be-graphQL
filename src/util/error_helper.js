@@ -56,6 +56,8 @@ const errorName = {
     PROVIDE_PASSWORDS: "PROVIDE_PASSWORDS",
     EXPIRED_TOKEN: "EXPIRED_TOKEN",
     INVALID_TOKEN: "INVALID_TOKEN",
+    PASSWORD_MISMATCH: "PASSWORD_MISMATCH",
+    PASSWORD_TOO_SHORT: "PASSWORD_TOO_SHORT"
 };
 
 const errorType = {
@@ -339,6 +341,21 @@ const errorType = {
         statusCode: 400,
         type: "INVALID_TOKEN"
     },
+    PASSWORD_MISMATCH: {
+        message: "Password Mismatch",
+        statusCode: 400,
+        type: "PASSWORD_MISMATCH"
+    },
+    PASSWORD_NOT_ALPHANUMERIC: {
+        message: "Password must be alphanumeric",
+        statusCode: 400,
+        type: "PASSWORD_NOT_ALPHANUMERIC"
+    },
+    PASSWORD_TOO_SHORT: {
+        message: "Password To short",
+        statusCode: 400,
+        type: "PASSWORD_TOO_SHORT"
+    }
 };
 
 const formatError = error => {

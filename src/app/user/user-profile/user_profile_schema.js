@@ -19,9 +19,14 @@ module.exports = {
         input PasswordUpdateInput {
             currentPassword: String!
             newPassword: String!
+            confirmPassword: String!
         }
         input verifyResetInput {
             token: String!
+        }
+        input newPasswordInput {
+            token: String!
+            newPassword: String!
         }
         type UserProfile {
             user: User
@@ -29,10 +34,6 @@ module.exports = {
         type resetPasswordRes {
             success: Boolean
             message: String
-        }
-        input newPasswordInput {
-            token: String!
-            newPassword: String!
         }
     `,
     queries: `
@@ -42,7 +43,7 @@ module.exports = {
     `,
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
-        updatePassword(input: PasswordUpdateInput!): String!
+        changePassword(input: PasswordUpdateInput!): String!
         resetPassword(email: String!): resetPasswordRes!
         verifyResetPassword(input: verifyResetInput!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
