@@ -369,18 +369,17 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
 
-            if (input.type === "RESET_PASSWORD" && !input.email) {
-                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            if (input.type === "RESET_PASSWORD" && !input.userId) {
             }
 
             if (input.newPassword !== input.confirmPassword) {
                 throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
             }
-
+            
             const user = await User.findOne({
                 $or: [
                     { resetPasswordToken: input.token },
-                    { email: input.email }
+                    { _id: input.userId }
                 ]
             });
 

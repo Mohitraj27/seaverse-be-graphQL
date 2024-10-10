@@ -1,5 +1,5 @@
-const {Group} = require("./group_model");
-const {GroupMember} = require("./group_member_model");
+const { Group, DeletedGroup } = require("./group_model");
+const { GroupMember } = require("./group_member_model");
 const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../../util");
 const LogHelper = require("../../logs/log_helper");
@@ -9,14 +9,14 @@ const { parseAsync } = require('json2csv');
 const { parse } = require('csv-parse/sync');
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId} = AuthUser(context);
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         const groupInfo = await Group.findOne({ _id: groupId, subscriber: subscriberId, isDeleted: false }).lean();
         const groupDetails = await GroupMember.find({
-            group: groupId,     
+            group: groupId,
             subscriber: subscriberId,
-            isDeleted: false, 
-        }).populate('member','email civilIdOrPassport firstName lastName role').lean();
-        
+            isDeleted: false,
+        }).populate('member', 'email civilIdOrPassport firstName lastName role').lean();
+
         if (!groupDetails) {
             throw new CustomError(ErrorName.NOT_FOUND, 'Group not found');
         }
@@ -30,25 +30,25 @@ module.exports.queries = {
                 { label: 'Last Name', value: 'lastName' },
                 { label: 'Role', value: 'role' }
             ];
-            const membersData = groupDetails.map(group => group.member).flat(); 
+            const membersData = groupDetails.map(group => group.member).flat();
             const csv = await parseAsync(membersData, { fields });
             const fileName = `${groupInfo.groupName.replace(/\s+/g, '_')}_export.csv`;
             return {
-              message: 'CSV export successful',
-              csvData: csv,
-              fileName: fileName
+                message: 'CSV export successful',
+                csvData: csv,
+                fileName: fileName
             };
         } catch (error) {
-             throw new CustomError(ErrorName.ERROR_IN_EXPORT_CSV_USER_GROUP);
-            }
+            throw new CustomError(ErrorName.ERROR_IN_EXPORT_CSV_USER_GROUP);
+        }
     },
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
         const { subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
-        let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true },groupName: {$ne: null} };
-        
+        let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true }, groupName: { $ne: null } };
+
         if (groupFilter?.search) {
             filterConditions = {
                 ...filterConditions,
@@ -89,7 +89,7 @@ module.exports.queries = {
                 },
                 {
                     $lookup: {
-                        from: 'users', 
+                        from: 'users',
                         localField: 'members',
                         foreignField: '_id',
                         as: 'memberDetails'
@@ -100,8 +100,8 @@ module.exports.queries = {
                         path: '$memberDetails',
                         preserveNullAndEmptyArrays: true
                     }
-                },   
-                {                
+                },
+                {
                     $project: {
                         _id: 1,
                         groupName: 1,
@@ -140,7 +140,7 @@ module.exports.queries = {
                         members: { $push: '$memberDetails' },
                         groupAdmin: { $first: '$groupAdmin' }
                     }
-                },               
+                },
             ]),
             {
                 offset: skip,
@@ -163,10 +163,10 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
         const groupMembers = users.map(user => ({
             subscriber: subscriberId,
             group: groupId,
-            member: user._id,  
+            member: user._id,
         }));
 
-        
+
         const result = await GroupMember.insertMany(groupMembers, { ordered: false });
         return result.length;
     } catch (error) {
@@ -177,13 +177,13 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId} =
+        const { role, userId, userInfo, userPermissions, subscriberId } =
             AuthUser(context);
 
         const groupFilterConditions = {
-                _id: input._id ?? ObjectId(),
-                subscriber: subscriberId,
-                isDeleted: false
+            _id: input._id ?? ObjectId(),
+            subscriber: subscriberId,
+            isDeleted: false
         };
 
         const groupUpdateData = {};
@@ -211,7 +211,7 @@ module.exports.mutations = {
         if (input.isManager) groupUpdateData.isManager = input.isManager;
         if (input.isCustomGroup !== undefined) groupUpdateData.isCustomGroup = input.isCustomGroup;
         if (input.isAutoSynced !== undefined) groupUpdateData.isAutoSynced = input.isAutoSynced;
-    
+
         const savedGroupName = await Group.findOneAndUpdate(
             groupFilterConditions,
             {
@@ -231,14 +231,14 @@ module.exports.mutations = {
             }
         );
 
-        if (savedGroupName){
+        if (savedGroupName) {
             const groupMemberFilterConditions = {
                 group: savedGroupName._id,
                 member: savedGroupName.groupAdmin,
                 isDeleted: false
             };
 
-            const groupMemberData = {group: savedGroupName._id, member: savedGroupName.groupAdmin};
+            const groupMemberData = { group: savedGroupName._id, member: savedGroupName.groupAdmin };
 
             const savedGroupMember = await GroupMember.findOneAndUpdate(
                 groupMemberFilterConditions,
@@ -259,14 +259,16 @@ module.exports.mutations = {
                 }
             );
 
-            if (savedGroupName && input.members){
-               const memberCount= await  bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
+            if (savedGroupName && input.members) {
+                const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
                 await Group.updateOne(
-                    {_id:savedGroupName._id},
-                    {$set: {
-                        members:input.members,
-                        memberCount:memberCount
-                    }}
+                    { _id: savedGroupName._id },
+                    {
+                        $set: {
+                            members: input.members,
+                            memberCount: memberCount
+                        }
+                    }
                 );
                 savedGroupName.members = input.members;
             }
@@ -312,25 +314,42 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        let failedDeletions =[];
+        let failedDeletions = [];
+
         try {
 
-            const updateGroup = await Group.updateMany({ _id: {$in: ids}, subscriber: subscriberId }, { $set: { isDeleted: true }});
+            const getGroups = await Group.find({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
 
-            if(updateGroup.n > 0){
-                return {
-                    success: true,
-                    message: `${updateGroup.n} groups deleted successfully.`,
-                    failedDeletions,
-                };
-            } else {
-                return {
-                    success: false,
-                    message: `No groups were deleted`,
-                    failedDeletions,
-                };
+            if (getGroups.length <= 0) {
+                throw new CustomError(ErrorName.NOT_FOUND, 'Groups not found');
             }
-            
+
+            const deletedGroups = getGroups.map(group => {
+                const groupObject = group.toObject();
+                groupObject.isDeleted = true;
+                return new DeletedGroup(groupObject);
+            });
+
+            const deleteGroup = await DeletedGroup.insertMany(deletedGroups);
+
+            if (deleteGroup.length > 0) {
+
+                const deleteFromGroups = await Group.deleteMany({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
+
+                if (deleteFromGroups) {
+
+                    return {
+                        success: true,
+                        message: `${deleteGroup.length} group(s) deleted successfully.`,
+                        failedDeletions,
+                    };
+
+                }
+
+            } else {
+                throw new CustomError(ErrorName.NOT_FOUND, 'Groups not found');
+            }
+
         } catch (error) {
             return {
                 success: false,
