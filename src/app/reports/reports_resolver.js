@@ -414,7 +414,6 @@ module.exports.queries = {
                                                 trainingModule: true,
                                                 contentType: true,
                                                 title: true,
-                                                // quiz: true,
                                                 quizContent: true,
                                             },
                                         },
@@ -794,13 +793,6 @@ module.exports.queries = {
                 {
                     $unwind: "$user",
                 },
-                // {
-                //     $set: {
-                //         user: {
-                //             $first: "$user",
-                //         },
-                //     },
-                // },
                 ...(filterInput?.search
                     ? [
                           {

@@ -65,14 +65,14 @@ const trainingRegistrationInvoiceSchema = new Schema(
             },
         ],
 
-        invoiceNo: String, //auto generate //SAL/2022/NOV/024
-        invoiceDate: Date, //auto generate
+        invoiceNo: String, 
+        invoiceDate: Date, 
         buyerOrderNo: String,
         buyerOrderDate: Date,
 
         deliveryNote: String,
-        paymentMode: String, //bank transfer, by cash etc
-        termsOfDelivery: String, //not transferable
+        paymentMode: String, 
+        termsOfDelivery: String, 
 
         currency: {
             type: String,

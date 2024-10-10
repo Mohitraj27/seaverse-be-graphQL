@@ -35,6 +35,7 @@ module.exports = {
             updatedAt: String
             employee: Employee
             htmlTemplate: String
+            isResetPasswordDialog: Boolean
         }
         type UserList {
             users: [User]

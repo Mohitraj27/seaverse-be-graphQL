@@ -3,7 +3,6 @@ const { PathHelper, MimeHelper } = require("../tools");
 const { CustomError, ErrorName } = require("./error_helper");
 const AwsHelper = require("./aws_helper");
 
-// Supported file types to upload
 const fileType = {
     videos: ["video/mp4"],
     audios: ["audio/mpeg"],
@@ -11,17 +10,16 @@ const fileType = {
     allImages: "image/",
     documents: [
         "application/pdf",
-        "application/vnd.ms-powerpoint", // for .ppt files
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // for .pptx files
-        "application/vnd.openxmlformats-officedocument.presentationml.slideshow", // for .ppsx files
-        "application/vnd.ms-powerpoint.presentation.macroEnabled.12", // for .pptm files
-        "application/vnd.ms-powerpoint.slideshow.macroEnabled.12" // for .ppsm files
+        "application/vnd.ms-powerpoint", 
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", 
+        "application/vnd.openxmlformats-officedocument.presentationml.slideshow", 
+        "application/vnd.ms-powerpoint.presentation.macroEnabled.12", 
+        "application/vnd.ms-powerpoint.slideshow.macroEnabled.12" 
    
     ],
     all: "*",
 };
 
-// Used to organise folder structure
 const uploadType = {
     userImage: "userImage",
     trainingImage: "trainingImage",
@@ -40,9 +38,7 @@ const uploadType = {
     trainingBannerImage: "trainingBannerImage"
 };
 
-/** Generate path for storing files
- * ex: files/users/<folder>/images/<filename>
- */
+
 const getPathFromType = ({ type, folder, filename }) => {
     const rootFolder = `files`;
 
@@ -75,13 +71,9 @@ const getPathFromType = ({ type, folder, filename }) => {
 
 const isPromise = data => data !== undefined && data instanceof Promise;
 
-// Do upload to cloud storage
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
     if (isPromise(fileData)) {
         const { filename, mimetype, createReadStream } = await fileData;
-        console.log("upload_helper.uploadFile:mimetype:", mimetype);
-        console.log("upload_helper.uploadFile:filename:", filename);
-
         if (
             acceptedTypes === fileType.all ||
             mimetype?.startsWith(acceptedTypes) ||

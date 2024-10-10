@@ -206,8 +206,6 @@ module.exports.mutations = {
         );
 
         if (!savedOrganization) throw CustomError(ErrorName.FAILED);
-
-        //region notification & logging
         OrganizationHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             organization: savedOrganization,
@@ -234,7 +232,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return savedOrganization;
     },
@@ -260,7 +257,6 @@ module.exports.mutations = {
 
         if (!deletedOrganization) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
         OrganizationHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             organization: deletedOrganization,
@@ -287,7 +283,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedOrganization;
     },

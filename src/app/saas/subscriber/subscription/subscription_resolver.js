@@ -8,7 +8,6 @@ const { SubscriptionPlan } = require("../../subscription-plans/subscription_plan
 const SubscriptionHelper = require("./subscription_helper");
 const SaasPaymentHelper = require("../../saas-payment/saas_payment_helper");
 
-//TODO: this module requires user login
 module.exports.queries = {
     getSubscriptions: async ({ pageInput, filterInput }, context) => {
         const { role, subscriberId } = AuthUser(context);
@@ -159,7 +158,6 @@ module.exports.mutations = {
         });
     },
     createTrialSubscription: async ({ subscriptionInput }, context) => {
-        //TODO: need to improve trial subscription
         const { subscriberId } = AuthUser(context);
 
         if (!subscriberId) throw CustomError(ErrorName.UNAUTHORIZED);
@@ -182,7 +180,7 @@ module.exports.mutations = {
         if (!selectedSubscriptionPlan) throw CustomError(ErrorName.NOT_FOUND);
 
         const subscriptionStartDate = CurrentDateTime().utcDate;
-        const subscriptionDuration = 14; //days
+        const subscriptionDuration = 14; 
 
         const savedSubscription = await new Subscription({
             subscriber: subscriberId,

@@ -91,15 +91,14 @@ const generateTrainingUID = async ({ subscriberId, session }) => {
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
-    //COURSE-1
     return `COURSE-${savedCounter.count}`;
 };
 
 const generateCourseId = (courseType) => {
     const date = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0"); // Ensure month is two digits
-    const day = String(date.getDate()).padStart(2, "0"); // Ensure day is two digits
+    const month = String(date.getMonth() + 1).padStart(2, "0"); 
+    const day = String(date.getDate()).padStart(2, "0"); 
     const formattedDate = `${year}${month}${day}`;
     const typeCodes = {
         "SELF_LEARNING": "S",
@@ -107,7 +106,7 @@ const generateCourseId = (courseType) => {
         "VIRTUAL_TYPE": "V"
     }
     const typeCode = typeCodes[courseType];
-    const randomIdentifier = Math.floor(1000 + Math.random() * 9000); // Random number between 1000 and 9999
+    const randomIdentifier = Math.floor(1000 + Math.random() * 9000); 
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
 module.exports = {
@@ -141,12 +140,10 @@ module.exports = {
             if (!objectIds || !objectIds.length) return;
             const uniqueIds = new Set();
             for (const id of objectIds) {
-                // Check for duplicates in the input array
                 if (uniqueIds.has(id.toString())) {
                     throw CustomError(ErrorName.DUPLICATE_TARGET_AUDIENCE_OBJECT_ID,`Duplicate ${field} ID ${id} found.`);
                 }
                 uniqueIds.add(id.toString());
-                // Check if the ID exists in the relevant collection
                 const exists = await model.findOne({ _id: mongoose.Types.ObjectId(id) });
                 if (!exists) {
                     throw CustomError(ErrorName.INVALID_TARGET_AUDIENCE_ID, `${field} with ID ${id} not found.`);
@@ -167,7 +164,7 @@ module.exports = {
             const existingTraining = await Training.findOne({
                 courseId: input.courseId,
                 subscriber: subscriberId,
-                _id: { $ne: input._id }, // Exclude the current document if updating
+                _id: { $ne: input._id }, 
             });
             if (existingTraining) {
                 throw CustomError(ErrorName.DUPLICATE_COURSE_ID);
@@ -234,7 +231,7 @@ module.exports = {
               classroomModuleId = classroomModule._id;
             }
             if(input.courseType === CourseType.VIRTUAL_TYPE){
-                console.log(`Virtual Classroom  Data...`); // TODO
+                console.log(`Virtual Classroom  Data...`); 
             }
         };
         if (input.enableFreeFlow) trainingUpdateData.enableFreeFlow = input.enableFreeFlow;
@@ -276,11 +273,8 @@ module.exports = {
         if (input.hideCourseProgress) trainingUpdateData.hideCourseProgress = input.hideCourseProgress;
         if (input.allowMultipleAttempts) {
             trainingUpdateData.allowMultipleAttempts = input.allowMultipleAttempts;
-            // only set the fields if allowMulipleAttempts is true
             if (input.attemptFlexibility) trainingUpdateData.attemptFlexibility = input.attemptFlexibility;
             if (input.attemptType) trainingUpdateData.attemptType = input.attemptType;
-            
-            // Conditional check for 'setLimitAttempt'
             if (input.attemptType === "LIMITED_ATTEMPT" && input.setLimitAttempt) {
                 trainingUpdateData.setLimitAttempt = input.setLimitAttempt;
             }
@@ -291,7 +285,6 @@ module.exports = {
         
             } 
         else {
-            // If allowMultipleAttempts is false, ensure these fields are not set
             delete trainingUpdateData.attemptFlexibility;
             delete trainingUpdateData.attemptType;
             delete trainingUpdateData.setLimitAttempt;

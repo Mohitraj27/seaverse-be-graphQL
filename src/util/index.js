@@ -46,8 +46,6 @@ const VerifySubscription = async context => {
 
         context.hasSubscription = hasSubscription;
 
-        // context.hasSubscription =
-        //     Moment.duration(Moment(context?.subscriptionEndDate).diff(Moment())).asDays() > 0;
     } catch (e) {
         console.log("Invalid Subscription Data");
     }
@@ -172,9 +170,6 @@ module.exports = {
             try {
                 const xForwardedFor = (req.headers["x-forwarded-for"] || "").replace(/:\d+$/, "");
                 let ip = req.ip || xForwardedFor || req.connection.remoteAddress;
-                // IPV6 addresses can include IPV4 addresses
-                // So req.ip can be '::ffff:201.12.23.58'
-                // However geoip-lite returns null for these
                 if (ip.includes("::ffff:")) ip = ip.split(":").reverse()[0];
                 if (ip !== "127.0.0.1" && ip !== "::1") return IpHelper.lookup(ip);
             } catch (_) {}

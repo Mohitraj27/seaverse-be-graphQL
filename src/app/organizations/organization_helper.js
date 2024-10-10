@@ -15,7 +15,6 @@ const generateOrganizationUID = async ({ subscriberId, session }) => {
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
-    //ORG-1
     return `ORG-${savedCounter.count}`;
 };
 

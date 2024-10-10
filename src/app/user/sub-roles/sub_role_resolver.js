@@ -83,7 +83,6 @@ module.exports.mutations = {
 
         const isPredefinedRole = await SubRole.findOne({_id: input._id ?? ObjectId(), subscriber: subscriberId, isPredefined : true})
 
-        // making name of TRAINER sub role immutable
         const subRoleName = input.name?.toUpperCase();
         if (isPredefinedRole){
             const subRoleName = isPredefinedRole.name;
@@ -125,7 +124,7 @@ module.exports.mutations = {
 
         if (!savedSubRole) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
+        
         SubRoleHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             subRole: savedSubRole,
@@ -152,7 +151,7 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
+        
 
         return savedSubRole;
     },
@@ -188,7 +187,6 @@ module.exports.mutations = {
 
         if (!deletedSubRole) throw CustomError(ErrorName.FAILED);
 
-        //region notification & logging
         SubRoleHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             subRole: deletedSubRole,
@@ -215,7 +213,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         return deletedSubRole;
     },

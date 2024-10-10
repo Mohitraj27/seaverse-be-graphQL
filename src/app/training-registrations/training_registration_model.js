@@ -20,8 +20,8 @@ const trainingRegistrationSchema = new Schema(
             ref: "Batch",
         },
         batchNumber: String,
-        trainingDuration: Number, // days
-        certificateValidity: Number, // days
+        trainingDuration: Number, 
+        certificateValidity: Number, 
         sortedTrainingModules: [
             {
                 trainingModule: {
@@ -86,7 +86,7 @@ const trainingRegistrationSchema = new Schema(
         feedback: FeedbackAttemptSchema,
 
         trainingMode: {
-            type: String, //ONLINE, OFFLINE
+            type: String,
             uppercase: true,
         },
         isRegistered: {

@@ -3,8 +3,8 @@ const { LocalisedDataSchema } = require("../../util/localised_data_schema");
 const ApprovalStatus = require("../trainings/approval_status.json");
 
 const quizSchema = {
-    timeOut: Number, // minutes
-    passMark: Number, // percentage
+    timeOut: Number, 
+    passMark: Number, 
     retryCount: Number,
     questionAnswers: [
         {
@@ -29,7 +29,7 @@ const quizSchema = {
             },
         },
     ],
-    questionsDisplayedCount: Number, // use this value to take random questions
+    questionsDisplayedCount: Number, 
 };
 
 const quizContentSchema = new Schema(

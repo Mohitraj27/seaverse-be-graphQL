@@ -42,7 +42,6 @@ const subscriberProfileSchema = new Schema(
             branch: { type: String, set: StringNormalize },
             ifsc: { type: String, set: StringNormalize },
         },
-        //TODO: vatDetails
         vatDetails: {
             vat: String,
             vatPercentage: Number,
@@ -64,7 +63,7 @@ const subscriberProfileSchema = new Schema(
         attendanceRevisionDate: String,
         employeeMasterPassword: String,
 
-        signature: String, //deprecated, use certificateSettings.onlineTrainerSignature
+        signature: String,
     },
     { timestamps: true }
 );

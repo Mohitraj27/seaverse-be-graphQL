@@ -227,15 +227,6 @@ module.exports.queries = {
             if (isOrganizationManager) {
                 filterConditions.organization = managingOrganization;
             }
-
-            // TODO: should limit to their related registrations or show all?
-            // if (role === Role.EMPLOYEE) {
-            //     filterConditions.$or = [
-            //         ...filterConditions.$or,
-            //         ...[{ trainer: employeeId, supervisor: employeeId }],
-            //     ];
-            // }
-
             const populations = [
                 {
                     path: "training",
@@ -508,7 +499,6 @@ module.exports.queries = {
                 })
                 .populate({
                     path: "trainingProgresses",
-                    // select: "-quizAttempts.questionAnswers",//commented for print quiz attempt summary
                     populate: {
                         path: "trainingModuleContent",
                         select: "-quiz.questionAnswers.answerKey",
@@ -531,14 +521,8 @@ module.exports.queries = {
         throw CustomError(ErrorName.FORBIDDEN);
     },
     getAssignedTrainings: async ({ pageInput, filterInput }, context) => {
-        // this query is meant for trainers to get all trainings they are assigned to
 
         const { role, subscriberId, employeeId } = AuthUser(context);
-
-        //TODO: Authentication
-
-        // can be grouped by organization or batch
-        // to group by batch needed extra field in training registration
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
@@ -602,8 +586,6 @@ module.exports.mutations = {
         ) {
             throw CustomError(ErrorName.ORGANIZATION_MISMATCH_ERROR);
         }
-
-        //region need for batch
         const existingTraining = await Training.findById(input.training).lean().select("title");
         if (existingTraining) input.trainingTitle = existingTraining.title;
 
@@ -624,7 +606,6 @@ module.exports.mutations = {
                     existingTrainer.user?.lastName ?? ""
                 }`.trim();
         }
-        //endregion
 
         const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
             async session => {
@@ -671,7 +652,6 @@ module.exports.mutations = {
                     unitPrice: input.unitPrice,
                     customPrice: input.customPrice,
                     remarks: input.remarks,
-                    // invoice: trainingRegistrationInvoice,
                     trainingMode: input.trainingMode,
                     createdBy: userId,
                 })
@@ -686,8 +666,6 @@ module.exports.mutations = {
                     );
 
                 if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
-                //region push registration and employee to batch
                 const employee = savedTrainingRegistration.employee;
                 const employeeUser = savedTrainingRegistration.employee?.user;
 
@@ -705,13 +683,10 @@ module.exports.mutations = {
 
                 savedBatch = await savedBatch?.save({ session });
                 if (!savedBatch) throw CustomError(ErrorName.FAILED);
-                //endregion
 
                 return savedTrainingRegistration;
             }
         );
-
-        //region notification & logging
         EmployeeHelper.sendEnrollmentNotification([
             {
                 subscriber: subscriberId,
@@ -739,7 +714,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        //endregion
 
         EmployeeHelper.sendCourseInvitationMail({
             userData: savedTrainingRegistration.employee.user,
@@ -765,8 +739,6 @@ module.exports.mutations = {
         ) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-
-        //TODO: Authentication
         if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
 
         const existingRegistration = await TrainingRegistration.findById(id);
@@ -798,19 +770,6 @@ module.exports.mutations = {
 
         if (typeof input.isActive === "boolean") existingRegistration.isActive;
         if (typeof input.isRegistered === "boolean") existingRegistration.isRegistered;
-
-        // if (input.employeeAndTrainer) {
-        //     if (input.employeeAndTrainer.forWhom === "EMPLOYEE") {
-        //         existingRegistration.employee = input.employeeAndTrainer.employeeOrManager;
-        //         if (existingRegistration.manager) existingRegistration.manager = undefined;
-        //     } else if (input.employeeAndTrainer.forWhom === "MANAGER") {
-        //         existingRegistration.manager = input.employeeAndTrainer.employeeOrManager;
-        //         if (existingRegistration.employee) existingRegistration.employee = undefined;
-        //     }
-        //
-        //     existingRegistration.forWhom = input.employeeAndTrainer.forWhom;
-        // }
-
         existingRegistration.updatedBy = userId;
 
         const updatedRegistration = await existingRegistration.save();
@@ -848,10 +807,7 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
-        //TODO: Authentication
         if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
-
-        //TODO: delete the progresses and invoices associated with the registration?
 
         const deletedTrainingRegistration = await TrainingRegistration.findOneAndDelete(
             { _id: id, subscriber: subscriberId },
@@ -872,7 +828,6 @@ module.exports.mutations = {
             { lean: true }
         );
 
-        //region notification & logging
         TrainingRegistrationHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             trainingRegistration: deletedTrainingRegistration,
@@ -921,7 +876,6 @@ module.exports.mutations = {
                 createdBy: userInfo,
             });
         }
-        //endregion
 
         return deletedTrainingRegistration;
     },
