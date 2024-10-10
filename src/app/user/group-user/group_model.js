@@ -56,4 +56,10 @@ const groupSchema = new Schema({
 groupSchema.index({ _id: 1, subscriber: 1 });
 groupSchema.plugin(AggregatePaginate);
 
-module.exports.Group = Model("Group", groupSchema);
+const Group = Model("Group", groupSchema);
+const DeletedGroup = Model("DeletedGroup", groupSchema);
+
+module.exports = {
+    Group,
+    DeletedGroup
+};

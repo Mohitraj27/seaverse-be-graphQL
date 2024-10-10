@@ -12,7 +12,7 @@ const { JwtHelper, CryptoHelper } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
-const { User } = require("../../user/user_model");
+const { User, DeletedUser } = require("../../user/user_model");
 const { Designation } = require("../../designations/designation_model")
 const {
     TrainingRegistration,
@@ -27,7 +27,7 @@ const CounterHelper = require("../../counters/counter_helper");
 const LogHelper = require("../../logs/log_helper");
 const { BatchHelper } = require("../../batches/batch_helper");
 
-const { Group } = require("../group-user/group_model");
+const { Group, DeletedGroup } = require("../group-user/group_model");
 const { GroupMember } = require("../group-user/group_member_model");
 
 const BatchStatus = require("../../batches/batch_status.json");
@@ -50,9 +50,8 @@ const sendCredentialMail = async ({ userData }) => {
             .lean()
             .populate("user");
         subscriberLogo = subscriberData?.user?.avatar;
-        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${
-            subscriberData?.user?.lastName ?? ""
-        }`;
+        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${subscriberData?.user?.lastName ?? ""
+            }`;
     }
 
     let html =
@@ -62,9 +61,9 @@ const sendCredentialMail = async ({ userData }) => {
     <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome to ${subscriberName}.
         Get ready for a great career journey with our Learning Management System</div>
         <a href="` +
-        process.env.EMPLOYEE_DOMAIN_URL +`">Click here to login</a>
-        <p>Email : `+userData.email+`</p>
-        <p>Password : `+process.env.USER_DUMMY_PASSWORD+`</p>
+        process.env.EMPLOYEE_DOMAIN_URL + `">Click here to login</a>
+        <p>Email : `+ userData.email + `</p>
+        <p>Password : `+ process.env.USER_DUMMY_PASSWORD + `</p>
     `;
     return await SendEmail({
         receiverEmail: userData.email,
@@ -85,9 +84,8 @@ const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport })
             .lean()
             .populate("user");
         subscriberLogo = subscriberData?.user?.avatar;
-        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${
-            subscriberData?.user?.lastName ?? ""
-        }`;
+        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${subscriberData?.user?.lastName ?? ""
+            }`;
     }
 
     let html =
@@ -123,9 +121,8 @@ const sendCourseInvitationMail = async ({ userData, trainingRegistrationId }) =>
             .lean()
             .populate("user");
         subscriberLogo = subscriberData?.user?.avatar;
-        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${
-            subscriberData?.user?.lastName ?? ""
-        }`;
+        subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${subscriberData?.user?.lastName ?? ""
+            }`;
     }
 
     let html =
@@ -303,38 +300,38 @@ const generateUserUID = async ({ session }) => {
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
- 
+
     return `USER-${savedCounter.count}`;
 };
 
-const generateDefaultGroup = async ({user, subscriberId}) => {
-    try{
+const generateDefaultGroup = async ({ user, subscriberId }) => {
+    try {
         const groupFilterConditions = { subscriber: subscriberId, isDeleted: false, isManagerDefault: true, groupAdmin: user._id };
-        const groupUpdateData = {groupName: user.firstName+"'s Group"}
+        const groupUpdateData = { groupName: user.firstName + "'s Group" }
 
         let savedGroupName = await Group.findOne(groupFilterConditions).lean();
 
         if (savedGroupName) {
 
-        return savedGroupName._id;
+            return savedGroupName._id;
         } else {
 
-        const newGroup = await new Group({
-            ...groupFilterConditions,
-            ...groupUpdateData,
-            createdBy: user._id,
-            updatedBy: user._id,
-        }).save();
+            const newGroup = await new Group({
+                ...groupFilterConditions,
+                ...groupUpdateData,
+                createdBy: user._id,
+                updatedBy: user._id,
+            }).save();
 
-        return newGroup;
+            return newGroup;
         }
     } catch (error) {
-      
-        return false; 
-      }
+
+        return false;
+    }
 };
 
-const insertGroupMember = async ({group, subscriberId, memberIDs}) => {
+const insertGroupMember = async ({ group, subscriberId, memberIDs }) => {
     try {
 
         const existingMembers = await GroupMember.find({
@@ -344,24 +341,24 @@ const insertGroupMember = async ({group, subscriberId, memberIDs}) => {
 
         const existingMemberIds = existingMembers.map((member) => member.member.toString());
         const existingMemberIdsSet = new Set(existingMemberIds);
-        
+
         const newMembers = memberIDs.filter(userID => !existingMemberIdsSet.has(userID.toString()));
-        
-        
+
+
         const groupMembers = newMembers.map((userID) => ({
             group: group,
             member: userID,
             subscriber: subscriberId
         }));
 
-        
+
         const result = await GroupMember.insertMany(groupMembers);
         await Group.findByIdAndUpdate(group, { $inc: { memberCount: result.length } });
 
         return true;
     } catch (error) {
-        return false; 
-      }
+        return false;
+    }
 }
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
@@ -369,7 +366,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
         const groupMembers = users.map(user => ({
             subscriber: subscriberId,
             group: groupId,
-            member: user._id,  
+            member: user._id,
         }));
 
         const result = await GroupMember.insertMany(groupMembers, { ordered: false });
@@ -379,7 +376,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
     }
 };
 
-const removeGroupMember = async ({group, subscriberId, memberIDs}) => {
+const removeGroupMember = async ({ group, subscriberId, memberIDs }) => {
     try {
 
         const existingMembers = await GroupMember.findOneAndDelete({
@@ -390,10 +387,98 @@ const removeGroupMember = async ({group, subscriberId, memberIDs}) => {
         return true;
     } catch (error) {
         return false;
-      }
+    }
+}
+
+const deleteUsers = async (users, errors) => {
+
+    try {
+
+        const getUsers = await User.find({ _id: { $in: users } });
+
+        if (!getUsers || getUsers.length <= 0) {
+            errors.push("User not found");
+            return;
+        }
+
+        const deletedUsers = getUsers.map(user => {
+            const userObject = user.toObject();
+            userObject.isDeleted = true;
+            return new DeletedUser(userObject);
+        });
+
+        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);        
+
+        if (updateDeletedList) {
+
+            let deleteUsers = await User.deleteMany({ _id: { $in: users } });
+
+            if (deleteUsers) {
+
+                const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
+
+                if(getAdminGroups.length > 0) {
+
+                    const deletedGroups = getAdminGroups.map(group => {
+                        const groupObject = group.toObject();
+                        groupObject.isDeleted = true;
+                        return new DeletedGroup(groupObject);
+                    });
+
+                    await DeletedGroup.insertMany(deletedGroups);
+
+                }
+
+                let updateGroup;
+
+                updateGroup = await Group.updateMany(
+                    { members: { $in: users } },
+                    [
+                        {
+                            $set: {
+                                members: {
+                                    $filter: {
+                                        input: "$members",
+                                        as: "member",
+                                        cond: { $not: { $in: ["$$member", users] } }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                memberCount: { $size: "$members" }
+                            }
+                        }
+                    ]
+                );
+
+                const updateGroupMember = await GroupMember.deleteMany({ member: { $in: users } });
+
+                if(updateGroupMember) {
+                    return deleteUsers
+                }
+
+            } else {
+                errors.push("Error while deleting users");
+                return;
+            }
+            
+        } else {
+            errors.push("Error while deleting users");
+            return;
+        }
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+
 }
 
 module.exports = {
+    deleteUsers,
     sendInvitationMail,
     sendCourseInvitationMail,
     sendEnrollmentNotification,
@@ -408,7 +493,7 @@ module.exports = {
 
         const employeeFilterConditions = { subscriber: subscriberId };
         employeeFilterConditions.user = id;
-        const existingEmployee = await Employee.findOne({user: employeeFilterConditions.user})
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user })
             .lean();
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
@@ -419,7 +504,7 @@ module.exports = {
                     ...input.user
                 },
             },
-            { currentRole: role}
+            { currentRole: role }
         );
 
         let employeeUpdateData = {};
@@ -440,10 +525,10 @@ module.exports = {
 
         if (input.managerObjectId) employeeUpdateData.managerObjectId = input.managerObjectId;
 
-        if (input.managerObjectId){
-            if (existingEmployee.managerObjectId != input.managerObjectId){
-                const oldgroupID = await generateDefaultGroup({user: existingEmployee.managerObjectId, subscriberId: subscriberId})
-                await removeGroupMember({group: oldgroupID, subscriberId: subscriberId, memberIDs: id})
+        if (input.managerObjectId) {
+            if (existingEmployee.managerObjectId != input.managerObjectId) {
+                const oldgroupID = await generateDefaultGroup({ user: existingEmployee.managerObjectId, subscriberId: subscriberId })
+                await removeGroupMember({ group: oldgroupID, subscriberId: subscriberId, memberIDs: id })
             }
 
             const existingMember = await User.findOne({
@@ -451,20 +536,20 @@ module.exports = {
             }).lean();
 
             if (existingMember) {
-                const groupID = await generateDefaultGroup({user: existingMember, subscriberId: subscriberId})
-                inserted = insertGroupMember({group: groupID, subscriberId: subscriberId, memberIDs: [id] })
+                const groupID = await generateDefaultGroup({ user: existingMember, subscriberId: subscriberId })
+                inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [id] })
             }
         }
 
         const savedEmployee = await Employee.findOneAndUpdate(
-                employeeFilterConditions,
-                {
-                    ...employeeUpdateData,
-                    updatedBy: userId,
-                },
-                { new: true, lean: true }
+            employeeFilterConditions,
+            {
+                ...employeeUpdateData,
+                updatedBy: userId,
+            },
+            { new: true, lean: true }
         ).populate("user empDesignation managerObjectId");
-        
+
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds, managerEmails, existingUsers, existingDesignations, designationMap, newDesignations }, context) => {
@@ -488,7 +573,7 @@ module.exports = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
-        const designationNames = [...new Set(userList.map(user => user.designation))]; 
+        const designationNames = [...new Set(userList.map(user => user.designation))];
 
         const designationNamesRegex = designationNames.map(name => new RegExp(`^${name}$`, 'i'));
 
@@ -497,7 +582,7 @@ module.exports = {
         const invitationList = [];
 
 
-        try{
+        try {
 
             const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -508,7 +593,7 @@ module.exports = {
 
                 const designationMap = new Map(
                     existingDesignations.map(designation => [
-                        designation.name, 
+                        designation.name,
                         { id: designation._id, isManager: designation.isManager }
                     ])
                 );
@@ -521,9 +606,9 @@ module.exports = {
                     });
                 }
 
-                const newUsersData = userList.filter(user => 
-                    !existingUsers.some(existingUser => 
-                        existingUser.email === user.email || 
+                const newUsersData = userList.filter(user =>
+                    !existingUsers.some(existingUser =>
+                        existingUser.email === user.email ||
                         existingUser.civilIdOrPassport === user.civilIdOrPassport
                     )
                 ).map(user => ({
@@ -537,7 +622,7 @@ module.exports = {
                     subscriber: subscriberId,
                 }));
 
-                if (newUsersData.length == 0){
+                if (newUsersData.length == 0) {
                     throw CustomError(ErrorName.ALREADY_EXIST);
                 }
 
@@ -545,7 +630,7 @@ module.exports = {
                 const usersToInsert = newUsersData.map(user => ({
                     updateOne: {
                         filter: { email: user.email },
-                        update: { 
+                        update: {
                             $setOnInsert: {
                                 email: user.email,
                                 civilIdOrPassport: user.civilIdOrPassport,
@@ -565,7 +650,7 @@ module.exports = {
 
                 const insertedUsers = await User.find({ email: { $in: userList.map(u => u.email) } }).session(session);
 
-                const managerEmailsNotInserted = managerEmails.filter(email => 
+                const managerEmailsNotInserted = managerEmails.filter(email =>
                     !insertedUsers.some(user => user.email === email)
                 );
 
@@ -579,10 +664,10 @@ module.exports = {
                 const allManagers = [
                     ...insertedUsers.filter(user => {
                         const originalUser = userList.find(u => u.email === user.email);
-                        if (!originalUser) return false; 
-                
+                        if (!originalUser) return false;
+
                         const designation = designationMap.get(originalUser.designation);
-                        return designation && designation.isManager; 
+                        return designation && designation.isManager;
                     }),
                     ...additionalManagers
                 ];
@@ -590,7 +675,7 @@ module.exports = {
                 const managerMap = new Map(
                     allManagers.map(manager => [manager.email, manager._id])
                 );
-                
+
                 const employeesToInsert = insertedUsers.map(user => {
                     const originalUserData = userList.find(u => u.email === user.email);
                     invitationList.push({
@@ -604,7 +689,7 @@ module.exports = {
                                     user: user._id,
                                     subscriber: subscriberId,
                                     empDesignation: designationMap.get(originalUserData.designation).id,
-                                    managerObjectId: managerMap.get(originalUserData.managerEmail), 
+                                    managerObjectId: managerMap.get(originalUserData.managerEmail),
                                     customField: originalUserData.customField,
                                     bulkId: bulkId,
                                     regType: 2
@@ -616,7 +701,7 @@ module.exports = {
                 });
 
                 await Employee.bulkWrite(employeesToInsert, { session });
-                
+
                 const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
 
                 const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
@@ -638,22 +723,22 @@ module.exports = {
                         groupName: groupName,
                         groupAdmin: manager._id,
                         subscriber: subscriberId,
-                        createdBy: manager._id, 
+                        createdBy: manager._id,
                         updatedBy: manager._id
                     };
-            
+
                     const group = await Group.findOneAndUpdate(
                         { groupAdmin: manager._id, subscriber: subscriberId, isManagerDefault: true },
                         { $setOnInsert: groupData },
                         { upsert: true, new: true, lean: true, session }
                     );
-            
+
                     const groupMemberData = {
                         group: group._id,
                         member: manager._id,
                         subscriber: subscriberId
                     };
-            
+
                     await GroupMember.findOneAndUpdate(
                         { group: group._id, member: manager._id },
                         { $setOnInsert: groupMemberData },
@@ -678,19 +763,19 @@ module.exports = {
                 await Promise.all(groupOperations);
                 return insertedUsers;
             });
-            if (savedEmployees.length == 0 ) throw CustomError(ErrorName.FAILED);
+            if (savedEmployees.length == 0) throw CustomError(ErrorName.FAILED);
             try {
 
                 invitationList.forEach(obj => {
                     sendCredentialMail(obj);
                 });
 
-            } catch(error) {
+            } catch (error) {
                 console.error(`Failed to send email to ${obj.email}:`, error);
             }
-            
+
             return savedEmployees.length;
-        } catch(error){
+        } catch (error) {
             throw CustomError(ErrorName.FAILED);
         }
     },
@@ -727,14 +812,14 @@ module.exports = {
             const savedEmployees = [];
 
             for (const user of input.users) {
-               
+
                 user.password = user.password ? await CryptoHelper.hash(user.password, 10) : await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10);
 
                 let isManager = false;
                 if (input.empDesignation) {
                     const existingDesignation = await Designation.findById(input.empDesignation);
-    
-                if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
+
+                    if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
 
                     isManager = existingDesignation.isManager || false;
                 }
@@ -742,7 +827,7 @@ module.exports = {
 
                 if ([Role.AUTHOR, Role.ADMIN, Role.EMPLOYEE].includes(user.role)) {
                     userRole = user.role
-                } else{
+                } else {
                     userRole = Role.EMPLOYEE
                 }
 
@@ -754,7 +839,7 @@ module.exports = {
                             ...user,
                             role: userRole,
                             isRegistered: true,
-                            isManager: isManager, 
+                            isManager: isManager,
                         },
                     },
                     {
@@ -770,7 +855,7 @@ module.exports = {
 
                 if (!savedUserRaw || !savedUserRaw.value) throw CustomError(ErrorName.FAILED);
                 let savedUser = savedUserRaw.value;
-                
+
 
                 if (!savedUserRaw.lastErrorObject.updatedExisting) {
                     savedUser = await User.findByIdAndUpdate(
@@ -784,7 +869,7 @@ module.exports = {
                         }
                     );
                 }
-                
+
                 let employeeUpdate = {
                     $setOnInsert: {
                         subscriber: subscriberId,
@@ -794,10 +879,10 @@ module.exports = {
                         empDesignation: input.empDesignation,
                     },
                 };
-                
-                if(input.customField || user.customField){
-                    if(input.customField) employeeUpdate.customField = input.customField;
-                    else if(user.customField) employeeUpdate.customField = user.customField;
+
+                if (input.customField || user.customField) {
+                    if (input.customField) employeeUpdate.customField = input.customField;
+                    else if (user.customField) employeeUpdate.customField = user.customField;
                 }
 
                 if (input.managerObjectId) employeeUpdate.managerObjectId = input.managerObjectId;
@@ -824,7 +909,7 @@ module.exports = {
                 if (!savedEmployeeRaw || !savedEmployeeRaw.value)
                     throw CustomError(ErrorName.FAILED);
                 let savedEmployee = savedEmployeeRaw.value;
-                
+
                 if (!savedEmployeeRaw.lastErrorObject.updatedExisting) {
                     savedEmployee = await Employee.findByIdAndUpdate(
                         savedEmployee._id,
@@ -838,24 +923,24 @@ module.exports = {
                     );
                 }
 
-                if (isManager){
-                    const groupID = await generateDefaultGroup({user: savedUser, subscriberId: subscriberId})
-                    inserted = insertGroupMember({group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
+                if (isManager) {
+                    const groupID = await generateDefaultGroup({ user: savedUser, subscriberId: subscriberId })
+                    inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
                 }
 
-                if (input.managerObjectId){
+                if (input.managerObjectId) {
                     const existingMember = await User.findOne({
                         _id: input.managerObjectId,
                     }).lean();
 
                     if (existingMember) {
-                        const groupID = await generateDefaultGroup({user: existingMember, subscriberId: subscriberId})
-                        inserted = insertGroupMember({group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
+                        const groupID = await generateDefaultGroup({ user: existingMember, subscriberId: subscriberId })
+                        inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
                     }
                 }
 
                 let savedTrainingRegistration;
-                
+
                 invitationList.push({
                     userData: savedUser
                 });

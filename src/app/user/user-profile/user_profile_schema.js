@@ -31,9 +31,20 @@ module.exports = {
         type UserProfile {
             user: User
         }
-        type resetPasswordRes {
+        type forgetPasswordRes {
             success: Boolean
             message: String
+        }
+        enum resetType {
+            FORGET_PASSWORD
+            RESET_PASSWORD
+        }
+        input newPasswordInput {
+            type: resetType!
+            token: String
+            email: String
+            newPassword: String!
+            confirmPassword: String!
         }
     `,
     queries: `
@@ -47,6 +58,6 @@ module.exports = {
         resetPassword(email: String!): resetPasswordRes!
         verifyResetPassword(input: verifyResetInput!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
-        selfDeleteRequest(input: ID!): String!
+        selfDeleteRequest: String!
     `,
 };

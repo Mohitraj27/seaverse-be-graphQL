@@ -180,7 +180,7 @@ module.exports.mutations = {
             isActive: true,
             isDeleted: { $ne: true },
         });
-
+        
         if (existingUser) {
             const processValidUser = async () => {
                 if (input.firebaseToken) {
@@ -198,7 +198,7 @@ module.exports.mutations = {
             };
 
             const valid = await CryptoHelper.compare(input.password, existingUser.password);
-
+            
             if (valid) {
                 return await processValidUser();
             } else if (existingUser.role === Role.EMPLOYEE) {
