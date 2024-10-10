@@ -45,11 +45,14 @@ module.exports = {
             signature: String
         }
         type EmployeeList {
-            """while single and bulk registrations"""
             batch: Batch
             employees: [Employee]
             totalCount: Int
             isRegistered: Boolean
+        }
+        type deleteReqResponse {
+            totalCount: Int
+            users: [User]
         }
         type BulkUserResponse {
             users: [Employee]
@@ -154,6 +157,14 @@ module.exports = {
             assignType: RoleEnum
             removeType: RemoveRoleInput
         }
+        enum deleteResponseType {
+            APPROVE
+            REJECT
+        }
+        input respondToDeleteInput {
+            users: [ID!]!
+            type: deleteResponseType!
+        }
         type manageRoleResponse {
             count: Int
             success: Boolean
@@ -210,10 +221,9 @@ module.exports = {
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
-        getDeleteRequests(pageInput: PageInput, filterInput: deleteRequestFilterInput): EmployeeList!
+        getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
     `,
     mutations: `
-        """used for single and bulk registrations"""
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
         createEmployee(input: EmployeeInput!): Employee!
         updateEmployee(id: ID, input: EmployeeInput!): Employee!
@@ -222,6 +232,6 @@ module.exports = {
         deleteEmployees(input: EmployeesInput!): BulkDeleteResponse!
         changeRegisterEmployees(input: changeRegisterInput!): BulkChangeRegisterResponse!
         manageRole(input: manageRoleInput!): manageRoleResponse!
-        getDeleteRequests(pageInput: PageInput, filterInput: deleteRequestFilterInput): EmployeeList!
+        respondToDeleteRequest(input: respondToDeleteInput!): String!
     `,
 };

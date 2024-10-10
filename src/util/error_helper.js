@@ -49,13 +49,16 @@ const errorName = {
     MANAGER_EMAIL_NOT_FOUND: "MANAGER_EMAIL_NOT_FOUND",
     INVALID_ROLE_IN_CSV_FILE: "INVALID_ROLE_IN_CSV_FILE",
     ERROR_ADDING_TO_DELETE_COLLECTION: "ERROR_ADDING_TO_DELETE_COLLECTION",
-    ERROR_REMOVING_FROM_USERS_COLLECTION: "ERROR_REMOVING_FROM_USERS_COLLECTION",
     INVALID_DESIGNATION_IN_CSV_FILE: "INVALID_DESIGNATION_IN_CSV_FILE",
     NO_REFRESH_TOKEN: "NO_REFRESH_TOKEN",
     USER_NOT_FOUND: "USER_NOT_FOUND",
     PROVIDE_PASSWORDS: "PROVIDE_PASSWORDS",
     EXPIRED_TOKEN: "EXPIRED_TOKEN",
     INVALID_TOKEN: "INVALID_TOKEN",
+    ERROR_DELETING_GROUP: "ERROR_DELETING_GROUP",
+    ERROR_DELETING_USER: "ERROR_DELETING_USER",
+    ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
+    PASSWORDS_NOT_MATCH: "PASSWORDS_NOT_MATCH",
 };
 
 const errorType = {
@@ -304,11 +307,6 @@ const errorType = {
         statusCode: 400,
         type: "ERROR_ADDING_TO_DELETE_COLLECTION"
     },
-    ERROR_REMOVING_FROM_USERS_COLLECTION: {
-        message: "Error removing from users collection",
-        statusCode: 400,
-        type: "ERROR_REMOVING_FROM_USERS_COLLECTION"
-    },
     INVALID_DESIGNATION_IN_CSV_FILE: {
         message: "Invalid Designation In CSV File",
         statusCode: 400,
@@ -320,7 +318,7 @@ const errorType = {
         type: "NO_REFRESH_TOKEN"
     },
     USER_NOT_FOUND: {
-        message: "User Not Found",
+        message: "User(s) Not Found",
         statusCode: 400,
         type: "USER_NOT_FOUND"
     },
@@ -338,6 +336,26 @@ const errorType = {
         message: "Invalid Token",
         statusCode: 400,
         type: "INVALID_TOKEN"
+    },
+    ERROR_DELETING_GROUP: {
+        message: "Error Deleting Group",
+        statusCode: 400,
+        type: "ERROR_DELETING_GROUP"
+    },
+    ERROR_DELETING_USER: {
+        message: "Error Deleting User",
+        statusCode: 400,
+        type: "ERROR_DELETING_USER"
+    },
+    ERROR_REJECTING_USER_REQUEST: {
+        message: "Error Rejecting User Request",
+        statusCode: 400,
+        type: "ERROR_REJECTING_USER_REQUEST"
+    },
+    PASSWORDS_NOT_MATCH: {
+        message: "Passwords do not match",
+        statusCode: 400,
+        type: "PASSWORDS_NOT_MATCH"
     },
 };
 
