@@ -26,13 +26,20 @@ module.exports = {
         type UserProfile {
             user: User
         }
-        type resetPasswordRes {
+        type forgetPasswordRes {
             success: Boolean
             message: String
         }
+        enum resetType {
+            FORGET_PASSWORD
+            RESET_PASSWORD
+        }
         input newPasswordInput {
-            token: String!
+            type: resetType!
+            token: String
+            email: String
             newPassword: String!
+            confirmPassword: String!
         }
     `,
     queries: `
@@ -43,7 +50,7 @@ module.exports = {
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
         updatePassword(input: PasswordUpdateInput!): String!
-        resetPassword(email: String!): resetPasswordRes!
+        forgetPassword(email: String!): forgetPasswordRes!
         verifyResetPassword(input: verifyResetInput!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest: String!

@@ -270,7 +270,7 @@ module.exports.mutations = {
         throw CustomError(ErrorName.NOT_FOUND);
     },
 
-    resetPassword: async ({ email }, context) => {
+    forgetPassword: async ({ email }, context) => {
         const existingUser = await User.findOne({ email });
 
         if (!existingUser) {
@@ -300,7 +300,7 @@ module.exports.mutations = {
         `;
 
         existingUser.resetPasswordToken = token;
-        existingUser.resetPasswordExpires = Date.now() + 3600000;
+        existingUser.resetPasswordExpires = Date.now() + 21600000;
 
         const addTokenToUser = await User.save();
 
@@ -323,39 +323,78 @@ module.exports.mutations = {
     },
 
     verifyResetPassword: async ({ input }, context) => {
-        const user = await User.findOne({ resetPasswordToken: input.token });
 
-        if (!user) {
-            throw new CustomError(ErrorName.NOT_FOUND);
-        }
+        try {
 
-        if (user.resetPasswordExpires < Date.now()) {
-            throw new CustomError(ErrorName.EXPIRED_TOKEN);
-        }
-
-        user.resetPasswordToken = null;
-        user.resetPasswordExpires = null;
-
-        const updateUser = await User.save();
-
-        if (updateUser) {
-            return "Success";
-        } else {
+            const user = await User.findOne({ resetPasswordToken: input.token });
+    
+            if (!user) {
+                throw new CustomError(ErrorName.NOT_FOUND);
+            }
+    
+            if (user.resetPasswordExpires < Date.now()) {
+                throw new CustomError(ErrorName.EXPIRED_TOKEN);
+            }
+    
+            const updateUser = await User.save();
+    
+            if (updateUser) {
+                return "Success";
+            } else {
+                throw new CustomError(ErrorName.FAILED);
+            }
+            
+        } catch (error) {
             throw new CustomError(ErrorName.FAILED);
         }
 
-
     },
     newPasswordAfterReset: async ({ input }, context) => {
-        const user = await User.findOne({ resetPasswordToken: input.token });
+
+        if (!input.type) {
+            throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        }
+
+        if (input.type === "FORGET_PASSWORD") {
+
+            if (!input.token || !input.newPassword || !input.confirmPassword) {
+                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            }
+
+            if (input.newPassword !== input.confirmPassword) {
+                throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
+            }
+
+        }
+
+        if (input.type === "CHANGE_PASSWORD") {
+
+            if (!input.email || !input.newPassword || !input.confirmPassword) {
+                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            }
+
+            if (input.newPassword !== input.confirmPassword) {
+                throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
+            }
+
+        }
+
+        const user = await User.findOne({
+            $or: [
+                { resetPasswordToken: input.token },
+                { email: input.email }
+            ]
+        });
 
         if (!user) {
             throw new CustomError(ErrorName.NOT_FOUND);
         }
 
         user.password = await CryptoHelper.hash(input.newPassword, 10);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
 
-        const updateUser = await User.save();
+        const updateUser = await user.save();
 
         if (updateUser) {
             return "Success";
@@ -365,18 +404,24 @@ module.exports.mutations = {
 
     },
     selfDeleteRequest: async (_, context) => {
-        const { userId } = AuthUser(context);
 
-        if (!userId) {
-            throw new CustomError(ErrorName.UNAUTHORIZED);
-        };
-
-        const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now() } });
-
-        if (updateUser) {
-            return "Success";
-        } else {
+        try {
+            const { userId } = AuthUser(context);
+    
+            if (!userId) {
+                throw new CustomError(ErrorName.UNAUTHORIZED);
+            };
+    
+            const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now() } });
+    
+            if (updateUser) {
+                return "Deleted requested Successfully!";
+            } else {
+                throw new CustomError(ErrorName.FAILED);
+            }
+        } catch (error) {
             throw new CustomError(ErrorName.FAILED);
         }
+        
     }
 };

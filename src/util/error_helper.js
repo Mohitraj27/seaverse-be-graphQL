@@ -57,7 +57,8 @@ const errorName = {
     INVALID_TOKEN: "INVALID_TOKEN",
     ERROR_DELETING_GROUP: "ERROR_DELETING_GROUP",
     ERROR_DELETING_USER: "ERROR_DELETING_USER",
-    ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST"
+    ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
+    PASSWORDS_NOT_MATCH: "PASSWORDS_NOT_MATCH",
 };
 
 const errorType = {
@@ -350,7 +351,12 @@ const errorType = {
         message: "Error Rejecting User Request",
         statusCode: 400,
         type: "ERROR_REJECTING_USER_REQUEST"
-    }
+    },
+    PASSWORDS_NOT_MATCH: {
+        message: "Passwords do not match",
+        statusCode: 400,
+        type: "PASSWORDS_NOT_MATCH"
+    },
 };
 
 const formatError = error => {
