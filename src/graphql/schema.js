@@ -47,6 +47,7 @@ const { QuizAttemptSchema } = require("../app/quizzes/quiz-attempts");
 
 const { DesignationSchema } = require("../app/designations");
 const { GroupSchema, GroupMemberSchema } = require("../app/user/group-user");
+const { VesselTypeSchema } = require("../app/vessle/vessel-type");
 
 const schemas = [
     AppDataSchema,
@@ -87,7 +88,8 @@ const schemas = [
 
     DesignationSchema,
     GroupSchema,
-    GroupMemberSchema
+    GroupMemberSchema,
+    VesselTypeSchema
 ];
 
 const types = [];
