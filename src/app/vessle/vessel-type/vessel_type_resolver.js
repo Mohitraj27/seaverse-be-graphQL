@@ -10,7 +10,6 @@ module.exports.queries = {
     getVesselTypes: async ({ pageInput, filterInput }, context) => {
         try {
             const { subscriberId } = AuthUser(context);
-            console.log('subscriberId', subscriberId);
 
             const skip = pageInput?.skip ?? 0;
             const limit = pageInput?.limit ?? 50;

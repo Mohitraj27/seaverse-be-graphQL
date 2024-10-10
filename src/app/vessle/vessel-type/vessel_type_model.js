@@ -31,6 +31,7 @@ const vesselTypeSchema = new Schema(
     },
     { timestamps: true }
 );
+
 vesselTypeSchema.index({ _id: 1, subscriber: 1 });
 vesselTypeSchema.index({ subscriber: 1, isDeleted: 1 });
 vesselTypeSchema.plugin(AggregatePaginate);

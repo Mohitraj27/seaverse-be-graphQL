@@ -4,15 +4,20 @@ const StringNormalize = require("../../util/string_helper").stringNormalize;
 
 const vesselSchema = new Schema(
     {
-        Name: {
+        subscriber: {
+            type: ObjectId,
+            ref: "Subscriber",
+            required: true,
+            index: true,
+        },
+        name: {
             type: String,
             trim: true,
             set: StringNormalize,
         },
         typeOfVessel: {
-            type: String,
-            trim: true,
-            set: StringNormalize,
+            type: ObjectId,
+            ref: "VesselType",
         },
         imoNumber: {
             type: String,
@@ -39,7 +44,8 @@ const vesselSchema = new Schema(
     { timestamps: true }
 );
 
-vesselSchema.index({ email: "text" });
+vesselSchema.index({ _id: 1, subscriber: 1 });
+vesselSchema.index({ subscriber: 1, isDeleted: 1 });
 
 vesselSchema.plugin(AggregatePaginate);
 
