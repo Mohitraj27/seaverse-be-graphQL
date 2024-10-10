@@ -156,8 +156,12 @@ userSchema.index({ _id: 1, role: 1 });
 
 userSchema.plugin(AggregatePaginate);
 
+const deletedUserSchema = userSchema.clone();
+deletedUserSchema.path('civilIdOrPassport').index(false);
+deletedUserSchema.path('email').index(false);
+
 const User = Model("User", userSchema);
-const DeletedUser = Model("DeletedUser", userSchema, "DeletedUser");
+const DeletedUser = Model("DeletedUser", deletedUserSchema);
 
 module.exports = {
     User,
