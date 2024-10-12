@@ -17,6 +17,7 @@ const UserAddressHelper = require("../user-addresses/user_address_helper");
 const TrainingRegistrationStatus = require("../../training-registrations/training_registration_status.json");
 const AwsHelper = require("../../../util/aws_helper");
 const user = require("..");
+const { sendNodeEmail } = require("./user_profile_helper");
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
@@ -270,8 +271,8 @@ module.exports.mutations = {
         throw CustomError(ErrorName.NOT_FOUND);
     },
 
-    forgetPassword: async ({ email }, context) => {
-
+    forgetPassword: async ({ email }) => {
+        
         try {
             
             const existingUser = await User.findOne({ email });
@@ -280,9 +281,10 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.NOT_FOUND);
             }
     
-            const token = crypto.randomBytes(32).toString('hex');
+            // const token = crypto.randomBytes(32).toString('hex');
+            const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
     
-            const emailTemplate = `
+            const htmlContent = `
                 <!DOCTYPE html>
                 <html lang="en">
                     <head>
@@ -305,11 +307,14 @@ module.exports.mutations = {
             existingUser.resetPasswordToken = token;
             existingUser.resetPasswordExpires = Date.now() + 21600000;
     
-            const addTokenToUser = await User.save();
+            const addTokenToUser = await existingUser.save();
     
             if (addTokenToUser) {
-    
-                const mailRes = await SendEmail({ receiverEmail: email, subject: "Reset Password", emailTemplate });
+                
+                const mailRes = await sendNodeEmail({ receiverEmail: email, subject: "Reset Password", htmlContent });
+
+                console.log(mailRes);
+                
     
                 if (mailRes) {
                     return {
@@ -325,7 +330,7 @@ module.exports.mutations = {
             }
 
         } catch (error) {
-            throw new CustomError(ErrorName.FAILED);
+            console.error(error);
         }
 
     },
