@@ -1,7 +1,5 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../tools");
 
-const StringNormalize = require("../../util/string_helper").stringNormalize;
-
 const vesselSchema = new Schema(
     {
         subscriber: {
@@ -12,8 +10,7 @@ const vesselSchema = new Schema(
         },
         name: {
             type: String,
-            trim: true,
-            set: StringNormalize,
+            required: true
         },
         typeOfVessel: {
             type: ObjectId,

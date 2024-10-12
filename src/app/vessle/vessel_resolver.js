@@ -2,19 +2,87 @@ const {
     CustomError,
     ErrorName,
     AuthUser
-} = require("../../../util");
+} = require("../../util");
 
 const { Vessel } = require("./vessel_model");
 
-module.exports.mutatations = {
+module.exports.queries = {
+    getVessels: async ({ pageInput, filterInput }, context) => {
+        try {
+            const { subscriberId } = AuthUser(context);
+
+            const skip = pageInput?.skip ?? 0;
+            const limit = pageInput?.limit ?? 50;
+
+            let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
+
+            if (filterInput?.search) {
+                filterConditions = {
+                    ...filterConditions,
+                    $and: [
+                        {
+                            "name": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                    ],
+                };
+            }
+
+            return Vessel.aggregatePaginate(
+                Vessel.aggregate([{ $match: filterConditions }]),
+                {
+                    offset: skip,
+                    limit,
+                    sort: { createdAt: "descending" },
+                    customLabels: {
+                        docs: "vessels",
+                        totalDocs: "totalCount",
+                        offset: "skip",
+                    },
+                    pagination: limit !== 0,
+                    allowDiskUse: true,
+                }
+            );
+        } catch (error) {
+            return {
+                success: true,
+                message: 'Something went wrong!.'
+            };
+        }
+    },
+
+    getVesselById: async ({ id }, context) => {
+        try {
+            const { subscriberId } = AuthUser(context);
+
+            const vessel = await Vessel.findOne({ _id: id, subscriber: subscriberId });
+
+            if (!vessel) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
+
+            return vessel;
+        } catch (error) {
+            return {
+                success: true,
+                message: 'Something went wrong!.'
+            };
+        }
+    },
+};
+
+module.exports.mutations = {
     createVessel: async ({ input }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
             const { name, typeOfVessel, imoNumber } = input;
 
-            const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
+            console.log(name, typeOfVessel, imoNumber);
 
-            if (existingImoNumber) throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
+            const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
+            if (existingImoNumber) throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
 
             const vessel = new Vessel({
                 subscriber: subscriberId,
@@ -41,7 +109,7 @@ module.exports.mutatations = {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
             const { name, typeOfVessel, imoNumber } = input;
 
-            const vessel = await Vessel.findOne({ _id: id});
+            const vessel = await Vessel.findOne({ _id: id });
 
             if (!vessel) throw new CustomError(ErrorName.NOT_FOUND);
 
