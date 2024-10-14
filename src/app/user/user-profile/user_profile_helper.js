@@ -50,6 +50,12 @@ const sendNodeEmail = async ({ receiverEmail, subject, htmlContent }) => {
     }
 };
 
+function generateRandomString(length = 30) {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    return Array.from({ length }, () => characters[Math.floor(Math.random() * characters.length)]).join('');
+}
+
 module.exports = {
     sendNodeEmail,
+    generateRandomString
 };

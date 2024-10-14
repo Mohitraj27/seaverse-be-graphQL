@@ -807,7 +807,6 @@ module.exports = {
         const invitationList = [];
         let savedBatch;
 
-
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
             const savedEmployees = [];
 
@@ -815,21 +814,14 @@ module.exports = {
 
                 user.password = user.password ? await CryptoHelper.hash(user.password, 10) : await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10);
 
-                let isManager = false;
                 if (input.empDesignation) {
                     const existingDesignation = await Designation.findById(input.empDesignation);
 
                     if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
-
-                    isManager = existingDesignation.isManager || false;
+                    
                 }
-                let userRole;
-
-                if ([Role.AUTHOR, Role.ADMIN, Role.EMPLOYEE].includes(user.role)) {
-                    userRole = user.role
-                } else {
-                    userRole = Role.EMPLOYEE
-                }
+                
+                let userRole = Role.LEARNER;
 
                 const savedUserRaw = await User.findOneAndUpdate(
                     { email: { $regex: new RegExp(`^${user.email}$`, "i") } },
@@ -839,7 +831,6 @@ module.exports = {
                             ...user,
                             role: userRole,
                             isRegistered: true,
-                            isManager: isManager,
                         },
                     },
                     {
@@ -885,13 +876,6 @@ module.exports = {
                     else if (user.customField) employeeUpdate.customField = user.customField;
                 }
 
-                if (input.managerObjectId) employeeUpdate.managerObjectId = input.managerObjectId;
-
-                if (input.rigNumber || user.rigNumber) {
-                    if (input.rigNumber) employeeUpdate.rigNumber = input.rigNumber;
-                    else if (user.rigNumber) employeeUpdate.rigNumber = user.rigNumber;
-                }
-
                 const savedEmployeeRaw = await Employee.findOneAndUpdate(
                     { user: savedUser._id },
                     employeeUpdate,
@@ -922,24 +906,6 @@ module.exports = {
                         }
                     );
                 }
-
-                if (isManager) {
-                    const groupID = await generateDefaultGroup({ user: savedUser, subscriberId: subscriberId })
-                    inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
-                }
-
-                if (input.managerObjectId) {
-                    const existingMember = await User.findOne({
-                        _id: input.managerObjectId,
-                    }).lean();
-
-                    if (existingMember) {
-                        const groupID = await generateDefaultGroup({ user: existingMember, subscriberId: subscriberId })
-                        inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [savedUser._id] })
-                    }
-                }
-
-                let savedTrainingRegistration;
 
                 invitationList.push({
                     userData: savedUser
