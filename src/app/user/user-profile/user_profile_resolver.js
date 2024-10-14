@@ -17,11 +17,11 @@ const UserAddressHelper = require("../user-addresses/user_address_helper");
 const TrainingRegistrationStatus = require("../../training-registrations/training_registration_status.json");
 const AwsHelper = require("../../../util/aws_helper");
 const user = require("..");
-<<<<<<< HEAD
+
 const { isAlphanumeric } = require('../../../util/password_helper'); 
-=======
+
 const { sendNodeEmail } = require("./user_profile_helper");
->>>>>>> origin/master
+
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
