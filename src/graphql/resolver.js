@@ -46,6 +46,7 @@ const { QuizAttemptResolver } = require("../app/quizzes/quiz-attempts");
 const { DesignationResolver } = require("../app/designations");
 const { GroupResolver, GroupMemebrResolver } = require("../app/user/group-user");
 const AwsHelper = require("../util/aws_helper");
+const { ContactSupportResolver } = require('../app/contact-support');
 
 module.exports = {
     ID: new GraphQLScalarType({
@@ -160,6 +161,7 @@ module.exports = {
         ...AuthHelper.requiresEmployee(DesignationResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.mutations),
+        ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
