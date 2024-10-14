@@ -55,16 +55,13 @@ const errorName = {
     PROVIDE_PASSWORDS: "PROVIDE_PASSWORDS",
     EXPIRED_TOKEN: "EXPIRED_TOKEN",
     INVALID_TOKEN: "INVALID_TOKEN",
-<<<<<<< HEAD
     PASSWORD_MISMATCH: "PASSWORD_MISMATCH",
     PASSWORD_TOO_SHORT: "PASSWORD_TOO_SHORT",
-    PASSWORD_NOT_ALPHANUMERIC: "PASSWORD_NOT_ALPHANUMERIC"
-=======
+    PASSWORD_NOT_ALPHANUMERIC: "PASSWORD_NOT_ALPHANUMERIC",
     ERROR_DELETING_GROUP: "ERROR_DELETING_GROUP",
     ERROR_DELETING_USER: "ERROR_DELETING_USER",
     ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
     PASSWORDS_NOT_MATCH: "PASSWORDS_NOT_MATCH",
->>>>>>> origin
 };
 
 const errorType = {
@@ -343,7 +340,6 @@ const errorType = {
         statusCode: 400,
         type: "INVALID_TOKEN"
     },
-<<<<<<< HEAD
     PASSWORD_MISMATCH: {
         message: "Password Mismatch",
         statusCode: 400,
@@ -358,8 +354,7 @@ const errorType = {
         message: "Password To short",
         statusCode: 400,
         type: "PASSWORD_TOO_SHORT"
-    }
-=======
+    },
     ERROR_DELETING_GROUP: {
         message: "Error Deleting Group",
         statusCode: 400,
@@ -380,7 +375,6 @@ const errorType = {
         statusCode: 400,
         type: "PASSWORDS_NOT_MATCH"
     },
->>>>>>> origin
 };
 
 const formatError = error => {
