@@ -235,9 +235,6 @@ module.exports.queries = {
         
         const paginatedResults = combinedResults.slice(skip, skip + limit);
 
-        console.log(paginatedResults);
-        
-
         return {
             status: 'success',
             totalCount: combinedResults.length,
