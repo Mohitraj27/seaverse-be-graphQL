@@ -21,7 +21,8 @@ const user = require("..");
 const { isAlphanumeric } = require('../../../util/password_helper');
 
 const { sendNodeEmail, mailSenderHelper } = require("./user_profile_helper");
-
+const LogHelper = require("../../logs/log_helper");
+const LogType = require("../../logs/log_type.json");
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
@@ -277,6 +278,9 @@ module.exports.mutations = {
         throw CustomError(ErrorName.FAILED);
     },
     changePassword: async ({ input }, context) => {
+    
+        const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } = AuthUser(context);
+
         try {
             const { userId } = AuthUser(context);
             const { currentPassword, newPassword, confirmPassword } = input;
@@ -312,14 +316,23 @@ module.exports.mutations = {
             existingUser.isResetPasswordDialog = false;
 
             await existingUser.save();
-
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.PASSWORD_MANAGEMENT_LOG,
+                operation: "CHANGE_PASSWORD",
+                ipInfo: context.ipInfo,
+                affected: [{ targetRef: "User", target: existingUser._id }],
+                createdBy: userInfo,
+            });
             return "Password updated successfully!";
         } catch (error) {
             throw error instanceof CustomError ? error : new CustomError(ErrorName.SERVER_ERROR, error.message);
         }
     },
 
-    forgetPassword: async ({ email }) => {
+    forgetPassword: async ({ email }, context) => {
+
+        const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } = AuthUser(context);
 
         try {
 
@@ -340,6 +353,14 @@ module.exports.mutations = {
             }
 
             if (result) {
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.PASSWORD_MANAGEMENT_LOG,
+                    operation: "FORGET_PASSWORD",
+                    ipInfo: context.ipInfo,
+                    affected: [{ targetRef: "User", target: existingUser._id }],
+                    createdBy: userInfo,
+                });
                 return {
                     success: true,
                     message: "Email sent. Please check your email for reset link."
