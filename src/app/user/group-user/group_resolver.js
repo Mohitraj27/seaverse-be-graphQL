@@ -159,6 +159,7 @@ module.exports.queries = {
     //     )
     // }
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
+
         const { subscriberId } = AuthUser(context);
     
         const skip = pageInput?.skip ?? 0;
@@ -237,15 +238,16 @@ module.exports.queries = {
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
     try {
+
         const groupMembers = users.map(user => ({
             subscriber: subscriberId,
             group: groupId,
             member: user._id,
         }));
 
-
         const result = await GroupMember.insertMany(groupMembers, { ordered: false });
         return result.length;
+        
     } catch (error) {
         console.error(error)
         return 0;

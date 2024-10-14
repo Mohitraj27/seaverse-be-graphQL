@@ -3,5 +3,6 @@
     "ADMIN": "ADMIN",
     "EMPLOYEE": "EMPLOYEE",
     "GUEST": "GUEST",
-    "AUTHOR": "AUTHOR"
+    "AUTHOR": "AUTHOR",
+    "LEARNER": "LEARNER"
 }

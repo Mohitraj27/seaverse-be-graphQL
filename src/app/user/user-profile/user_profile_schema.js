@@ -28,14 +28,8 @@ module.exports = {
             success: Boolean
             message: String
         }
-        enum resetType {
-            FORGET_PASSWORD
-            RESET_PASSWORD
-        }
         input newPasswordInput {
-            type: resetType!
-            token: String
-            userId: String
+            token: String!
             newPassword: String!
             confirmPassword: String!
         }
@@ -44,6 +38,7 @@ module.exports = {
         getProfile(id: ID): User!
         getPublicProfile(id: ID!): PublicProfile!
         getUserProfile: UserProfile
+        resetPassword: String!
     `,
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
