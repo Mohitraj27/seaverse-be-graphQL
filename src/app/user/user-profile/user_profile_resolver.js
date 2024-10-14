@@ -20,7 +20,7 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { sendNodeEmail } = require("./user_profile_helper");
+const { sendNodeEmail, mailSenderHelper } = require("./user_profile_helper");
 
 
 module.exports.queries = {
@@ -224,6 +224,33 @@ module.exports.queries = {
                 .populate({ path: "user", select: "firstName lastName avatar" }),
         };
     },
+    resetPassword: async (_, context) => {
+
+        const { userId } = AuthUser(context, false);
+
+        if (!userId) {
+            throw CustomError(ErrorName.UNAUTHORIZED);
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            throw new CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
+
+        let errors = [];
+
+        const result = mailSenderHelper(token, user.email, user, errors);
+
+        if (errors.length > 0) {
+            throw new CustomError(ErrorName.FAILED);
+        }
+
+        if (result) return "Email sent. Please check your email for reset link."
+
+    }
 };
 
 module.exports.mutations = {
@@ -304,46 +331,19 @@ module.exports.mutations = {
 
             const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
 
-            const htmlContent = `
-                <!DOCTYPE html>
-                <html lang="en">
-                    <head>
-                        <meta charset="UTF-8" />
-                        <title>Reset Password</title>
-                    </head>
-                    <body>
-                        <div style="width: 600px; margin: 0 auto; text-align: center">
-    
-                            <p>Please visit the link below to reset your password</p>
-    
-                            <a href="${process.env.APP_URL}/reset-password/${token}}" target="_blank">
-                                Click Here
-                            </a>
-                        </div>
-                    </body>
-                </html>
-            `;
+            let errors = [];
 
-            existingUser.resetPasswordToken = token;
-            existingUser.resetPasswordExpires = Date.now() + 21600000;
+            const result = mailSenderHelper(token, email, existingUser, errors);
 
-            const addTokenToUser = await existingUser.save();
-
-            if (addTokenToUser) {
-
-                const mailRes = await sendNodeEmail({ receiverEmail: email, subject: "Reset Password", htmlContent });
-
-                if (mailRes.status === 'success') {
-                    return {
-                        success: true,
-                        message: "Reset link sent. Please check your registered email."
-                    }
-                } else {
-                    throw new CustomError(ErrorName.FAILED);
-                }
-
-            } else {
+            if (errors.length > 0) {
                 throw new CustomError(ErrorName.FAILED);
+            }
+
+            if (result) {
+                return {
+                    success: true,
+                    message: "Email sent. Please check your email for reset link."
+                }
             }
 
         } catch (error) {
@@ -377,11 +377,7 @@ module.exports.mutations = {
 
         try {
 
-            if (!input.type) {
-                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
-            }
-
-            if (input.type === "FORGET_PASSWORD" && !input.token) {
+            if (!input.token) {
                 throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
 
@@ -391,8 +387,7 @@ module.exports.mutations = {
 
             const user = await User.findOne({
                 $or: [
-                    { resetPasswordToken: input.token },
-                    { _id: input.userId }
+                    { resetPasswordToken: input.token }
                 ]
             });
 
