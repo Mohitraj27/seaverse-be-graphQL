@@ -21,9 +21,6 @@ module.exports = {
             newPassword: String!
             confirmPassword: String!
         }
-        input verifyResetInput {
-            token: String!
-        }
         type UserProfile {
             user: User
         }
@@ -52,7 +49,7 @@ module.exports = {
         updateProfile(input: ProfileUpdateInput!): User!
         changePassword(input: PasswordUpdateInput!): String!
         forgetPassword(email: String!): forgetPasswordRes!
-        verifyResetPassword(input: verifyResetInput!): String!
+        verifyResetPassword(token: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest: String!
     `,

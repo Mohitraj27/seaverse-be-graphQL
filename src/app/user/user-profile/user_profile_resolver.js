@@ -352,11 +352,11 @@ module.exports.mutations = {
 
     },
 
-    verifyResetPassword: async ({ input }) => {
+    verifyResetPassword: async ({ token }) => {
 
         try {
 
-            const user = await User.findOne({ resetPasswordToken: input.token });
+            const user = await User.findOne({ resetPasswordToken: token });
 
             if (!user) {
                 throw new CustomError(ErrorName.NOT_FOUND);
