@@ -37,7 +37,7 @@ module.exports = {
         input newPasswordInput {
             type: resetType!
             token: String
-            email: String
+            userId: String
             newPassword: String!
             confirmPassword: String!
         }
