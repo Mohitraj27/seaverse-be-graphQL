@@ -352,7 +352,7 @@ module.exports.mutations = {
 
     },
 
-    verifyResetPassword: async ({ input }, context) => {
+    verifyResetPassword: async ({ input }) => {
 
         try {
 
@@ -366,13 +366,7 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.EXPIRED_TOKEN);
             }
 
-            const updateUser = await User.save();
-
-            if (updateUser) {
-                return "Success";
-            } else {
-                throw new CustomError(ErrorName.FAILED);
-            }
+            return "Success";
 
         } catch (error) {
             console.error(error);
@@ -395,7 +389,7 @@ module.exports.mutations = {
             }
 
             if (input.newPassword !== input.confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
+                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
             }
             
             const user = await User.findOne({
