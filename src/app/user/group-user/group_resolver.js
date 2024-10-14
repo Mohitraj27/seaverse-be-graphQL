@@ -161,16 +161,16 @@ module.exports.queries = {
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
 
         const { subscriberId } = AuthUser(context);
-    
+
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-    
+
         let filterConditions = {
             subscriber: subscriberId,
             isDeleted: { $ne: true },
             groupName: { $ne: null }
         };
-    
+
         if (groupFilter?.search) {
             filterConditions = {
                 ...filterConditions,
@@ -196,23 +196,7 @@ module.exports.queries = {
             {
                 $group: {
                     _id: '$empDesignation',
-                    designationName: { $first: '$designationDetails.name' },
-                    employees: { $push: '$$ROOT' }
-                }
-            },
-            {
-                $limit: limit
-            },
-            { $skip: skip }
-        ]);
-    
-        const roleGroups = await User.aggregate([
-            {
-                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
-            },
-            {
-                $group: {
-                    _id: '$role',
+                    categoryName: { $first: '$designationDetails.name' },
                     users: { $push: '$$ROOT' }
                 }
             },
@@ -221,19 +205,45 @@ module.exports.queries = {
             },
             { $skip: skip }
         ]);
-        const allGroups = await Group.find(filterConditions)
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 })
-            .lean();
+
+        const roleGroups = await User.aggregate([
+            {
+                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
+            },
+            {
+                $group: {
+                    _id: '$role',
+                    categoryName: { $first: '$role' },
+                    users: { $push: '$$ROOT' }
+                }
+            },
+            {
+                $limit: limit
+            },
+            { $skip: skip }
+        ]);
+
+        const allGroups = await Group.find(filterConditions).sort({ createdAt: -1 }).lean();
+            
+        let combinedResults = [
+            ...empDesignationGroups.map(g => ({ ...g, type: 'empDesignationGroup' })),
+            ...roleGroups.map(g => ({ ...g, type: 'roleGroup' })),
+            ...allGroups.map(g => ({ ...g, type: 'group' }))
+        ];
         
+        combinedResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        const paginatedResults = combinedResults.slice(skip, skip + limit);
+
+        console.log(paginatedResults);
+        
+
         return {
             status: 'success',
-            empDesignationGroups,
-            roleGroups,
-            allGroups
+            totalCount: combinedResults.length,
+            groups: paginatedResults
         };
-    }    
+    }
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
@@ -247,7 +257,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
         const result = await GroupMember.insertMany(groupMembers, { ordered: false });
         return result.length;
-        
+
     } catch (error) {
         console.error(error)
         return 0;
