@@ -19,6 +19,7 @@ module.exports = {
         input PasswordUpdateInput {
             currentPassword: String!
             newPassword: String!
+            confirmPassword: String!
         }
         input verifyResetInput {
             token: String!
@@ -49,7 +50,7 @@ module.exports = {
     `,
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
-        updatePassword(input: PasswordUpdateInput!): String!
+        changePassword(input: PasswordUpdateInput!): String!
         forgetPassword(email: String!): forgetPasswordRes!
         verifyResetPassword(input: verifyResetInput!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
