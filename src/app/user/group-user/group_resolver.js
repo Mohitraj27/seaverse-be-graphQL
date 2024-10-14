@@ -226,15 +226,6 @@ module.exports.queries = {
             .limit(limit)
             .sort({ createdAt: -1 })
             .lean();
-
-        console.log(`empDesignationGroups`);
-        console.log(empDesignationGroups);
-
-        console.log('roleGroups');
-        console.log(roleGroups);
-
-        console.log(`allGroups`);
-        console.log(allGroups);
         
         return {
             status: 'success',
