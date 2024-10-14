@@ -14,8 +14,6 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendNodeEmail = async ({ receiverEmail, subject, htmlContent }) => {
-
-    console.log(receiverEmail);
     
     if (
         receiverEmail?.trim()?.length &&
@@ -32,14 +30,13 @@ const sendNodeEmail = async ({ receiverEmail, subject, htmlContent }) => {
             };
             
             const response = await transporter.sendMail(mailOptions);
-            console.log("sendEmail:success", response);
+            
             return {
                 status: "success",
                 messageId: response.messageId,
                 message: "Email sent successfully",
             };
         } catch (error) {
-            console.error("sendEmail:error", error.message);
             return {
                 status: "error",
                 message: error.message,

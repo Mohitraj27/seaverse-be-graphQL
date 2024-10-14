@@ -280,8 +280,7 @@ module.exports.mutations = {
             if (!existingUser) {
                 throw new CustomError(ErrorName.NOT_FOUND);
             }
-    
-            // const token = crypto.randomBytes(32).toString('hex');
+            
             const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
     
             const htmlContent = `
@@ -312,11 +311,8 @@ module.exports.mutations = {
             if (addTokenToUser) {
                 
                 const mailRes = await sendNodeEmail({ receiverEmail: email, subject: "Reset Password", htmlContent });
-
-                console.log(mailRes);
-                
     
-                if (mailRes) {
+                if (mailRes.status === 'success') {
                     return {
                         success: true,
                         message: "Reset link sent. Please check your registered email."

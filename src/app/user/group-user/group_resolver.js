@@ -7,6 +7,8 @@ const Permission = require("../../user/sub-roles/permission.json");
 const LogType = require("../../logs/log_type.json");
 const { parseAsync } = require('json2csv');
 const { parse } = require('csv-parse/sync');
+const { Employee } = require("../employee/employee_model");
+const { User } = require("../user_model");
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -42,120 +44,195 @@ module.exports.queries = {
             throw new CustomError(ErrorName.ERROR_IN_EXPORT_CSV_USER_GROUP);
         }
     },
+    // getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
+    //     const { subscriberId } = AuthUser(context);
+
+    //     const skip = pageInput?.skip ?? 0,
+    //         limit = pageInput?.limit ?? 50;
+    //     let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true }, groupName: { $ne: null } };
+
+    //     if (groupFilter?.search) {
+    //         filterConditions = {
+    //             ...filterConditions,
+    //             $and: [
+    //                 {
+    //                     "groupName": {
+    //                         $regex: ".*" + groupFilter.search + ".*",
+    //                         $options: "i",
+    //                     },
+    //                 },
+    //             ],
+    //         };
+    //     }
+
+    //     if (groupType === "Customgroups") {
+    //         filterConditions.isManagerDefault = false;
+    //     } else if (groupType === "Autosyncedgroups") {
+    //         filterConditions.isManagerDefault = true;
+    //     }
+    //     return Group.aggregatePaginate(
+    //         Group.aggregate([
+    //             {
+    //                 $match: filterConditions,
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: 'users',
+    //                     localField: 'groupAdmin',
+    //                     foreignField: '_id',
+    //                     as: 'groupAdminDetails'
+    //                 }
+    //             },
+    //             {
+    //                 $unwind: {
+    //                     path: '$groupAdminDetails',
+    //                     preserveNullAndEmptyArrays: true
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: 'users',
+    //                     localField: 'members',
+    //                     foreignField: '_id',
+    //                     as: 'memberDetails'
+    //                 }
+    //             },
+    //             {
+    //                 $unwind: {
+    //                     path: '$memberDetails',
+    //                     preserveNullAndEmptyArrays: true
+    //                 }
+    //             },
+    //             {
+    //                 $project: {
+    //                     _id: 1,
+    //                     groupName: 1,
+    //                     isManagerDefault: 1,
+    //                     memberCount: 1,
+    //                     description: 1,
+    //                     isCustomGroup: 1,
+    //                     isAutoSynced: 1,
+    //                     createdAt: 1,
+    //                     updatedAt: 1,
+    //                     groupAdmin: {
+    //                         _id: '$groupAdminDetails._id',
+    //                         firstName: '$groupAdminDetails.firstName',
+    //                         lastName: '$groupAdminDetails.lastName',
+    //                         email: '$groupAdminDetails.email'
+    //                     },
+    //                     memberDetails: {
+    //                         _id: 1,
+    //                         firstName: 1,
+    //                         lastName: 1,
+    //                         email: 1
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $group: {
+    //                     _id: '$_id',
+    //                     groupName: { $first: '$groupName' },
+    //                     isManagerDefault: { $first: '$isManagerDefault' },
+    //                     memberCount: { $first: '$memberCount' },
+    //                     description: { $first: '$description' },
+    //                     isCustomGroup: { $first: '$isCustomGroup' },
+    //                     isAutoSynced: { $first: '$isAutoSynced' },
+    //                     createdAt: { $first: '$createdAt' },
+    //                     updatedAt: { $first: '$updatedAt' },
+    //                     members: { $push: '$memberDetails' },
+    //                     groupAdmin: { $first: '$groupAdmin' }
+    //                 }
+    //             },
+    //         ]),
+    //         {
+    //             offset: skip,
+    //             limit,
+    //             sort: { createdAt: "descending" },
+    //             customLabels: {
+    //                 docs: "groups",
+    //                 totalDocs: "totalCount",
+    //                 offset: "skip",
+    //             },
+    //             pagination: limit !== 0,
+    //             allowDiskUse: true,
+    //         }
+    //     )
+    // }
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
         const { subscriberId } = AuthUser(context);
-
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
-        let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true }, groupName: { $ne: null } };
-
+    
+        const skip = pageInput?.skip ?? 0;
+        const limit = pageInput?.limit ?? 50;
+    
+        let filterConditions = {
+            subscriber: subscriberId,
+            isDeleted: { $ne: true },
+            groupName: { $ne: null }
+        };
+    
         if (groupFilter?.search) {
             filterConditions = {
                 ...filterConditions,
-                $and: [
-                    {
-                        "groupName": {
-                            $regex: ".*" + groupFilter.search + ".*",
-                            $options: "i",
-                        },
-                    },
-                ],
+                groupName: {
+                    $regex: ".*" + groupFilter.search + ".*",
+                    $options: "i",
+                },
             };
         }
-
-        if (groupType === "Customgroups") {
-            filterConditions.isManagerDefault = false;
-        } else if (groupType === "Autosyncedgroups") {
-            filterConditions.isManagerDefault = true;
-        }
-        return Group.aggregatePaginate(
-            Group.aggregate([
-                {
-                    $match: filterConditions,
-                },
-                {
-                    $lookup: {
-                        from: 'users',
-                        localField: 'groupAdmin',
-                        foreignField: '_id',
-                        as: 'groupAdminDetails'
-                    }
-                },
-                {
-                    $unwind: {
-                        path: '$groupAdminDetails',
-                        preserveNullAndEmptyArrays: true
-                    }
-                },
-                {
-                    $lookup: {
-                        from: 'users',
-                        localField: 'members',
-                        foreignField: '_id',
-                        as: 'memberDetails'
-                    }
-                },
-                {
-                    $unwind: {
-                        path: '$memberDetails',
-                        preserveNullAndEmptyArrays: true
-                    }
-                },
-                {
-                    $project: {
-                        _id: 1,
-                        groupName: 1,
-                        isManagerDefault: 1,
-                        memberCount: 1,
-                        description: 1,
-                        isCustomGroup: 1,
-                        isAutoSynced: 1,
-                        createdAt: 1,
-                        updatedAt: 1,
-                        groupAdmin: {
-                            _id: '$groupAdminDetails._id',
-                            firstName: '$groupAdminDetails.firstName',
-                            lastName: '$groupAdminDetails.lastName',
-                            email: '$groupAdminDetails.email'
-                        },
-                        memberDetails: {
-                            _id: 1,
-                            firstName: 1,
-                            lastName: 1,
-                            email: 1
-                        }
-                    }
-                },
-                {
-                    $group: {
-                        _id: '$_id',
-                        groupName: { $first: '$groupName' },
-                        isManagerDefault: { $first: '$isManagerDefault' },
-                        memberCount: { $first: '$memberCount' },
-                        description: { $first: '$description' },
-                        isCustomGroup: { $first: '$isCustomGroup' },
-                        isAutoSynced: { $first: '$isAutoSynced' },
-                        createdAt: { $first: '$createdAt' },
-                        updatedAt: { $first: '$updatedAt' },
-                        members: { $push: '$memberDetails' },
-                        groupAdmin: { $first: '$groupAdmin' }
-                    }
-                },
-            ]),
+        const empDesignationGroups = await Employee.aggregate([
             {
-                offset: skip,
-                limit,
-                sort: { createdAt: "descending" },
-                customLabels: {
-                    docs: "groups",
-                    totalDocs: "totalCount",
-                    offset: "skip",
-                },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            }
-        )
-    }
+                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
+            },
+            {
+                $lookup: {
+                    from: 'designations',
+                    localField: 'empDesignation',
+                    foreignField: '_id',
+                    as: 'designationDetails'
+                }
+            },
+            { $unwind: '$designationDetails' },
+            {
+                $group: {
+                    _id: '$empDesignation',
+                    designationName: { $first: '$designationDetails.name' },
+                    employees: { $push: '$$ROOT' }
+                }
+            },
+            {
+                $limit: limit
+            },
+            { $skip: skip }
+        ]);
+    
+        const roleGroups = await User.aggregate([
+            {
+                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
+            },
+            {
+                $group: {
+                    _id: '$role',
+                    users: { $push: '$$ROOT' }
+                }
+            },
+            {
+                $limit: limit
+            },
+            { $skip: skip }
+        ]);
+        const allGroups = await Group.find(filterConditions)
+            .skip(skip)
+            .limit(limit)
+            .sort({ createdAt: -1 })
+            .lean();
+        
+        return {
+            status: 'success',
+            empDesignationGroups,
+            roleGroups,
+            allGroups
+        };
+    }    
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
