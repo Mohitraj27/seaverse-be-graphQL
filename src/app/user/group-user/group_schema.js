@@ -3,6 +3,7 @@ module.exports = {
         type Group {
             _id: ID!
             groupName: String!
+            groupAdmin: User
             isManagerDefault: Boolean
             memberCount: Int
             description: String
@@ -13,6 +14,7 @@ module.exports = {
         input GroupInput {
             _id: ID
             groupName: String!
+            groupAdmin: ID
             description: String,
             members: [ID]
             isCustomGroup: Boolean  
