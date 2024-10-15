@@ -1,4 +1,4 @@
-const { connect, connection } = require("mongoose");
+const { connect, connection, set } = require("mongoose");
 
 const connectDb = () => {
     connect(process.env.MONGO_DB, {
@@ -15,6 +15,7 @@ const connectDb = () => {
 module.exports = {
     initDb: ({ httpsServer, httpServer, apolloServer }) => {
         connectDb();
+        set("debug", true);
 
         connection
             .once("open", () => {
