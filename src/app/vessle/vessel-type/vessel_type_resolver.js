@@ -6,6 +6,8 @@ const {
 
 const { VesselType } = require("./vessel_type_model");
 
+const { Vessel } = require("../vessel_model");
+
 module.exports.queries = {
     getVesselTypes: async ({ pageInput, filterInput }, context) => {
         try {
@@ -46,11 +48,7 @@ module.exports.queries = {
                 }
             );
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
-
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 
@@ -66,11 +64,7 @@ module.exports.queries = {
 
             return vesselType;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
-
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 };
@@ -92,10 +86,7 @@ module.exports.mutations = {
 
             return vesselType;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
     updateVesselType: async ({ id, input }, context) => {
@@ -117,37 +108,34 @@ module.exports.mutations = {
 
             return vesselType;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
     deleteVesselType: async ({ id }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
             const vesselType = await VesselType.findById(id);
+            console.log(`vesselType`, vesselType);
+            if (!vesselType) {
+                throw new CustomError(ErrorName.NOT_FOUND);
+            }
 
             const alreadyInUse = await Vessel.findOne({ typeOfVessel: id, isDeleted: { $ne: true } });
-
-            if (alreadyInUse) throw CustomError(ErrorName.ALREADY_IN_USE, 'Vessel Type already in use.');
-
-            if (!vesselType) throw CustomError(ErrorName.NOT_FOUND);
+            if (alreadyInUse) {
+                throw CustomError(ErrorName.ALREADY_IN_USE);
+            }
 
             vesselType.isDeleted = true;
             vesselType.updatedBy = userId;
 
             await vesselType.save();
-
+            
             return {
                 success: true,
                 message: 'Vessel Type deleted successfully.'
             };
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 };

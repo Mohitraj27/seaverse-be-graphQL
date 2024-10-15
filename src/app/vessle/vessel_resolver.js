@@ -4,6 +4,8 @@ const {
     AuthUser
 } = require("../../util");
 
+const { ObjectId } = require("../../tools");
+
 const { Vessel } = require("./vessel_model");
 
 module.exports.queries = {
@@ -15,6 +17,13 @@ module.exports.queries = {
             const limit = pageInput?.limit ?? 50;
 
             let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
+
+            if (filterInput?.vesselType) {
+                filterConditions = {
+                    ...filterConditions,
+                    typeOfVessel: ObjectId(filterInput.vesselType),
+                };
+            }
 
             if (filterInput?.search) {
                 filterConditions = {
@@ -46,10 +55,7 @@ module.exports.queries = {
                 }
             );
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 
@@ -65,10 +71,7 @@ module.exports.queries = {
 
             return vessel;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 };
@@ -96,11 +99,7 @@ module.exports.mutations = {
 
             return vessel;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
-
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 
@@ -126,11 +125,7 @@ module.exports.mutations = {
 
             return vessel;
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
-
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 
@@ -141,7 +136,7 @@ module.exports.mutations = {
             const vessel = await Vessel.findOne({ _id: id });
 
             if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                throw new CustomError(ErrorName.NOT_FOUND);
             }
 
             vessel.isDeleted = true;
@@ -154,11 +149,7 @@ module.exports.mutations = {
                 message: 'Vessel deleted successfully.'
             };
         } catch (error) {
-            return {
-                success: true,
-                message: 'Something went wrong!.'
-            };
-
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 };

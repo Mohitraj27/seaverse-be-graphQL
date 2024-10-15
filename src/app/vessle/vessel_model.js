@@ -43,6 +43,7 @@ const vesselSchema = new Schema(
 
 vesselSchema.index({ _id: 1, subscriber: 1 });
 vesselSchema.index({ subscriber: 1, isDeleted: 1 });
+vesselSchema.index({ typeOfVessel: 1, isDeleted: 1 });
 
 vesselSchema.plugin(AggregatePaginate);
 
