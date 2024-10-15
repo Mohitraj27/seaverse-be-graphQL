@@ -61,6 +61,7 @@ const errorName = {
     ERROR_DELETING_GROUP: "ERROR_DELETING_GROUP",
     ERROR_DELETING_USER: "ERROR_DELETING_USER",
     ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
+    GROUP_TYPE_NOT_FOUND: "GROUP_TYPE_NOT_FOUND",
     ALREADY_IN_USE: "ALREADY_IN_USE",
 };
 
@@ -369,6 +370,11 @@ const errorType = {
         message: "Error Rejecting User Request",
         statusCode: 400,
         type: "ERROR_REJECTING_USER_REQUEST"
+    },
+    GROUP_TYPE_NOT_FOUND: {
+        message: "Group Type Not Found",
+        statusCode: 400,
+        type: "GROUP_TYPE_NOT_FOUND"
     },
     ALREADY_IN_USE: {
         message: "Already in use",
