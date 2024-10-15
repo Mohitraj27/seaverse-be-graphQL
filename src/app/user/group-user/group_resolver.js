@@ -73,7 +73,11 @@ module.exports.queries = {
 
             const empDesignationGroups = await Employee.aggregate([
                 {
-                    $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
+                    $match: {
+                        subscriber: subscriberId,
+                        isDeleted: { $ne: true },
+                        empDesignation: { $ne: null }
+                    }
                 },
                 {
                     $lookup: {
@@ -83,39 +87,89 @@ module.exports.queries = {
                         as: 'designationDetails'
                     }
                 },
-                { $unwind: '$designationDetails' },
+                {
+                    $unwind: '$designationDetails'
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'user',
+                        foreignField: '_id',
+                        as: 'userDetails'
+                    }
+                },
+                {
+                    $unwind: '$userDetails'
+                },
+                {
+                    $match: {
+                        'userDetails.firstName': { $ne: null },
+                        'userDetails.email': { $ne: null }
+                    }
+                },
                 {
                     $group: {
                         _id: '$empDesignation',
                         groupName: { $first: '$designationDetails.name' },
-                        users: { $push: '$$ROOT' }
+                        members: {
+                            $push: {
+                                _id: '$userDetails._id',
+                                firstName: '$userDetails.firstName',
+                                lastName: '$userDetails.lastName',
+                                email: '$userDetails.email'
+                            }
+                        }
+                    }
+                },
+                {
+                    $match: {
+                        members: { $ne: [] }
                     }
                 },
                 {
                     $limit: limit
                 },
-                { $skip: skip }
+                {
+                    $skip: skip
+                }
             ]);
 
             const roleGroups = await User.aggregate([
                 {
-                    $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
+                    $match: {
+                        subscriber: subscriberId,
+                        isDeleted: { $ne: true },
+                        role: { $ne: null },
+                        firstName: { $ne: null },
+                        email: { $ne: null }
+                    }
                 },
                 {
                     $group: {
                         _id: '$role',
                         groupName: { $first: '$role' },
-                        users: { $push: '$$ROOT' }
+                        members: {
+                            $push: {
+                                _id: '$_id',
+                                firstName: '$firstName',
+                                lastName: '$lastName',
+                                email: '$email'
+                            }
+                        }
+                    }
+                },
+                {
+                    $match: {
+                        members: { $ne: [] }
                     }
                 },
                 {
                     $limit: limit
                 },
-                { $skip: skip }
+                {
+                    $skip: skip
+                }
             ]);
-
-            console.log('empDesignationGroups:', empDesignationGroups);
-            console.log('roleGroups:', roleGroups);
 
             if (empDesignationGroups || roleGroups) {
 
@@ -126,27 +180,51 @@ module.exports.queries = {
 
             }
 
-
         }
 
         if (groupType === "Customgroups") {
 
-            const allGroups = await Group.find(filterConditions).sort({ createdAt: -1 }).lean();
-
-            if (allGroups) {
-
-                return {
-                    status: 'Success',
-                    groups: allGroups
+            const allGroups = await Group.aggregate([
+                {
+                    $match: filterConditions
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'members',
+                        foreignField: '_id',
+                        as: 'members'
+                    }
+                },
+                {
+                    $project: {
+                        members: {
+                            $filter: {
+                                input: '$members',
+                                as: 'member',
+                                cond: {
+                                    $and: [
+                                        { $ne: ['$$member.firstName', null] },
+                                        { $ne: ['$$member.email', null] }
+                                    ]
+                                }
+                            }
+                        },
+                        groupName: 1,
+                        createdAt: 1,
+                    }
+                },
+                {
+                    $sort: { createdAt: -1 }
                 }
+            ]);
 
-            }
+            return {
+                status: 'Success',
+                groups: allGroups
+            };
 
         }
-
-        return {
-            status: 'success'
-        };
 
     }
 };

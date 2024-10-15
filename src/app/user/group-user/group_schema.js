@@ -3,15 +3,12 @@ module.exports = {
         type Group {
             _id: ID!
             groupName: String!
-            groupAdmin: User
-            isManagerDefault: Boolean!
+            isManagerDefault: Boolean
             memberCount: Int
             description: String
-            members: [MemberDetails]   
-            isCustomGroup: Boolean  
-            isAutoSynced: Boolean
-            createdAt: String!
-            updatedAt: String!
+            members: [MemberDetails]
+            createdAt: String
+            updatedAt: String
         }
         input GroupInput {
             _id: ID
@@ -47,7 +44,7 @@ module.exports = {
         type MemberDetails{
             _id: ID
             firstName: String!
-            lastName: String!
+            lastName: String
             email: String!
         }
     `,
