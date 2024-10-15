@@ -5,7 +5,7 @@
 	"main": "app.js",
 	"scripts": {
 		"test": "mocha test/main.js --exit --timeout 10000",
-		"start": "node app.js",
+		"start": "nodemon app.js",
 		"dev": "NODE_ENV=development nodemon app.js",
 		"dev2": "SET NODE_ENV=development&&nodemon app.js",
 		"stage": "export NODE_ENV=stage&&node app.js",
@@ -62,7 +62,7 @@
 		"apollo-server-testing": "2.25.1",
 		"chai": "4.2.0",
 		"mocha": "7.0.1",
-		"nodemon": "2.0.7",
+		"nodemon": "^2.0.7",
 		"prettier": "2.3.2"
 	}
 }
