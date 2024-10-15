@@ -5,7 +5,7 @@ const { CustomError, ErrorName } = require("./error_helper");
 const Role = require("./role");
 
 const roleExceptions = [];
-const loginExceptions = ["getTrainingCertificate", "getProfile", "getPublicProfile", "forgetPassword", "verifyResetPassword","contactSupport"];
+const loginExceptions = ["getTrainingCertificate", "getProfile", "getPublicProfile", "forgetPassword", "verifyResetPassword","contactSupport", "newPasswordAfterReset"];
 
 const requiresRole = role => resolver => {
     if (isFunction(resolver))
