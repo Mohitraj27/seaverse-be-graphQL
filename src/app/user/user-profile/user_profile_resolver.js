@@ -18,6 +18,11 @@ const TrainingRegistrationStatus = require("../../training-registrations/trainin
 const AwsHelper = require("../../../util/aws_helper");
 const user = require("..");
 
+const { isAlphanumeric } = require('../../../util/password_helper');
+
+const { sendNodeEmail, mailSenderHelper } = require("./user_profile_helper");
+
+
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId } = AuthUser(context, false);
@@ -219,6 +224,33 @@ module.exports.queries = {
                 .populate({ path: "user", select: "firstName lastName avatar" }),
         };
     },
+    resetPassword: async (_, context) => {
+
+        const { userId } = AuthUser(context, false);
+
+        if (!userId) {
+            throw CustomError(ErrorName.UNAUTHORIZED);
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            throw new CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
+
+        let errors = [];
+
+        const result = mailSenderHelper(token, user.email, user, errors);
+
+        if (errors.length > 0) {
+            throw new CustomError(ErrorName.FAILED);
+        }
+
+        if (result) return "Email sent. Please check your email for reset link."
+
+    }
 };
 
 module.exports.mutations = {
@@ -244,162 +276,143 @@ module.exports.mutations = {
 
         throw CustomError(ErrorName.FAILED);
     },
-    updatePassword: async ({ input }, context) => {
-        const { userId } = AuthUser(context);
+    changePassword: async ({ input }, context) => {
+        try {
+            const { userId } = AuthUser(context);
+            const { currentPassword, newPassword, confirmPassword } = input;
 
-        if (!input.currentPassword || !input.newPassword) {
-            throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
-        }
-
-        const existingUser = await User.findById(userId);
-
-        if (existingUser) {
-            const valid = await CryptoHelper.compare(input.currentPassword, existingUser.password);
-
-            if (valid) {
-                existingUser.password = await CryptoHelper.hash(input.newPassword, 10);
-                const savedUser = await existingUser.save();
-
-                if (savedUser) return "Password updated successfully!";
-                throw CustomError(ErrorName.FAILED);
+            const existingUser = await User.findById(userId);
+            if (!existingUser) {
+                throw new CustomError(ErrorName.NOT_FOUND);
             }
-
-            throw CustomError(ErrorName.WRONG_PASSWORD);
-        }
-
-        throw CustomError(ErrorName.NOT_FOUND);
-    },
-
-    forgetPassword: async ({ email }, context) => {
-        const existingUser = await User.findOne({ email });
-
-        if (!existingUser) {
-            throw new CustomError(ErrorName.NOT_FOUND);
-        }
-
-        const token = crypto.randomBytes(32).toString('hex');
-
-        const emailTemplate = `
-            <!DOCTYPE html>
-            <html lang="en">
-                <head>
-                    <meta charset="UTF-8" />
-                    <title>Reset Password</title>
-                </head>
-                <body>
-                    <div style="width: 600px; margin: 0 auto; text-align: center">
-
-                        <p>Please visit the link below to reset your password</p>
-
-                        <a href="${process.env.APP_URL}/reset-password/${token}}" target="_blank">
-                            Click Here
-                        </a>
-                    </div>
-                </body>
-            </html>
-        `;
-
-        existingUser.resetPasswordToken = token;
-        existingUser.resetPasswordExpires = Date.now() + 21600000;
-
-        const addTokenToUser = await User.save();
-
-        if (addTokenToUser) {
-
-            const mailRes = await SendEmail({ receiverEmail: email, subject: "Reset Password", emailTemplate });
-
-            if (mailRes) {
-                return {
-                    success: true,
-                    message: "Reset link sent. Please check your registered email."
+            if (newPassword !== confirmPassword) {
+                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
+            }
+            const isResetPasswordDialog = existingUser.isResetPasswordDialog;
+            if (isResetPasswordDialog) {
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
                 }
             } else {
-                throw new CustomError(ErrorName.FAILED);
+                if (!newPassword || !confirmPassword) {
+                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                }
             }
+            if (!isAlphanumeric(newPassword)) {
+                throw new CustomError(ErrorName.INVALID_PASSWORD);
+            }
+            if (isResetPasswordDialog) {
+                const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
+                if (!isPasswordValid) {
+                    throw new CustomError(ErrorName.INVALID_PASSWORD);
+                }
+            }
+            existingUser.password = await CryptoHelper.hash(newPassword, 10);
 
-        } else {
-            throw new CustomError(ErrorName.FAILED);
+            existingUser.isResetPasswordDialog = false;
+
+            await existingUser.save();
+
+            return "Password updated successfully!";
+        } catch (error) {
+            throw error instanceof CustomError ? error : new CustomError(ErrorName.SERVER_ERROR, error.message);
         }
     },
 
-    verifyResetPassword: async ({ input }, context) => {
+    forgetPassword: async ({ email }) => {
 
         try {
 
-            const user = await User.findOne({ resetPasswordToken: input.token });
-    
+            const existingUser = await User.findOne({ email });
+
+            if (!existingUser) {
+                throw new CustomError(ErrorName.NOT_FOUND);
+            }
+
+            const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
+
+            let errors = [];
+
+            const result = mailSenderHelper(token, email, existingUser, errors);
+
+            if (errors.length > 0) {
+                throw new CustomError(ErrorName.FAILED);
+            }
+
+            if (result) {
+                return {
+                    success: true,
+                    message: "Email sent. Please check your email for reset link."
+                }
+            }
+
+        } catch (error) {
+            console.error(error);
+        }
+
+    },
+
+    verifyResetPassword: async ({ token }) => {
+
+        try {
+
+            const user = await User.findOne({ resetPasswordToken: token });
+
             if (!user) {
                 throw new CustomError(ErrorName.NOT_FOUND);
             }
-    
+
             if (user.resetPasswordExpires < Date.now()) {
                 throw new CustomError(ErrorName.EXPIRED_TOKEN);
             }
-    
-            const updateUser = await User.save();
-    
-            if (updateUser) {
-                return "Success";
-            } else {
-                throw new CustomError(ErrorName.FAILED);
-            }
-            
+
+            return "Success";
+
         } catch (error) {
-            throw new CustomError(ErrorName.FAILED);
+            console.error(error);
         }
 
     },
     newPasswordAfterReset: async ({ input }, context) => {
 
-        if (!input.type) {
-            throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
-        }
+        try {
 
-        if (input.type === "FORGET_PASSWORD") {
-
-            if (!input.token || !input.newPassword || !input.confirmPassword) {
+            if (!input.token) {
                 throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
 
             if (input.newPassword !== input.confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
+                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
             }
 
-        }
+            const user = await User.findOne({
+                $or: [
+                    { resetPasswordToken: input.token }
+                ]
+            });
 
-        if (input.type === "CHANGE_PASSWORD") {
-
-            if (!input.email || !input.newPassword || !input.confirmPassword) {
-                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            if (!user) {
+                throw new CustomError(ErrorName.NOT_FOUND);
             }
 
-            if (input.newPassword !== input.confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORDS_NOT_MATCH);
+            if (!isAlphanumeric(input.newPassword)) {
+                throw new CustomError(ErrorName.INVALID_PASSWORD);
             }
 
-        }
+            user.password = await CryptoHelper.hash(input.newPassword, 10);
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
 
-        const user = await User.findOne({
-            $or: [
-                { resetPasswordToken: input.token },
-                { email: input.email }
-            ]
-        });
+            const updateUser = await user.save();
 
-        if (!user) {
-            throw new CustomError(ErrorName.NOT_FOUND);
-        }
+            if (updateUser) {
+                return "Password updated successfully!";
+            } else {
+                throw new CustomError(ErrorName.FAILED);
+            }
 
-        user.password = await CryptoHelper.hash(input.newPassword, 10);
-        user.resetPasswordToken = null;
-        user.resetPasswordExpires = null;
-
-        const updateUser = await user.save();
-
-        if (updateUser) {
-            return "Success";
-        } else {
-            throw new CustomError(ErrorName.FAILED);
+        } catch (error) {
+            console.error(error);
         }
 
     },
@@ -407,21 +420,21 @@ module.exports.mutations = {
 
         try {
             const { userId } = AuthUser(context);
-    
+
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
             };
-    
+
             const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now() } });
-    
+
             if (updateUser) {
                 return "Deleted requested Successfully!";
             } else {
                 throw new CustomError(ErrorName.FAILED);
             }
         } catch (error) {
-            throw new CustomError(ErrorName.FAILED);
+            console.error(error);
         }
-        
+
     }
 };

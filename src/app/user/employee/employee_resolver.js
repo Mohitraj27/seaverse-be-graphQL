@@ -1000,7 +1000,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
     let errors = [];
     const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
 
-    if(errors.length > 0){
+    if (errors.length > 0) {
         throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
     }
 
@@ -1108,17 +1108,11 @@ module.exports.mutations = {
 
         const customFields = input.customField || [];
 
-        let managerObjectId = input.managerObjectId ?? null;
-
         const savedEmployeeList = await EmployeeHelper.createEmployees(
             {
                 input: {
                     users: [input.user],
-                    branch: input.branch,
-                    organization: input.organization,
                     empDesignation: input.empDesignation ?? null,
-                    managerObjectId: managerObjectId,
-                    rigNumber: input.rigNumber,
                     customField: customFields,
                 },
             },
