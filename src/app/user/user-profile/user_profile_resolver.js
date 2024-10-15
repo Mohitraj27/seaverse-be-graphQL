@@ -329,7 +329,7 @@ module.exports.mutations = {
             }
             existingUser.password = await CryptoHelper.hash(newPassword, 10);
 
-            existingUser.isResetPasswordDialog = false;
+            existingUser.isResetPasswordDialog = true;
 
             await existingUser.save();
             LogHelper.logActivity({
