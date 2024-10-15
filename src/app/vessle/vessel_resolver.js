@@ -64,9 +64,8 @@ module.exports.queries = {
             const { subscriberId } = AuthUser(context);
 
             const vessel = await Vessel.findOne({ _id: id, subscriber: subscriberId });
-
             if (!vessel) {
-                throw CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
 
             return vessel;
@@ -82,10 +81,10 @@ module.exports.mutations = {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
             const { name, typeOfVessel, imoNumber } = input;
 
-            console.log(name, typeOfVessel, imoNumber);
-
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
-            if (existingImoNumber) throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
+            if (existingImoNumber) {
+                throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
+            }
 
             const vessel = new Vessel({
                 subscriber: subscriberId,
@@ -109,12 +108,14 @@ module.exports.mutations = {
             const { name, typeOfVessel, imoNumber } = input;
 
             const vessel = await Vessel.findOne({ _id: id });
-
-            if (!vessel) throw new CustomError(ErrorName.NOT_FOUND);
+            if (!vessel) {
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+            }
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
-
-            if (existingImoNumber) throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
+            if (existingImoNumber) {
+                throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
+            }
 
             vessel.name = name;
             vessel.typeOfVessel = typeOfVessel;
@@ -136,7 +137,7 @@ module.exports.mutations = {
             const vessel = await Vessel.findOne({ _id: id });
 
             if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
 
             vessel.isDeleted = true;
@@ -152,4 +153,27 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+
+    activateDeactivateVessel: async ({ id }, context) => {
+        try {
+            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
+            const vessel = await Vessel.findOne({ _id: id });
+            if (!vessel) {
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+            }
+
+            vessel.isActive = !vessel.isActive;
+            vessel.updatedBy = userId;
+
+            await vessel.save();
+
+            return {
+                success: true,
+                message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    }
 };

@@ -25,6 +25,11 @@ module.exports = {
             success: Boolean!
             message: String
         }
+
+        type ActivateDeactivateVesselTypeResponse {
+            success: Boolean!
+            message: String
+        }
     `,
     queries: `
         getVesselTypes(pageInput: PageInput, filterInput: VesselTypeFilterInput): VesselTypeList!
@@ -34,5 +39,6 @@ module.exports = {
         createVesselType(input: VesselTypeInput!): VesselType!
         updateVesselType(id: ID!, input: VesselTypeInput!): VesselType!
         deleteVesselType(id: ID!): DeleteVesselTypeResponse!
+        activateDeactivateVesselType(id: ID!): ActivateDeactivateVesselTypeResponse!
         `,
 };

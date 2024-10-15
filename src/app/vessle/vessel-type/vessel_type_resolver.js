@@ -59,7 +59,7 @@ module.exports.queries = {
             const vesselType = await VesselType.findOne({ _id: id, subscriber: subscriberId, isDeleted: { $ne: true } });
 
             if (!vesselType) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel Type not found.');
             }
 
             return vesselType;
@@ -97,7 +97,7 @@ module.exports.mutations = {
             const vesselType = await VesselType.findById(id);
 
             if (!vesselType) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel Type not found.');
             }
 
             vesselType.name = name;
@@ -114,15 +114,15 @@ module.exports.mutations = {
     deleteVesselType: async ({ id }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
             const vesselType = await VesselType.findById(id);
-            console.log(`vesselType`, vesselType);
             if (!vesselType) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel Type not found.');
             }
 
             const alreadyInUse = await Vessel.findOne({ typeOfVessel: id, isDeleted: { $ne: true } });
             if (alreadyInUse) {
-                throw CustomError(ErrorName.ALREADY_IN_USE);
+                throw CustomError(ErrorName.ALREADY_IN_USE, 'Vessel Type already in use.');
             }
 
             vesselType.isDeleted = true;
@@ -138,4 +138,27 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+
+    activateDeactivateVesselType: async ({ id }, context) => {
+        try {
+            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
+            const vesselType = await VesselType.findById(id);
+            if (!vesselType) {
+                throw new CustomError(ErrorName.NOT_FOUND);
+            }
+
+            vesselType.isActive = !vesselType.isActive;
+            vesselType.updatedBy = userId;
+
+            await vesselType.save();
+
+            return {
+                success: true,
+                message: `Vessel Type ${vesselType.isActive ? 'activated' : 'deactivated'} successfully.`
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    }
 };
