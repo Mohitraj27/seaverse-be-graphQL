@@ -249,6 +249,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
+        
         const { role, userId, userInfo, userPermissions, subscriberId } =
             AuthUser(context);
 
@@ -278,9 +279,9 @@ module.exports.mutations = {
         }
 
         if (input.groupName) groupUpdateData.groupName = input.groupName;
-        if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
+        // if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
         if (input.description) groupUpdateData.description = input.description;
-        if (input.isManager) groupUpdateData.isManager = input.isManager;
+        // if (input.isManager) groupUpdateData.isManager = input.isManager;
         if (input.isCustomGroup !== undefined) groupUpdateData.isCustomGroup = input.isCustomGroup;
         if (input.isAutoSynced !== undefined) groupUpdateData.isAutoSynced = input.isAutoSynced;
 
