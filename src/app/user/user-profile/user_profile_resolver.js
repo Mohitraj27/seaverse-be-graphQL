@@ -226,8 +226,7 @@ module.exports.queries = {
         };
     },
     resetPassword: async (_, context) => {
-
-        const { userId } = AuthUser(context, false);
+        const { role, subscriberId, userId, userInfo } = AuthUser(context, false);
 
         if (!userId) {
             throw CustomError(ErrorName.UNAUTHORIZED);
@@ -249,14 +248,24 @@ module.exports.queries = {
             throw new CustomError(ErrorName.FAILED);
         }
 
-        if (result) return "Email sent. Please check your email for reset link."
-
+        if (result) {
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.PASSWORD_MANAGEMENT_LOG,
+                operation: "RESET_PASSSWORD",
+                ipInfo: context.ipInfo,
+                affected: [{ targetRef: "User", target: existingUser._id }],
+                createdBy: userInfo,
+            });
+            return "Email sent. Please check your email for reset link."
+        }
+            
     }
 };
 
 module.exports.mutations = {
     updateProfile: async ({ input }, context) => {
-        const { role, userId } = AuthUser(context);
+        const { role, userId , subscriberId, userInfo } = AuthUser(context);
 
         const savedUser = await UserHelper.updateUser({ id: userId, input }, { currentRole: role });
 
@@ -271,7 +280,14 @@ module.exports.mutations = {
             if (savedUser.avatar) {
                 savedUser.avatar = await AwsHelper.fetchFile(savedUser.avatar);
             }
-
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.UPDATE_PROFILE_LOG,
+                operation: "UPDATE_PROFILE_LOG",
+                ipInfo: context.ipInfo,
+                affected: [{ targetRef: "User", target: userId }],
+                createdBy: userInfo,
+            });
             return savedUser;
         }
 
@@ -373,10 +389,10 @@ module.exports.mutations = {
 
     },
 
-    verifyResetPassword: async ({ token }) => {
+    verifyResetPassword: async ({ token }, context) => {
 
         try {
-
+            const { subscriberId, userId ,userInfo } = AuthUser(context);
             const user = await User.findOne({ resetPasswordToken: token });
 
             if (!user) {
@@ -386,7 +402,14 @@ module.exports.mutations = {
             if (user.resetPasswordExpires < Date.now()) {
                 throw new CustomError(ErrorName.EXPIRED_TOKEN);
             }
-
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.PASSWORD_MANAGEMENT_LOG,
+                operation: "VERIFY_RESET_PASSWORD",
+                ipInfo: context.ipInfo,
+                affected: [{ targetRef: "User", target: userId }],
+                createdBy: userInfo,
+            });
             return "Success";
 
         } catch (error) {
@@ -397,7 +420,7 @@ module.exports.mutations = {
     newPasswordAfterReset: async ({ input }, context) => {
 
         try {
-
+            const { subscriberId, userId ,userInfo } = AuthUser(context);
             if (!input.token) {
                 throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
@@ -427,6 +450,14 @@ module.exports.mutations = {
             const updateUser = await user.save();
 
             if (updateUser) {
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.PASSWORD_MANAGEMENT_LOG,
+                    operation: "NEW_PASSWORD_AFTER_RESET",
+                    ipInfo: context.ipInfo,
+                    affected: [{ targetRef: "User", target: userId }],
+                    createdBy: userInfo,
+                });
                 return "Password updated successfully!";
             } else {
                 throw new CustomError(ErrorName.FAILED);
@@ -440,7 +471,7 @@ module.exports.mutations = {
     selfDeleteRequest: async (_, context) => {
 
         try {
-            const { userId } = AuthUser(context);
+            const { subscriberId, userId ,userInfo } = AuthUser(context);
 
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
@@ -449,6 +480,14 @@ module.exports.mutations = {
             const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now() } });
 
             if (updateUser) {
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.DELETE_REQUEST_LOG,
+                    operation: "SELF_DELETE_REQUEST",
+                    ipInfo: context.ipInfo,
+                    affected: [{ targetRef: "User", target: userId}],
+                    createdBy: userInfo,
+                });
                 return "Deleted requested Successfully!";
             } else {
                 throw new CustomError(ErrorName.FAILED);
