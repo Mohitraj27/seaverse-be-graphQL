@@ -10,11 +10,9 @@ module.exports = {
         input VesselTypeInput {
             _id: ID
             name: String!
-            isActive: Boolean!
         }
         input VesselTypeFilterInput {
-            search: String,
-            isActive: Boolean
+            search: String
         }
 
         type VesselTypeList {

@@ -3,7 +3,7 @@ module.exports = {
         type Vessel {
             _id: ID
             name: String!
-            typeOfVessel: String!
+            typeOfVessel: ID!
             imoNumber: String!
             isActive: Boolean!
             createdAt: String!
@@ -12,9 +12,8 @@ module.exports = {
         input VesselInput {
             _id: ID
             name: String!
-            typeOfVessel: String!
+            typeOfVessel: ID!
             imoNumber: String!
-            isActive: Boolean!
         }
         input VesselFilterInput {
             search: String
