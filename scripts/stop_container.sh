@@ -1,3 +1,3 @@
 #!/bin/bash
-docker stop seaverse-backend || true
-docker rm seaverse-backend || true
+docker stop apiweb-seaverse-backend || true
+docker rm apiweb-seaverse-backend || true
