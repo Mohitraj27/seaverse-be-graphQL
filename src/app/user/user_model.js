@@ -132,6 +132,9 @@ const userSchema = new Schema(
             type: Boolean,
             default: false, 
         },
+        reasonForDelete: {
+            type: String
+        }
     },
     { timestamps: true }
 );

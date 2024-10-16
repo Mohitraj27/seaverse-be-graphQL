@@ -1,4 +1,8 @@
 const nodemailer = require('nodemailer');
+const NotificationType = require('../../notifications/notification_type.json');
+const NotificationHelper = require('../../notifications/notification_helper');
+const { User } = require("../user_model");
+const { CustomError, ErrorName } = require('../../../util/error_helper');
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
@@ -98,9 +102,55 @@ function generateRandomString(length = 30) {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     return Array.from({ length }, () => characters[Math.floor(Math.random() * characters.length)]).join('');
 }
-
+const sendNotificationOnDELETEREQUEST = async (notificationData) => {
+    try {
+        const { firstName, lastName, civilIdOrPassport,email } = notificationData.user;
+        const { reasonForDelete } = notificationData;
+        const adminUsers = await User.find({ role: "ADMIN" });
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action}` }],
+            notificationType: NotificationType.DELETE_APPROVAL_REQUEST,
+            notifyAdmin: true,
+            notifiers: adminUsers.map(admin => admin._id),
+            employeeNotifiers: [],
+            affected: [
+                {
+                    targetRef: "User",
+                    target: notificationData.user._id,
+                },
+            ],
+            additionalInfo: [
+                {
+                    infoType: "USER_DELETE_REQUEST_INFO",
+                    infoData: {
+                        firstName: notificationData.createdBy.firstName,
+                        lastName: notificationData.createdBy.lastName,
+                        civilIdOrPassport: civilIdOrPassport,
+                        email: email
+                    },
+                },
+               
+            ],
+            createdBy: notificationData.createdBy,
+        };
+        if (notification.notificationType === NotificationType.DELETE_APPROVAL_REQUEST) {
+            notification.message = [
+                {
+                    lang: "en",
+                    value: `${notificationData.createdBy.firstName} ${notificationData.createdBy.lastName} submitted a delete request for your approval. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
+                },
+            ];
+        } 
+        await NotificationHelper.createNotification(notification);
+    } catch (error) {
+        console.error(error);
+        throw new CustomError(ErrorName.FAILED);
+    }
+}
 module.exports = {
     sendNodeEmail,
     generateRandomString,
-    mailSenderHelper
+    mailSenderHelper,
+    sendNotificationOnDELETEREQUEST
 };

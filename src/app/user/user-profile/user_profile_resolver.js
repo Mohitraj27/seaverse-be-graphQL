@@ -20,7 +20,7 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { sendNodeEmail, mailSenderHelper } = require("./user_profile_helper");
+const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 
@@ -450,18 +450,32 @@ module.exports.mutations = {
         }
 
     },
-    selfDeleteRequest: async (_, context) => {
-
+    selfDeleteRequest: async ({ input }, context) => {
+        const { subscriberId, userId ,userInfo } = AuthUser(context);
+        
         try {
-            const { subscriberId, userId ,userInfo } = AuthUser(context);
-
+            const { reasonForDelete } = input;
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
             };
-
-            const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now() } });
-
+            if (!reasonForDelete || !reasonForDelete.trim().length) {
+                throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
+            }
+            const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now(), reasonForDelete: reasonForDelete } });
             if (updateUser) {
+                await sendNotificationOnDELETEREQUEST({
+                    subscriber: subscriberId,
+                    user: { 
+                        _id: userId, 
+                        firstName: updateUser.firstName,
+                        lastName: updateUser.lastName,
+                        civilIdOrPassport: updateUser.civilIdOrPassport,
+                        email: updateUser.email        
+                    },
+                   action: "requested",
+                   reasonForDelete,
+                   createdBy: userInfo
+                })
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.DELETE_REQUEST_LOG,
@@ -469,9 +483,16 @@ module.exports.mutations = {
                     ipInfo: context.ipInfo,
                     affected: [{ targetRef: "User", target: userId}],
                     createdBy: userInfo,
+                    additionalInfo: [
+                        {
+                            infoType: "REASON_FOR_DELETE",
+                            infoData: reasonForDelete,  
+                        }
+                    ]
                 });
                 return "Deleted requested Successfully!";
             } else {
+                console.error(error);
                 throw new CustomError(ErrorName.FAILED);
             }
         } catch (error) {
