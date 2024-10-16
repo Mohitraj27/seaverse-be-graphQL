@@ -1,4 +1,4 @@
-const { CustomError } = require("./error_helper.js");
+const { CustomError, ErrorName } = require("./error_helper.js");
 const isAlphanumeric = (password) => {
     const regex = /^[a-zA-Z0-9]+$/; 
     if (password.length < 8) {

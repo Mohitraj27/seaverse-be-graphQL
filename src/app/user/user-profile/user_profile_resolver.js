@@ -254,7 +254,7 @@ module.exports.queries = {
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,
                 operation: "RESET_PASSSWORD",
                 ipInfo: context.ipInfo,
-                affected: [{ targetRef: "User", target: existingUser._id }],
+                affected: [{ targetRef: "User", target: userId }],
                 createdBy: userInfo,
             });
             return "Email sent. Please check your email for reset link."
@@ -389,10 +389,9 @@ module.exports.mutations = {
 
     },
 
-    verifyResetPassword: async ({ token }, context) => {
+    verifyResetPassword: async ({ token }) => {
 
         try {
-            const { subscriberId, userId ,userInfo } = AuthUser(context);
             const user = await User.findOne({ resetPasswordToken: token });
 
             if (!user) {
@@ -402,14 +401,6 @@ module.exports.mutations = {
             if (user.resetPasswordExpires < Date.now()) {
                 throw new CustomError(ErrorName.EXPIRED_TOKEN);
             }
-            LogHelper.logActivity({
-                subscriber: subscriberId,
-                logType: LogType.PASSWORD_MANAGEMENT_LOG,
-                operation: "VERIFY_RESET_PASSWORD",
-                ipInfo: context.ipInfo,
-                affected: [{ targetRef: "User", target: userId }],
-                createdBy: userInfo,
-            });
             return "Success";
 
         } catch (error) {
@@ -420,7 +411,6 @@ module.exports.mutations = {
     newPasswordAfterReset: async ({ input }, context) => {
 
         try {
-            const { subscriberId, userId ,userInfo } = AuthUser(context);
             if (!input.token) {
                 throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
@@ -450,14 +440,6 @@ module.exports.mutations = {
             const updateUser = await user.save();
 
             if (updateUser) {
-                LogHelper.logActivity({
-                    subscriber: subscriberId,
-                    logType: LogType.PASSWORD_MANAGEMENT_LOG,
-                    operation: "NEW_PASSWORD_AFTER_RESET",
-                    ipInfo: context.ipInfo,
-                    affected: [{ targetRef: "User", target: userId }],
-                    createdBy: userInfo,
-                });
                 return "Password updated successfully!";
             } else {
                 throw new CustomError(ErrorName.FAILED);
