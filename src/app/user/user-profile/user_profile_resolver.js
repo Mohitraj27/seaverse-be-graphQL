@@ -226,11 +226,6 @@ module.exports.queries = {
         };
     },
     resetPassword: async (_, context) => {
-        const { role, subscriberId, userId, userInfo } = AuthUser(context, false);
-
-        if (!userId) {
-            throw CustomError(ErrorName.UNAUTHORIZED);
-        }
 
         const user = await User.findById(userId);
 
@@ -249,14 +244,6 @@ module.exports.queries = {
         }
 
         if (result) {
-            LogHelper.logActivity({
-                subscriber: subscriberId,
-                logType: LogType.PASSWORD_MANAGEMENT_LOG,
-                operation: "RESET_PASSSWORD",
-                ipInfo: context.ipInfo,
-                affected: [{ targetRef: "User", target: userId }],
-                createdBy: userInfo,
-            });
             return "Email sent. Please check your email for reset link."
         }
             
@@ -402,11 +389,11 @@ module.exports.mutations = {
 
         try {
             if (!input.token) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide all the required fields');
             }
 
             if (input.newPassword !== input.confirmPassword) {
-                throw CustomError(ErrorName.PASSWORD_MISMATCH);
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, 'Passwords do not match');
             }
 
             const user = await User.findOne({
@@ -422,10 +409,11 @@ module.exports.mutations = {
             let checkAlphaNumeric = isAlphanumeric(input.newPassword);
 
             if(!checkAlphaNumeric) {
-                throw CustomError(ErrorName.INVALID_PASSWORD);
+                throw CustomError(ErrorName.INVALID_PASSWORD, 'Password must be 6-15 characters long.');
             }
-
+            
             user.password = await CryptoHelper.hash(input.newPassword, 10);
+            
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
 
@@ -438,7 +426,7 @@ module.exports.mutations = {
             }
 
         } catch (error) {
-            console.error(error);
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
 
     },

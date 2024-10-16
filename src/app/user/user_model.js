@@ -132,6 +132,10 @@ const userSchema = new Schema(
             type: Boolean,
             default: false, 
         },
+        currentVessel: {
+            type: ObjectId,
+            ref: "Vessel",
+        }
     },
     { timestamps: true }
 );

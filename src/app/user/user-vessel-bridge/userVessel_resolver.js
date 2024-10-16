@@ -14,33 +14,54 @@ module.exports.queries = {
 
 };
 module.exports.mutations = {
-    assignVesselToUser: async ({ input }) => {
+    assignVesselToUser: async ({ input }, context) => {
 
-        if (!input.vesselId || !input.userId) {
-            throw CustomError(ErrorName.VALIDATION_ERROR);
-        }
+        const { subscriberId } = AuthUser(context);
 
-        const getVessel = await UserVessel.findById(input.vesselId);
-
-        if (!getVessel) {
-            throw CustomError(ErrorName.VESSEL_NOT_FOUND);
-        }
-
-        const getUser = await User.findById(input.userId);
-
-        if (!getUser) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
-
-        const updateCurrentVessel = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
-            {
-                $set: {
-                    isActive: false,
-                    deletedTime: Date.now()
+        try {
+            
+            if (!input.vesselId || !input.userId) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Provide all the required fields");
+            }
+    
+            const getVessel = await UserVessel.findById(input.vesselId);
+    
+            if (!getVessel) {
+                throw CustomError(ErrorName.VESSEL_NOT_FOUND, "Vessel not found");
+            }
+    
+            const getUser = await User.findById(input.userId);
+    
+            if (!getUser) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+            }
+    
+            const updateCurrentVessel = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
+                {
+                    $set: {
+                        isActive: false,
+                        deletedAt: Date.now()
+                    }
+                },
+                { new: true });
+    
+            const newVesselUpdate = await UserVessel.create({
+                user: input.userId,
+                vessel: input.vesselId,
+                isActive: true
+            });
+    
+            const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId }, { new: true });
+    
+            if (updateUser) {
+                return {
+                    status: "Success",
+                    message: "The vessel assigned successfully!"
                 }
-            },
-            { new: true });
-        }
+            }
 
-        
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    }
 };

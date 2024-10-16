@@ -2,7 +2,6 @@ const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools")
 
 const userVesselSchema = new Schema(
     {
-        UID: String,
         user: {
             type: ObjectId,
             ref: "User",
@@ -15,7 +14,7 @@ const userVesselSchema = new Schema(
             type: String,
             enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"]
         },
-        deletedTime: {
+        deletedAt: {
             type: Date,
         },
         isActive: {
