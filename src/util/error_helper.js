@@ -63,6 +63,7 @@ const errorName = {
     ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
     GROUP_TYPE_NOT_FOUND: "GROUP_TYPE_NOT_FOUND",
     ALREADY_IN_USE: "ALREADY_IN_USE",
+    VESSEL_NOT_FOUND: "VESSEL_NOT_FOUND",
 };
 
 const errorType = {
@@ -380,7 +381,12 @@ const errorType = {
         message: "Already in use",
         statusCode: 400,
         type: "ALREADY_IN_USE"
-    }
+    },
+    VESSEL_NOT_FOUND: {
+        message: "Vessel Not Found",
+        statusCode: 400,
+        type: "VESSEL_NOT_FOUND"
+    },
 };
 
 const formatError = error => {

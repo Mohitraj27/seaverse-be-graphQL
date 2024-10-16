@@ -348,8 +348,6 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email }, context) => {
 
-        const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } = AuthUser(context);
-
         try {
 
             const existingUser = await User.findOne({ email });
@@ -369,14 +367,6 @@ module.exports.mutations = {
             }
 
             if (result) {
-                LogHelper.logActivity({
-                    subscriber: subscriberId,
-                    logType: LogType.PASSWORD_MANAGEMENT_LOG,
-                    operation: "FORGET_PASSWORD",
-                    ipInfo: context.ipInfo,
-                    affected: [{ targetRef: "User", target: existingUser._id }],
-                    createdBy: userInfo,
-                });
                 return {
                     success: true,
                     message: "Email sent. Please check your email for reset link."
@@ -395,11 +385,11 @@ module.exports.mutations = {
             const user = await User.findOne({ resetPasswordToken: token });
 
             if (!user) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND);
             }
 
             if (user.resetPasswordExpires < Date.now()) {
-                throw new CustomError(ErrorName.EXPIRED_TOKEN);
+                throw CustomError(ErrorName.EXPIRED_TOKEN);
             }
             return "Success";
 
@@ -412,11 +402,11 @@ module.exports.mutations = {
 
         try {
             if (!input.token) {
-                throw new CustomError(ErrorName.ARGUMENTS_REQUIRED);
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
 
             if (input.newPassword !== input.confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
+                throw CustomError(ErrorName.PASSWORD_MISMATCH);
             }
 
             const user = await User.findOne({
@@ -426,11 +416,13 @@ module.exports.mutations = {
             });
 
             if (!user) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND);
             }
+            
+            let checkAlphaNumeric = isAlphanumeric(input.newPassword);
 
-            if (!isAlphanumeric(input.newPassword)) {
-                throw new CustomError(ErrorName.INVALID_PASSWORD);
+            if(!checkAlphaNumeric) {
+                throw CustomError(ErrorName.INVALID_PASSWORD);
             }
 
             user.password = await CryptoHelper.hash(input.newPassword, 10);
@@ -442,7 +434,7 @@ module.exports.mutations = {
             if (updateUser) {
                 return "Password updated successfully!";
             } else {
-                throw new CustomError(ErrorName.FAILED);
+                throw CustomError(ErrorName.FAILED);
             }
 
         } catch (error) {
