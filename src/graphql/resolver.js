@@ -45,8 +45,11 @@ const { QuizAttemptResolver } = require("../app/quizzes/quiz-attempts");
 
 const { DesignationResolver } = require("../app/designations");
 const { GroupResolver, GroupMemebrResolver } = require("../app/user/group-user");
+const { VesselTypeResolver } = require("../app/vessle/vessel-type");
+const { VesselResolver } = require("../app/vessle");
 const AwsHelper = require("../util/aws_helper");
 const { ContactSupportResolver } = require('../app/contact-support');
+const { userVesselResolver } = require('../app/user/user-vessel-bridge');
 
 module.exports = {
     ID: new GraphQLScalarType({
@@ -128,7 +131,10 @@ module.exports = {
         ...AuthHelper.requiresEmployee(DesignationResolver.queries),
         ...AuthHelper.requiresEmployee(GroupResolver.queries),
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.queries),
-        ...AuthHelper.requiresAuthor(TrainingModuleContentResolver.queries),
+        ...AuthHelper.requiresAdmin(TrainingModuleContentResolver.queries),
+        ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
+        ...AuthHelper.requiresAdmin(VesselResolver.queries),
+        ...AuthHelper.requiresAdmin(VesselResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -148,7 +154,7 @@ module.exports = {
         ...AuthHelper.requiresEmployee(TrainingCategoryResolver.mutations),
         ...AuthHelper.requiresEmployee(TrainingModuleResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupTrainingModuleResolver.mutations),
-        ...AuthHelper.requiresAuthor(TrainingModuleContentResolver.mutations),
+        ...AuthHelper.requiresAdmin(TrainingModuleContentResolver.mutations),
         ...AuthHelper.simplify(UserResolver.mutations),
         ...AuthHelper.requiresLogin(EmployeeResolver.mutations),
         ...AuthHelper.requiresEmployee(SubRoleResolver.mutations),
@@ -161,7 +167,10 @@ module.exports = {
         ...AuthHelper.requiresEmployee(DesignationResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.mutations),
+        ...AuthHelper.requiresAdmin(VesselTypeResolver.mutations),
+        ...AuthHelper.requiresAdmin(VesselResolver.mutations),
         ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
+        ...AuthHelper.requiresAdmin(VesselResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

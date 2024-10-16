@@ -4,26 +4,20 @@ module.exports = {
             _id: ID!
             groupName: String!
             groupAdmin: User
-            isManagerDefault: Boolean!
+            isManagerDefault: Boolean
             memberCount: Int
             description: String
-            members: [MemberDetails]   
-            isCustomGroup: Boolean  
-            isAutoSynced: Boolean
-            createdAt: String!
-            updatedAt: String!
+            members: [MemberDetails]
+            createdAt: String
+            updatedAt: String
         }
         input GroupInput {
             _id: ID
             groupName: String!
-            groupAdmin: ID
             description: String,
             members: [ID]
-            isCustomGroup: Boolean  
-            isAutoSynced: Boolean
         }
         enum GroupType {
-             All
              Customgroups
              Autosyncedgroups
         }
@@ -49,12 +43,12 @@ module.exports = {
         type MemberDetails{
             _id: ID
             firstName: String!
-            lastName: String!
+            lastName: String
             email: String!
         }
     `,
     queries: `
-        getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
+        getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType!): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
     `,
     mutations: `

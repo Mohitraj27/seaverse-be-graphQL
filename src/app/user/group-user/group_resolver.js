@@ -44,133 +44,21 @@ module.exports.queries = {
             throw new CustomError(ErrorName.ERROR_IN_EXPORT_CSV_USER_GROUP);
         }
     },
-    // getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
-    //     const { subscriberId } = AuthUser(context);
-
-    //     const skip = pageInput?.skip ?? 0,
-    //         limit = pageInput?.limit ?? 50;
-    //     let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true }, groupName: { $ne: null } };
-
-    //     if (groupFilter?.search) {
-    //         filterConditions = {
-    //             ...filterConditions,
-    //             $and: [
-    //                 {
-    //                     "groupName": {
-    //                         $regex: ".*" + groupFilter.search + ".*",
-    //                         $options: "i",
-    //                     },
-    //                 },
-    //             ],
-    //         };
-    //     }
-
-    //     if (groupType === "Customgroups") {
-    //         filterConditions.isManagerDefault = false;
-    //     } else if (groupType === "Autosyncedgroups") {
-    //         filterConditions.isManagerDefault = true;
-    //     }
-    //     return Group.aggregatePaginate(
-    //         Group.aggregate([
-    //             {
-    //                 $match: filterConditions,
-    //             },
-    //             {
-    //                 $lookup: {
-    //                     from: 'users',
-    //                     localField: 'groupAdmin',
-    //                     foreignField: '_id',
-    //                     as: 'groupAdminDetails'
-    //                 }
-    //             },
-    //             {
-    //                 $unwind: {
-    //                     path: '$groupAdminDetails',
-    //                     preserveNullAndEmptyArrays: true
-    //                 }
-    //             },
-    //             {
-    //                 $lookup: {
-    //                     from: 'users',
-    //                     localField: 'members',
-    //                     foreignField: '_id',
-    //                     as: 'memberDetails'
-    //                 }
-    //             },
-    //             {
-    //                 $unwind: {
-    //                     path: '$memberDetails',
-    //                     preserveNullAndEmptyArrays: true
-    //                 }
-    //             },
-    //             {
-    //                 $project: {
-    //                     _id: 1,
-    //                     groupName: 1,
-    //                     isManagerDefault: 1,
-    //                     memberCount: 1,
-    //                     description: 1,
-    //                     isCustomGroup: 1,
-    //                     isAutoSynced: 1,
-    //                     createdAt: 1,
-    //                     updatedAt: 1,
-    //                     groupAdmin: {
-    //                         _id: '$groupAdminDetails._id',
-    //                         firstName: '$groupAdminDetails.firstName',
-    //                         lastName: '$groupAdminDetails.lastName',
-    //                         email: '$groupAdminDetails.email'
-    //                     },
-    //                     memberDetails: {
-    //                         _id: 1,
-    //                         firstName: 1,
-    //                         lastName: 1,
-    //                         email: 1
-    //                     }
-    //                 }
-    //             },
-    //             {
-    //                 $group: {
-    //                     _id: '$_id',
-    //                     groupName: { $first: '$groupName' },
-    //                     isManagerDefault: { $first: '$isManagerDefault' },
-    //                     memberCount: { $first: '$memberCount' },
-    //                     description: { $first: '$description' },
-    //                     isCustomGroup: { $first: '$isCustomGroup' },
-    //                     isAutoSynced: { $first: '$isAutoSynced' },
-    //                     createdAt: { $first: '$createdAt' },
-    //                     updatedAt: { $first: '$updatedAt' },
-    //                     members: { $push: '$memberDetails' },
-    //                     groupAdmin: { $first: '$groupAdmin' }
-    //                 }
-    //             },
-    //         ]),
-    //         {
-    //             offset: skip,
-    //             limit,
-    //             sort: { createdAt: "descending" },
-    //             customLabels: {
-    //                 docs: "groups",
-    //                 totalDocs: "totalCount",
-    //                 offset: "skip",
-    //             },
-    //             pagination: limit !== 0,
-    //             allowDiskUse: true,
-    //         }
-    //     )
-    // }
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
 
+        if (!groupType || groupType === '') return CustomError(ErrorName.GROUP_TYPE_NOT_FOUND);
+
         const { subscriberId } = AuthUser(context);
-    
+
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-    
+
         let filterConditions = {
             subscriber: subscriberId,
             isDeleted: { $ne: true },
             groupName: { $ne: null }
         };
-    
+
         if (groupFilter?.search) {
             filterConditions = {
                 ...filterConditions,
@@ -180,60 +68,165 @@ module.exports.queries = {
                 },
             };
         }
-        const empDesignationGroups = await Employee.aggregate([
-            {
-                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
-            },
-            {
-                $lookup: {
-                    from: 'designations',
-                    localField: 'empDesignation',
-                    foreignField: '_id',
-                    as: 'designationDetails'
+
+        if (groupType === 'Autosyncedgroups') {
+
+            const empDesignationGroups = await Employee.aggregate([
+                {
+                    $match: {
+                        subscriber: subscriberId,
+                        isDeleted: { $ne: true },
+                        empDesignation: { $ne: null }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'empDesignation',
+                        foreignField: '_id',
+                        as: 'designationDetails'
+                    }
+                },
+                {
+                    $unwind: '$designationDetails'
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'user',
+                        foreignField: '_id',
+                        as: 'userDetails'
+                    }
+                },
+                {
+                    $unwind: '$userDetails'
+                },
+                {
+                    $match: {
+                        'userDetails.firstName': { $ne: null },
+                        'userDetails.email': { $ne: null }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$empDesignation',
+                        groupName: { $first: '$designationDetails.name' },
+                        members: {
+                            $push: {
+                                _id: '$userDetails._id',
+                                firstName: '$userDetails.firstName',
+                                lastName: '$userDetails.lastName',
+                                email: '$userDetails.email'
+                            }
+                        }
+                    }
+                },
+                {
+                    $match: {
+                        members: { $ne: [] }
+                    }
+                },
+                {
+                    $limit: limit
+                },
+                {
+                    $skip: skip
                 }
-            },
-            { $unwind: '$designationDetails' },
-            {
-                $group: {
-                    _id: '$empDesignation',
-                    designationName: { $first: '$designationDetails.name' },
-                    employees: { $push: '$$ROOT' }
+            ]);
+
+            const roleGroups = await User.aggregate([
+                {
+                    $match: {
+                        subscriber: subscriberId,
+                        isDeleted: { $ne: true },
+                        role: { $ne: null },
+                        firstName: { $ne: null },
+                        email: { $ne: null }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$role',
+                        groupName: { $first: '$role' },
+                        members: {
+                            $push: {
+                                _id: '$_id',
+                                firstName: '$firstName',
+                                lastName: '$lastName',
+                                email: '$email'
+                            }
+                        }
+                    }
+                },
+                {
+                    $match: {
+                        members: { $ne: [] }
+                    }
+                },
+                {
+                    $limit: limit
+                },
+                {
+                    $skip: skip
                 }
-            },
-            {
-                $limit: limit
-            },
-            { $skip: skip }
-        ]);
-    
-        const roleGroups = await User.aggregate([
-            {
-                $match: { subscriber: subscriberId, isDeleted: { $ne: true } }
-            },
-            {
-                $group: {
-                    _id: '$role',
-                    users: { $push: '$$ROOT' }
+            ]);
+
+            if (empDesignationGroups || roleGroups) {
+
+                return {
+                    status: 'Success',
+                    groups: [...empDesignationGroups, ...roleGroups]
                 }
-            },
-            {
-                $limit: limit
-            },
-            { $skip: skip }
-        ]);
-        const allGroups = await Group.find(filterConditions)
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 })
-            .lean();
-        
-        return {
-            status: 'success',
-            empDesignationGroups,
-            roleGroups,
-            allGroups
-        };
-    }    
+
+            }
+
+        }
+
+        if (groupType === "Customgroups") {
+
+            const allGroups = await Group.aggregate([
+                {
+                    $match: filterConditions
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'members',
+                        foreignField: '_id',
+                        as: 'members'
+                    }
+                },
+                {
+                    $project: {
+                        members: {
+                            $filter: {
+                                input: '$members',
+                                as: 'member',
+                                cond: {
+                                    $and: [
+                                        { $ne: ['$$member.firstName', null] },
+                                        { $ne: ['$$member.email', null] }
+                                    ]
+                                }
+                            }
+                        },
+                        groupName: 1,
+                        createdAt: 1,
+                    }
+                },
+                {
+                    $sort: { createdAt: -1 }
+                }
+            ]);
+
+            return {
+                status: 'Success',
+                groups: allGroups
+            };
+
+        }
+
+    }
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
@@ -247,7 +240,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
         const result = await GroupMember.insertMany(groupMembers, { ordered: false });
         return result.length;
-        
+
     } catch (error) {
         console.error(error)
         return 0;
@@ -256,6 +249,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
+        
         const { role, userId, userInfo, userPermissions, subscriberId } =
             AuthUser(context);
 
