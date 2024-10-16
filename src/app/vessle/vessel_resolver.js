@@ -18,6 +18,8 @@ module.exports.queries = {
 
             let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
 
+            filterConditions.isActive = filterInput.isActive ? true : false;
+
             if (filterInput?.vesselType) {
                 filterConditions = {
                     ...filterConditions,

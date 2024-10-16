@@ -19,6 +19,7 @@ module.exports = {
         input VesselFilterInput {
             search: String
             vesselType: String
+            isActive: Boolean
         }
 
         type VesselList {
