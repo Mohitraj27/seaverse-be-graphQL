@@ -14,11 +14,8 @@ module.exports = {
         input GroupInput {
             _id: ID
             groupName: String!
-            groupAdmin: ID
             description: String,
             members: [ID]
-            isCustomGroup: Boolean  
-            isAutoSynced: Boolean
         }
         enum GroupType {
              Customgroups

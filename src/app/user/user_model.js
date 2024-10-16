@@ -134,6 +134,10 @@ const userSchema = new Schema(
         },
         reasonForDelete: {
             type: String
+        },
+        currentVessel: {
+            type: ObjectId,
+            ref: "Vessel",
         }
     },
     { timestamps: true }
