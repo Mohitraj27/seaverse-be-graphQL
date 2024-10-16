@@ -434,8 +434,7 @@ module.exports.mutations = {
             if (updateUser) {
                 return "Password updated successfully!";
             } else {
-                // throw CustomError(ErrorName.FAILED);
-                throw CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.FAILED);
             }
 
         } catch (error) {

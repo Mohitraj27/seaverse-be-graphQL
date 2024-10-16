@@ -279,9 +279,9 @@ module.exports.mutations = {
         }
 
         if (input.groupName) groupUpdateData.groupName = input.groupName;
-        // if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
+        if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
         if (input.description) groupUpdateData.description = input.description;
-        // if (input.isManager) groupUpdateData.isManager = input.isManager;
+        if (input.isManager) groupUpdateData.isManager = input.isManager;
         if (input.isCustomGroup !== undefined) groupUpdateData.isCustomGroup = input.isCustomGroup;
         if (input.isAutoSynced !== undefined) groupUpdateData.isAutoSynced = input.isAutoSynced;
 
