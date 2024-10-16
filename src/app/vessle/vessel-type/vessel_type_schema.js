@@ -13,7 +13,8 @@ module.exports = {
             isActive: Boolean!
         }
         input VesselTypeFilterInput {
-            search: String
+            search: String,
+            isActive: Boolean
         }
 
         type VesselTypeList {
