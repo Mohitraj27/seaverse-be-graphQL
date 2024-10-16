@@ -254,7 +254,7 @@ module.exports.queries = {
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,
                 operation: "RESET_PASSSWORD",
                 ipInfo: context.ipInfo,
-                affected: [{ targetRef: "User", target: existingUser._id }],
+                affected: [{ targetRef: "User", target: userId }],
                 createdBy: userInfo,
             });
             return "Email sent. Please check your email for reset link."
