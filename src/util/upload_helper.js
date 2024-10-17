@@ -17,6 +17,7 @@ const fileType = {
         "application/vnd.ms-powerpoint.slideshow.macroEnabled.12" 
    
     ],
+    csv: "text/csv",
     all: "*",
 };
 
@@ -35,7 +36,8 @@ const uploadType = {
     logJson: "logJson",
     trainingContentFile: "trainingContentFile",
     trainingCertificateImage: "trainingCertificateImage",
-    trainingBannerImage: "trainingBannerImage"
+    trainingBannerImage: "trainingBannerImage",
+    bulkCSV: "bulkCSV"
 };
 
 
@@ -191,4 +193,17 @@ module.exports = {
             if (filePath) return filePath;
         } else if (typeof data === "string") return data;
     },
+    uploadCSV: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.csv,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    }
 };

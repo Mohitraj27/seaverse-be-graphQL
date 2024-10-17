@@ -231,7 +231,7 @@ module.exports.mutations = {
             throw CustomError(ErrorName.WRONG_PASSWORD);
         }
 
-        throw CustomError(ErrorName.NOT_FOUND);
+        throw CustomError(ErrorName.USER_NOT_FOUND);
     },
     generateRefreshToken: async ({token}) => {
         if(!token) throw CustomError(ErrorName.NO_REFRESH_TOKEN);

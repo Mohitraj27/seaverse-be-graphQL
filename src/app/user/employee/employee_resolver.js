@@ -24,6 +24,8 @@ const user = require("..");
 const { Log } = require("../../logs/log_model");
 const { Group } = require("../group-user/group_model");
 const { GroupMember } = require("../group-user/group_member_model");
+const { ImportLog } = require("../import-log/import_log_model");
+const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 
 module.exports.queries = {
@@ -1054,117 +1056,262 @@ module.exports.mutations = {
     manageRole,
     changeRegisterEmployees,
     createEmployees: async ({ input }, context) => {
-        if (!input.file) throw CustomError(ErrorName.BULK_USER_FILE_UPLOAD);
-        const { createReadStream, filename } = await input.file;
-        if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE);
-        const users = [];
-        const errors = [];
-        const emails = new Set();
-        const allowedRoles = [Role.ADMIN, Role.EMPLOYEE, Role.AUTHOR];
 
-        await new Promise((resolve, reject) => {
-            const stream = createReadStream();
-            const parser = parse({ columns: true, trim: true });
-            stream.pipe(parser);
+        try {
 
-            parser.on("data", async (row) => {
-                try {
-                    const validationErrors = await validateUserRow(row, emails);
-                    if (validationErrors.length > 0) {
-                        errors.push(`Row ${users.length + 1}: ${validationErrors.join(", ")}`);
-                    } else {
-                        const formatedData = mapCSVRowToUser(row);
-                        users.push(formatedData);
+            const { subscriberId, userId } = AuthUser(context);
+
+            if (!input.file) throw CustomError(ErrorName.BULK_USER_FILE_UPLOAD);
+            const { createReadStream, filename } = await input.file;
+            if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE);
+
+            const newFileName = `csv_${Date.now()}`;
+
+            const saveCSV = await UploadHelper.uploadCSV({
+                data: csv,
+                folderName: "csv-content",
+                fileName: newFileName,
+                uploadType: UploadHelper.uploadType.bulkCSV,
+            });
+
+            if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
+
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: saveCSV,
+            })
+
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+            const users = [];
+            const errors = [];
+            const emails = new Set();
+
+            const allowedRoles = [Role.ADMIN, Role.LEARNER];
+
+            await new Promise((resolve, reject) => {
+                const stream = createReadStream();
+                const parser = parse({ columns: true, trim: true });
+                stream.pipe(parser);
+
+                parser.on("data", async (row) => {
+                    try {
+                        const validationErrors = await validateUserRow(row, emails);
+                        if (validationErrors.length > 0) {
+                            errors.push(`Row ${users.length + 1}: ${validationErrors.join(", ")}`);
+                        } else {
+                            const formatedData = mapCSVRowToUser(row);
+                            users.push(formatedData);
+                        }
+                    } catch (err) {
+                        errors.push(`Row ${users.length + 1}: ${err.message}`);
                     }
-                } catch (err) {
-                    errors.push(`Row ${users.length + 1}: ${err.message}`);
+                });
+
+                parser.on("end", resolve);
+                parser.on("error", reject);
+            });
+
+            if (errors.length > 0) {
+                throw CustomError(
+                    ErrorName.VALIDATION_ERROR,
+                    `${errors[0]}`
+                );
+            }
+
+            const employeeIDs = users.map(user => user.civilIdOrPassport);
+            const emailsList = users.map(user => user.email);
+
+            const existingUsers = await User.find({
+                $or: [
+                    { civilIdOrPassport: { $in: employeeIDs } },
+                    { email: { $in: emailsList } }
+                ]
+            }).lean();
+
+            const updates = [];
+            const inserts = [];
+
+            users.forEach(user => {
+                const existingUser = existingUsers.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
+                if (existingUser) {
+                    updates.push({
+                        updateOne: {
+                            filter: { _id: existingUser._id },
+                            update: {
+                                $set: {
+                                    firstName: user.firstName,
+                                    lastName: user.lastName,
+                                    email: user.email,
+                                    role: user.role,
+                                    designation: user.designation,
+                                    managerEmail: user.managerEmail,
+                                },
+                            },
+                        },
+                    });
+                } else {
+                    inserts.push({
+                        insertOne: {
+                            document: user,
+                        },
+                    });
                 }
             });
 
-            parser.on("end", resolve);
-            parser.on("error", reject);
-        });
+            users.forEach(user => {
+                user.role = user.role.toUpperCase();
+                user.designation = user.designation.toUpperCase();
+            });
 
-        if (errors.length > 0) {
-            throw CustomError(
-                ErrorName.VALIDATION_ERROR,
-                `${errors[0]}`
-            );
+            const invalidUsers = users.filter(user => !allowedRoles.includes(user.role));
+
+            if (invalidUsers.length > 0) {
+                throw CustomError(
+                    ErrorName.INVALID_ROLE_IN_CSV_FILE,
+                    `Invalid role(s) found in the users: ${invalidUsers.map(user => user.role).join(', ')}`
+                );
+            }
+            const designations = await Designation.find({ isDeleted: false }).select('name').lean();
+            const invalidDesignation = users.filter(user => !designations.map(designation => designation.name).includes(user.designation));
+            if (invalidDesignation.length > 0) {
+                throw CustomError(
+                    ErrorName.INVALID_DESIGNATION_IN_CSV_FILE,
+                    `Invalid designation(s) found in the users: ${invalidDesignation.map(user => user.designation).join(', ')}`
+                );
+            }
+
+            const emailsLists = users.map(user => user.email);
+
+            const civilIds = users.map(user => user.civilIdOrPassport);
+
+            const savedEmployeeList = await EmployeeHelper.createBulkEmployee({
+                userList: users,
+                emailsLists: emailsLists,
+                civilIds: civilIds,
+                managerEmails: managerEmails
+            }, context);
+            return {
+                count: savedEmployeeList,
+            };
+
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
-
-        users.forEach(user => {
-            user.role = user.role.toUpperCase();
-            user.designation = user.designation.toUpperCase();
-        });
-
-        const invalidUsers = users.filter(user => !allowedRoles.includes(user.role));
-
-        if (invalidUsers.length > 0) {
-            throw CustomError(
-                ErrorName.INVALID_ROLE_IN_CSV_FILE,
-                `Invalid role(s) found in the users: ${invalidUsers.map(user => user.role).join(', ')}`
-            );
-        }
-        const designations = await Designation.find({ isDeleted: false }).select('name').lean();
-        const invalidDesignation = users.filter(user => !designations.map(designation => designation.name).includes(user.designation));
-        if (invalidDesignation.length > 0) {
-            throw CustomError(
-                ErrorName.INVALID_DESIGNATION_IN_CSV_FILE,
-                `Invalid designation(s) found in the users: ${invalidDesignation.map(user => user.designation).join(', ')}`
-            );
-        }
-
-        const emailsLists = users.map(user => user.email);
-
-        const civilIds = users.map(user => user.civilIdOrPassport);
-
-        const managerEmails = users.map(user => user.managerEmail).filter(Boolean);
-
-        const existingManagers = await User.find({ email: { $in: managerEmails } }).select('email').lean();
-        const existingManagerEmails = new Set(existingManagers.map(manager => manager.email));
-
-        const missingManagerEmails = managerEmails.filter(email => !existingManagerEmails.has(email));
-
-        if (missingManagerEmails.length > 0) {
-            throw CustomError(ErrorName.MANAGER_EMAIL_NOT_FOUND, `ManagerEmail(s) not found: ${missingManagerEmails.join(', ')}`);
-        }
-        const savedEmployeeList = await EmployeeHelper.createBulkEmployee({
-            userList: users,
-            emailsLists: emailsLists,
-            civilIds: civilIds,
-            managerEmails: managerEmails
-        }, context);
-        return {
-            count: savedEmployeeList,
-        };
     },
     createEmployee: async ({ input }, context) => {
-        const { userInfo, subscriberId } = AuthUser(context);
 
-        if (!input.empDesignation) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
 
-        const customFields = input.customField || [];
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.CREATE_EMPLOYEE,
+                    Permission.CREATE_TRAINING_REGISTRATION,
+                ],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
 
-        const savedEmployeeList = await EmployeeHelper.createEmployees(
-            {
-                input: {
-                    users: [input.user],
-                    empDesignation: input.empDesignation ?? null,
-                    customField: customFields,
-                },
-            },
-            context
-        );
+        if (!input.empDesignation ||
+            !input.user.firstName ||
+            !input.user.email ||
+            !input.user.civilIdOrPassport ||
+            !input.user.currentVessel ||
+            !input.user.vesselStatus ||
+            typeof input.user.isRegistered !== 'boolean') throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-        if (!savedEmployeeList?.employees?.length) throw CustomError(ErrorName.FAILED);
+        const existingUser = await User.findOne({ email: input.user.email });
+        
+
+        if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
+
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        const notificationList = [];
+        const courseInvitationList = [];
+        const invitationList = [];
+        let savedBatch;
+
+        const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
+
+            const savedEmployees = [];
+
+            input.user.password = input.user.password ? await CryptoHelper.hash(input.user.password, 10) : await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10);
+
+            const existingDesignation = await Designation.findById(input.empDesignation);
+            if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
+
+            let userRole = Role.LEARNER;            
+
+            const savedUser = await User.create({
+                subscriber: subscriberId,
+                ...input.user,
+                role: userRole,
+                isRegistered: input.user.isRegistered,
+                UID: await EmployeeHelper.generateUserUID({ session })
+            })
+
+            if (!savedUser) throw CustomError(ErrorName.FAILED);
+
+            let employeeUpdate = {
+                subscriber: subscriberId,
+                user: savedUser,
+                branch: input.branch,
+                organization: input.organization,
+                empDesignation: input.empDesignation,
+                designation: existingDesignation.name
+            };
+
+            const savedEmployee = await Employee.create({ ...employeeUpdate, UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }) });
+
+            if (!savedEmployee) throw CustomError(ErrorName.FAILED);
+            
+            let userVesselUpdate = {
+                user: savedUser,
+                vessel: input.user.currentVessel,
+                vesselStatus: input.user.vesselStatus
+            }
+            
+            const savedUserVessel = await UserVessel.create(userVesselUpdate);
+
+            if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+
+            invitationList.push({
+                userData: savedUser
+            });
+
+            savedEmployees.push({ ...savedEmployee, user: savedUser });
+            
+            return savedEmployees;
+        });
+
+
+        if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+
+        EmployeeHelper.sendEnrollmentNotification(notificationList);
+
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
-            employee: savedEmployeeList.employees[0],
+            employee: savedEmployees[0],
             createdBy: userInfo,
             action: "CREATED",
         });
 
-        return savedEmployeeList.employees[0];
+        return {
+            status: true,
+            message: "User created successfully",
+        };
+
     },
     updateEmployee: async ({ id, input }, context) => {
         const {
@@ -1473,11 +1620,17 @@ async function validateUserRow(row, emails) {
     const errors = [];
 
     if (!row["firstName"]) errors.push("First Name is required");
-    if (!row["lastName"]) errors.push("Last Name is required");
     if (!row["Email"]) errors.push("Email is required");
+    else if (emails.has(row["Email"])) {
+        errors.push("Duplicate Email found: " + row["Email"]);
+    } else {
+        emails.add(row["Email"]);
+    }
     if (!row["EmployeeID"]) errors.push("EmployeeID is required");
     if (!row["Role"]) errors.push("Role is required");
     if (!row["Designation"]) errors.push("Designation is required");
+    if (!row["VesselName"]) errors.push("Vessel Name is required");
+    if (!row["IMONumber"]) errors.push("IMO Number is required");
 
     return errors;
 }
@@ -1485,29 +1638,19 @@ async function validateUserRow(row, emails) {
 function mapCSVRowToUser(row) {
     const mandatoryFields = [
         "firstName",
-        "lastName",
         "Email",
         "Role",
         "Password",
         "Designation",
-        "ManagerEmail",
         "EmployeeID",
+        "VesselName",
+        "IMONumber"
     ];
     const customFields = [];
     Object.keys(row).forEach(key => {
         if (!mandatoryFields.includes(key)) {
             const fieldName = key;
             let fieldValue = row[key];
-            if (fieldValue === "" || fieldValue === "undefined") {
-                fieldValue = null;
-            }
-            if (fieldValue) {
-                customFields.push({
-                    type: "String",
-                    field_name: fieldName,
-                    value: fieldValue,
-                });
-            }
         }
     });
     const result = {
@@ -1519,7 +1662,6 @@ function mapCSVRowToUser(row) {
         designation: row["Designation"],
         managerEmail: row["ManagerEmail"],
         civilIdOrPassport: row["EmployeeID"],
-        customField: customFields,
     };
     return result;
 }
