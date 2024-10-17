@@ -469,6 +469,9 @@ module.exports.queries = {
         if (filterInput?.regType && filterInput?.regType != 0) {
             filterConditions.regType = filterInput?.regType;
         }
+        if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
+            filterConditions.empDesignation = { $in: filterInput.empDesignation };
+        }
         const fetchResult = async pipeline => {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                 offset: skip,
@@ -491,6 +494,9 @@ module.exports.queries = {
 
         const result = await fetchResult([
             {
+                $match: filterConditions,
+            },
+            {
                 $lookup: {
                     from: "designations",
                     localField: "empDesignation",
@@ -508,9 +514,6 @@ module.exports.queries = {
                 },
             },
             { $unwind: "$managerObjectId" },
-            {
-                $match: filterConditions,
-            },
             {
                 $lookup: {
                     from: "users",
@@ -533,7 +536,24 @@ module.exports.queries = {
                     "user.role": { $in: ['ADMIN', 'EMPLOYEE', 'AUTHOR'] }
                 }
             },
-
+            {
+                $lookup: {
+                    from: "userVessels",
+                    localField: "user._id",
+                    foreignField: "user",
+                    as: "userVessel",
+                },
+            },
+            { $unwind: "$userVessel" },
+            ...(filterInput?.vesselType?.length
+                ? [
+                    {
+                        $match: {
+                            "userVessel.vesselType": { $in: filterInput.vesselType },
+                        },
+                    },
+                ]
+                : []),
             ...(filterInput?.search
                 ? [
                     {

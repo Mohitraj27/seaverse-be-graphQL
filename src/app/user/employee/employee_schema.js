@@ -176,6 +176,8 @@ module.exports = {
             regType: Int
             role: RoleEnum
             isRegistered: Boolean
+            empDesignation: [ID]
+            vesselType: [String] 
         }
         input deleteRequestFilterInput {
             search: String
