@@ -135,6 +135,11 @@ const userSchema = new Schema(
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",
+        },
+        vesselStatus: {
+            type: String,
+            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
+            default: "ASSIGNED",
         }
     },
     { timestamps: true }

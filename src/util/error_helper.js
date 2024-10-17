@@ -323,7 +323,7 @@ const errorType = {
         type: "NO_REFRESH_TOKEN"
     },
     USER_NOT_FOUND: {
-        message: "User(s) Not Found",
+        message: "User Not Found",
         statusCode: 400,
         type: "USER_NOT_FOUND"
     },
