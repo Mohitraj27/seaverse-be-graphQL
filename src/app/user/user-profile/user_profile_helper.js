@@ -148,9 +148,48 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
         throw new CustomError(ErrorName.FAILED);
     }
 }
+const sendNotificationOn = async (notificationData) => {
+    const { firstName, lastName, civilIdOrPassport, email } = notificationData.user;
+    const { message } = notificationData;
+    const notificationMessage = {
+        subscriber: notificationData.subscriber,
+        title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action.toUpperCase()}` }],
+        notificationType: NotificationType[`DELETE_${notificationData.action.toUpperCase()}`],
+        notifyAdmin: false,
+        notifiers: [], 
+        employeeNotifiers: [],
+        affected: [
+            {
+                targetRef: "User",
+                target: notificationData.user._id,
+            },
+        ],
+        additionalInfo: [
+            {
+                infoType: "USER_DELETE_REQUEST_INFO",
+                infoData: {
+                    firstName,
+                    lastName,
+                    civilIdOrPassport,
+                    email,
+                },
+            },
+        ],
+        message: [
+            {
+                lang: "en",
+                value: message,
+            },
+        ],
+        createdBy: notificationData.createdBy,
+    };
+    await NotificationHelper.createNotification(notificationMessage);
+};
+
 module.exports = {
     sendNodeEmail,
     generateRandomString,
     mailSenderHelper,
-    sendNotificationOnDELETEREQUEST
+    sendNotificationOnDELETEREQUEST,
+    sendNotificationOn
 };
