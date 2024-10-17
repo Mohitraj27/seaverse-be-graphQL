@@ -10,10 +10,6 @@ const userVesselSchema = new Schema(
             type: ObjectId,
             ref: "Vessel",
         },
-        vesselType: {
-            type: String,
-            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"]
-        },
         deletedAt: {
             type: Date,
         },
@@ -21,6 +17,11 @@ const userVesselSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        vesselStatus: {
+            type: String,
+            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
+            default: "ASSIGNED",
+        }
     },
     { timestamps: true }
 );

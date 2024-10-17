@@ -50,7 +50,7 @@ const { GroupSchema, GroupMemberSchema } = require("../app/user/group-user");
 const { VesselTypeSchema } = require("../app/vessle/vessel-type");
 const { VesselSchema } = require("../app/vessle");
 const { ContactSupportSchema } = require('../app/contact-support');
-const { userVesselSchema } = require('../app/user/user-vessel-bridge');
+const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
 
 const schemas = [
     AppDataSchema,
@@ -95,7 +95,7 @@ const schemas = [
     VesselTypeSchema,
     VesselSchema,
     ContactSupportSchema,
-    userVesselSchema
+    UserVesselSchema
 ];
 
 const types = [];

@@ -187,14 +187,15 @@ module.exports = {
             search: String
         }
         input ImportUserInput {
-            firstName: String
-            lastName: String
-            civilIdOrPassport: String
-            email: String
+            firstName: String!
+            lastName: String!
+            civilIdOrPassport: String!
+            email: String!
             managerObjectId: ID
             phone: PhoneInput
             subRoles: [ID]
             isOrganizationManager: Boolean
+            currentVessel: ID!
         }
         input ImportEmployeeInput {
             user: ImportUserInput
@@ -216,6 +217,10 @@ module.exports = {
             field_name: String!
             value: String!
         }
+        type createEmployeeRes {
+            status: Boolean
+            message: String
+        }
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -227,7 +232,7 @@ module.exports = {
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
-        createEmployee(input: EmployeeInput!): Employee!
+        createEmployee(input: EmployeeInput!): createEmployeeRes!
         updateEmployee(id: ID, input: EmployeeInput!): Employee!
         deleteEmployee(id: ID!): Employee!
         importEmployees(inputs: [ImportEmployeeInput!]!): [Employee!]!
