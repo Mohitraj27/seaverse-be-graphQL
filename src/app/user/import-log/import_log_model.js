@@ -9,15 +9,25 @@ const ImportLog = new Schema(
         uploadedBy: {
             type: ObjectId,
             ref: "User",
-            required: true,
         },
         fileName: {
             type: String,
             required: true
         },
+        importStatus: {
+            type: String,
+            required: true,
+            enum: ["SUCCESS", "FAILED"]
+        },
+        usersCount: {
+            type: Number,
+            default: 0
+        },
+        description: {
+            type: String
+        },
         filePath: {
             type: String,
-            required: true
         }
     },
     { timestamps: true }

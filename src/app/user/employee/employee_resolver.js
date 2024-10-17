@@ -1068,22 +1068,13 @@ module.exports.mutations = {
             const newFileName = `csv_${Date.now()}`;
 
             const saveCSV = await UploadHelper.uploadCSV({
-                data: csv,
+                data: input.file,
                 folderName: "csv-content",
                 fileName: newFileName,
                 uploadType: UploadHelper.uploadType.bulkCSV,
             });
-
+            
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
-
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: saveCSV,
-            })
-
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
             const users = [];
             const errors = [];
@@ -1091,16 +1082,35 @@ module.exports.mutations = {
 
             const allowedRoles = [Role.ADMIN, Role.LEARNER];
 
+            const designations = await Designation.find({ isDeleted: false }).select('name').lean();
+            const designationNames = designations.map(designation => designation.name);
+            
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = parse({ columns: true, trim: true });
                 stream.pipe(parser);
 
+                let rowIndex = 0;
+
                 parser.on("data", async (row) => {
                     try {
-                        const validationErrors = await validateUserRow(row, emails);
+                        const validationErrors = await validateUserRow(row, emails, allowedRoles, designationNames, empIdValues, rowIndex);
                         if (validationErrors.length > 0) {
-                            errors.push(`Row ${users.length + 1}: ${validationErrors.join(", ")}`);
+
+                            const createImportLog = await ImportLog.create({
+                                subscriber: subscriberId,
+                                uploadedBy: userId,
+                                fileName: newFileName,
+                                filePath: saveCSV,
+                                importStatus: "FAILED",
+                                description: `${validationErrors[0]}`
+                            })
+                            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+                            errors.push(`${validationErrors[0]}`);
+                            throw CustomError(
+                                ErrorName.VALIDATION_ERROR,
+                                `${validationErrors[0]}`
+                            )
                         } else {
                             const formatedData = mapCSVRowToUser(row);
                             users.push(formatedData);
@@ -1108,6 +1118,8 @@ module.exports.mutations = {
                     } catch (err) {
                         errors.push(`Row ${users.length + 1}: ${err.message}`);
                     }
+
+                    rowIndex++;
                 });
 
                 parser.on("end", resolve);
@@ -1115,10 +1127,23 @@ module.exports.mutations = {
             });
 
             if (errors.length > 0) {
+
+                const createImportLog = await ImportLog.create({
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: saveCSV,
+                    importStatus: "FAILED",
+                    description: `${errors[0]}`
+                })
+
+                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `${errors[0]}`
                 );
+
             }
 
             const employeeIDs = users.map(user => user.civilIdOrPassport);
@@ -1134,7 +1159,30 @@ module.exports.mutations = {
             const updates = [];
             const inserts = [];
 
+            const invalidUsers = users.filter(user => !allowedRoles.includes(user.role));
+
+            if (invalidUsers.length > 0) {
+
+                const createImportLog = await ImportLog.create({
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: saveCSV,
+                    importStatus: "FAILED",
+                    description: `Invalid role(s) found: ${invalidUsers.map(user => user.role).join(', ')}`
+                })
+
+                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                throw CustomError(
+                    ErrorName.INVALID_ROLE_IN_CSV_FILE,
+                    `Invalid role(s) found: ${invalidUsers.map(user => user.role).join(', ')}`
+                );
+
+            }
+
             users.forEach(user => {
+
                 const existingUser = existingUsers.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
                 if (existingUser) {
@@ -1148,7 +1196,6 @@ module.exports.mutations = {
                                     email: user.email,
                                     role: user.role,
                                     designation: user.designation,
-                                    managerEmail: user.managerEmail,
                                 },
                             },
                         },
@@ -1167,23 +1214,6 @@ module.exports.mutations = {
                 user.designation = user.designation.toUpperCase();
             });
 
-            const invalidUsers = users.filter(user => !allowedRoles.includes(user.role));
-
-            if (invalidUsers.length > 0) {
-                throw CustomError(
-                    ErrorName.INVALID_ROLE_IN_CSV_FILE,
-                    `Invalid role(s) found in the users: ${invalidUsers.map(user => user.role).join(', ')}`
-                );
-            }
-            const designations = await Designation.find({ isDeleted: false }).select('name').lean();
-            const invalidDesignation = users.filter(user => !designations.map(designation => designation.name).includes(user.designation));
-            if (invalidDesignation.length > 0) {
-                throw CustomError(
-                    ErrorName.INVALID_DESIGNATION_IN_CSV_FILE,
-                    `Invalid designation(s) found in the users: ${invalidDesignation.map(user => user.designation).join(', ')}`
-                );
-            }
-
             const emailsLists = users.map(user => user.email);
 
             const civilIds = users.map(user => user.civilIdOrPassport);
@@ -1192,7 +1222,6 @@ module.exports.mutations = {
                 userList: users,
                 emailsLists: emailsLists,
                 civilIds: civilIds,
-                managerEmails: managerEmails
             }, context);
             return {
                 count: savedEmployeeList,
@@ -1231,7 +1260,7 @@ module.exports.mutations = {
             typeof input.user.isRegistered !== 'boolean') throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
         const existingUser = await User.findOne({ email: input.user.email });
-        
+
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
 
@@ -1251,7 +1280,7 @@ module.exports.mutations = {
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
 
-            let userRole = Role.LEARNER;            
+            let userRole = Role.LEARNER;
 
             const savedUser = await User.create({
                 subscriber: subscriberId,
@@ -1275,13 +1304,13 @@ module.exports.mutations = {
             const savedEmployee = await Employee.create({ ...employeeUpdate, UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }) });
 
             if (!savedEmployee) throw CustomError(ErrorName.FAILED);
-            
+
             let userVesselUpdate = {
                 user: savedUser,
                 vessel: input.user.currentVessel,
                 vesselStatus: input.user.vesselStatus
             }
-            
+
             const savedUserVessel = await UserVessel.create(userVesselUpdate);
 
             if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
@@ -1291,7 +1320,7 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            
+
             return savedEmployees;
         });
 
@@ -1616,21 +1645,24 @@ module.exports.mutations = {
 };
 
 const emails = new Set();
-async function validateUserRow(row, emails) {
+async function validateUserRow(row, emails, allowedRoles, designationNames, empIdValues, rowIndex) {
+    
     const errors = [];
 
-    if (!row["firstName"]) errors.push("First Name is required");
-    if (!row["Email"]) errors.push("Email is required");
+    if (!row["firstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
     else if (emails.has(row["Email"])) {
-        errors.push("Duplicate Email found: " + row["Email"]);
+        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
     } else {
         emails.add(row["Email"]);
     }
-    if (!row["EmployeeID"]) errors.push("EmployeeID is required");
-    if (!row["Role"]) errors.push("Role is required");
-    if (!row["Designation"]) errors.push("Designation is required");
-    if (!row["VesselName"]) errors.push("Vessel Name is required");
-    if (!row["IMONumber"]) errors.push("IMO Number is required");
+    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
+    if (!row["Role"]) errors.push(`Role is missing in row ${rowIndex + 1}`);
+    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
+    if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+    if (!row["VesselName"]) errors.push(`Vessel Name is missing in row ${rowIndex + 1}`);
+    if (!row["IMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+    if (!allowedRoles.includes(row["Role"])) errors.push(`Invalid Role in row ${rowIndex + 1} as ${row["Role"]}`);
 
     return errors;
 }
