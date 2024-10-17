@@ -132,6 +132,9 @@ const userSchema = new Schema(
             type: Boolean,
             default: false, 
         },
+        reasonForDelete: {
+            type: String
+        },
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",

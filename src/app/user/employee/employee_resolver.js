@@ -24,6 +24,7 @@ const user = require("..");
 const { Log } = require("../../logs/log_model");
 const { Group } = require("../group-user/group_model");
 const { GroupMember } = require("../group-user/group_member_model");
+const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -952,9 +953,7 @@ const manageRole = async ({ input }, context) => {
     }
 };
 const respondToDeleteRequest = async ({ input }, context) => {
-
-    const { role, userPermissions } = AuthUser(context);
-
+    const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
     if (
         !SubRoleHelper.hasPermission({
             currentRole: role,
@@ -986,7 +985,27 @@ const respondToDeleteRequest = async ({ input }, context) => {
         });
 
         if (rejectDeleteRequest.nModified > 0) {
-
+            for (let userId of input.users) {
+                const user = await User.findById(userId);
+                if (user) {
+                    await sendNotificationOn({
+                        subscriber: subscriberId,
+                        user: {
+                            _id: userId,
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            civilIdOrPassport: user.civilIdOrPassport,
+                            email: user.email
+                        },
+                        action: "rejected",
+                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                        createdBy: userInfo
+                    });
+                }
+                else {
+                    console.error(`User with ID ${userId} not found`);
+                }
+            }
             return "Successfully rejected";
 
         } else {
@@ -996,20 +1015,38 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
     }
-
-    let errors = [];
-    const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
-
-    if (errors.length > 0) {
-        throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+    if (input.type === "APPROVE") {
+        let errors = [];
+        const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+        if (errors.length > 0) {
+            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+        }
+        if (deleteUsers) {
+            for (let userId of input.users) {
+                const user = await User.findById(userId);
+                if (user) {
+                    await sendNotificationOn({
+                        subscriber: subscriberId,
+                        user: {
+                            _id: userId,
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            civilIdOrPassport: user.civilIdOrPassport,
+                            email: user.email
+                        },
+                        action: "approved",
+                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has approved your delete request.`,
+                        createdBy: userInfo
+                    });
+                } else {
+                    console.error(`User with ID ${userId} not found`)
+                }
+            }
+            return "Successfully deleted";
+        } else {
+            throw CustomError(ErrorName.ERROR_DELETING_USER);
+        }
     }
-
-    if (deleteUsers) {
-        return "Successfully deleted";
-    } else {
-        throw CustomError(ErrorName.ERROR_DELETING_USER);
-    }
-
 }
 
 module.exports.mutations = {
