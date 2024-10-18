@@ -6,6 +6,7 @@ const {
     Role,
     DbTransactionHelper,
     UploadHelper,
+    VesselStatus,
 } = require("../../../util");
 
 const { Employee } = require("./employee_model");
@@ -25,8 +26,11 @@ const { Log } = require("../../logs/log_model");
 const { Group } = require("../group-user/group_model");
 const { GroupMember } = require("../group-user/group_member_model");
 const { ImportLog } = require("../import-log/import_log_model");
+const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
+const { v4: uuidv4 } = require('uuid')
+const { ObjectId } = require("../../../tools");
 
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -1057,6 +1061,26 @@ module.exports.mutations = {
     changeRegisterEmployees,
     createEmployees: async ({ input }, context) => {
 
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.CREATE_EMPLOYEE,
+                    Permission.CREATE_TRAINING_REGISTRATION,
+                ],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
         try {
 
             const { subscriberId, userId } = AuthUser(context);
@@ -1073,18 +1097,23 @@ module.exports.mutations = {
                 fileName: newFileName,
                 uploadType: UploadHelper.uploadType.bulkCSV,
             });
-            
+
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
 
             const users = [];
             const errors = [];
-            const emails = new Set();
 
-            const allowedRoles = [Role.ADMIN, Role.LEARNER];
+            let emails = new Set();
+            let empIds = new Set();
 
             const designations = await Designation.find({ isDeleted: false }).select('name').lean();
             const designationNames = designations.map(designation => designation.name);
-            
+
+            const vessels = await Vessel.find({ isDeleted: false, isActive: true }).select('imoNumber').lean();
+            const imoNumbers = vessels.map(vessel => vessel.imoNumber);
+
+            const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
+
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = parse({ columns: true, trim: true });
@@ -1094,7 +1123,8 @@ module.exports.mutations = {
 
                 parser.on("data", async (row) => {
                     try {
-                        const validationErrors = await validateUserRow(row, emails, allowedRoles, designationNames, empIdValues, rowIndex);
+                        const validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+
                         if (validationErrors.length > 0) {
 
                             const createImportLog = await ImportLog.create({
@@ -1118,7 +1148,6 @@ module.exports.mutations = {
                     } catch (err) {
                         errors.push(`Row ${users.length + 1}: ${err.message}`);
                     }
-
                     rowIndex++;
                 });
 
@@ -1146,22 +1175,91 @@ module.exports.mutations = {
 
             }
 
-            const employeeIDs = users.map(user => user.civilIdOrPassport);
-            const emailsList = users.map(user => user.email);
 
             const existingUsers = await User.find({
                 $or: [
-                    { civilIdOrPassport: { $in: employeeIDs } },
-                    { email: { $in: emailsList } }
+                    { civilIdOrPassport: { $in: Array.from(empIds) } },
+                    { email: { $in: Array.from(emails) } }
                 ]
             }).lean();
+
+            const existingEmailsInDB = existingUsers.map(user => user.email);
+
+            const existingEmpIdsInDB = existingUsers.map(user => ({
+                [user.civilIdOrPassport]: user.email
+            }));
 
             const updates = [];
             const inserts = [];
 
-            const invalidUsers = users.filter(user => !allowedRoles.includes(user.role));
+            let userIndex = 0;
 
-            if (invalidUsers.length > 0) {
+            const existingDesignations = await Designation.find({ isDeleted: false }).lean();
+            const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
+
+            const vesselMap = new Map(
+                existingVessels.map(vessel => [
+                    vessel.imoNumber,
+                    { id: vessel._id }
+                ])
+            );
+
+            for (const user of users) {
+
+                if (user.civilIdOrPassport in existingEmpIdsInDB) {
+                    const email = existingEmpIdsInDB[user.civilIdOrPassport];
+
+                    if (email !== user.email && existingEmailsInDB.includes(user.email)) {
+
+                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                        break;
+
+                    } else {
+
+                        updates.push({
+                            updateOne: {
+                                filter: { civilIdOrPassport: user.civilIdOrPassport },
+                                update: {
+                                    $set: {
+                                        firstName: user.firstName,
+                                        lastName: user.lastName,
+                                        email: user.email,
+                                        imoNumber: user.imoNumber,
+                                        vesselStatus: user.vesselStatus,
+                                        currentVessel: vesselMap.get(user.imoNumber).id,
+                                    },
+                                },
+                                upsert: true,
+                            },
+                        });
+
+                    }
+
+                } else {
+
+                    if (existingEmailsInDB.includes(user.email)) {
+
+                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                        break;
+
+                    } else {
+
+                        inserts.push({
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            email: user.email,
+                            imoNumber: user.imoNumber,
+                            vesselStatus: user.vesselStatus,
+                            currentVessel: vesselMap.get(user.imoNumber).id,
+                        });
+
+                    }
+                }
+                userIndex++;
+            };
+
+
+            if (errors.length > 0) {
 
                 const createImportLog = await ImportLog.create({
                     subscriber: subscriberId,
@@ -1169,62 +1267,175 @@ module.exports.mutations = {
                     fileName: newFileName,
                     filePath: saveCSV,
                     importStatus: "FAILED",
-                    description: `Invalid role(s) found: ${invalidUsers.map(user => user.role).join(', ')}`
+                    description: `${errors[0]}`
                 })
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
                 throw CustomError(
-                    ErrorName.INVALID_ROLE_IN_CSV_FILE,
-                    `Invalid role(s) found: ${invalidUsers.map(user => user.role).join(', ')}`
+                    ErrorName.VALIDATION_ERROR,
+                    `${errors[0]}`
                 );
 
             }
 
-            users.forEach(user => {
+            // users.forEach(user => {
+            //     user.role = user.role.toUpperCase();
+            //     user.designation = user.designation.toUpperCase();
+            // });
 
-                const existingUser = existingUsers.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+            // const emailsLists = users.map(user => user.email);
 
-                if (existingUser) {
-                    updates.push({
-                        updateOne: {
-                            filter: { _id: existingUser._id },
-                            update: {
-                                $set: {
-                                    firstName: user.firstName,
-                                    lastName: user.lastName,
-                                    email: user.email,
-                                    role: user.role,
-                                    designation: user.designation,
-                                },
-                            },
-                        },
-                    });
-                } else {
-                    inserts.push({
-                        insertOne: {
-                            document: user,
-                        },
-                    });
+            // const civilIds = users.map(user => user.civilIdOrPassport);
+
+            let bulkInsertedUsers;
+            let bulkUpdatedUsers;
+
+
+            const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
+
+                bulkInsertedUsers = await User.insertMany(inserts, { session: session });
+
+                console.log(bulkInsertedUsers.result);
+                const insertedIds = bulkInsertedUsers.result.upserted.map(item => ObjectId(item._id));
+
+                // const insertedIds = [ObjectId("67128a63f0ee5914b3746382"), ObjectId("67128a63f0ee5914b3746381")]
+
+                
+
+                let insertedUsers = [];
+                let updatedUsers = [];
+
+                try{
+                    if (insertedIds.length > 0) {
+                        console.log(insertedIds);
+                        insertedUsers = await User.find({ _id: { $in: insertedIds } });
+                        console.log(insertedUsers);
+                    }
+                } catch (err) {
+                    console.log(err);
                 }
+                
+                return true
+
+                bulkUpdatedUsers = await User.bulkWrite(updates, { session: session });
+                const upIds = bulkUpdatedUsers.result.upserted;
+                const updatedIds = upIds.map(item => item._id);
+                if (upIds.length > 0) {
+                    updatedUsers = await User.find({ _id: { $in: updatedIds } }).lean();
+                }
+                
+
+                const designationMap = new Map(
+                    existingDesignations.map(designation => [
+                        designation.name,
+                        { id: designation._id }
+                    ])
+                );
+
+                const bulkId = uuidv4();
+                const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+                
+                
+
+                if(allUpdatedUsers.length > 0) {
+
+                    const userVesselsInsert = allUpdatedUsers.map(user => {
+                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                        return {
+                            updateOne: {
+                                filter: { user: user._id },
+                                update: {
+                                    $set: {
+                                        user: user._id,
+                                        vessel: vesselMap.get(originalUserData.imoNumber).id,
+                                        isActive: true,
+                                    }
+                                },
+                                upsert: true
+                            }
+                        };
+                    })
+    
+                    await UserVessel.bulkWrite(userVesselsInsert, { session });
+    
+    
+    
+                    const employeesToInsert = allUpdatedUsers.map(user => {
+                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                        // invitationList.push({
+                        //     userData: user
+                        // });
+                        return {
+                            updateOne: {
+                                filter: { user: user._id },
+                                update: {
+                                    $set: {
+                                        user: user._id,
+                                        subscriber: subscriberId,
+                                        empDesignation: designationMap.get(originalUserData.designation).id,
+                                        bulkId: bulkId,
+                                        regType: 2
+                                    }
+                                },
+                                upsert: true
+                            }
+                        };
+                    });
+    
+                    await Employee.bulkWrite(employeesToInsert, { session });
+    
+                    const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
+    
+                    const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
+                        const UID = await generateEmployeeUID({ subscriberId, session });
+                        return {
+                            updateOne: {
+                                filter: { _id: employee._id },
+                                update: { UID },
+                                upsert: false
+                            }
+                        };
+                    }));
+    
+                    await Employee.bulkWrite(uidUpdates, { session });
+
+                } else {
+
+                    const createImportLog = await ImportLog.create({
+                        subscriber: subscriberId,
+                        uploadedBy: userId,
+                        fileName: newFileName,
+                        filePath: saveCSV,
+                        importStatus: "FAILED",
+                        description: `No new data created/updated`
+                    })
+    
+                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                    throw CustomError(
+                        ErrorName.VALIDATION_ERROR,
+                        `No new data created/updated`
+                    ); 
+                }
+
+
             });
 
-            users.forEach(user => {
-                user.role = user.role.toUpperCase();
-                user.designation = user.designation.toUpperCase();
-            });
+            // const savedEmployeeList = await EmployeeHelper.createBulkEmployee({
+            //     userList: inserts,
+            //     emailsLists: emailsLists,
+            //     civilIds: civilIds,
+            // }, context);
 
-            const emailsLists = users.map(user => user.email);
+            // const updatedEmployeeList = await EmployeeHelper.createBulkEmployee({
+            //     userList: updates,
+            //     emailsLists: emailsLists,
+            //     civilIds: civilIds,
+            // }, context);
 
-            const civilIds = users.map(user => user.civilIdOrPassport);
-
-            const savedEmployeeList = await EmployeeHelper.createBulkEmployee({
-                userList: users,
-                emailsLists: emailsLists,
-                civilIds: civilIds,
-            }, context);
             return {
-                count: savedEmployeeList,
+                count: insertedUsers + updatedUsers,
             };
 
         } catch (error) {
@@ -1645,55 +1856,66 @@ module.exports.mutations = {
 };
 
 const emails = new Set();
-async function validateUserRow(row, emails, allowedRoles, designationNames, empIdValues, rowIndex) {
-    
+async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
+
     const errors = [];
 
-    if (!row["firstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+
     if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
     else if (emails.has(row["Email"])) {
         errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
     } else {
         emails.add(row["Email"]);
     }
+
+    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
+    else if (empIds.has(row["EmployeeID"])) {
+        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+    } else {
+        empIds.add(row["EmployeeID"]);
+    }
+
     if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
-    if (!row["Role"]) errors.push(`Role is missing in row ${rowIndex + 1}`);
+
     if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
     if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
-    if (!row["VesselName"]) errors.push(`Vessel Name is missing in row ${rowIndex + 1}`);
-    if (!row["IMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-    if (!allowedRoles.includes(row["Role"])) errors.push(`Invalid Role in row ${rowIndex + 1} as ${row["Role"]}`);
+
+    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+
+    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
+    else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
 
     return errors;
 }
 
 function mapCSVRowToUser(row) {
     const mandatoryFields = [
-        "firstName",
+        "FirstName",
         "Email",
-        "Role",
-        "Password",
         "Designation",
         "EmployeeID",
-        "VesselName",
-        "IMONumber"
+        "VesselIMONumber",
+        "Status"
     ];
-    const customFields = [];
+
     Object.keys(row).forEach(key => {
         if (!mandatoryFields.includes(key)) {
             const fieldName = key;
             let fieldValue = row[key];
         }
     });
+
     const result = {
-        firstName: row["firstName"],
-        lastName: row["lastName"],
+        firstName: row["FirstName"],
+        lastName: row["LastName"] ?? "",
         email: row["Email"],
-        password: row["Password"],
-        role: row["Role"],
         designation: row["Designation"],
-        managerEmail: row["ManagerEmail"],
         civilIdOrPassport: row["EmployeeID"],
+        imoNumber: row["VesselIMONumber"],
+        vesselStatus: row["Status"]
     };
+
     return result;
 }
