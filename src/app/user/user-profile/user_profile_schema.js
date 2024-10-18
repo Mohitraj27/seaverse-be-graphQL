@@ -17,7 +17,7 @@ module.exports = {
             avatar: Upload
         }
         input PasswordUpdateInput {
-            currentPassword: String!
+            currentPassword: String
             newPassword: String!
             confirmPassword: String!
         }
