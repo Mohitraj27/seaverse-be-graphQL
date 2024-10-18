@@ -1,4 +1,4 @@
 module.exports = {
-    userVesselResolver: require("./userVessel_resolver"),
-    userVesselSchema: require("./userVessel_schema"),
+    UserVesselResolver: require("./userVessel_resolver"),
+    UserVesselSchema: require("./userVessel_schema"),
 };

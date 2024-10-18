@@ -132,9 +132,17 @@ const userSchema = new Schema(
             type: Boolean,
             default: false, 
         },
+        reasonForDelete: {
+            type: String
+        },
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",
+        },
+        vesselStatus: {
+            type: String,
+            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
+            default: "ASSIGNED",
         }
     },
     { timestamps: true }

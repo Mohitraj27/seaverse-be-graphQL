@@ -17,7 +17,7 @@ module.exports = {
         }
         input VesselFilterInput {
             search: String
-            vesselType: String
+            vesselType: ID
             isActive: Boolean
         }
 

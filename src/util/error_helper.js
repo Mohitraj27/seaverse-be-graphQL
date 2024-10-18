@@ -63,6 +63,7 @@ const errorName = {
     ERROR_REJECTING_USER_REQUEST: "ERROR_REJECTING_USER_REQUEST",
     GROUP_TYPE_NOT_FOUND: "GROUP_TYPE_NOT_FOUND",
     ALREADY_IN_USE: "ALREADY_IN_USE",
+    REASON_FOR_DELETE_NOT_FOUND: "REASON_FOR_DELETE_NOT_FOUND",
     VESSEL_NOT_FOUND: "VESSEL_NOT_FOUND",
 };
 
@@ -323,7 +324,7 @@ const errorType = {
         type: "NO_REFRESH_TOKEN"
     },
     USER_NOT_FOUND: {
-        message: "User(s) Not Found",
+        message: "User Not Found",
         statusCode: 400,
         type: "USER_NOT_FOUND"
     },
@@ -381,6 +382,11 @@ const errorType = {
         message: "Already in use",
         statusCode: 400,
         type: "ALREADY_IN_USE"
+    },
+    REASON_FOR_DELETE_NOT_FOUND: {
+        message: "Reason for Delete is missing",
+        statusCode: 404,
+        type: "REASON_FOR_DELETE_NOT_FOUND"
     },
     VESSEL_NOT_FOUND: {
         message: "Vessel Not Found",

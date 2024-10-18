@@ -71,6 +71,7 @@ module.exports = {
             images: [MultiMediaInfoInput]
             text: [LocalisedDataInput]
             files: [MultiMediaInfoInput]
+            thumbnail: String
             displayPosition: Int
             isActive: Boolean
         }
@@ -87,6 +88,7 @@ module.exports = {
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
         updateTrainingModuleContentStatus(title: String!, newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
         deleteTrainingModuleContentByID(id: ID!): DeleteResponse!
-        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload,scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
+        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
+        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
          `,
 };

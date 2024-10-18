@@ -65,10 +65,18 @@ module.exports = {
             firebaseToken: String
             deviceId: String
         }
+        enum vesselStatusEnum {
+            ASSIGNED
+            ONSHORE
+            ONBOARDED
+        }
         input UserInput {
             firstName: String
             lastName: String
             civilIdOrPassport: String
+            isRegistered: Boolean
+            currentVessel: ID
+            vesselStatus: vesselStatusEnum
             companyEmail: String
             email: String
             phone: PhoneInput

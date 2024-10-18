@@ -17,9 +17,12 @@ module.exports = {
             avatar: Upload
         }
         input PasswordUpdateInput {
-            currentPassword: String!
+            currentPassword: String
             newPassword: String!
             confirmPassword: String!
+        }
+        input DeleteRequestInput {
+            reasonForDelete: String!
         }
         type UserProfile {
             user: User
@@ -46,6 +49,6 @@ module.exports = {
         forgetPassword(email: String!): forgetPasswordRes!
         verifyResetPassword(token: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
-        selfDeleteRequest: String!
+        selfDeleteRequest(input: DeleteRequestInput!): String!
     `,
 };
