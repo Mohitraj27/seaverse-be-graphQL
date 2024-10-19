@@ -1203,11 +1203,11 @@ module.exports.mutations = {
             );
 
             for (const user of users) {
-                
+
                 const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
 
                 if (existingEmpIdsMap) {
-                    
+
                     const email = existingEmpIdsMap[user.civilIdOrPassport];
 
                     if (email !== user.email && existingEmailsInDB.includes(user.email)) {
@@ -1218,7 +1218,7 @@ module.exports.mutations = {
                     } else {
 
                         console.log(vesselMap.get(user.imoNumber).id);
-                        
+
 
                         updates.push({
                             updateOne: {
@@ -1275,12 +1275,12 @@ module.exports.mutations = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-                
+
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `${errors[0]}`
                 );
-                
+
             }
 
             let bulkInsertUsers;
@@ -1288,19 +1288,19 @@ module.exports.mutations = {
 
             let insertedUsers;
             let updatedUsers;
-            
-            
+
+
             const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-                
+
                 bulkInsertUsers = await User.insertMany(inserts, { session: session });
 
                 insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
-                
+
                 bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
                 const upIds = bulkUpdateUsers.result.upserted;
                 const updatedIds = upIds.map(item => item._id);
                 updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
-                
+
                 const designationMap = new Map(
                     existingDesignations.map(designation => [
                         designation.name,
@@ -1329,13 +1329,13 @@ module.exports.mutations = {
                                 upsert: true
                             }
                         };
-                        
+
                     })
-                    
-                    
+
+
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
-                    
-                    
+
+
                     const employeesToInsert = allUpdatedUsers.map(user => {
                         const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
                         // invitationList.push({
@@ -1357,11 +1357,11 @@ module.exports.mutations = {
                             }
                         };
                     });
-                    
+
                     await Employee.bulkWrite(employeesToInsert, { session });
-                    
+
                     const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
-                    
+
                     const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
                         const UID = await EmployeeHelper.generateEmployeeUID({ subscriberId, session });
                         return {
@@ -1372,9 +1372,9 @@ module.exports.mutations = {
                             }
                         };
                     }));
-                    
+
                     await Employee.bulkWrite(uidUpdates, { session });
-                    
+
                 } else {
 
                     const createImportLog = await ImportLog.create({
@@ -1393,10 +1393,22 @@ module.exports.mutations = {
                         `No new data created/updated`
                     );
                 }
-                
-                
+
+
             });
-            
+
+
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: saveCSV,
+                importStatus: "SUCCESS",
+                description: `New data(s) created/updated`
+            })
+
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
             return {
                 count: insertedUsers.length + updatedUsers.length,
             };
