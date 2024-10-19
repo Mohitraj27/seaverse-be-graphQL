@@ -490,9 +490,11 @@ module.exports.queries = {
         if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
             filterConditions.empDesignation = { $in: filterInput.empDesignation };
         }
-        const userIdsByVesselStatus = await fetchVesselUsersByStatus(filterInput.vesselStatus, filterInput.vesselType, filterInput.vesselObjectId);
-        if (userIdsByVesselStatus.length > 0) {
-            filterConditions.user = { $in: userIdsByVesselStatus };
+        if (filterInput?.vesselStatus && filterInput.vesselStatus.length > 0) {
+            const userIdsByVesselStatus = await fetchVesselUsersByStatus(filterInput.vesselStatus, filterInput.vesselType, filterInput.vesselObjectId);
+            if (userIdsByVesselStatus.length > 0) {
+                filterConditions.user = { $in: userIdsByVesselStatus };
+            }
         }
         const fetchResult = async pipeline => {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
