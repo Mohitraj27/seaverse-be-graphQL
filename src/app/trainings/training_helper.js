@@ -239,7 +239,7 @@ module.exports = {
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
         if (input.courseLevel) trainingUpdateData.courseLevel = input.courseLevel;
-        if (input.certifications){
+        if (input.certifications && input.isCertification ){
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
                 folderName: trainingFilterConditions._id,
@@ -318,7 +318,7 @@ module.exports = {
         }
 
         if (typeof input.isActive === "boolean") trainingUpdateData.isActive = input.isActive;
-
+        console.log(classroomModuleId);
         const savedTraining = await Training.findOneAndUpdate(
             trainingFilterConditions,
             {
