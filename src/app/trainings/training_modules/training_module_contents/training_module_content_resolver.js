@@ -1,4 +1,4 @@
-const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../../util");
+const { CustomError, ErrorName, AuthUser, DbTransactionHelper, UploadHelper } = require("../../../../util");
 
 const { TrainingModuleContent } = require("./training_module_content_model");
 
@@ -12,9 +12,10 @@ const Content_status = require("./content_status.json");
 const ContentType = require("./content_type.json");
 const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
+const pptx2json = require('pptx2json');
 
 module.exports.queries = {
-    getTrainingModuleContents: async ({ pageInput, search, contentStatus,recentlyModified, contentType }, context) => {
+    getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
         const { subscriberId } = AuthUser(context);
         const filterConditions = {
             subscriber: subscriberId,
@@ -22,30 +23,34 @@ module.exports.queries = {
         if (contentStatus) {
             filterConditions.contentStatus = contentStatus;
         }
-        if (contentType){
+        if (contentType) {
             filterConditions.contentType = contentType;
+        }
+        if (recentlyModified) {
+            filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
         }
         if (search) {
             filterConditions['title.value'] = { $regex: search, $options: "i" };
         }
         const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? (recentlyModified ? 2: 6);
+        const limitContent = pageInput?.limit ?? 50; //(recentlyModified ? 2 : 6);
         const totalCount = await TrainingModuleContent.countDocuments(filterConditions).exec();
-        const contents = await TrainingModuleContent.find(filterConditions).sort({ updatedAt:-1 }).skip(skip).limit( limitContent).lean().exec();
+        const contents = await TrainingModuleContent.find(filterConditions).sort({ updatedAt: -1 }).skip(skip).limit(limitContent).lean().exec();
         if (!contents) {
             return {
                 contents: [],
                 totalCount: 0,
             };
         }
-        const recentlyModifiedContent  = contents.map(content => {
-            return {
-                ...content,
-                recentlyModified: recentlyModified ? ( new Date() - new Date(contents.updatedAt)) < ( 24 * 60 * 60 * 1000) : false,
-            }
-        })
+        // const recentlyModifiedContent = contents.map(content => {
+        //     return {
+        //         ...content,
+        //         recentlyModified: recentlyModified ? (new Date() - new Date(contents.updatedAt)) < (24 * 60 * 60 * 1000) : false,
+        //     }
+        // })
         return {
-            contents: recentlyModifiedContent,
+            // contents: recentlyModifiedContent,
+            contents,
             totalCount,
         };
     },
@@ -71,18 +76,18 @@ module.exports.mutations = {
                 "title.value": { $regex: x.value.trim(), $options: "i" },
             })),
         }).lean().select("_id");
-    
+
         if (existingContent) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if(!durationStyleChecked){
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
 
-        let courseInfo = await ScromHelper.uploadToScormCloud(scorm);   
+        let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
 
         if (courseInfo) {
             const { filename } = await scorm;
@@ -93,7 +98,7 @@ module.exports.mutations = {
             }
         }
 
-        if (thumbnail){
+        if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
                 data: thumbnail,
                 folderName: `image-content`,
@@ -116,10 +121,10 @@ module.exports.mutations = {
         if (!savedContent) throw CustomError(ErrorName.FAILED);
         return savedContent;
     },
-    
-    uploadTrainingModuleContentImage: async ({ input,image, thumbnail }, context) => {
-        const { userId,subscriberId } = AuthUser(context);
-        
+
+    uploadTrainingModuleContentImage: async ({ input, image, thumbnail }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
         const existingContent = await TrainingModuleContent.findOne({
             $or: input.title.map(x => ({
                 "title.value": { $regex: x.value.trim(), $options: "i" },
@@ -132,9 +137,9 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if(!durationStyleChecked){
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
@@ -145,7 +150,7 @@ module.exports.mutations = {
             fileName: `image_${Date.now()}`,
             uploadType: UploadHelper.uploadType.trainingContentImage,
         });
-        if (thumbnail){
+        if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
                 data: thumbnail,
                 folderName: `image-content`,
@@ -156,41 +161,41 @@ module.exports.mutations = {
         }
         const contentData = {
             ...input,
-            images: [{ url: savedItem}],
+            images: [{ url: savedItem }],
             createdBy: userId,
             updatedBy: userId,
         }
-        
+
         const savedContent = await TrainingModuleContent.findOneAndUpdate(
             { _id: input._id ?? new ObjectId(), subscriber: subscriberId },
             contentData,
             { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
         );
-        if(!savedContent) throw CustomError(ErrorName.FAILED);
+        if (!savedContent) throw CustomError(ErrorName.FAILED);
         return savedContent;
     },
     uploadTrainingModuleContentVideo: async ({ input, video, thumbnail }, context) => {
-        const { userId,subscriberId } = AuthUser(context);
-        
+        const { userId, subscriberId } = AuthUser(context);
+
         const existingContent = await TrainingModuleContent.findOne({
             $or: input.title.map(x => ({
                 "title.value": { $regex: x.value.trim(), $options: "i" },
             })),
         }).lean().select("_id");
-    
+
         if (existingContent) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            
-            if(!durationStyleChecked){
+
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
 
-        if (thumbnail){
+        if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
                 data: thumbnail,
                 folderName: `image-content`,
@@ -220,21 +225,21 @@ module.exports.mutations = {
         if (!savedItem) throw CustomError(ErrorName.FAILED);
         return savedContent;
     },
-    uploadTrainingModuleContentFiles: async ({ input, file, thumbnail }, context) => {   
+    uploadTrainingModuleContentFiles: async ({ input, file, thumbnail }, context) => {
         const { userId, subscriberId } = AuthUser(context);
         const existingContent = await TrainingModuleContent.findOne({
             $or: input.title.map(x => ({
                 "title.value": { $regex: x.value.trim(), $options: "i" },
             })),
         }).lean().select("_id");
-    
+
         if (existingContent) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if(!durationStyleChecked){
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
@@ -245,7 +250,7 @@ module.exports.mutations = {
             fileName: `file_${Date.now()}`,
             uploadType: UploadHelper.uploadType.trainingContentFile,
         });
-        if (thumbnail){
+        if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
                 data: thumbnail,
                 folderName: `image-content`,
@@ -256,7 +261,7 @@ module.exports.mutations = {
         }
         const contentData = {
             ...input,
-            files: [{ url: savedItem}],
+            files: [{ url: savedItem }],
             createdBy: userId,
             updatedBy: userId,
         };
@@ -269,21 +274,21 @@ module.exports.mutations = {
         if (!savedContent) throw CustomError(ErrorName.FAILED);
         return savedContent;
     },
-    uploadTrainingModuleContentaudio: async ({ input , audio, thumbnail }, context) => {
+    uploadTrainingModuleContentaudio: async ({ input, audio, thumbnail }, context) => {
         const { userId, subscriberId } = AuthUser(context);
         const existingContent = await TrainingModuleContent.findOne({
             $or: input.title.map(x => ({
                 "title.value": { $regex: x.value.trim(), $options: "i" },
             })),
         }).lean().select("_id");
-    
+
         if (existingContent) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if(!durationStyleChecked){
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
@@ -294,7 +299,7 @@ module.exports.mutations = {
             fileName: `audio_${Date.now()}`,
             uploadType: UploadHelper.uploadType.trainingContentAudio,
         });
-        if (thumbnail){
+        if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
                 data: thumbnail,
                 folderName: `image-content`,
@@ -318,11 +323,11 @@ module.exports.mutations = {
         return savedContent;
     },
 
-    updateTrainingModuleContentStatus: async({ title, newStatus }, context) => {
+    updateTrainingModuleContentStatus: async ({ title, newStatus }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-        const content = await TrainingModuleContent.findOne({ 
-            'title.value': title, 
-            subscriber: subscriberId 
+        const content = await TrainingModuleContent.findOne({
+            'title.value': title,
+            subscriber: subscriberId
         });
         const invalidUpdates = [];
 
@@ -337,7 +342,6 @@ module.exports.mutations = {
             };
         }
 
-        
         const validUpdate = (() => {
             if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
                 invalidUpdates.push({
@@ -385,8 +389,8 @@ module.exports.mutations = {
         };
     },
 
-    deleteTrainingModuleContentByID: async ( { id }, context) => {
-         const { subscriberId } = AuthUser(context);
+    deleteTrainingModuleContentByID: async ({ id }, context) => {
+        const { subscriberId } = AuthUser(context);
         const content = await TrainingModuleContent.findOneAndDelete({
             _id: id,
             subscriber: subscriberId,
@@ -401,22 +405,173 @@ module.exports.mutations = {
             message: "Content deleted successfully."
         };
     },
-    
+
+    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
+        try {
+            const { userId, subscriberId } = AuthUser(context);
+
+            const scormFile = scorm ? await scorm : null;
+            const thumbnailFile = thumbnail ? await thumbnail : null;
+            const imageFile = image ? await image : null;
+            const videoFile = video ? await video : null;
+            const audioFile = audio ? await audio : null;
+            const fileFile = file ? await file : null;
+
+            let pptSlides = 0;
+
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
+
+            const validateFileFormat = async (mediaFile) => {
+                const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+
+                if (fileExtension === 'ppt' || fileExtension === 'pptx') {
+                    const readStream = mediaFile.createReadStream();
+                    const pptData = new pptx2json(readStream);
+                    const pptSlides = pptData.slides ? pptData.slides.length : 0;
+
+                    console.log("pptData", pptData);
+                    console.log("Total Slides:", pptSlides);
+
+                }
+                return allowedFileFormats.includes(fileExtension);
+            };
+
+            if (scormFile && !validateFileFormat(scormFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
+            }
+
+            if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
+                console.log("thumbnail", thumbnailFile);
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
+            }
+
+            if (imageFile && !validateFileFormat(imageFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
+            }
+
+            if (videoFile && !validateFileFormat(videoFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+            }
+
+            if (audioFile && !validateFileFormat(audioFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
+            }
+
+            if (fileFile && !validateFileFormat(fileFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+            }
+
+            const existingContent = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+            }).lean().select("_id");
+
+            if (existingContent) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
+            }
+
+            if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+                input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
+            }
+
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+            }
+
+            if (thumbnail) {
+                const thumbnailUrl = await UploadHelper.uploadImage({
+                    data: thumbnail,
+                    folderName: `image-content`,
+                    fileName: `image_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.trainingContentImage,
+                });
+                input.thumbnail = thumbnailUrl;
+            }
+
+            if (video) {
+                const videoUrl = await UploadHelper.uploadVideo({
+                    data: video,
+                    folderName: `video-content`,
+                    fileName: `video_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.trainingContentVideo,
+                });
+                input.videos = [{ url: videoUrl }];
+            }
+
+            if (audio) {
+                const audioUrl = await UploadHelper.uploadAudio({
+                    data: audio,
+                    folderName: `audio-content`,
+                    fileName: `audio_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.trainingContentAudio,
+                });
+                input.audios = [{ url: audioUrl }];
+            }
+
+            if (image) {
+                const imageUrl = await UploadHelper.uploadImage({
+                    data: image,
+                    folderName: `image-content`,
+                    fileName: `image_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.trainingContentImage,
+                });
+                input.images = [{ url: imageUrl }];
+            }
+
+            if (file) {
+                const fileUrl = await UploadHelper.uploadDocument({
+                    data: file,
+                    folderName: `file-content`,
+                    fileName: `file_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.trainingContentFile,
+                });
+                input.files = [{ url: fileUrl }];
+            }
+
+            const contentData = {
+                ...input,
+                createdBy: userId,
+                updatedBy: userId,
+            };
+
+            const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
+                const savedContent = new TrainingModuleContent({
+                    ...contentData,
+                    subscriber: subscriberId,
+                    UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
+                })
+                await savedContent.save();
+                return savedContent;
+            });
+
+            if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+            return savedContent;
+        } catch (error) {
+            console.log("error", error);
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    },
+
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-        
+
         const existingContent = await TrainingModuleContent.findOne({
             _id: input._id ?? undefined,
             subscriber: subscriberId,
+            UID: input.UID ?? undefined
         });
 
         if (!existingContent) {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
         }
 
-        if(input.duration){
+        if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if(!durationStyleChecked){
+            if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
         }
@@ -435,12 +590,15 @@ module.exports.mutations = {
             audios: existingContent.audio,
             images: existingContent.images,
             files: existingContent.files,
-            scorm:existingContent.scorm,
+            scorm: existingContent.scorm,
             thumbnail: existingContent.thumbnail,
-            version: existingContent.version ? existingContent.version : 1
+            version: existingContent.version ? existingContent.version : 1,
+            UID: existingContent.UID
         };
         let isUpdated = false;
         let isMediaUpdated = false;
+
+        console.log("Existing")
 
         try {
             const fieldsToCheck = [
@@ -452,18 +610,18 @@ module.exports.mutations = {
                 "displayPosition",
                 "isActive"
             ];
-            
+
             for (const field of fieldsToCheck) {
                 if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
                     isUpdated = true;
-                    break; 
+                    break;
                 }
             }
             if (thumbnail === null) {
                 updateData.thumbnail = null;
                 isUpdated = true;
             }
-            else if (thumbnail){
+            else if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
@@ -484,8 +642,8 @@ module.exports.mutations = {
                 updateData.videos = [{ url: videoUrl }];
                 updateData.audios = [];
                 updateData.images = [];
-                updateData.files  = [];
-                updateData.scorm  = null;
+                updateData.files = [];
+                updateData.scorm = null;
                 isUpdated = true;
                 isMediaUpdated = true;
             }
@@ -500,8 +658,8 @@ module.exports.mutations = {
                 updateData.audios = [{ url: audioUrl }]
                 updateData.videos = [];
                 updateData.images = [];
-                updateData.files  = [];
-                updateData.scorm  = null;
+                updateData.files = [];
+                updateData.scorm = null;
                 isUpdated = true;
                 isMediaUpdated = true;
             }
@@ -516,8 +674,8 @@ module.exports.mutations = {
                 updateData.images = [{ url: imageUrl }];
                 updateData.videos = [];
                 updateData.audios = [];
-                updateData.files  = [];
-                updateData.scorm  = null;
+                updateData.files = [];
+                updateData.scorm = null;
                 isUpdated = true;
                 isMediaUpdated = true;
             }
@@ -532,14 +690,14 @@ module.exports.mutations = {
                 updateData.files = [{ url: fileUrl }];
                 updateData.videos = [];
                 updateData.images = [];
-                updateData.audios  = [];
-                updateData.scorm  = null;
-                isUpdated = true;   
+                updateData.audios = [];
+                updateData.scorm = null;
+                isUpdated = true;
                 isMediaUpdated = true;
             }
 
             if (scorm) {
-                let courseInfo = await ScromHelper.uploadToScormCloud(scorm);   
+                let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
 
                 if (courseInfo) {
                     const { filename } = await scorm;
@@ -552,15 +710,23 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
+            let savedContent = null;
             if (isMediaUpdated) {
                 updateData.version = updateData.version + 1;
                 updateData.modifiedDate = new Date();
+
+                const savedContentData = new TrainingModuleContent({
+                    ...updateData,
+                    subscriber: subscriberId,
+                });
+                savedContent = await savedContentData.save();
+            } else {
+                savedContent = await TrainingModuleContent.findOneAndUpdate(
+                    { _id: existingContent._id, subscriber: subscriberId },
+                    { $set: updateData },
+                    { new: true, setDefaultsOnInsert: true, runValidators: true }
+                );
             }
-            const savedContent = await TrainingModuleContent.findOneAndUpdate(
-                { _id: existingContent._id, subscriber: subscriberId },
-                { $set: updateData },
-                { new: true, setDefaultsOnInsert: true, runValidators: true }
-            );
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -568,8 +734,8 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, 'Failed to update the content');
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
-    
+
 };

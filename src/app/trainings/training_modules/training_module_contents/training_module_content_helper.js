@@ -2,6 +2,7 @@ const { ObjectId } = require("../../../../tools");
 const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../../util");
 
 const { TrainingModuleContent } = require("./training_module_content_model");
+const CounterHelper = require("../../../counters/counter_helper");
 
 const uploadTrainingModuleContentVideos = async ({ videos, folderName }) => {
     const trainingModuleContentVideos = [];
@@ -110,8 +111,20 @@ const checkDurationStyle = duration => {
     return false;
 };
 
+const generateContentUID = async ({ session }) => {
+    const savedCounter = await CounterHelper.updateCounter({
+        modelName: TrainingModuleContent.modelName,
+        session,
+    });
+
+    if (!savedCounter) throw CustomError(ErrorName.FAILED);
+
+    return `CONTENT-${savedCounter.count}`;
+};
+
 module.exports = {
     checkDurationStyle,
+    generateContentUID,
     uploadTrainingModuleContentVideos,
     uploadTrainingModuleContentAudios,
     uploadTrainingModuleContentImages,
