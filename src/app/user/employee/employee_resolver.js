@@ -7,6 +7,7 @@ const {
     DbTransactionHelper,
     UploadHelper,
 } = require("../../../util");
+const { ObjectId } = require("../../../tools");
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -28,6 +29,21 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 
+async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
+    const userVesselFilter = {};
+    if (vesselStatus && vesselStatus.length > 0) {
+        userVesselFilter.vesselStatus = { $in: vesselStatus }; 
+    }
+    if (vesselType && vesselType.length > 0) {
+        userVesselFilter.vesselType = { $in: vesselType };
+    }
+    if (vesselObjectId) {
+        userVesselFilter.vesselObjectId = vesselObjectId; 
+    }
+    const userVessels = await UserVessel.find(userVesselFilter).select('user');
+    const userIds = userVessels.map(vessel => vessel.user);  
+    return userIds; 
+}
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
@@ -474,6 +490,10 @@ module.exports.queries = {
         if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
             filterConditions.empDesignation = { $in: filterInput.empDesignation };
         }
+        const userIdsByVesselStatus = await fetchVesselUsersByStatus(filterInput.vesselStatus, filterInput.vesselType, filterInput.vesselObjectId);
+        if (userIdsByVesselStatus.length > 0) {
+            filterConditions.user = { $in: userIdsByVesselStatus };
+        }
         const fetchResult = async pipeline => {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                 offset: skip,
@@ -510,15 +530,6 @@ module.exports.queries = {
             {
                 $lookup: {
                     from: "users",
-                    localField: "managerObjectId",
-                    foreignField: "_id",
-                    as: "managerObjectId",
-                },
-            },
-            { $unwind: "$managerObjectId" },
-            {
-                $lookup: {
-                    from: "users",
                     localField: "user",
                     foreignField: "_id",
                     as: "user",
@@ -535,27 +546,9 @@ module.exports.queries = {
             {
                 $match: {
                     "user.isDeleted": { $ne: true },
-                    "user.role": { $in: ['ADMIN', 'EMPLOYEE', 'AUTHOR'] }
+                    "user.role": { $in: ['LEARNER'] }
                 }
             },
-            {
-                $lookup: {
-                    from: "userVessels",
-                    localField: "user._id",
-                    foreignField: "user",
-                    as: "userVessel",
-                },
-            },
-            { $unwind: "$userVessel" },
-            ...(filterInput?.vesselType?.length
-                ? [
-                    {
-                        $match: {
-                            "userVessel.vesselType": { $in: filterInput.vesselType },
-                        },
-                    },
-                ]
-                : []),
             ...(filterInput?.search
                 ? [
                     {
