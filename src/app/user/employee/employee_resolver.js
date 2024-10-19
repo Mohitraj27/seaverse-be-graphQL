@@ -31,7 +31,6 @@ const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
-
 async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
@@ -552,6 +551,25 @@ module.exports.queries = {
                 $match: {
                     "user.isDeleted": { $ne: true },
                     "user.role": { $in: ['LEARNER'] }
+                }
+            },
+            {
+                $lookup: {
+                    from: "vessels",  
+                    localField: "user.currentVessel", 
+                    foreignField: "_id",
+                    as: "currentVessel",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$currentVessel",
+                    preserveNullAndEmptyArrays: true, 
+                }
+            },
+            {
+                $match: {
+                    "currentVessel.isActive": { $ne: false },
                 }
             },
             ...(filterInput?.search

@@ -43,6 +43,7 @@ module.exports = {
             isActive: Boolean
             trainingCertificates: [TrainingCertificate]
             signature: String
+            currentVessel: Vessel
         }
         type EmployeeList {
             batch: Batch
