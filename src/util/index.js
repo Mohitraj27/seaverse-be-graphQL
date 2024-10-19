@@ -7,6 +7,7 @@ const AwsHelper = require("./aws_helper");
 const SubscriptionHelper = require("../app/saas/subscriber/subscription/subscription_helper");
 
 const Role = require("./role");
+const VesselStatus = require("./vessel_status");
 
 const parseDateTime = dateTime => {
     try {
@@ -203,6 +204,7 @@ module.exports = {
     AppConfig: require("./app_config"),
     Event: require("./event"),
     Role,
+    VesselStatus,
     Language: require("./language"),
     EmailTemplate: require("./email_template"),
 };

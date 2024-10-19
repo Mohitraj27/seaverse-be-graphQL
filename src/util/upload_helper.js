@@ -14,8 +14,7 @@ const fileType = {
         "application/vnd.openxmlformats-officedocument.presentationml.presentation", 
         "application/vnd.openxmlformats-officedocument.presentationml.slideshow", 
         "application/vnd.ms-powerpoint.presentation.macroEnabled.12", 
-        "application/vnd.ms-powerpoint.slideshow.macroEnabled.12" 
-   
+        "application/vnd.ms-powerpoint.slideshow.macroEnabled.12"
     ],
     csv: "text/csv",
     all: "*",
@@ -69,6 +68,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.trainingContentFile) return `${rootFolder}/training-contents/${folder}/files/${filename}`;
     else if (type === uploadType.trainingCertificateImage) return `${rootFolder}/trainings/${folder}/certificate-images/${filename}`;
     else if (type === uploadType.trainingBannerImage) return `${rootFolder}/trainings/${folder}/training-banner-images/${filename}`;
+    else if (type === uploadType.bulkCSV) return `${rootFolder}/import-logs/${folder}/csv-files/${filename}`;
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;

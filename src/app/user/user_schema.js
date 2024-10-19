@@ -36,6 +36,7 @@ module.exports = {
             employee: Employee
             htmlTemplate: String
             isResetPasswordDialog: Boolean
+            vesselStatus: vesselStatusEnum
         }
         type UserList {
             users: [User]
