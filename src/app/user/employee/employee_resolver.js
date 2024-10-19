@@ -30,7 +30,6 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
-const { Vessel } = require("../../vessle/vessel_model");
 const { v4: uuidv4 } = require('uuid')
 async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
     const userVesselFilter = {};
