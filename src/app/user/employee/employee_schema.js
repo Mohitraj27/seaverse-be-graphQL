@@ -151,6 +151,11 @@ module.exports = {
             REMOVE_AS_AUTHOR
             REMOVE_AS_ADMIN
         }
+        enum VesselStatusEnum {
+            ONBOARDED
+            ONSHORE
+            ASSIGNED
+        }
         input manageRoleInput {
             users: [ID!]!
             change: AssignChange!
@@ -176,6 +181,8 @@ module.exports = {
             regType: Int
             role: RoleEnum
             isRegistered: Boolean
+            empDesignation: [ID]
+            vesselStatus: [VesselStatusEnum] 
         }
         input deleteRequestFilterInput {
             search: String
