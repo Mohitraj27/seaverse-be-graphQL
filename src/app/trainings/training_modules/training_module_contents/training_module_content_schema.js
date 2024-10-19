@@ -28,6 +28,7 @@ module.exports = {
             updatedAt: String
             version: Int
             modifiedDate: String
+            isUpdated: Boolean
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
@@ -38,6 +39,10 @@ module.exports = {
             name: String!
             reason: String!
         }
+
+        input TrainingMOduleContentStatusInput {
+            title: String!
+            }
         type UpdateStatusResult {
             success: Boolean!
             message: String
@@ -55,7 +60,7 @@ module.exports = {
         }
         input TrainingModuleContentInput {
             _id: ID
-            
+            UID: String!
             contentType: TrainingModuleContentType!
             
             duration: String
@@ -74,6 +79,7 @@ module.exports = {
             thumbnail: String
             displayPosition: Int
             isActive: Boolean
+
         }
     `,
     queries: `

@@ -552,7 +552,7 @@ module.exports = {
 
         return savedEmployee;
     },
-    createBulkEmployee: async ({ userList, emailsLists, civilIds, managerEmails, existingUsers, existingDesignations, designationMap, newDesignations }, context) => {
+    createBulkEmployee: async ({ userList, emailsLists, civilIds, existingUsers, existingDesignations, designationMap, newDesignations }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -650,16 +650,16 @@ module.exports = {
 
                 const insertedUsers = await User.find({ email: { $in: userList.map(u => u.email) } }).session(session);
 
-                const managerEmailsNotInserted = managerEmails.filter(email =>
-                    !insertedUsers.some(user => user.email === email)
-                );
+                // const managerEmailsNotInserted = managerEmails.filter(email =>
+                //     !insertedUsers.some(user => user.email === email)
+                // );
 
-                let additionalManagers = [];
-                if (managerEmailsNotInserted.length > 0) {
-                    additionalManagers = await User.find({
-                        email: { $in: managerEmailsNotInserted }
-                    }).select('_id email firstName').session(session).lean();;
-                }
+                // let additionalManagers = [];
+                // if (managerEmailsNotInserted.length > 0) {
+                //     additionalManagers = await User.find({
+                //         email: { $in: managerEmailsNotInserted }
+                //     }).select('_id email firstName').session(session).lean();;
+                // }
 
                 const allManagers = [
                     ...insertedUsers.filter(user => {

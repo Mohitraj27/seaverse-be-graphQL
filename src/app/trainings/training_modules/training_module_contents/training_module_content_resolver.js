@@ -12,6 +12,7 @@ const Content_status = require("./content_status.json");
 const ContentType = require("./content_type.json");
 const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
+const pptx2json = require('pptx2json');
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
@@ -409,6 +410,57 @@ module.exports.mutations = {
         try {
             const { userId, subscriberId } = AuthUser(context);
 
+            const scormFile = scorm ? await scorm : null;
+            const thumbnailFile = thumbnail ? await thumbnail : null;
+            const imageFile = image ? await image : null;
+            const videoFile = video ? await video : null;
+            const audioFile = audio ? await audio : null;
+            const fileFile = file ? await file : null;
+
+            let pptSlides = 0;
+
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
+
+            const validateFileFormat = async (mediaFile) => {
+                const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+
+                if (fileExtension === 'ppt' || fileExtension === 'pptx') {
+                    const readStream = mediaFile.createReadStream();
+                    const pptData = new pptx2json(readStream);
+                    const pptSlides = pptData.slides ? pptData.slides.length : 0;
+
+                    console.log("pptData", pptData);
+                    console.log("Total Slides:", pptSlides);
+
+                }
+                return allowedFileFormats.includes(fileExtension);
+            };
+
+            if (scormFile && !validateFileFormat(scormFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
+            }
+
+            if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
+                console.log("thumbnail", thumbnailFile);
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
+            }
+
+            if (imageFile && !validateFileFormat(imageFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
+            }
+
+            if (videoFile && !validateFileFormat(videoFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+            }
+
+            if (audioFile && !validateFileFormat(audioFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
+            }
+
+            if (fileFile && !validateFileFormat(fileFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
                     "title.value": { $regex: x.value.trim(), $options: "i" },
@@ -486,11 +538,15 @@ module.exports.mutations = {
                 updatedBy: userId,
             };
 
-            const savedContent = new TrainingModuleContent({
-                ...contentData,
-                subscriber: subscriberId,
-            })
-            await savedContent.save();
+            const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
+                const savedContent = new TrainingModuleContent({
+                    ...contentData,
+                    subscriber: subscriberId,
+                    UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
+                })
+                await savedContent.save();
+                return savedContent;
+            });
 
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
@@ -506,6 +562,7 @@ module.exports.mutations = {
         const existingContent = await TrainingModuleContent.findOne({
             _id: input._id ?? undefined,
             subscriber: subscriberId,
+            UID: input.UID ?? undefined
         });
 
         if (!existingContent) {
@@ -535,10 +592,13 @@ module.exports.mutations = {
             files: existingContent.files,
             scorm: existingContent.scorm,
             thumbnail: existingContent.thumbnail,
-            version: existingContent.version ? existingContent.version : 1
+            version: existingContent.version ? existingContent.version : 1,
+            UID: existingContent.UID
         };
         let isUpdated = false;
         let isMediaUpdated = false;
+
+        console.log("Existing")
 
         try {
             const fieldsToCheck = [
@@ -650,15 +710,23 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
+            let savedContent = null;
             if (isMediaUpdated) {
                 updateData.version = updateData.version + 1;
                 updateData.modifiedDate = new Date();
+
+                const savedContentData = new TrainingModuleContent({
+                    ...updateData,
+                    subscriber: subscriberId,
+                });
+                savedContent = await savedContentData.save();
+            } else {
+                savedContent = await TrainingModuleContent.findOneAndUpdate(
+                    { _id: existingContent._id, subscriber: subscriberId },
+                    { $set: updateData },
+                    { new: true, setDefaultsOnInsert: true, runValidators: true }
+                );
             }
-            const savedContent = await TrainingModuleContent.findOneAndUpdate(
-                { _id: existingContent._id, subscriber: subscriberId },
-                { $set: updateData },
-                { new: true, setDefaultsOnInsert: true, runValidators: true }
-            );
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -666,7 +734,7 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, 'Failed to update the content');
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 

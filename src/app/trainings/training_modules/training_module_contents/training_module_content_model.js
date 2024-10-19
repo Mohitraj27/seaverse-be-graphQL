@@ -1,9 +1,12 @@
+const { uuid } = require("uuidv4");
 const { Schema, Model, ObjectId } = require("../../../../tools");
 const { LocalisedDataSchema } = require("../../../../util/localised_data_schema");
 const { QuizSchema } = require("../../../quizzes/quiz_content_model");
+const training_helper = require("../../training_helper");
 
 const trainingModuleContentSchema = new Schema(
     {
+        UID: String,
         subscriber: {
             type: ObjectId,
             ref: "Subscriber",
@@ -104,7 +107,15 @@ const trainingModuleContentSchema = new Schema(
         modifiedDate: {
             type: Date,
             default: Date.now,
-        }
+        },
+        isUpdated: {
+            type: Boolean,
+            default: false,
+        },
+        isMediaUpdated: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );

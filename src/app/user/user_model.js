@@ -54,6 +54,7 @@ const userSchema = new Schema(
         },
         role: {
             type: String,
+            default: 'LEARNER',
             uppercase: true,
             required: true,
             index: true,
@@ -85,7 +86,7 @@ const userSchema = new Schema(
         },
         isRegistered: {
             type: Boolean,
-            default: false,
+            default: true,
         },
         isProfileCompleted: {
             type: Boolean,

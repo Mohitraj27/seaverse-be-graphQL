@@ -65,6 +65,7 @@ const errorName = {
     ALREADY_IN_USE: "ALREADY_IN_USE",
     REASON_FOR_DELETE_NOT_FOUND: "REASON_FOR_DELETE_NOT_FOUND",
     VESSEL_NOT_FOUND: "VESSEL_NOT_FOUND",
+    INVALID_FILE_FORMAT: "INVALID_FILE_FORMAT",
 };
 
 const errorType = {
@@ -392,6 +393,11 @@ const errorType = {
         message: "Vessel Not Found",
         statusCode: 400,
         type: "VESSEL_NOT_FOUND"
+    },
+    INVALID_FILE_FORMAT: {
+        message: "Invalid File Format",
+        statusCode: 400,
+        type: "INVALID_FILE_FORMAT"
     },
 };
 
