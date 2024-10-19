@@ -184,6 +184,7 @@ module.exports = {
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
+            vesselName: String
         }
         input deleteRequestFilterInput {
             search: String
