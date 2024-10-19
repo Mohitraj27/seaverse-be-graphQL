@@ -15,7 +15,7 @@ const connectDb = () => {
 module.exports = {
     initDb: ({ httpsServer, httpServer, apolloServer }) => {
         connectDb();
-        set("debug", true);
+        // set("debug", true);
 
         connection
             .once("open", () => {
