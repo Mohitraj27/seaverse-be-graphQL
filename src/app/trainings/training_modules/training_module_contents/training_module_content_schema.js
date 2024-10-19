@@ -10,6 +10,7 @@ module.exports = {
         }
         type TrainingModuleContent {
             _id: ID
+            UID: String
             contentType: String
             duration: String
             contentStatus: TrainingModuleContentStatus
@@ -60,7 +61,7 @@ module.exports = {
         }
         input TrainingModuleContentInput {
             _id: ID
-            UID: String!
+            UID: String
             contentType: TrainingModuleContentType!
             
             duration: String

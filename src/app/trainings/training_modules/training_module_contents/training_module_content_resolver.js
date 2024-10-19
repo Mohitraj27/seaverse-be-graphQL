@@ -559,15 +559,81 @@ module.exports.mutations = {
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
-        const existingContent = await TrainingModuleContent.findOne({
-            _id: input._id ?? undefined,
-            subscriber: subscriberId,
-            UID: input.UID ?? undefined
-        });
+        const scormFile = scorm ? await scorm : null;
+        const thumbnailFile = thumbnail ? await thumbnail : null;
+        const imageFile = image ? await image : null;
+        const videoFile = video ? await video : null;
+        const audioFile = audio ? await audio : null;
+        const fileFile = file ? await file : null;
 
-        if (!existingContent) {
-            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+        let pptSlides = 0;
+
+        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
+
+        const validateFileFormat = async (mediaFile) => {
+            const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+
+            if (fileExtension === 'ppt' || fileExtension === 'pptx') {
+                const readStream = mediaFile.createReadStream();
+                const pptData = new pptx2json(readStream);
+                const pptSlides = pptData.slides ? pptData.slides.length : 0;
+
+                console.log("pptData", pptData);
+                console.log("Total Slides:", pptSlides);
+
+            }
+            return allowedFileFormats.includes(fileExtension);
+        };
+
+        if (scormFile && !validateFileFormat(scormFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
         }
+
+        if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
+            console.log("thumbnail", thumbnailFile);
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
+        }
+
+        if (imageFile && !validateFileFormat(imageFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
+        }
+
+        if (videoFile && !validateFileFormat(videoFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+        }
+
+        if (audioFile && !validateFileFormat(audioFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
+        }
+
+        if (fileFile && !validateFileFormat(fileFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+        }
+
+        const existingContent = await TrainingModuleContent.findOne({
+            $or: input.title.map(x => ({
+                "title.value": { $regex: x.value.trim(), $options: "i" },
+            })),
+            _id: { $ne: input._id }
+        }).lean().select("_id");
+
+        if (existingContent) {
+            throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
+        }
+
+        if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+            input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
+        }
+
+        // const existingContent = await TrainingModuleContent.findOne({
+        //     _id: input._id ?? undefined,
+        //     subscriber: subscriberId,
+        //     UID: input.UID ?? undefined
+        // });
+
+        // if (!existingContent) {
+        //     throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+        // }
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
@@ -587,7 +653,7 @@ module.exports.mutations = {
             updatedBy: userId,
             updatedAt: new Date(),
             videos: existingContent.videos,
-            audios: existingContent.audio,
+            audios: existingContent.audios,
             images: existingContent.images,
             files: existingContent.files,
             scorm: existingContent.scorm,
@@ -600,28 +666,31 @@ module.exports.mutations = {
 
         console.log("Existing")
 
-        try {
-            const fieldsToCheck = [
-                "title",
-                "description",
-                "contentType",
-                "contentStatus",
-                "duration",
-                "displayPosition",
-                "isActive"
-            ];
+        const fieldsToCheck = [
+            "title",
+            "description",
+            "contentType",
+            "contentStatus",
+            "duration",
+            "displayPosition",
+            "isActive"
+        ];
 
-            for (const field of fieldsToCheck) {
-                if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                    isUpdated = true;
-                    break;
-                }
+        for (const field of fieldsToCheck) {
+            if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
+                console.log("input field", input[field]);
+                console.log("existing field", existingContent[field]);
+                console.log("yes");
+                isUpdated = true;
+                break;
             }
+        }
+
+        try {
             if (thumbnail === null) {
                 updateData.thumbnail = null;
                 isUpdated = true;
-            }
-            else if (thumbnail) {
+            } else if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
@@ -632,6 +701,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
+            console.log("thumbnail");
             if (video) {
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
@@ -647,7 +717,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-
+            console.log("video");
             if (audio) {
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
@@ -663,7 +733,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-
+            console.log("audio");
             if (image) {
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
@@ -679,7 +749,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-
+            console.log("image");
             if (file) {
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
@@ -695,7 +765,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-
+            console.log("file");
             if (scorm) {
                 let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
 
@@ -734,8 +804,8 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
+            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
-
 };
