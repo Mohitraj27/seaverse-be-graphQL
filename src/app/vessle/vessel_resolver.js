@@ -7,6 +7,7 @@ const {
 const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
+const { VesselType } = require("./vessel-type/vessel_type_model");
 
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
@@ -44,7 +45,20 @@ module.exports.queries = {
             }
 
             return Vessel.aggregatePaginate(
-                Vessel.aggregate([{ $match: filterConditions }]),
+                Vessel.aggregate([
+                    { $match: filterConditions },
+                    {
+                        $lookup: {
+                            from: "vesseltypes",
+                            localField: "typeOfVessel",
+                            foreignField: "_id",
+                            as: "typeOfVessel",
+                            pipeline: [{ $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }],
+                        },
+                    },
+                    { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                    // { $project: { _id: 1, name: 1, typeOfVessel: 1, imoNumber: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }
+                ]),
                 {
                     offset: skip,
                     limit,
