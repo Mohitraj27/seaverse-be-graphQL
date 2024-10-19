@@ -54,6 +54,7 @@ const userSchema = new Schema(
         },
         role: {
             type: String,
+            default: 'LEARNER',
             uppercase: true,
             required: true,
             index: true,

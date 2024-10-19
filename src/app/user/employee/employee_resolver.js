@@ -1106,8 +1106,8 @@ module.exports.mutations = {
             let emails = new Set();
             let empIds = new Set();
 
-            const designations = await Designation.find({ isDeleted: false }).select('name').lean();
-            const designationNames = designations.map(designation => designation.name);
+            const existingDesignations = await Designation.find({ isDeleted: false }).lean();
+            const designationNames = existingDesignations.map(designation => designation.name);
 
             const vessels = await Vessel.find({ isDeleted: false, isActive: true }).select('imoNumber').lean();
             const imoNumbers = vessels.map(vessel => vessel.imoNumber);
@@ -1146,7 +1146,7 @@ module.exports.mutations = {
                             users.push(formatedData);
                         }
                     } catch (err) {
-                        errors.push(`Row ${users.length + 1}: ${err.message}`);
+                        errors.push(`${err.message}`);
                     }
                     rowIndex++;
                 });
@@ -1175,7 +1175,6 @@ module.exports.mutations = {
 
             }
 
-
             const existingUsers = await User.find({
                 $or: [
                     { civilIdOrPassport: { $in: Array.from(empIds) } },
@@ -1194,7 +1193,6 @@ module.exports.mutations = {
 
             let userIndex = 0;
 
-            const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
 
             const vesselMap = new Map(
@@ -1205,9 +1203,12 @@ module.exports.mutations = {
             );
 
             for (const user of users) {
+                
+                const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
 
-                if (user.civilIdOrPassport in existingEmpIdsInDB) {
-                    const email = existingEmpIdsInDB[user.civilIdOrPassport];
+                if (existingEmpIdsMap) {
+                    
+                    const email = existingEmpIdsMap[user.civilIdOrPassport];
 
                     if (email !== user.email && existingEmailsInDB.includes(user.email)) {
 
@@ -1215,6 +1216,9 @@ module.exports.mutations = {
                         break;
 
                     } else {
+
+                        console.log(vesselMap.get(user.imoNumber).id);
+                        
 
                         updates.push({
                             updateOne: {
@@ -1224,9 +1228,8 @@ module.exports.mutations = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email,
-                                        imoNumber: user.imoNumber,
                                         vesselStatus: user.vesselStatus,
-                                        currentVessel: vesselMap.get(user.imoNumber).id,
+                                        currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
                                     },
                                 },
                                 upsert: true,
@@ -1245,19 +1248,19 @@ module.exports.mutations = {
                     } else {
 
                         inserts.push({
+                            civilIdOrPassport: user.civilIdOrPassport,
                             firstName: user.firstName,
                             lastName: user.lastName,
                             email: user.email,
-                            imoNumber: user.imoNumber,
                             vesselStatus: user.vesselStatus,
-                            currentVessel: vesselMap.get(user.imoNumber).id,
+                            currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
+                            password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
                         });
 
                     }
                 }
                 userIndex++;
             };
-
 
             if (errors.length > 0) {
 
@@ -1272,60 +1275,32 @@ module.exports.mutations = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+                
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `${errors[0]}`
                 );
-
+                
             }
 
-            // users.forEach(user => {
-            //     user.role = user.role.toUpperCase();
-            //     user.designation = user.designation.toUpperCase();
-            // });
+            let bulkInsertUsers;
+            let bulkUpdateUsers;
 
-            // const emailsLists = users.map(user => user.email);
-
-            // const civilIds = users.map(user => user.civilIdOrPassport);
-
-            let bulkInsertedUsers;
-            let bulkUpdatedUsers;
-
-
+            let insertedUsers;
+            let updatedUsers;
+            
+            
             const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-
-                bulkInsertedUsers = await User.insertMany(inserts, { session: session });
-
-                console.log(bulkInsertedUsers.result);
-                const insertedIds = bulkInsertedUsers.result.upserted.map(item => ObjectId(item._id));
-
-                // const insertedIds = [ObjectId("67128a63f0ee5914b3746382"), ObjectId("67128a63f0ee5914b3746381")]
-
                 
+                bulkInsertUsers = await User.insertMany(inserts, { session: session });
 
-                let insertedUsers = [];
-                let updatedUsers = [];
-
-                try{
-                    if (insertedIds.length > 0) {
-                        console.log(insertedIds);
-                        insertedUsers = await User.find({ _id: { $in: insertedIds } });
-                        console.log(insertedUsers);
-                    }
-                } catch (err) {
-                    console.log(err);
-                }
+                insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
                 
-                return true
-
-                bulkUpdatedUsers = await User.bulkWrite(updates, { session: session });
-                const upIds = bulkUpdatedUsers.result.upserted;
+                bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
+                const upIds = bulkUpdateUsers.result.upserted;
                 const updatedIds = upIds.map(item => item._id);
-                if (upIds.length > 0) {
-                    updatedUsers = await User.find({ _id: { $in: updatedIds } }).lean();
-                }
+                updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
                 
-
                 const designationMap = new Map(
                     existingDesignations.map(designation => [
                         designation.name,
@@ -1335,19 +1310,18 @@ module.exports.mutations = {
 
                 const bulkId = uuidv4();
                 const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
-                
-                
 
-                if(allUpdatedUsers.length > 0) {
+                if (allUpdatedUsers.length > 0) {
 
                     const userVesselsInsert = allUpdatedUsers.map(user => {
+
                         const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
                         return {
                             updateOne: {
-                                filter: { user: user._id },
+                                filter: { user: user },
                                 update: {
                                     $set: {
-                                        user: user._id,
+                                        user: user,
                                         vessel: vesselMap.get(originalUserData.imoNumber).id,
                                         isActive: true,
                                     }
@@ -1355,12 +1329,13 @@ module.exports.mutations = {
                                 upsert: true
                             }
                         };
+                        
                     })
-    
+                    
+                    
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
-    
-    
-    
+                    
+                    
                     const employeesToInsert = allUpdatedUsers.map(user => {
                         const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
                         // invitationList.push({
@@ -1368,10 +1343,10 @@ module.exports.mutations = {
                         // });
                         return {
                             updateOne: {
-                                filter: { user: user._id },
+                                filter: { user: user },
                                 update: {
                                     $set: {
-                                        user: user._id,
+                                        user: user,
                                         subscriber: subscriberId,
                                         empDesignation: designationMap.get(originalUserData.designation).id,
                                         bulkId: bulkId,
@@ -1382,13 +1357,13 @@ module.exports.mutations = {
                             }
                         };
                     });
-    
+                    
                     await Employee.bulkWrite(employeesToInsert, { session });
-    
+                    
                     const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
-    
+                    
                     const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
-                        const UID = await generateEmployeeUID({ subscriberId, session });
+                        const UID = await EmployeeHelper.generateEmployeeUID({ subscriberId, session });
                         return {
                             updateOne: {
                                 filter: { _id: employee._id },
@@ -1397,9 +1372,9 @@ module.exports.mutations = {
                             }
                         };
                     }));
-    
+                    
                     await Employee.bulkWrite(uidUpdates, { session });
-
+                    
                 } else {
 
                     const createImportLog = await ImportLog.create({
@@ -1410,32 +1385,20 @@ module.exports.mutations = {
                         importStatus: "FAILED",
                         description: `No new data created/updated`
                     })
-    
+
                     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
                     throw CustomError(
                         ErrorName.VALIDATION_ERROR,
                         `No new data created/updated`
-                    ); 
+                    );
                 }
-
-
+                
+                
             });
-
-            // const savedEmployeeList = await EmployeeHelper.createBulkEmployee({
-            //     userList: inserts,
-            //     emailsLists: emailsLists,
-            //     civilIds: civilIds,
-            // }, context);
-
-            // const updatedEmployeeList = await EmployeeHelper.createBulkEmployee({
-            //     userList: updates,
-            //     emailsLists: emailsLists,
-            //     civilIds: civilIds,
-            // }, context);
-
+            
             return {
-                count: insertedUsers + updatedUsers,
+                count: insertedUsers.length + updatedUsers.length,
             };
 
         } catch (error) {
@@ -1914,7 +1877,8 @@ function mapCSVRowToUser(row) {
         designation: row["Designation"],
         civilIdOrPassport: row["EmployeeID"],
         imoNumber: row["VesselIMONumber"],
-        vesselStatus: row["Status"]
+        vesselStatus: row["Status"],
+        imoNumber: row["VesselIMONumber"],
     };
 
     return result;
