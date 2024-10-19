@@ -318,7 +318,6 @@ module.exports = {
         }
 
         if (typeof input.isActive === "boolean") trainingUpdateData.isActive = input.isActive;
-        console.log(classroomModuleId);
         const savedTraining = await Training.findOneAndUpdate(
             trainingFilterConditions,
             {
