@@ -168,6 +168,7 @@ module.exports.mutations = {
                 throw new Error("Some contents are not published");
             }
         }
+        
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, session },
