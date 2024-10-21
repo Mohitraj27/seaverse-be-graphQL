@@ -112,7 +112,7 @@ const trainingModuleContentSchema = new Schema(
             type: Boolean,
             default: false,
         },
-        isMediaUpdated: {
+        isDeleted: {
             type: Boolean,
             default: false,
         },
