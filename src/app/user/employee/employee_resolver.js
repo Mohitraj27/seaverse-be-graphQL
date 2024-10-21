@@ -1579,7 +1579,7 @@ module.exports.mutations = {
 
         return {
             status: true,
-            message: "User created successfully",
+            message: "The bulk import is being processed in the background. You can continue working.",
         };
 
     },
