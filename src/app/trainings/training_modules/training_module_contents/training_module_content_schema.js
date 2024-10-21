@@ -30,6 +30,7 @@ module.exports = {
             version: Int
             modifiedDate: String
             isUpdated: Boolean
+            isDeleted: Boolean
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
@@ -37,7 +38,7 @@ module.exports = {
 
         }
          type InvalidUpdate {
-            name: String!
+            id: ID!
             reason: String!
         }
 
@@ -48,11 +49,12 @@ module.exports = {
             success: Boolean!
             message: String
             invalidUpdates: [InvalidUpdate]
-            updatedContent: TrainingModuleContent
+            updatedContents: [TrainingModuleContent]
         }
         type DeleteResponse {
             success: Boolean!
             message: String!
+            invalidDeletes: [InvalidUpdate]
         }
         type UpdateContentResponse {
             success: Boolean!
@@ -93,8 +95,8 @@ module.exports = {
         uploadTrainingModuleContentVideo(input: TrainingModuleContentInput!,video: Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentFiles(input: TrainingModuleContentInput!,file : Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
-        updateTrainingModuleContentStatus(title: String!, newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
-        deleteTrainingModuleContentByID(id: ID!): DeleteResponse!
+        updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
+        deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
          `,
