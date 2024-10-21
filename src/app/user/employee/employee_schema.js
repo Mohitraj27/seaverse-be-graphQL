@@ -157,6 +157,15 @@ module.exports = {
             ONSHORE
             ASSIGNED
         }
+        enum LastSeenEnum {
+            TODAY
+            YESTERDAY
+            LAST_7_DAYS
+            LAST_30_DAYS
+            LAST_3_MONTHS
+            LAST_6_MONTHS
+            LAST_YEAR
+        }
         input manageRoleInput {
             users: [ID!]!
             change: AssignChange!
@@ -184,8 +193,9 @@ module.exports = {
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
-            vesselName: String
+            vesselName: [String]
             vesselType: [ID]
+            lastSeen: LastSeenEnum
         }
         input deleteRequestFilterInput {
             search: String
