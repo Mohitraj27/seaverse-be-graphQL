@@ -27,6 +27,8 @@ const Permission = require("../user/sub-roles/permission.json");
 const ApprovalStatus = require("./approval_status.json");
 const LogType = require("../logs/log_type.json");
 const ScromHelper = require("./scrom_helper");
+const ContentStatus = require("./training_modules/training_module_contents/content_status.json")  
+const {queries} = require("./training_modules/training_module_contents/training_module_content_resolver")
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -145,6 +147,7 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createOrUpdateTraining: async ({ input }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         if (input.images) {
@@ -153,50 +156,19 @@ module.exports.mutations = {
             });
         }
 
-        if (input.trainingModules?.length) {
-            for (const trainingModule of input.trainingModules) {
-                if (trainingModule.trainingModuleContents?.length) {
-                    for (const trainingModuleContent of trainingModule.trainingModuleContents) {
-                        if (trainingModuleContent.videos) {
-                            trainingModuleContent.videos =
-                                await TrainingModuleContentHelper.uploadTrainingModuleContentVideos(
-                                    {
-                                        videos: trainingModuleContent.videos,
-                                    }
-                                );
-                        }
-
-                        if (trainingModuleContent.audios) {
-                            trainingModuleContent.audios =
-                                await TrainingModuleContentHelper.uploadTrainingModuleContentAudios(
-                                    {
-                                        audios: trainingModuleContent.audios,
-                                    }
-                                );
-                        }
-
-                        if (trainingModuleContent.images) {
-                            trainingModuleContent.images =
-                                await TrainingModuleContentHelper.uploadTrainingModuleContentImages(
-                                    {
-                                        images: trainingModuleContent.images,
-                                    }
-                                );
-                        }
-
-                        if(trainingModuleContent.files){
-                            trainingModuleContent.files =
-                                await TrainingModuleContentHelper.uploadTrainingModuleContentFiles(
-                                    {
-                                        files: trainingModuleContent.files,
-                                    }
-                                )
-                        }
-                    }
-                }
+        if (input.trainingModuleContents.length) {
+            let moduleContentIds = input.trainingModuleContents;
+            const getTrainingModuleContentStatus = await TrainingModuleContent.find({
+                _id: { $in: moduleContentIds },
+            }).select("contentStatus");
+            const areAllPublished = getTrainingModuleContentStatus.every(
+                content => content.contentStatus === ContentStatus.PUBLISHED
+            );
+            if (!areAllPublished) {
+                throw new Error("Some contents are not published");
             }
         }
-
+        
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, session },
