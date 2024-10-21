@@ -572,6 +572,29 @@ module.exports.queries = {
                     "currentVessel.isActive": { $ne: false },
                 }
             },
+            ...(filterInput?.vesselName
+                ? [
+                    {
+                        $match: {
+                            "currentVessel.name": {
+                                $regex: ".*" + filterInput.vesselName + ".*",
+                                $options: "i",
+                            },
+                        },
+                    },
+                ]
+                : []),
+            ...(filterInput?.vesselType?.length > 0
+                ? [
+                      {
+                          $match: {
+                              "currentVessel.typeOfVessel": {
+                                  $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                              },
+                          },
+                      },
+                  ]
+                : []),
             ...(filterInput?.search
                 ? [
                     {
