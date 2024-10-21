@@ -114,6 +114,10 @@
                 uppercase: true,
                 required:true,  
             },
+            isCertificate:{
+                type : Boolean,
+                required : true
+            },
             price: Number,
             durationHours: { type: Number, required: true },
             certifications: [

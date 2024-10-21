@@ -114,7 +114,9 @@ module.exports.mutations = {
             });
             await vessel.save();
 
-            return vessel;
+            const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
+
+            return vesselData;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }

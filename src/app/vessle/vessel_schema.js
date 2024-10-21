@@ -9,6 +9,13 @@ module.exports = {
             createdAt: String!
             updatedAt: String!
         }
+        type VesselTypeNew {
+            _id: ID
+            name: String
+            isActive: Boolean
+            createdAt: String
+            updatedAt: String
+        }
         input VesselInput {
             _id: ID
             name: String!
