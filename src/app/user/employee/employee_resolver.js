@@ -1199,7 +1199,7 @@ module.exports.mutations = {
 
             const child = fork('./src/app/user/employee/csv_import_process.js');
 
-            child.send({ users, emailsArray, empIdsArray });
+            child.send({ users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV });
 
             child.on('message', (message) => {
                 console.log('Message from child process:', message);

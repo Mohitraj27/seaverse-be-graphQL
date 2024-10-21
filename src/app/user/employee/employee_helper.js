@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -1045,8 +1045,8 @@ module.exports = {
             totalCount: savedEmployees.length,
         };
     },
-    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray) => {
-        
+    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
+
         // const { subscriberId, userId } = AuthUser(context);
 
         // if (!input.file) throw CustomError(ErrorName.BULK_USER_FILE_UPLOAD);
@@ -1137,10 +1137,12 @@ module.exports = {
         //         ErrorName.VALIDATION_ERROR,
         //         `${errors[0]}`
         //     );
-
-        // }
         
+        // }
 
+        const existingDesignations = await Designation.find({ isDeleted: false }).lean();
+        const designationNames = existingDesignations.map(designation => designation.name);
+        
         const existingUsers = await User.find({
             $or: [
                 { civilIdOrPassport: { $in: empIdsArray } },
@@ -1170,6 +1172,8 @@ module.exports = {
                 { id: vessel._id }
             ])
         );
+
+        let errors = [];
 
         for (const user of users) {
 
@@ -1255,7 +1259,6 @@ module.exports = {
         let insertedUsers;
         let updatedUsers;
 
-
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
@@ -1281,7 +1284,10 @@ module.exports = {
 
                 const userVesselsInsert = allUpdatedUsers.map(user => {
 
+                    console.log(`users:`, users);
+
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                    console.log(originalUserData);
 
                     return {
                         updateOne: {
