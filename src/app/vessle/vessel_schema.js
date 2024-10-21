@@ -3,7 +3,7 @@ module.exports = {
         type Vessel {
             _id: ID
             name: String!
-            typeOfVessel: VesselTypeNew!
+            typeOfVessel: ID!
             imoNumber: String!
             isActive: Boolean!
             createdAt: String!
