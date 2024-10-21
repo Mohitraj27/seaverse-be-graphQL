@@ -1,4 +1,4 @@
-const { JwtHelper, CryptoHelper } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
 const {
     CustomError,
     ErrorName,
@@ -478,14 +478,49 @@ module.exports.queries = {
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
-
+            
+        let startDate,endDate ;
         let filterConditions = {
             subscriber: subscriberId,
         };
         if (filterInput?.organization) {
             filterConditions.organization = filterInput?.organization;
         }
-
+        if (filterInput?.lastSeen) {
+            const today = Moment();
+            switch (filterInput.lastSeen) {
+                case "TODAY":
+                    startDate = today.startOf('day').toDate();
+                    endDate = today.endOf('day').toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, 'day').startOf('day').toDate();
+                    endDate = today
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, 'days').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, 'days').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, 'months').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, 'months').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, 'year').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                default:
+                    break;
+            }
+        }
         if (filterInput?.regType && filterInput?.regType != 0) {
             filterConditions.regType = filterInput?.regType;
         }
@@ -672,6 +707,15 @@ module.exports.queries = {
                     {
                         $match: {
                             "user.isRegistered": filterInput.isRegistered,
+                        },
+                    },
+                ]
+                : []),
+            ...(filterInput?.lastSeen
+                ? [
+                    {
+                        $match: {
+                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
                         },
                     },
                 ]
