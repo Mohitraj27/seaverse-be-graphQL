@@ -584,6 +584,17 @@ module.exports.queries = {
                     },
                 ]
                 : []),
+            ...(filterInput?.vesselType?.length > 0
+                ? [
+                      {
+                          $match: {
+                              "currentVessel.typeOfVessel": {
+                                  $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                              },
+                          },
+                      },
+                  ]
+                : []),
             ...(filterInput?.search
                 ? [
                     {
