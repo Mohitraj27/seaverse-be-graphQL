@@ -1209,9 +1209,6 @@ module.exports.mutations = {
                 console.error('Error in child process:', error);
             });
 
-
-            // if (errors.length > 0) {
-
             //     const createImportLog = await ImportLog.create({
             //         subscriber: subscriberId,
             //         uploadedBy: userId,
