@@ -332,8 +332,7 @@ module.exports.queries = {
             const vesselGroups = await UserVessel.aggregate([
                 {
                     $match: {
-                        isActive: true,
-                        isActive: { $ne: false }
+                        isActive: true
                     }
                 },
                 {
@@ -397,7 +396,6 @@ module.exports.queries = {
                 {
                     $match: {
                         isActive: true,
-                        isActive: { $ne: false }
                     }
                 },
                 {
@@ -432,7 +430,7 @@ module.exports.queries = {
                         description: {
                             $concat: [
                                 "All the members in ",
-                                "$groupName",
+                                '$groupName',
                                 " group based on vessel status."
                             ]
                         }
@@ -449,7 +447,6 @@ module.exports.queries = {
                 {
                     $match: {
                         isActive: true,
-                        deletedAt: { $eq: null }
                     }
                 },
                 {
@@ -468,7 +465,8 @@ module.exports.queries = {
                         from: 'vessels',
                         localField: 'vessel',
                         foreignField: '_id',
-                        as: 'vesselDetails'
+                        as: 'vesselDetails',
+    
                     }
                 },
                 {
@@ -530,7 +528,6 @@ module.exports.queries = {
                 vesselStatusGroups ||
                 vesselTypeGroups
             ) {
-
                 const allGroups = [
                     ...empDesignationGroups,
                     ...roleGroups,
@@ -546,6 +543,7 @@ module.exports.queries = {
 
                 return {
                     status: 'Success',
+                    totalCount: paginatedGroups.length,
                     groups: paginatedGroups
                 }
 
@@ -586,17 +584,13 @@ module.exports.queries = {
                     }
                 },
                 {
-                    $addFields: {
-                        memberCount: { $size: '$members' }
-                    }
-                },
-                {
                     $sort: { createdAt: -1 }
                 }
-            ]);
+            ]).skip(skip).limit(limit).exec();
 
             return {
                 status: 'Success',
+                totalCount: allGroups.length,
                 groups: allGroups
             };
 
