@@ -41,6 +41,7 @@ const { v4: uuidv4 } = require('uuid')
 const UserHelper = require("../user_helper");
 const { Vessel } = require("../../vessle/vessel_model");
 const { parse } = require("json2csv");
+const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
 
 const sendCredentialMail = async ({ userData }) => {
@@ -512,7 +513,6 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
 
     if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
     else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-    console.log(`errors are ${errors}`);
     
     return errors;
 }
@@ -1287,21 +1287,21 @@ module.exports = {
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
     },
-    bulkValidationHelper: async (createReadStream, errors, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId) => {
-        
+    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+
+        let validationErrors = [];
+
         await new Promise((resolve, reject) => {
             const stream = createReadStream();
-            const parser = parse({ columns: true, trim: true });
+            const parser = csvParse({ columns: true, trim: true });
             stream.pipe(parser);
 
             let rowIndex = 0;
-
+            
             parser.on("data", async (row) => {
-                let validationErrors = [];
-                try {
-
+                
                     validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
-
+                    
                     if (validationErrors.length > 0) {
 
                         const createImportLog = await ImportLog.create({
@@ -1314,12 +1314,7 @@ module.exports = {
                         })
 
                         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-                        errors.push(`${validationErrors[0]}`);
-
-                        throw CustomError(
-                            ErrorName.VALIDATION_ERROR, `${validationErrors[0]}`
-                        )
+                        
 
                     } else {
                         const formatedData = mapCSVRowToUser(row);
@@ -1328,14 +1323,13 @@ module.exports = {
 
                     rowIndex++;
 
-                } catch (err) {
-                    throw CustomError(ErrorName.VALIDATION_ERROR);
-                }
             });
 
             parser.on("end", resolve);
             parser.on("error", reject);
 
         });
+        
+        return validationErrors;
     }
 };

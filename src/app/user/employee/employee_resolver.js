@@ -1201,7 +1201,6 @@ module.exports.mutations = {
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
 
             let users = [];
-            let errors = [];
 
             const emails = new Set();
             const empIds = new Set();
@@ -1214,8 +1213,8 @@ module.exports.mutations = {
 
             const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
 
-            await EmployeeHelper.bulkValidationHelper(createReadStream, errors, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId);
-
+            const errors = await EmployeeHelper.bulkValidationHelper(createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId,  subscriberId, newFileName, saveCSV);
+            
             // await new Promise((resolve, reject) => {
             //     const stream = createReadStream();
             //     const parser = parse({ columns: true, trim: true });
