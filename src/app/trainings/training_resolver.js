@@ -156,8 +156,7 @@ module.exports.mutations = {
                 images: input.images,
             });
         }
-
-        // Get trainingModuleContent Ids
+        
         const moduleContentIds = [];
 
         if (input.trainingModules?.length) {
