@@ -178,7 +178,7 @@
             approvalStatus: {
                 type: String,
                 uppercase: true,
-                default: ApprovalStatus.PREPARING,
+                default: ApprovalStatus.APPROVED,
             },
             authorName: {
                 type: String,
