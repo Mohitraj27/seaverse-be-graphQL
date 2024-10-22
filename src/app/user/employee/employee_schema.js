@@ -68,6 +68,7 @@ module.exports = {
         }
         type BulkCsvUserResponse {
             count: Int
+            status: String
         }
         type importlogs {
             date_of_import: String

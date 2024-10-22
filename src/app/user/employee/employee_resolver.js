@@ -31,20 +31,22 @@ const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
-async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
+const { fork } = require('child_process');
+
+async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
-        userVesselFilter.vesselStatus = { $in: vesselStatus }; 
+        userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
     if (vesselType && vesselType.length > 0) {
         userVesselFilter.vesselType = { $in: vesselType };
     }
     if (vesselObjectId) {
-        userVesselFilter.vesselObjectId = vesselObjectId; 
+        userVesselFilter.vesselObjectId = vesselObjectId;
     }
     const userVessels = await UserVessel.find(userVesselFilter).select('user');
-    const userIds = userVessels.map(vessel => vessel.user);  
-    return userIds; 
+    const userIds = userVessels.map(vessel => vessel.user);
+    return userIds;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -590,8 +592,8 @@ module.exports.queries = {
             },
             {
                 $lookup: {
-                    from: "vessels",  
-                    localField: "user.currentVessel", 
+                    from: "vessels",
+                    localField: "user.currentVessel",
                     foreignField: "_id",
                     as: "currentVessel",
                 },
@@ -599,7 +601,7 @@ module.exports.queries = {
             {
                 $unwind: {
                     path: "$currentVessel",
-                    preserveNullAndEmptyArrays: true, 
+                    preserveNullAndEmptyArrays: true,
                 }
             },
             {
@@ -1198,11 +1200,11 @@ module.exports.mutations = {
 
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
 
-            const users = [];
-            const errors = [];
+            let users = [];
+            let errors = [];
 
-            let emails = new Set();
-            let empIds = new Set();
+            const emails = new Set();
+            const empIds = new Set();
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
@@ -1221,6 +1223,7 @@ module.exports.mutations = {
 
                 parser.on("data", async (row) => {
                     try {
+
                         const validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
 
                         if (validationErrors.length > 0) {
@@ -1253,263 +1256,26 @@ module.exports.mutations = {
                 parser.on("error", reject);
             });
 
-            if (errors.length > 0) {
+            const empIdsArray = Array.from(empIds);
+            const emailsArray = Array.from(emails);
 
-                const createImportLog = await ImportLog.create({
-                    subscriber: subscriberId,
-                    uploadedBy: userId,
-                    fileName: newFileName,
-                    filePath: saveCSV,
-                    importStatus: "FAILED",
-                    description: `${errors[0]}`
-                })
-
-                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    `${errors[0]}`
-                );
-
-            }
-
-            const existingUsers = await User.find({
-                $or: [
-                    { civilIdOrPassport: { $in: Array.from(empIds) } },
-                    { email: { $in: Array.from(emails) } }
-                ]
-            }).lean();
-
-            const existingEmailsInDB = existingUsers.map(user => user.email);
-
-            const existingEmpIdsInDB = existingUsers.map(user => ({
-                [user.civilIdOrPassport]: user.email
-            }));
-
-            const updates = [];
-            const inserts = [];
-
-            let userIndex = 0;
-
-            const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
-
-            const vesselMap = new Map(
-                existingVessels.map(vessel => [
-                    vessel.imoNumber,
-                    { id: vessel._id }
-                ])
-            );
-
-            for (const user of users) {
-
-                const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
-
-                if (existingEmpIdsMap) {
-
-                    const email = existingEmpIdsMap[user.civilIdOrPassport];
-
-                    if (email !== user.email && existingEmailsInDB.includes(user.email)) {
-
-                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
-                        break;
-
-                    } else {
-
-                        console.log(vesselMap.get(user.imoNumber).id);
-
-
-                        updates.push({
-                            updateOne: {
-                                filter: { civilIdOrPassport: user.civilIdOrPassport },
-                                update: {
-                                    $set: {
-                                        firstName: user.firstName,
-                                        lastName: user.lastName,
-                                        email: user.email,
-                                        vesselStatus: user.vesselStatus,
-                                        currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
-                                    },
-                                },
-                                upsert: true,
-                            },
-                        });
-
-                    }
-
-                } else {
-
-                    if (existingEmailsInDB.includes(user.email)) {
-
-                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
-                        break;
-
-                    } else {
-
-                        inserts.push({
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            email: user.email,
-                            vesselStatus: user.vesselStatus,
-                            currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
-                            password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
-                        });
-
-                    }
-                }
-                userIndex++;
+            const response = {
+                message: "The bulk import is being processed in the background. You can continue working.",
             };
 
-            if (errors.length > 0) {
+            const child = fork('./src/app/user/employee/csv_import_process.js');
 
-                const createImportLog = await ImportLog.create({
-                    subscriber: subscriberId,
-                    uploadedBy: userId,
-                    fileName: newFileName,
-                    filePath: saveCSV,
-                    importStatus: "FAILED",
-                    description: `${errors[0]}`
-                })
+            child.send({ users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV });
 
-                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    `${errors[0]}`
-                );
-
-            }
-
-            let bulkInsertUsers;
-            let bulkUpdateUsers;
-
-            let insertedUsers;
-            let updatedUsers;
-
-
-            const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-
-                bulkInsertUsers = await User.insertMany(inserts, { session: session });
-
-                insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
-
-                bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
-                const upIds = bulkUpdateUsers.result.upserted;
-                const updatedIds = upIds.map(item => item._id);
-                updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
-
-                const designationMap = new Map(
-                    existingDesignations.map(designation => [
-                        designation.name,
-                        { id: designation._id }
-                    ])
-                );
-
-                const bulkId = uuidv4();
-                const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
-
-                if (allUpdatedUsers.length > 0) {
-
-                    const userVesselsInsert = allUpdatedUsers.map(user => {
-
-                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                        return {
-                            updateOne: {
-                                filter: { user: user },
-                                update: {
-                                    $set: {
-                                        user: user,
-                                        vessel: vesselMap.get(originalUserData.imoNumber).id,
-                                        isActive: true,
-                                    }
-                                },
-                                upsert: true
-                            }
-                        };
-
-                    })
-
-
-                    await UserVessel.bulkWrite(userVesselsInsert, { session });
-
-
-                    const employeesToInsert = allUpdatedUsers.map(user => {
-                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                        // invitationList.push({
-                        //     userData: user
-                        // });
-                        return {
-                            updateOne: {
-                                filter: { user: user },
-                                update: {
-                                    $set: {
-                                        user: user,
-                                        subscriber: subscriberId,
-                                        empDesignation: designationMap.get(originalUserData.designation).id,
-                                        bulkId: bulkId,
-                                        regType: 2
-                                    }
-                                },
-                                upsert: true
-                            }
-                        };
-                    });
-
-                    await Employee.bulkWrite(employeesToInsert, { session });
-
-                    const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
-
-                    const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
-                        const UID = await EmployeeHelper.generateEmployeeUID({ subscriberId, session });
-                        return {
-                            updateOne: {
-                                filter: { _id: employee._id },
-                                update: { UID },
-                                upsert: false
-                            }
-                        };
-                    }));
-
-                    await Employee.bulkWrite(uidUpdates, { session });
-
-                } else {
-
-                    const createImportLog = await ImportLog.create({
-                        subscriber: subscriberId,
-                        uploadedBy: userId,
-                        fileName: newFileName,
-                        filePath: saveCSV,
-                        importStatus: "FAILED",
-                        description: `No new data created/updated`
-                    })
-
-                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-                    throw CustomError(
-                        ErrorName.VALIDATION_ERROR,
-                        `No new data created/updated`
-                    );
-                }
-
-
+            child.on('message', (message) => {
+                console.log('Message from child process:', message);
             });
 
+            child.on('error', (error) => {
+                console.error('Error in child process:', error);
+            });
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: saveCSV,
-                importStatus: "SUCCESS",
-                description: `New data(s) created/updated`
-            })
-
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-            return {
-                count: insertedUsers.length + updatedUsers.length,
-            };
+            return response;
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
@@ -1622,7 +1388,7 @@ module.exports.mutations = {
 
         return {
             status: true,
-            message: "User created successfully",
+            message: "The bulk import is being processed in the background. You can continue working.",
         };
 
     },
