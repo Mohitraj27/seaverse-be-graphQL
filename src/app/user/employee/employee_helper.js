@@ -512,7 +512,8 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
 
     if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
     else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-
+    console.log(`errors are ${errors}`);
+    
     return errors;
 }
 
@@ -1048,7 +1049,7 @@ module.exports = {
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
-        
+
         const existingUsers = await User.find({
             $or: [
                 { civilIdOrPassport: { $in: empIdsArray } },
@@ -1285,5 +1286,56 @@ module.exports = {
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+    },
+    bulkValidationHelper: async (createReadStream, errors, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId) => {
+        
+        await new Promise((resolve, reject) => {
+            const stream = createReadStream();
+            const parser = parse({ columns: true, trim: true });
+            stream.pipe(parser);
+
+            let rowIndex = 0;
+
+            parser.on("data", async (row) => {
+                let validationErrors = [];
+                try {
+
+                    validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+
+                    if (validationErrors.length > 0) {
+
+                        const createImportLog = await ImportLog.create({
+                            subscriber: subscriberId,
+                            uploadedBy: userId,
+                            fileName: newFileName,
+                            filePath: saveCSV,
+                            importStatus: "FAILED",
+                            description: `${validationErrors[0]}`
+                        })
+
+                        if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                        errors.push(`${validationErrors[0]}`);
+
+                        throw CustomError(
+                            ErrorName.VALIDATION_ERROR, `${validationErrors[0]}`
+                        )
+
+                    } else {
+                        const formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
+                    }
+
+                    rowIndex++;
+
+                } catch (err) {
+                    throw CustomError(ErrorName.VALIDATION_ERROR);
+                }
+            });
+
+            parser.on("end", resolve);
+            parser.on("error", reject);
+
+        });
     }
 };

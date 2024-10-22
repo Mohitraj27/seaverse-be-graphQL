@@ -480,8 +480,8 @@ module.exports.queries = {
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
-            
-        let startDate,endDate ;
+
+        let startDate, endDate;
         let filterConditions = {
             subscriber: subscriberId,
         };
@@ -611,25 +611,25 @@ module.exports.queries = {
             },
             ...(filterInput?.vesselName?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.name": {
-                                  $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.name": {
+                                $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.vesselType?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.typeOfVessel": {
-                                  $in: filterInput.vesselType.map((id) => ObjectId(id)),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.typeOfVessel": {
+                                $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.search
                 ? [
@@ -1214,47 +1214,60 @@ module.exports.mutations = {
 
             const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
 
-            await new Promise((resolve, reject) => {
-                const stream = createReadStream();
-                const parser = parse({ columns: true, trim: true });
-                stream.pipe(parser);
+            await EmployeeHelper.bulkValidationHelper(createReadStream, errors, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId);
 
-                let rowIndex = 0;
+            // await new Promise((resolve, reject) => {
+            //     const stream = createReadStream();
+            //     const parser = parse({ columns: true, trim: true });
+            //     stream.pipe(parser);
 
-                parser.on("data", async (row) => {
-                    try {
+            //     let rowIndex = 0;
 
-                        const validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+            //     parser.on("data", async (row) => {
+            //         let validationErrors = [];
+            //         try {
 
-                        if (validationErrors.length > 0) {
+            //             validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
 
-                            const createImportLog = await ImportLog.create({
-                                subscriber: subscriberId,
-                                uploadedBy: userId,
-                                fileName: newFileName,
-                                filePath: saveCSV,
-                                importStatus: "FAILED",
-                                description: `${validationErrors[0]}`
-                            })
-                            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-                            errors.push(`${validationErrors[0]}`);
-                            throw CustomError(
-                                ErrorName.VALIDATION_ERROR,
-                                `${validationErrors[0]}`
-                            )
-                        } else {
-                            const formatedData = mapCSVRowToUser(row);
-                            users.push(formatedData);
-                        }
-                    } catch (err) {
-                        errors.push(`${err.message}`);
-                    }
-                    rowIndex++;
-                });
+            //             if (validationErrors.length > 0) {
 
-                parser.on("end", resolve);
-                parser.on("error", reject);
-            });
+            //                 const createImportLog = await ImportLog.create({
+            //                     subscriber: subscriberId,
+            //                     uploadedBy: userId,
+            //                     fileName: newFileName,
+            //                     filePath: saveCSV,
+            //                     importStatus: "FAILED",
+            //                     description: `${validationErrors[0]}`
+            //                 })
+
+            //                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+            //                 errors.push(`${validationErrors[0]}`);
+
+            //                 // throw CustomError(
+            //                 //     ErrorName.VALIDATION_ERROR
+            //                 // )
+
+            //             } else {
+            //                 const formatedData = mapCSVRowToUser(row);
+            //                 users.push(formatedData);
+            //             }
+                        
+            //             rowIndex++;
+                        
+            //         } catch (err) {
+            //             throw CustomError(ErrorName.VALIDATION_ERROR);
+            //         }
+            //     });
+
+            //     parser.on("end", resolve);
+            //     parser.on("error", reject);
+
+            // });
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
+            }
 
             const empIdsArray = Array.from(empIds);
             const emailsArray = Array.from(emails);
