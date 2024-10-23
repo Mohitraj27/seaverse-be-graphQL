@@ -180,6 +180,14 @@ module.exports = {
             users: [ID!]!
             type: deleteResponseType!
         }
+        input AssignSubroleInput {
+            users: [ID!]!
+            subrole: ID!
+        }
+        type AssignSubroleResponse {
+            success: Boolean
+            message: String
+        }
         type manageRoleResponse {
             count: Int
             success: Boolean
@@ -258,5 +266,6 @@ module.exports = {
         changeRegisterEmployees(input: changeRegisterInput!): BulkChangeRegisterResponse!
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
+        assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
     `,
 };

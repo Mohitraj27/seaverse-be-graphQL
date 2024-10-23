@@ -31,6 +31,7 @@ const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
+const { SubRole } = require('../sub-roles/sub_role_model');
 async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
@@ -1926,6 +1927,52 @@ module.exports.mutations = {
 
         return savedEmployees;
     },
+    assignSubroleToLearners: async ({ input }, context) => {
+
+        const { role, userId, primaryRole, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);       
+        if (!SubRoleHelper.hasPermission({currentRole: role,primaryRole: primaryRole, })) { 
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+        try{
+            const { users, subrole } = input;
+            if (role !== 'ADMIN' && primaryRole[0] !== 'ADMIN' ) {
+                throw new Error('Unauthorized: Only admins can assign subroles');
+              }
+              const validSubRole = await SubRole.findById(subrole);
+              if(!validSubRole ){
+                throw new Error('Invalid subrole');
+              }
+              const usersToUpdate = await User.find({ _id: { $in: users } });
+              if (!usersToUpdate || usersToUpdate.length === 0) {
+                throw new Error('No valid users found');
+              }
+              await Promise.all(
+                usersToUpdate.map(async (user) => {
+                if (!user.subRoles) {
+                    user.subRoles = [];
+                  }
+                if (!user.subRoles.includes(subrole)) {
+                    user.subRoles.push(subrole);
+                  }
+                  await user.save();
+                })
+              );
+            return {
+                success: true,
+                message: 'Subrole successfully assigned to all learners',
+              };
+        }
+        catch(error){
+            return {
+                success: false,
+                message: `Error assigning subrole: ${error.message}`,
+              };
+        }   
+    }
+
 };
 
 const emails = new Set();

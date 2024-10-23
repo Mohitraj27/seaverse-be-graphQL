@@ -24,7 +24,7 @@ module.exports = {
     }) => {
         if (currentRole === Role.ADMIN) {
             return true;
-        } else if(primaryRole === Role.ADMIN){
+        } else if(primaryRole[0] === Role.ADMIN){
             return true;
         }
         else if (restrictOrganizationManager) {
