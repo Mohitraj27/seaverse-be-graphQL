@@ -143,6 +143,7 @@ module.exports = {
             ADMIN
             AUTHOR
             EMPLOYEE
+            LEARNER
         }
         enum AssignChange {
             Assign
