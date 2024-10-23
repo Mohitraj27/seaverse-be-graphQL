@@ -31,8 +31,6 @@ const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
-
-
 const { SubRole } = require('../sub-roles/sub_role_model');
 async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
     const userVesselFilter = {};
