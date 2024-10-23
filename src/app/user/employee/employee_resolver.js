@@ -842,6 +842,84 @@ module.exports.queries = {
             total_user_count: log.total_user_count,
         }));
     },
+    getCSVImportLogs: async (_, context) => {
+
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.CREATE_EMPLOYEE,
+                    Permission.CREATE_TRAINING_REGISTRATION,
+                ],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        try {
+
+            const importLogs = await ImportLog.find().sort({ _id: -1 }).limit(12);
+
+            console.log(importLogs);
+
+            if (importLogs.length > 0) {
+
+                const result = [];
+
+                importLogs.map(log => {
+
+                    result.push({
+                        id: log._id,
+                        usersCount: log.usersCount,
+                        fileName: log.fileName,
+                        filePath: log.filePath,
+                        importStatus: log.importStatus,
+                        description: log.description,
+                        createdAt: log.createdAt
+                    })
+
+                })
+
+                return result;
+
+            } else if (importLogs.length === 0) {
+
+                const sampleLog = [
+                    {
+                        id: 1,
+                        usersCount: 3,
+                        fileName: "csv_1729176933541",
+                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
+                        importStatus: "FAILED",
+                        description: "Error in row 1!",
+                        createdAt: '2024 - 10 - 17T14: 55: 33.728+00:00'
+                    },
+                    {
+                        id: 2,
+                        usersCount: 3,
+                        fileName: "csv_1729176933531",
+                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
+                        importStatus: "SUCCESS",
+                        description: "The users are created successfully!",
+                        createdAt: '2024 - 10 - 17T14: 55: 33.728+00:00'
+                    },
+                ]
+
+                return sampleLog;
+
+            }
+
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error}`);
+        }
+
+    },
 };
 
 const validateDeleteUserRow = row => {

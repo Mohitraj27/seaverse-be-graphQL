@@ -249,6 +249,15 @@ module.exports = {
             status: Boolean
             message: String
         }
+        type csvimportLogRes {
+            id: ID,
+            usersCount: Int,
+            fileName: String,
+            filePath: String,
+            importStatus: importStateEnum,
+            description: String,
+            createdAt: String
+        }
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -257,6 +266,7 @@ module.exports = {
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
+        getCSVImportLogs: [csvimportLogRes!]
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
