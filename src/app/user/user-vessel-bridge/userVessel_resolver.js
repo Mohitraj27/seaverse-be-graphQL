@@ -42,12 +42,12 @@ module.exports.mutations = {
                 user: input.userId,
                 vessel: input.vesselId,
                 isActive: true,
-                vesselStatus: 'ASSIGNED',
+                vesselStatus: input.vesselStatus || 'ASSIGNED',
             });
 
             if (newVesselUpdate) {
 
-                const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId }, { new: true });
+                const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId, vesselStatus: input.vesselStatus || 'ASSIGNED' }, { new: true });
 
                 if (updateUser) {
                     return {

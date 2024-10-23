@@ -673,7 +673,7 @@ module.exports.queries = {
                 customGroups: customGroupNames ?? null
             }
         }
-        
+
     }
 };
 
@@ -853,45 +853,36 @@ module.exports.mutations = {
 
         let failedDeletions = [];
 
-        try {
+        const getGroups = await Group.find({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
 
-            const getGroups = await Group.find({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
+        if (getGroups.length <= 0) {
+            throw CustomError(ErrorName.NOT_FOUND, 'Groups not found');
+        }
 
-            if (getGroups.length <= 0) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Groups not found');
+        const deletedGroups = getGroups.map(group => {
+            const groupObject = group.toObject();
+            groupObject.isDeleted = true;
+            return new DeletedGroup(groupObject);
+        });
+
+        const deleteGroup = await DeletedGroup.insertMany(deletedGroups);
+
+        if (deleteGroup.length > 0) {
+
+            const deleteFromGroups = await Group.deleteMany({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
+
+            if (deleteFromGroups) {
+
+                return {
+                    success: true,
+                    message: `${deleteGroup.length} group(s) deleted successfully.`,
+                    failedDeletions,
+                };
+
             }
 
-            const deletedGroups = getGroups.map(group => {
-                const groupObject = group.toObject();
-                groupObject.isDeleted = true;
-                return new DeletedGroup(groupObject);
-            });
-
-            const deleteGroup = await DeletedGroup.insertMany(deletedGroups);
-
-            if (deleteGroup.length > 0) {
-
-                const deleteFromGroups = await Group.deleteMany({ _id: { $in: ids }, subscriber: subscriberId, isManagerDefault: false });
-
-                if (deleteFromGroups) {
-
-                    return {
-                        success: true,
-                        message: `${deleteGroup.length} group(s) deleted successfully.`,
-                        failedDeletions,
-                    };
-
-                }
-
-            } else {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Groups not found');
-            }
-
-        } catch (error) {
-            return {
-                success: false,
-                message: error.message
-            };
+        } else {
+            throw CustomError(ErrorName.NOT_FOUND, 'Groups not found');
         }
     }
 };
