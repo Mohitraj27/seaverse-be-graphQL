@@ -1214,55 +1214,6 @@ module.exports.mutations = {
             const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
 
             const errors = await EmployeeHelper.bulkValidationHelper(createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId,  subscriberId, newFileName, saveCSV);
-            
-            // await new Promise((resolve, reject) => {
-            //     const stream = createReadStream();
-            //     const parser = parse({ columns: true, trim: true });
-            //     stream.pipe(parser);
-
-            //     let rowIndex = 0;
-
-            //     parser.on("data", async (row) => {
-            //         let validationErrors = [];
-            //         try {
-
-            //             validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
-
-            //             if (validationErrors.length > 0) {
-
-            //                 const createImportLog = await ImportLog.create({
-            //                     subscriber: subscriberId,
-            //                     uploadedBy: userId,
-            //                     fileName: newFileName,
-            //                     filePath: saveCSV,
-            //                     importStatus: "FAILED",
-            //                     description: `${validationErrors[0]}`
-            //                 })
-
-            //                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-            //                 errors.push(`${validationErrors[0]}`);
-
-            //                 // throw CustomError(
-            //                 //     ErrorName.VALIDATION_ERROR
-            //                 // )
-
-            //             } else {
-            //                 const formatedData = mapCSVRowToUser(row);
-            //                 users.push(formatedData);
-            //             }
-                        
-            //             rowIndex++;
-                        
-            //         } catch (err) {
-            //             throw CustomError(ErrorName.VALIDATION_ERROR);
-            //         }
-            //     });
-
-            //     parser.on("end", resolve);
-            //     parser.on("error", reject);
-
-            // });
 
             if (errors.length > 0) {
                 throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
@@ -1271,10 +1222,6 @@ module.exports.mutations = {
             const empIdsArray = Array.from(empIds);
             const emailsArray = Array.from(emails);
 
-            const response = {
-                message: "The bulk import is being processed in the background. You can continue working.",
-            };
-
             const child = fork('./src/app/user/employee/csv_import_process.js');
 
             child.send({ users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV });
@@ -1282,12 +1229,15 @@ module.exports.mutations = {
             child.on('message', (message) => {
                 console.log('Message from child process:', message);
             });
-
+            
             child.on('error', (error) => {
                 console.error('Error in child process:', error);
             });
 
-            return response;
+            return {
+                status: "The bulk import is being processed in the background. You can continue working."
+            }
+
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
