@@ -102,7 +102,8 @@ module.exports.mutations = {
         if (!isPredefinedRole){
             if (typeof input.isActive === "boolean") subRoleUpdateData.isActive = input.isActive;
         }
-
+        if (input.isDefault) subRoleUpdateData.isDefault = input.isDefault;
+        if (input.primaryRole) subRoleUpdateData.primaryRole = input.primaryRole;
         const savedSubRole = await SubRole.findOneAndUpdate(
             subRoleFilterConditions,
             {

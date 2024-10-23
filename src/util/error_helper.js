@@ -66,6 +66,8 @@ const errorName = {
     REASON_FOR_DELETE_NOT_FOUND: "REASON_FOR_DELETE_NOT_FOUND",
     VESSEL_NOT_FOUND: "VESSEL_NOT_FOUND",
     INVALID_FILE_FORMAT: "INVALID_FILE_FORMAT",
+    NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
+    INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
 };
 
 const errorType = {
@@ -399,12 +401,22 @@ const errorType = {
         statusCode: 400,
         type: "INVALID_FILE_FORMAT"
     },
+    NOT_ALL_PUBLISHED: {
+        message: "All the selected contents are not published",
+        statusCode: 400,
+        type: "NOT_ALL_PUBLISHED"
+    },
+    INVALID_PERCENTAGE_CRITERIA: {
+        message: "Percentage criteria should be less than the total score",
+        statusCode: 400,
+        type: "INVALID_PERCENTAGE_CRITERIA"
+    }
 };
 
 const formatError = error => {
     try {
         console.log(Date(), error.extensions.exception.stacktrace);
-    } catch (e) {}
+    } catch (e) { }
 
     let errorObject;
     try {
@@ -416,7 +428,7 @@ const formatError = error => {
                 extra: errorObject.extra,
             };
         }
-    } catch (e) {}
+    } catch (e) { }
 
     if (!errorObject) {
         errorObject = errorType[error.message];
@@ -431,6 +443,7 @@ const formatError = error => {
 };
 
 const customError = (error, extra) => {
+    console.log({ error, extra });
     if (typeof error === "object" || extra?.length) {
         return new Error(JSON.stringify({ error, extra }));
     } else {

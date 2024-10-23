@@ -8,13 +8,30 @@ module.exports = {
         enum TrainingModuleContentStatus {
             ${Object.keys(ContentStatus).join(" ")}
         }
+        type QuestionNew {
+            _id: ID
+            question: [LocalisedData]
+            questionType: String
+            choices: [AnswerChoice]
+            answerKey: [String]
+            allowMultipleAnswers: Boolean
+            displayPosition: Int
+            points: Int
+            negativePoints: Int
+            isActive: Boolean
+        }
+        type AnswerChoice {
+            _id: ID
+            question: ID
+            choice: [LocalisedData]
+        }
         type TrainingModuleContent {
             _id: ID
-            contentType: String
+            UID: String
+            contentType: TrainingModuleContentType
             duration: String
             contentStatus: TrainingModuleContentStatus
-            quiz: QuizContentQuiz @deprecated(reason: "uses quizContent")
-            quizContent: QuizContent
+            quiz: [QuestionNew]
             title: [LocalisedData]
             description: [LocalisedData]
             videos: [MultiMediaInfo]
@@ -23,12 +40,21 @@ module.exports = {
             text: [LocalisedData]
             files: [MultiMediaInfo]
             thumbnail: String
+            percentageCriteria: Int
+            totalQuestions: Int
+            totalScore: Int
+            randomiseQuestionOrder: Boolean
+            randomiseAnswerOptionOrder: Boolean
+            showCorrectAnswersToLearnerAfterQuiz: Boolean
+            onlyLearnerPassTheQuiz: Boolean
+            evenLearnerFailTheQuiz: Boolean
             displayPosition: Int
             isActive: Boolean
             updatedAt: String
             version: Int
             modifiedDate: String
             isUpdated: Boolean
+            isDeleted: Boolean
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
@@ -36,22 +62,19 @@ module.exports = {
 
         }
          type InvalidUpdate {
-            name: String!
+            id: ID!
             reason: String!
         }
-
-        input TrainingMOduleContentStatusInput {
-            title: String!
-            }
         type UpdateStatusResult {
             success: Boolean!
             message: String
             invalidUpdates: [InvalidUpdate]
-            updatedContent: TrainingModuleContent
+            updatedContents: [TrainingModuleContent]
         }
         type DeleteResponse {
             success: Boolean!
             message: String!
+            invalidDeletes: [InvalidUpdate]
         }
         type UpdateContentResponse {
             success: Boolean!
@@ -60,16 +83,16 @@ module.exports = {
         }
         input TrainingModuleContentInput {
             _id: ID
-            UID: String!
-            contentType: TrainingModuleContentType!
+            UID: String
+            contentType: TrainingModuleContentType
             
             duration: String
             
-            contentStatus: TrainingModuleContentStatus!
+            contentStatus: TrainingModuleContentStatus
             quiz: QuizContentQuizInput @deprecated(reason: "uses quizContent")
             quizContent: ID
             
-            title: [LocalisedDataInput]!
+            title: [LocalisedDataInput]
             description: [LocalisedDataInput]
             videos: [MultiMediaInfoInput]
             audios: [MultiMediaInfoInput]
@@ -79,7 +102,39 @@ module.exports = {
             thumbnail: String
             displayPosition: Int
             isActive: Boolean
-
+        }
+        input TrainingModuleContentQuizInput {
+            _id: ID
+            title: [LocalisedDataInput]!
+            description: [LocalisedDataInput]
+            percentageCriteria: Int
+            duration: String
+            randomiseQuestionOrder: Boolean
+            randomiseAnswerOptionOrder: Boolean
+            showCorrectAnswersToLearnerAfterQuiz: Boolean
+            onlyLearnerPassTheQuiz: Boolean
+            evenLearnerFailTheQuiz: Boolean
+            displayPosition: Int
+            questions: [QuestionInput]
+        }
+        input QuestionInput {
+            _id: ID
+            question: [LocalisedDataInput]
+            questionType: QuestionTypeEnum
+            choices: [ChoiceInput]
+            answerKey: [String]
+            allowMultipleAnswers: Boolean
+            displayPosition: Int
+            points: Int
+            negativePoints: Int
+        }
+        input ChoiceInput {
+            _id: ID
+            choice: [LocalisedDataInput]
+        }
+        input LocalInput {
+            lang: Language!
+            value: String!
         }
     `,
     queries: `
@@ -92,9 +147,10 @@ module.exports = {
         uploadTrainingModuleContentVideo(input: TrainingModuleContentInput!,video: Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentFiles(input: TrainingModuleContentInput!,file : Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
-        updateTrainingModuleContentStatus(title: String!, newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
-        deleteTrainingModuleContentByID(id: ID!): DeleteResponse!
+        updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
+        deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
          `,
 };

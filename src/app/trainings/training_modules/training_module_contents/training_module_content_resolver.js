@@ -1,6 +1,8 @@
 const { CustomError, ErrorName, AuthUser, DbTransactionHelper, UploadHelper } = require("../../../../util");
 
 const { TrainingModuleContent } = require("./training_module_content_model");
+const { AnswerChoice } = require("./question/answer_choice_model");
+const { Question } = require("./question/question_model");
 
 const TrainingModuleContentHelper = require("./training_module_content_helper");
 const SubRoleHelper = require("../../../user/sub-roles/sub_role_helper");
@@ -13,12 +15,16 @@ const ContentType = require("./content_type.json");
 const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
 const pptx2json = require('pptx2json');
+const JSZip = require('jszip');
+const xml2js = require('xml2js');
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
         const { subscriberId } = AuthUser(context);
         const filterConditions = {
             subscriber: subscriberId,
+            isUpdated: { $ne: true },
+            isDeleted: { $ne: true },
         };
         if (contentStatus) {
             filterConditions.contentStatus = contentStatus;
@@ -33,26 +39,53 @@ module.exports.queries = {
             filterConditions['title.value'] = { $regex: search, $options: "i" };
         }
         const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? 50; //(recentlyModified ? 2 : 6);
-        const totalCount = await TrainingModuleContent.countDocuments(filterConditions).exec();
-        const contents = await TrainingModuleContent.find(filterConditions).sort({ updatedAt: -1 }).skip(skip).limit(limitContent).lean().exec();
+        const limitContent = pageInput?.limit ?? 50;
+        const contents = TrainingModuleContent.aggregatePaginate(
+            TrainingModuleContent.aggregate([
+                { $match: filterConditions },
+                {
+                    $lookup: {
+                        from: "questions",
+                        localField: "quiz",
+                        foreignField: "_id",
+                        as: "quiz",
+                        pipeline: [
+                            { $project: { _id: 1, question: 1, questionType: 1, choices: 1, answerKey: 1, allowMultipleAnswers: 1, points: 1, negativePoints: 1 } },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "choices",
+                                    foreignField: "_id",
+                                    as: "choices",
+                                    pipeline: [
+                                        { $project: { _id: 1, question: 1, choice: 1 } }
+                                    ]
+                                }
+                            }
+                        ],
+                    },
+                }
+            ]),
+            {
+                offset: skip,
+                limitContent,
+                sort: { createdAt: "descending" },
+                customLabels: {
+                    docs: "contents",
+                    totalDocs: "totalCount",
+                    offset: "skip",
+                },
+                pagination: limitContent !== 0,
+                allowDiskUse: true,
+            }
+        );
         if (!contents) {
             return {
                 contents: [],
                 totalCount: 0,
             };
         }
-        // const recentlyModifiedContent = contents.map(content => {
-        //     return {
-        //         ...content,
-        //         recentlyModified: recentlyModified ? (new Date() - new Date(contents.updatedAt)) < (24 * 60 * 60 * 1000) : false,
-        //     }
-        // })
-        return {
-            // contents: recentlyModifiedContent,
-            contents,
-            totalCount,
-        };
+        return contents;
     },
     getTrainingModuleContent: async ({ id }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -60,7 +93,18 @@ module.exports.queries = {
             subscriber: subscriberId,
             _id: id
         };
-        const contents = await TrainingModuleContent.findOne(filterConditions).lean().exec();
+        const populate = [
+            ({
+                path: "quiz",
+                populate: [
+                    {
+                        path: 'choices',
+                        select: { _id: 1, question: 1, choice: 1 }
+                    }
+                ]
+            })
+        ]
+        const contents = await TrainingModuleContent.findOne(filterConditions).populate(populate).lean().exec();
         if (!contents) {
             return null;
         }
@@ -323,86 +367,115 @@ module.exports.mutations = {
         return savedContent;
     },
 
-    updateTrainingModuleContentStatus: async ({ title, newStatus }, context) => {
+    updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-        const content = await TrainingModuleContent.findOne({
-            'title.value': title,
-            subscriber: subscriberId
-        });
         const invalidUpdates = [];
+        const updatedContents = [];
 
-        if (!content) {
-            return {
-                success: false,
-                message: "Content not found.",
-                invalidUpdates: [{
-                    name: title,
-                    reason: "Content not found."
-                }]
-            };
-        }
+        for (const id of ids) {
+            const content = await TrainingModuleContent.findOne({
+                _id: id,
+                subscriber: subscriberId,
+                isUpdated: { $ne: true },
+            });
 
-        const validUpdate = (() => {
-            if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
+            if (!content) {
                 invalidUpdates.push({
-                    name: title,
-                    reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                    id: id,
+                    reason: "Content not found."
+                });
+                continue;
+            }
+
+            const validUpdate = (() => {
+                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
+                    invalidUpdates.push({
+                        name: title,
+                        reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                    });
+                    return false;
+                }
+                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
+                    return true;
+                }
+                if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
+                    return true;
+                }
+                if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
+                    return true;
+                }
+                if (content.ContentType === 'QUIZ' && content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
+                    return true;
+                }
+                invalidUpdates.push({
+                    id: id,
+                    reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
                 });
                 return false;
-            }
-            if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
-                return true;
-            }
-            invalidUpdates.push({
-                name: title,
-                reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
-            });
-            return false;
-        })();
+            })();
 
-        if (!validUpdate) {
-            return {
-                success: false,
-                message: "Invalid Content status transition.",
-                invalidUpdates,
-            };
+            if (!validUpdate) {
+                continue;
+            }
+
+            content.contentStatus = newStatus;
+            content.updatedBy = userId;
+            content.updatedAt = new Date();
+            content.modifiedDate = new Date();
+            await content.save();
+
+            updatedContents.push(content);
         }
 
-        content.contentStatus = newStatus;
-        content.updatedBy = userId;
-        content.updatedAt = new Date();
-        await content.save();
-
         return {
-            success: true,
-            message: `Content status successfully updated to ${newStatus}.`,
-            updatedContent: content,
+            success: invalidUpdates.length === 0,
+            message: invalidUpdates.length === 0
+                ? `All content statuses updated to ${newStatus}.`
+                : `Some content statuses could not be updated.`,
+            updatedContents,
+            invalidUpdates
         };
     },
 
-    deleteTrainingModuleContentByID: async ({ id }, context) => {
-        const { subscriberId } = AuthUser(context);
-        const content = await TrainingModuleContent.findOneAndDelete({
-            _id: id,
-            subscriber: subscriberId,
+    deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        const invalidDeletes = [];
 
-        });
+        for (const id of ids) {
+            try {
+                const content = await TrainingModuleContent.findOne({
+                    _id: id,
+                    subscriber: subscriberId,
+                    contentStatus: 'RETIRED',
+                });
 
-        if (!content) {
-            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+                if (!content) {
+                    invalidDeletes.push({
+                        id,
+                        reason: "Content not found.",
+                    });
+                    continue;
+                }
+
+                content.isDeleted = true;
+                content.updatedAt = new Date();
+                content.updatedBy = userId;
+                content.modifiedDate = new Date();
+                await content.save();
+            } catch (error) {
+                invalidDeletes.push({
+                    id,
+                    reason: `Error deleting content: ${error.message}`,
+                });
+            }
         }
+
         return {
-            success: true,
-            message: "Content deleted successfully."
+            success: invalidDeletes.length === 0,
+            message: invalidDeletes.length === 0
+                ? "All content deleted successfully."
+                : "Some content could not be deleted.",
+            invalidDeletes,
         };
     },
 
@@ -421,16 +494,32 @@ module.exports.mutations = {
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
 
+            function streamToBuffer(stream) {
+                return new Promise((resolve, reject) => {
+                    const chunks = [];
+                    stream.on('data', (chunk) => chunks.push(chunk));
+                    stream.on('end', () => resolve(Buffer.concat(chunks)));
+                    stream.on('error', reject);
+                });
+            }
+
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
 
                 if (fileExtension === 'ppt' || fileExtension === 'pptx') {
                     const readStream = mediaFile.createReadStream();
-                    const pptData = new pptx2json(readStream);
-                    const pptSlides = pptData.slides ? pptData.slides.length : 0;
+                    const buffer = await streamToBuffer(readStream);
 
-                    console.log("pptData", pptData);
-                    console.log("Total Slides:", pptSlides);
+                    const zip = await JSZip.loadAsync(buffer);
+
+                    const slideFolder = zip.folder('ppt/slides');
+                    const slideFiles = slideFolder.file(/\/slide\d+\.xml$/);
+
+                    slideFiles.forEach(file => console.log(`Matched slide file: ${file.name}`));
+
+                    const actualSlideCount = slideFiles.length;
+
+                    console.log(`Total number of actual slides: ${actualSlideCount}`);
 
                 }
                 return allowedFileFormats.includes(fileExtension);
@@ -441,7 +530,6 @@ module.exports.mutations = {
             }
 
             if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-                console.log("thumbnail", thumbnailFile);
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
             }
 
@@ -459,16 +547,6 @@ module.exports.mutations = {
 
             if (fileFile && !validateFileFormat(fileFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
-
-            const existingContent = await TrainingModuleContent.findOne({
-                $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
-                })),
-            }).lean().select("_id");
-
-            if (existingContent) {
-                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
             }
 
             if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
@@ -551,7 +629,97 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
-            console.log("error", error);
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    },
+
+    createTrainingModuleContentQuiz: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+            if (input.questions && input.questions.length > 0) {
+
+                input.contentType = ContentType.QUIZ;
+                input.contentStatus = Content_status.PUBLISHED;
+
+                let questionsIdArr = [];
+                let score = 0;
+                for (const questionDetails of input.questions) {
+                    const { question, questionType, choices, answerKey, allowMultipleAnswers, points, negativePoints } = questionDetails;
+
+                    let choicesIdArr = [];
+
+                    for (const choiceDetail of choices) {
+                        const formattedChoice = choiceDetail.choice.map(item => ({
+                            lang: item.lang,
+                            value: item.value
+                        }));
+                        const choiceData = new AnswerChoice({
+                            subscriber: subscriberId,
+                            question: ObjectId(),
+                            choice: formattedChoice,
+                            createdBy: userId,
+                            updatedBy: userId
+                        });
+                        const choice = await choiceData.save();
+                        choicesIdArr.push(choice._id);
+                    }
+
+                    const questionData = new Question({
+                        subscriber: subscriberId,
+                        question: question,
+                        questionType: questionType,
+                        choices: choicesIdArr,
+                        answerKey: answerKey,
+                        allowMultipleAnswers: allowMultipleAnswers,
+                        points: points,
+                        negativePoints: negativePoints,
+                        createdBy: userId,
+                        updatedBy: userId
+                    });
+                    const newQuestion = await questionData.save();
+
+                    for (const choiceId of choicesIdArr) {
+                        await AnswerChoice.findByIdAndUpdate(choiceId, { question: newQuestion._id });
+                    }
+
+                    questionsIdArr.push(newQuestion._id);
+                    score += points;
+                }
+
+                input.quiz = questionsIdArr;
+                input.totalScore = score;
+                input.totalQuestions = questionsIdArr.length;
+
+                if (input.percentageCriteria > score) {
+                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+                } else {
+                    input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
+                }
+                if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+                    input.contentStatus = Content_status.PUBLISHED;
+                }
+
+                const contentData = {
+                    ...input,
+                    createdBy: userId,
+                    updatedBy: userId,
+                };
+
+                const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
+                    const savedContent = new TrainingModuleContent({
+                        ...contentData,
+                        subscriber: subscriberId,
+                        UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
+                    })
+                    await savedContent.save();
+                    return savedContent;
+                });
+
+                if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+                return savedContent;
+            }
+        } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -562,11 +730,75 @@ module.exports.mutations = {
         const existingContent = await TrainingModuleContent.findOne({
             _id: input._id ?? undefined,
             subscriber: subscriberId,
-            UID: input.UID ?? undefined
+            UID: input.UID ?? undefined,
+            isUpdated: false
         });
 
         if (!existingContent) {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+        }
+
+        const scormFile = scorm ? await scorm : null;
+        const thumbnailFile = thumbnail ? await thumbnail : null;
+        const imageFile = image ? await image : null;
+        const videoFile = video ? await video : null;
+        const audioFile = audio ? await audio : null;
+        const fileFile = file ? await file : null;
+
+        let pptSlides = 0;
+
+        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
+
+        const validateFileFormat = async (mediaFile) => {
+            const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+
+            if (fileExtension === 'ppt' || fileExtension === 'pptx') {
+                const readStream = mediaFile.createReadStream();
+                const pptData = new pptx2json(readStream);
+                const pptSlides = pptData.slides ? pptData.slides.length : 0;
+            }
+            return allowedFileFormats.includes(fileExtension);
+        };
+
+        if (scormFile && !validateFileFormat(scormFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
+        }
+
+        if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
+        }
+
+        if (imageFile && !validateFileFormat(imageFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
+        }
+
+        if (videoFile && !validateFileFormat(videoFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+        }
+
+        if (audioFile && !validateFileFormat(audioFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
+        }
+
+        if (fileFile && !validateFileFormat(fileFile)) {
+            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+        }
+
+        const extractFileExtension = (url) => {
+            return url ? url.split('.').pop().toLowerCase() : null;
+        };
+
+        const validateMatchingFileExtension = (existingUrl, uploadedFile) => {
+            const existingExtension = extractFileExtension(existingUrl);
+            const uploadedExtension = typeof uploadedFile.filename === 'string' ? uploadedFile.filename.split('.').pop().toLowerCase() : '';
+
+            if (existingExtension !== uploadedExtension) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, `Uploaded file format (${uploadedExtension}) does not match existing content format (${existingExtension})`);
+            }
+        };
+
+        if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+            input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
         }
 
         if (input.duration) {
@@ -587,7 +819,7 @@ module.exports.mutations = {
             updatedBy: userId,
             updatedAt: new Date(),
             videos: existingContent.videos,
-            audios: existingContent.audio,
+            audios: existingContent.audios,
             images: existingContent.images,
             files: existingContent.files,
             scorm: existingContent.scorm,
@@ -598,30 +830,31 @@ module.exports.mutations = {
         let isUpdated = false;
         let isMediaUpdated = false;
 
-        console.log("Existing")
+        const fieldsToCheck = [
+            "title",
+            "description",
+            "contentType",
+            "contentStatus",
+            "duration",
+            "displayPosition",
+            "isActive"
+        ];
+
+        for (const field of fieldsToCheck) {
+            if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
+                isUpdated = true;
+                break;
+            }
+        }
 
         try {
-            const fieldsToCheck = [
-                "title",
-                "description",
-                "contentType",
-                "contentStatus",
-                "duration",
-                "displayPosition",
-                "isActive"
-            ];
-
-            for (const field of fieldsToCheck) {
-                if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                    isUpdated = true;
-                    break;
-                }
-            }
             if (thumbnail === null) {
                 updateData.thumbnail = null;
                 isUpdated = true;
-            }
-            else if (thumbnail) {
+            } else if (thumbnail) {
+                if (existingContent?.thumbnail) {
+                    validateMatchingFileExtension(existingContent.thumbnail, thumbnailFile);
+                }
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
@@ -632,7 +865,11 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
+
             if (video) {
+                if (existingContent.videos?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.videos[0].url, videoFile);
+                }
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content-${existingContent._id}`,
@@ -649,6 +886,9 @@ module.exports.mutations = {
             }
 
             if (audio) {
+                if (existingContent.audios?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.audios[0].url, audioFile);
+                }
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
                     folderName: `audio-content-${existingContent._id}`,
@@ -665,6 +905,9 @@ module.exports.mutations = {
             }
 
             if (image) {
+                if (existingContent.images?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.images[0].url, imageFile);
+                }
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
                     folderName: `image-content-${existingContent._id}`,
@@ -681,6 +924,9 @@ module.exports.mutations = {
             }
 
             if (file) {
+                if (existingContent.files?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.files[0].url, fileFile);
+                }
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
                     folderName: `file-content-${existingContent._id}`,
@@ -720,6 +966,11 @@ module.exports.mutations = {
                     subscriber: subscriberId,
                 });
                 savedContent = await savedContentData.save();
+
+                await TrainingModuleContent.findOneAndUpdate(
+                    { _id: input._id, subscriber: subscriberId },
+                    { $set: { isUpdated: true } }
+                )
             } else {
                 savedContent = await TrainingModuleContent.findOneAndUpdate(
                     { _id: existingContent._id, subscriber: subscriberId },
@@ -737,5 +988,4 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
-
 };

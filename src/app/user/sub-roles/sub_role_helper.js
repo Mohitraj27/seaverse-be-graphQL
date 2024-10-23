@@ -17,13 +17,17 @@ module.exports = {
     hasPermission: ({
         currentRole,
         currentPermissions,
+        primaryRole,
         requiredPermission,
         requiredAll = true,
         restrictOrganizationManager = false,
     }) => {
         if (currentRole === Role.ADMIN) {
             return true;
-        } else if (restrictOrganizationManager) {
+        } else if(primaryRole[0] === Role.ADMIN){
+            return true;
+        }
+        else if (restrictOrganizationManager) {
             return false;
         } else if (currentRole === Role.EMPLOYEE && currentPermissions instanceof Array) {
             if (typeof requiredPermission === "string") {

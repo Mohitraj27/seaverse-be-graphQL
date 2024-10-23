@@ -36,15 +36,17 @@ const trainingModuleSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        trainingModuleContents: [
+            {
+                type: ObjectId,
+                ref: "TrainingModuleContent",
+                required: true,
+                index: true,
+            }
+        ],
     },
     { timestamps: true }
 );
-
-trainingModuleSchema.virtual("trainingModuleContents", {
-    ref: "TrainingModuleContent",
-    localField: "_id",
-    foreignField: "trainingModule",
-});
 
 trainingModuleSchema.index({ _id: 1, subscriber: 1, training: 1 });
 

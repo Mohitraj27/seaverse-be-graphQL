@@ -114,6 +114,10 @@
                 uppercase: true,
                 required:true,  
             },
+            isCertificate:{
+                type : Boolean,
+                required : true
+            },
             price: Number,
             durationHours: { type: Number, required: true },
             certifications: [
@@ -174,7 +178,7 @@
             approvalStatus: {
                 type: String,
                 uppercase: true,
-                default: ApprovalStatus.PREPARING,
+                default: ApprovalStatus.APPROVED,
             },
             authorName: {
                 type: String,

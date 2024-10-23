@@ -7,8 +7,10 @@ const {
     Role,
     EmailTemplate,
     CurrentDateTime,
+    VesselStatus,
+    UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -37,6 +39,10 @@ const TrainingRegistrationStatus = require("../../training-registrations/trainin
 const LogType = require("../../logs/log_type.json");
 const { v4: uuidv4 } = require('uuid')
 const UserHelper = require("../user_helper");
+const { Vessel } = require("../../vessle/vessel_model");
+const { parse } = require("json2csv");
+const { parse: csvParse } = require("csv-parse");
+const { ImportLog } = require("../import-log/import_log_model");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -407,7 +413,7 @@ const deleteUsers = async (users, errors) => {
             return new DeletedUser(userObject);
         });
 
-        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);        
+        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);
 
         if (updateDeletedList) {
 
@@ -417,7 +423,7 @@ const deleteUsers = async (users, errors) => {
 
                 const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
 
-                if(getAdminGroups.length > 0) {
+                if (getAdminGroups.length > 0) {
 
                     const deletedGroups = getAdminGroups.map(group => {
                         const groupObject = group.toObject();
@@ -455,7 +461,7 @@ const deleteUsers = async (users, errors) => {
 
                 const updateGroupMember = await GroupMember.deleteMany({ member: { $in: users } });
 
-                if(updateGroupMember) {
+                if (updateGroupMember) {
                     return deleteUsers
                 }
 
@@ -463,7 +469,7 @@ const deleteUsers = async (users, errors) => {
                 errors.push("Error while deleting users");
                 return;
             }
-            
+
         } else {
             errors.push("Error while deleting users");
             return;
@@ -475,6 +481,71 @@ const deleteUsers = async (users, errors) => {
 
     }
 
+}
+
+async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
+
+    const errors = [];
+
+    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+
+    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
+    else if (emails.has(row["Email"])) {
+        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
+    } else {
+        emails.add(row["Email"]);
+    }
+
+    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
+    else if (empIds.has(row["EmployeeID"])) {
+        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+    } else {
+        empIds.add(row["EmployeeID"]);
+    }
+
+    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
+
+    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
+    if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+
+    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+
+    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
+    else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
+    
+    return errors;
+}
+
+function mapCSVRowToUser(row) {
+    const mandatoryFields = [
+        "FirstName",
+        "Email",
+        "Designation",
+        "EmployeeID",
+        "VesselIMONumber",
+        "Status"
+    ];
+
+    Object.keys(row).forEach(key => {
+        if (!mandatoryFields.includes(key)) {
+            const fieldName = key;
+            let fieldValue = row[key];
+        }
+    });
+
+    const result = {
+        firstName: row["FirstName"],
+        lastName: row["LastName"] ?? "",
+        email: row["Email"],
+        designation: row["Designation"],
+        civilIdOrPassport: row["EmployeeID"],
+        imoNumber: row["VesselIMONumber"],
+        vesselStatus: row["Status"],
+        imoNumber: row["VesselIMONumber"],
+    };
+
+    return result;
 }
 
 module.exports = {
@@ -818,9 +889,9 @@ module.exports = {
                     const existingDesignation = await Designation.findById(input.empDesignation);
 
                     if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
-                    
+
                 }
-                
+
                 let userRole = Role.LEARNER;
 
                 const savedUserRaw = await User.findOneAndUpdate(
@@ -975,4 +1046,287 @@ module.exports = {
             totalCount: savedEmployees.length,
         };
     },
+    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
+
+        const existingDesignations = await Designation.find({ isDeleted: false }).lean();
+
+        const existingUsers = await User.find({
+            $or: [
+                { civilIdOrPassport: { $in: empIdsArray } },
+                { email: { $in: emailsArray } }
+            ]
+        }).lean();
+
+        const existingEmailsInDB = existingUsers.map(user => user.email);
+
+        const existingEmpIdsInDB = existingUsers.map(user => ({
+            [user.civilIdOrPassport]: user.email
+        }));
+
+        const getAllDBUsers = await User.find().select('email');
+        const getAllDBEmails = getAllDBUsers.map(user => user.email);
+
+        const updates = [];
+        const inserts = [];
+
+        let userIndex = 0;
+
+        const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
+
+        const vesselMap = new Map(
+            existingVessels.map(vessel => [
+                vessel.imoNumber,
+                { id: vessel._id }
+            ])
+        );
+
+        let errors = [];
+
+        for (const user of users) {
+
+            const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
+
+            if (existingEmpIdsMap) {
+
+                const email = existingEmpIdsMap[user.civilIdOrPassport];
+
+                if (email !== user.email && existingEmailsInDB.includes(user.email)) {
+
+                    errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                    break;
+
+                } else {
+
+                    updates.push({
+                        updateOne: {
+                            filter: { civilIdOrPassport: user.civilIdOrPassport },
+                            update: {
+                                $set: {
+                                    firstName: user.firstName,
+                                    lastName: user.lastName,
+                                    email: user.email,
+                                    vesselStatus: user.vesselStatus,
+                                    currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
+
+                }
+
+            } else {
+
+                if (getAllDBEmails.includes(user.email)) {
+
+                    errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                    break;
+
+                } else {
+
+                    inserts.push({
+                        civilIdOrPassport: user.civilIdOrPassport,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        email: user.email,
+                        vesselStatus: user.vesselStatus,
+                        currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
+                        password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
+                    });
+
+                }
+            }
+            userIndex++;
+        };
+
+        if (errors.length > 0) {
+
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: saveCSV,
+                importStatus: "FAILED",
+                description: `${errors[0]}`
+            })
+
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+
+            throw CustomError(
+                ErrorName.VALIDATION_ERROR,
+                `${errors[0]}`
+            );
+
+        }
+
+        let bulkInsertUsers;
+        let bulkUpdateUsers;
+
+        let insertedUsers;
+        let updatedUsers;
+
+        const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
+
+            bulkInsertUsers = await User.insertMany(inserts, { session: session });
+
+            insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
+
+            bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
+            const upIds = bulkUpdateUsers.result.upserted;
+            const updatedIds = upIds.map(item => item._id);
+            updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
+
+            const designationMap = new Map(
+                existingDesignations.map(designation => [
+                    designation.name,
+                    { id: designation._id }
+                ])
+            );
+
+            const bulkId = uuidv4();
+            const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+
+            if (allUpdatedUsers.length > 0) {
+
+                const userVesselsInsert = allUpdatedUsers.map(user => {
+
+                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
+                    return {
+                        updateOne: {
+                            filter: { user: user },
+                            update: {
+                                $set: {
+                                    user: user,
+                                    vessel: vesselMap.get(originalUserData.imoNumber).id,
+                                    isActive: true,
+                                }
+                            },
+                            upsert: true
+                        }
+                    };
+
+                })
+
+
+                await UserVessel.bulkWrite(userVesselsInsert, { session });
+
+
+                const employeesToInsert = allUpdatedUsers.map(user => {
+                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                    // invitationList.push({
+                    //     userData: user
+                    // });
+                    return {
+                        updateOne: {
+                            filter: { user: user },
+                            update: {
+                                $set: {
+                                    user: user,
+                                    subscriber: subscriberId,
+                                    empDesignation: designationMap.get(originalUserData.designation).id,
+                                    bulkId: bulkId,
+                                    regType: 2
+                                }
+                            },
+                            upsert: true
+                        }
+                    };
+                });
+
+                await Employee.bulkWrite(employeesToInsert, { session });
+
+                const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
+
+                const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
+                    const UID = await generateEmployeeUID({ subscriberId, session });
+                    return {
+                        updateOne: {
+                            filter: { _id: employee._id },
+                            update: { UID },
+                            upsert: false
+                        }
+                    };
+                }));
+
+                await Employee.bulkWrite(uidUpdates, { session });
+
+            } else {
+
+                const createImportLog = await ImportLog.create({
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: saveCSV,
+                    importStatus: "FAILED",
+                    description: `No new data created/updated`
+                })
+
+                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                throw CustomError(
+                    ErrorName.VALIDATION_ERROR,
+                    `No new data created/updated`
+                );
+            }
+        });
+
+        const createImportLog = await ImportLog.create({
+            subscriber: subscriberId,
+            uploadedBy: userId,
+            fileName: newFileName,
+            filePath: saveCSV,
+            importStatus: "SUCCESS",
+            description: `New data(s) created/updated`
+        })
+
+        if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+    },
+    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+
+        let validationErrors = [];
+
+        await new Promise((resolve, reject) => {
+            const stream = createReadStream();
+            const parser = csvParse({ columns: true, trim: true });
+            stream.pipe(parser);
+
+            let rowIndex = 0;
+            
+            parser.on("data", async (row) => {
+                
+                    validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+                    
+                    if (validationErrors.length > 0) {
+
+                        const createImportLog = await ImportLog.create({
+                            subscriber: subscriberId,
+                            uploadedBy: userId,
+                            fileName: newFileName,
+                            filePath: saveCSV,
+                            importStatus: "FAILED",
+                            description: `${validationErrors[0]}`
+                        })
+
+                        if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+                        
+
+                    } else {
+                        const formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
+                    }
+
+                    rowIndex++;
+
+            });
+
+            parser.on("end", resolve);
+            parser.on("error", reject);
+
+        });
+        
+        return validationErrors;
+    }
 };

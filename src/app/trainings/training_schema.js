@@ -1,10 +1,12 @@
 const ApprovalStatus = require("./approval_status.json");
 const TrainingStatus = require("./enum_fields/training_status.json");
-const CourseType = require("./enum_fields/courseType.json");
 const UnlockOn = require("./enum_fields/unlockOn.json");
 const AttemptFlexibility = require("./enum_fields/attemptFlexibility.json");
 const CourseLevel = require("./enum_fields/courseLevel.json");
 const AttemptType = require("./enum_fields/attemptType.json");
+CourseType = {
+    SELF_LEARNING: "SELF_LEARNING",
+};
 module.exports = {
     types: `
         enum ApprovalStatus {
@@ -86,7 +88,7 @@ module.exports = {
             manadatoryModules: String  
             classroomModule: ClassroomModule
             authorName: String
-            }
+        }
         type Scorm {
             type:String
             launchUrl:String
@@ -154,7 +156,6 @@ module.exports = {
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents:[TrainingModuleContentInput]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
@@ -184,7 +185,8 @@ module.exports = {
             authorName: String 
             manadatoryModules: String 
             classroomModule: ClassroomModuleInput
-            }
+            isCertificate : Boolean
+        }
         input TrainingFilterInput {
             search: String
             trainingCategory: ID
