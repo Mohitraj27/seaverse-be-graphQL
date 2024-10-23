@@ -51,6 +51,7 @@ const { VesselTypeSchema } = require("../app/vessle/vessel-type");
 const { VesselSchema } = require("../app/vessle");
 const { ContactSupportSchema } = require('../app/contact-support');
 const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
+const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question')
 
 const schemas = [
     AppDataSchema,
@@ -95,7 +96,8 @@ const schemas = [
     VesselTypeSchema,
     VesselSchema,
     ContactSupportSchema,
-    UserVesselSchema
+    UserVesselSchema,
+    QuestionSchema
 ];
 
 const types = [];

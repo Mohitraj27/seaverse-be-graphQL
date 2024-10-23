@@ -8,14 +8,30 @@ module.exports = {
         enum TrainingModuleContentStatus {
             ${Object.keys(ContentStatus).join(" ")}
         }
+        type QuestionNew {
+            _id: ID
+            question: [LocalisedData]
+            questionType: String
+            choices: [AnswerChoice]
+            answerKey: [String]
+            allowMultipleAnswers: Boolean
+            displayPosition: Int
+            points: Int
+            negativePoints: Int
+            isActive: Boolean
+        }
+        type AnswerChoice {
+            _id: ID
+            question: ID
+            choice: [LocalisedData]
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
             contentType: String
             duration: String
             contentStatus: TrainingModuleContentStatus
-            quiz: QuizContentQuiz @deprecated(reason: "uses quizContent")
-            quizContent: QuizContent
+            quiz: [QuestionNew]
             title: [LocalisedData]
             description: [LocalisedData]
             videos: [MultiMediaInfo]
@@ -24,6 +40,14 @@ module.exports = {
             text: [LocalisedData]
             files: [MultiMediaInfo]
             thumbnail: String
+            percentageCriteria: Int
+            totalQuestions: Int
+            totalScore: Int
+            randomiseQuestionOrder: Boolean
+            randomiseAnswerOptionOrder: Boolean
+            showCorrectAnswersToLearnerAfterQuiz: Boolean
+            onlyLearnerPassTheQuiz: Boolean
+            evenLearnerFailTheQuiz: Boolean
             displayPosition: Int
             isActive: Boolean
             updatedAt: String
@@ -41,10 +65,6 @@ module.exports = {
             id: ID!
             reason: String!
         }
-
-        input TrainingMOduleContentStatusInput {
-            title: String!
-            }
         type UpdateStatusResult {
             success: Boolean!
             message: String
@@ -63,7 +83,6 @@ module.exports = {
         }
         input TrainingModuleContentInput {
             _id: ID
-            UID: String
             contentType: TrainingModuleContentType!
             
             duration: String
@@ -82,7 +101,39 @@ module.exports = {
             thumbnail: String
             displayPosition: Int
             isActive: Boolean
-
+        }
+        input TrainingModuleContentQuizInput {
+            _id: ID
+            title: [LocalisedDataInput]!
+            description: [LocalisedDataInput]
+            percentageCriteria: Int
+            duration: String
+            randomiseQuestionOrder: Boolean
+            randomiseAnswerOptionOrder: Boolean
+            showCorrectAnswersToLearnerAfterQuiz: Boolean
+            onlyLearnerPassTheQuiz: Boolean
+            evenLearnerFailTheQuiz: Boolean
+            displayPosition: Int
+            questions: [QuestionInput]
+        }
+        input QuestionInput {
+            _id: ID
+            question: [LocalisedDataInput]
+            questionType: QuestionTypeEnum
+            choices: [ChoiceInput]
+            answerKey: [String]
+            allowMultipleAnswers: Boolean
+            displayPosition: Int
+            points: Int
+            negativePoints: Int
+        }
+        input ChoiceInput {
+            _id: ID
+            choice: [LocalisedDataInput]
+        }
+        input LocalInput {
+            lang: Language!
+            value: String!
         }
     `,
     queries: `
@@ -98,6 +149,7 @@ module.exports = {
         updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
         deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
          `,
 };
