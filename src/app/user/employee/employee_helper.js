@@ -1191,10 +1191,7 @@ module.exports = {
 
                 const userVesselsInsert = allUpdatedUsers.map(user => {
 
-                    console.log(`users:`, users);
-
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                    console.log(originalUserData);
 
                     return {
                         updateOne: {
