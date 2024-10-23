@@ -26,8 +26,7 @@ const LogType = require("../../logs/log_type.json");
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
-        const { isAuthenticated, role, userId } = AuthUser(context, false);
-
+        const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
@@ -44,9 +43,36 @@ module.exports.queries = {
 
             return existingUser;
         };
+        const fetchMenuItems = (userInfo) => {
+          
+            if (userInfo.role === 'ADMIN') {
+                return [
+                    {
+                        role_name: 'ADMIN',
+                        platform: 'ADMIN',
+                    },
+                    {
+                        role_name: 'LEARNER',
+                        platform: 'LEARNER',
+                    },
+                ];
+            } else {
+                return [
+                    ...userInfo.subRoles.map(subRole => ({
+                        role_name: subRole.name,
+                        platform: subRole.primaryRole,
+                    })),
+                    {
+                        role_name: 'LEARNER',
+                        platform: 'LEARNER',
+                    },
+                ];
 
+            }
+        };
+        
         if (isAuthenticated) {
-            return { "user": fetchResult(userId) };
+            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo)};
         }
 
         throw CustomError(ErrorName.FORBIDDEN);

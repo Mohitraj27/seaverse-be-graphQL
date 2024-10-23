@@ -98,6 +98,7 @@ module.exports = {
             userInfo,
             userPermissions = [],
             subscriberId,
+            primaryRole,
             employeeId,
             hasSubscription = false,
             isOrganizationManager = false,
@@ -112,6 +113,7 @@ module.exports = {
                     role = context.user.role ?? Role.GUEST;
                     userId = ObjectId(context.user.userId);
                     userInfo = context.user.userInfo;
+                    primaryRole = context.user.userInfo.subRoles.map((role) => { if (role.primaryRole === "ADMIN") return role.primaryRole });
                     userPermissions = context.user.permissions ?? [];
                     if (ObjectId.isValid(context.user.subscriberId))
                         subscriberId = ObjectId(context.user.subscriberId);
@@ -140,6 +142,7 @@ module.exports = {
             role,
             userId,
             userInfo,
+            primaryRole,
             userPermissions,
             subscriberId,
             employeeId,
