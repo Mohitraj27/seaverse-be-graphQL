@@ -597,6 +597,36 @@ module.exports.queries = {
                     localField: "user.currentVessel",
                     foreignField: "_id",
                     as: "currentVessel",
+                    pipeline: [
+                        {
+                            $match: {
+                                name: { $exists: true, $ne: null }
+                            }
+                        },
+                        { $project: { _id: 1, name: 1, typeOfVessel: 1, imoNumber: 1, isActive: 1, createdAt: 1, updatedAt: 1 } },
+                        {
+                            $lookup: {
+                                from: "vesseltypes",
+                                localField: "typeOfVessel",
+                                foreignField: "_id",
+                                as: "typeOfVessel",
+                                pipeline: [
+                                    { 
+                                        $match: {
+                                            _id: { $ne: null }
+                                        }
+                                    },
+                                    { $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }
+                                ]
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$typeOfVessel",
+                                preserveNullAndEmptyArrays: true,
+                            }
+                        }
+                    ],
                 },
             },
             {
