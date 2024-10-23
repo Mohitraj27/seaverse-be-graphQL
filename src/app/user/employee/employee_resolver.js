@@ -29,7 +29,7 @@ const { GroupMember } = require("../group-user/group_member_model");
 const { ImportLog } = require("../import-log/import_log_model");
 const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
-const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
+const { sendNotificationOn, generateRandomString } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
 const { fork } = require('child_process');
 
@@ -1287,6 +1287,8 @@ module.exports.mutations = {
 
             const savedEmployees = [];
 
+            const generatePassword = generateRandomString(10);
+
             input.user.password = input.user.password ? await CryptoHelper.hash(input.user.password, 10) : await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10);
 
             const existingDesignation = await Designation.findById(input.empDesignation);
@@ -1350,7 +1352,7 @@ module.exports.mutations = {
 
         return {
             status: true,
-            message: "The bulk import is being processed in the background. You can continue working.",
+            message: "User created successfully!",
         };
 
     },
@@ -1655,69 +1657,3 @@ module.exports.mutations = {
         return savedEmployees;
     },
 };
-
-const emails = new Set();
-async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
-
-    const errors = [];
-
-    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
-
-    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
-    else if (emails.has(row["Email"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
-    } else {
-        emails.add(row["Email"]);
-    }
-
-    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
-    else if (empIds.has(row["EmployeeID"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
-    } else {
-        empIds.add(row["EmployeeID"]);
-    }
-
-    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
-
-    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
-    if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
-
-    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-
-    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
-    else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-
-    return errors;
-}
-
-function mapCSVRowToUser(row) {
-    const mandatoryFields = [
-        "FirstName",
-        "Email",
-        "Designation",
-        "EmployeeID",
-        "VesselIMONumber",
-        "Status"
-    ];
-
-    Object.keys(row).forEach(key => {
-        if (!mandatoryFields.includes(key)) {
-            const fieldName = key;
-            let fieldValue = row[key];
-        }
-    });
-
-    const result = {
-        firstName: row["FirstName"],
-        lastName: row["LastName"] ?? "",
-        email: row["Email"],
-        designation: row["Designation"],
-        civilIdOrPassport: row["EmployeeID"],
-        imoNumber: row["VesselIMONumber"],
-        vesselStatus: row["Status"],
-        imoNumber: row["VesselIMONumber"],
-    };
-
-    return result;
-}

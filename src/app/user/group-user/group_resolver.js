@@ -9,7 +9,11 @@ const { parseAsync } = require('json2csv');
 const { parse } = require('csv-parse/sync');
 const { Employee } = require("../employee/employee_model");
 const { User } = require("../user_model");
+const { Vessel } = require("../../vessle/vessel_model");
+const { VesselType } = require("../../vessle/vessel-type/vessel_type_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
+const { Designation } = require("../../designations/designation_model");
+const { SubRole } = require("../sub-roles/sub_role_model");
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -125,7 +129,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Designation',
+                        typeOfGroup: 'Designation',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -169,7 +173,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Role',
+                        typeOfGroup: 'Role',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -213,7 +217,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Registration Status',
+                        typeOfGroup: 'Registered Users',
                         description: {
                             $concat: [
                                 "All Registered users."
@@ -255,7 +259,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Registration Status',
+                        typeOfGroup: 'Unregistered Users',
                         description: {
                             $concat: [
                                 "All Unregistered users."
@@ -311,7 +315,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Sub Role',
+                        typeOfGroup: 'Sub Role',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -425,7 +429,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Vessel Status',
+                        typeOfGroup: 'Vessel Status',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -465,7 +469,7 @@ module.exports.queries = {
                         localField: 'vessel',
                         foreignField: '_id',
                         as: 'vesselDetails',
-    
+
                     }
                 },
                 {
@@ -499,7 +503,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'VesselType',
+                        typeOfGroup: 'Vessel Type',
                         description: {
                             $concat: [
                                 "All the ",
@@ -595,6 +599,81 @@ module.exports.queries = {
 
         }
 
+    },
+    getGroupsOfUser: async ({ userId }, context) => {
+
+        const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
+
+        if (!userId) {
+            throw CustomError(ErrorName.USER_ID_REQUIRED);
+        }
+
+        const existingUser = await User.findById(userId);
+
+        if (!existingUser) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
+
+        const user = await Employee.findOne({ user: userId });
+
+        if (!user) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
+
+        const designation = await Designation.findById(user.empDesignation);
+
+        if (!designation) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const designationName = designation.name;
+
+        const roleName = existingUser.role;
+
+        let regStatusGroup;
+
+        if (existingUser.isRegistered) {
+            regStatusGroup = 'Registered';
+        } else {
+            regStatusGroup = 'Unregistered';
+        }
+
+        const subRoleIds = existingUser.subRoles;
+
+        const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
+        const subRoleNames = subRoles.map(subRole => subRole.name);
+
+        let vesseldetail, vesselName, vesselStatus, vesselTypeName;
+        const vessel = await UserVessel.findOne({ user: userId, isActive: true });
+
+        if (vessel !== null) {
+            vesseldetail = await Vessel.findById(vessel.vessel);
+            vesselName = vesseldetail.name;
+            vesselStatus = vessel.vesselStatus;
+            const vesselType = await VesselType.findById(vesseldetail.typeOfVessel);
+            vesselTypeName = vesselType.name;
+        }
+
+        let customGroupNames, customGroup;
+        const customGroups = await GroupMember.find({ member: userId, isActive: true }); ``
+        if (customGroups !== null) {
+            customGroup = Group.find({ _id: { $in: customGroups.group } });
+            customGroupNames = customGroup.map(group => group.groupName);
+        }
+
+        if (existingUser && user && designation) {
+            return {
+                designation: designationName ?? null,
+                role: roleName ?? null,
+                vessel: vesselName ?? null,
+                vesselStatus: vesselStatus ?? null,
+                vesselType: vesselTypeName ?? null,
+                subRole: subRoleNames ?? null,
+                regStatus: regStatusGroup ?? null,
+                customGroups: customGroupNames ?? null
+            }
+        }
+        
     }
 };
 
@@ -621,6 +700,22 @@ module.exports.mutations = {
 
         const { role, userId, userInfo, userPermissions, subscriberId } =
             AuthUser(context);
+
+        // check group typ
+
+        if (!input.groupType) {
+            throw CustomError(ErrorName.GROUP_TYPE_REQUIRED);
+        }
+
+        if (input.groupType === "GROUP") {
+
+            if (!input.groups) {
+                throw CustomError(ErrorName.GROUPS_REQUIRED);
+            }
+
+            // Go through input.groups and if groups is groups: [ { groupName: String, groupId: ObjectId }]
+
+        }
 
         const groupFilterConditions = {
             _id: input._id ?? ObjectId(),

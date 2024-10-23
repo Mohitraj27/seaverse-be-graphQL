@@ -227,17 +227,43 @@ module.exports.queries = {
     },
     resetPassword: async (_, context) => {
 
+        const { userId } = AuthUser(context);
+
         const user = await User.findById(userId);
 
         if (!user) {
             throw new CustomError(ErrorName.NOT_FOUND);
         }
 
-        const token = 'clgjr0wt540t4QefklDsfdsfbdfb';
+        const token = generateRandomString(10);
+
+        user.resetPasswordToken = token;
+        user.resetPasswordExpires = Date.now() + (7 * 3600000);
+        await user.save();
 
         let errors = [];
 
-        const result = mailSenderHelper(token, user.email, user, errors);
+        const result = await AwsHelper.sendEmail({
+            receiverEmail: email,
+            subject: "Reset Password",
+            htmlContent: `<!DOCTYPE html>
+                <html lang="en">
+                    <head>
+                        <meta charset="UTF-8" />
+                        <title>Reset Password</title>
+                    </head>
+                    <body>
+                        <div style="width: 600px; margin: 0 auto; text-align: center">
+            
+                            <p>Please visit the link below to reset your password</p>
+            
+                            <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                                Click Here
+                            </a>
+                        </div>
+                    </body>
+                </html>`,
+        });
 
         if (errors.length > 0) {
             throw new CustomError(ErrorName.FAILED);
@@ -372,7 +398,7 @@ module.exports.mutations = {
                 
                                 <p>Please visit the link below to reset your password</p>
                 
-                                <a href="${process.env.APP_URL}/reset-password/${token}" target="_blank">
+                                <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>

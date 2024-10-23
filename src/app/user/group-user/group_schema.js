@@ -5,6 +5,7 @@ module.exports = {
             groupName: String!
             groupAdmin: User
             isManagerDefault: Boolean
+            typeOfGroup: String
             memberCount: Int
             description: String
             members: [MemberDetails]
@@ -46,10 +47,21 @@ module.exports = {
             lastName: String
             email: String!
         }
+        type getGroupsOfUserResponse {
+            designation: String
+            role: String
+            vessel: String
+            vesselStatus: String 
+            vesselType: String
+            subRole: [String]
+            regStatus: String
+            customGroups: [String]
+        }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType!): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
+        getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
     `,
     mutations: `
         createOrUpdateGroup(input: GroupInput!): GroupResponse!
