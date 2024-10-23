@@ -254,7 +254,7 @@ module.exports = {
             usersCount: Int,
             fileName: String,
             filePath: String,
-            importStatus: importStateEnum,
+            importStatus: String,
             description: String,
             createdAt: String
         }
