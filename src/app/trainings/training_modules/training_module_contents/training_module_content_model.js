@@ -1,5 +1,5 @@
 const { uuid } = require("uuidv4");
-const { Schema, Model, ObjectId } = require("../../../../tools");
+const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../../tools");
 const { LocalisedDataSchema } = require("../../../../util/localised_data_schema");
 const { QuizSchema } = require("../../../quizzes/quiz_content_model");
 const training_helper = require("../../training_helper");
@@ -84,6 +84,43 @@ const trainingModuleContentSchema = new Schema(
                 },
             },
         ],
+        quiz: [{
+            type: ObjectId,
+            ref: "Question",
+        }],
+        percentageCriteria: {
+            type: Number,
+            min: 0,
+            max: 100,
+        },
+        totalQuestions: {
+            type: Number,
+            default: 0,
+        },
+        totalScore: {
+            type: Number,
+            default: 0,
+        },
+        randomiseQuestionOrder: {
+            type: Boolean,
+            default: false,
+        },
+        randomiseAnswerOptionOrder: {
+            type: Boolean,
+            default: false,
+        },
+        showCorrectAnswersToLearnerAfterQuiz: {
+            type: Boolean,
+            default: false,
+        },
+        onlyLearnerPassTheQuiz: {
+            type: Boolean,
+            default: false,
+        },
+        evenLearnerFailTheQuiz: {
+            type: Boolean,
+            default: false,
+        },
         displayPosition: {
             type: Number,
             default: 0,
@@ -121,5 +158,7 @@ const trainingModuleContentSchema = new Schema(
 );
 
 trainingModuleContentSchema.index({ _id: 1, subscriber: 1 });
+
+trainingModuleContentSchema.plugin(AggregatePaginate);
 
 module.exports.TrainingModuleContent = Model("TrainingModuleContent", trainingModuleContentSchema);

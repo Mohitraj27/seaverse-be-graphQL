@@ -50,6 +50,7 @@ const { VesselResolver } = require("../app/vessle");
 const AwsHelper = require("../util/aws_helper");
 const { ContactSupportResolver } = require('../app/contact-support');
 const { UserVesselResolver } = require('../app/user/user-vessel-bridge');
+const { QuestionResolver } = require('../app/trainings/training_modules/training_module_contents/question');
 
 module.exports = {
     ID: new GraphQLScalarType({
@@ -172,6 +173,7 @@ module.exports = {
         ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselResolver.mutations),
         ...AuthHelper.requiresAdmin(UserVesselResolver.mutations),
+        ...AuthHelper.requiresAdmin(QuestionResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

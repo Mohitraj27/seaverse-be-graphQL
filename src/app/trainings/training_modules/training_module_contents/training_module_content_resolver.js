@@ -1,6 +1,8 @@
 const { CustomError, ErrorName, AuthUser, DbTransactionHelper, UploadHelper } = require("../../../../util");
 
 const { TrainingModuleContent } = require("./training_module_content_model");
+const { AnswerChoice } = require("./question/answer_choice_model");
+const { Question } = require("./question/question_model");
 
 const TrainingModuleContentHelper = require("./training_module_content_helper");
 const SubRoleHelper = require("../../../user/sub-roles/sub_role_helper");
@@ -37,26 +39,53 @@ module.exports.queries = {
             filterConditions['title.value'] = { $regex: search, $options: "i" };
         }
         const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? 50; //(recentlyModified ? 2 : 6);
-        const totalCount = await TrainingModuleContent.countDocuments(filterConditions).exec();
-        const contents = await TrainingModuleContent.find(filterConditions).sort({ updatedAt: -1 }).skip(skip).limit(limitContent).lean().exec();
+        const limitContent = pageInput?.limit ?? 50;
+        const contents = TrainingModuleContent.aggregatePaginate(
+            TrainingModuleContent.aggregate([
+                { $match: filterConditions },
+                {
+                    $lookup: {
+                        from: "questions",
+                        localField: "quiz",
+                        foreignField: "_id",
+                        as: "quiz",
+                        pipeline: [
+                            { $project: { _id: 1, question: 1, questionType: 1, choices: 1, answerKey: 1, allowMultipleAnswers: 1, points: 1, negativePoints: 1 } },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "choices",
+                                    foreignField: "_id",
+                                    as: "choices",
+                                    pipeline: [
+                                        { $project: { _id: 1, question: 1, choice: 1 } }
+                                    ]
+                                }
+                            }
+                        ],
+                    },
+                }
+            ]),
+            {
+                offset: skip,
+                limitContent,
+                sort: { createdAt: "descending" },
+                customLabels: {
+                    docs: "contents",
+                    totalDocs: "totalCount",
+                    offset: "skip",
+                },
+                pagination: limitContent !== 0,
+                allowDiskUse: true,
+            }
+        );
         if (!contents) {
             return {
                 contents: [],
                 totalCount: 0,
             };
         }
-        // const recentlyModifiedContent = contents.map(content => {
-        //     return {
-        //         ...content,
-        //         recentlyModified: recentlyModified ? (new Date() - new Date(contents.updatedAt)) < (24 * 60 * 60 * 1000) : false,
-        //     }
-        // })
-        return {
-            // contents: recentlyModifiedContent,
-            contents,
-            totalCount,
-        };
+        return contents;
     },
     getTrainingModuleContent: async ({ id }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -64,7 +93,18 @@ module.exports.queries = {
             subscriber: subscriberId,
             _id: id
         };
-        const contents = await TrainingModuleContent.findOne(filterConditions).lean().exec();
+        const populate = [
+            ({
+                path: "quiz",
+                populate: [
+                    {
+                        path: 'choices',
+                        select: { _id: 1, question: 1, choice: 1 }
+                    }
+                ]
+            })
+        ]
+        const contents = await TrainingModuleContent.findOne(filterConditions).populate(populate).lean().exec();
         if (!contents) {
             return null;
         }
@@ -490,7 +530,6 @@ module.exports.mutations = {
             }
 
             if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-                console.log("thumbnail", thumbnailFile);
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
             }
 
@@ -590,7 +629,97 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
-            console.log("error", error);
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    },
+
+    createTrainingModuleContentQuiz: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+            if (input.questions && input.questions.length > 0) {
+
+                input.contentType = ContentType.QUIZ;
+                input.contentStatus = Content_status.PUBLISHED;
+
+                let questionsIdArr = [];
+                let score = 0;
+                for (const questionDetails of input.questions) {
+                    const { question, questionType, choices, answerKey, allowMultipleAnswers, points, negativePoints } = questionDetails;
+
+                    let choicesIdArr = [];
+
+                    for (const choiceDetail of choices) {
+                        const formattedChoice = choiceDetail.choice.map(item => ({
+                            lang: item.lang,
+                            value: item.value
+                        }));
+                        const choiceData = new AnswerChoice({
+                            subscriber: subscriberId,
+                            question: ObjectId(),
+                            choice: formattedChoice,
+                            createdBy: userId,
+                            updatedBy: userId
+                        });
+                        const choice = await choiceData.save();
+                        choicesIdArr.push(choice._id);
+                    }
+
+                    const questionData = new Question({
+                        subscriber: subscriberId,
+                        question: question,
+                        questionType: questionType,
+                        choices: choicesIdArr,
+                        answerKey: answerKey,
+                        allowMultipleAnswers: allowMultipleAnswers,
+                        points: points,
+                        negativePoints: negativePoints,
+                        createdBy: userId,
+                        updatedBy: userId
+                    });
+                    const newQuestion = await questionData.save();
+
+                    for (const choiceId of choicesIdArr) {
+                        await AnswerChoice.findByIdAndUpdate(choiceId, { question: newQuestion._id });
+                    }
+
+                    questionsIdArr.push(newQuestion._id);
+                    score += points;
+                }
+
+                input.quiz = questionsIdArr;
+                input.totalScore = score;
+                input.totalQuestions = questionsIdArr.length;
+
+                if (input.percentageCriteria > score) {
+                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+                } else {
+                    input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
+                }
+                if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+                    input.contentStatus = Content_status.PUBLISHED;
+                }
+
+                const contentData = {
+                    ...input,
+                    createdBy: userId,
+                    updatedBy: userId,
+                };
+
+                const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
+                    const savedContent = new TrainingModuleContent({
+                        ...contentData,
+                        subscriber: subscriberId,
+                        UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
+                    })
+                    await savedContent.save();
+                    return savedContent;
+                });
+
+                if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+                return savedContent;
+            }
+        } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -636,7 +765,6 @@ module.exports.mutations = {
         }
 
         if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-            console.log("thumbnail", thumbnailFile);
             throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
         }
 
@@ -714,9 +842,6 @@ module.exports.mutations = {
 
         for (const field of fieldsToCheck) {
             if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                console.log("input field", input[field]);
-                console.log("existing field", existingContent[field]);
-                console.log("yes");
                 isUpdated = true;
                 break;
             }
@@ -860,7 +985,6 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },

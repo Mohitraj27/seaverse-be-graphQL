@@ -67,6 +67,7 @@ const errorName = {
     VESSEL_NOT_FOUND: "VESSEL_NOT_FOUND",
     INVALID_FILE_FORMAT: "INVALID_FILE_FORMAT",
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
+    INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
 };
 
 const errorType = {
@@ -405,6 +406,11 @@ const errorType = {
         statusCode: 400,
         type: "NOT_ALL_PUBLISHED"
     },
+    INVALID_PERCENTAGE_CRITERIA: {
+        message: "Percentage criteria should be less than the total score",
+        statusCode: 400,
+        type: "INVALID_PERCENTAGE_CRITERIA"
+    }
 };
 
 const formatError = error => {
