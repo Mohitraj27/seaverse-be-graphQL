@@ -13,12 +13,16 @@ const ContentType = require("./content_type.json");
 const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
 const pptx2json = require('pptx2json');
+const JSZip = require('jszip');
+const xml2js = require('xml2js');
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
         const { subscriberId } = AuthUser(context);
         const filterConditions = {
             subscriber: subscriberId,
+            isUpdated: { $ne: true },
+            isDeleted: { $ne: true },
         };
         if (contentStatus) {
             filterConditions.contentStatus = contentStatus;
@@ -323,86 +327,115 @@ module.exports.mutations = {
         return savedContent;
     },
 
-    updateTrainingModuleContentStatus: async ({ title, newStatus }, context) => {
+    updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-        const content = await TrainingModuleContent.findOne({
-            'title.value': title,
-            subscriber: subscriberId
-        });
         const invalidUpdates = [];
+        const updatedContents = [];
 
-        if (!content) {
-            return {
-                success: false,
-                message: "Content not found.",
-                invalidUpdates: [{
-                    name: title,
-                    reason: "Content not found."
-                }]
-            };
-        }
+        for (const id of ids) {
+            const content = await TrainingModuleContent.findOne({
+                _id: id,
+                subscriber: subscriberId,
+                isUpdated: { $ne: true },
+            });
 
-        const validUpdate = (() => {
-            if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
+            if (!content) {
                 invalidUpdates.push({
-                    name: title,
-                    reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                    id: id,
+                    reason: "Content not found."
+                });
+                continue;
+            }
+
+            const validUpdate = (() => {
+                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
+                    invalidUpdates.push({
+                        name: title,
+                        reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                    });
+                    return false;
+                }
+                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
+                    return true;
+                }
+                if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
+                    return true;
+                }
+                if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
+                    return true;
+                }
+                if (content.ContentType === 'QUIZ' && content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
+                    return true;
+                }
+                invalidUpdates.push({
+                    id: id,
+                    reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
                 });
                 return false;
-            }
-            if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
-                return true;
-            }
-            if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
-                return true;
-            }
-            invalidUpdates.push({
-                name: title,
-                reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
-            });
-            return false;
-        })();
+            })();
 
-        if (!validUpdate) {
-            return {
-                success: false,
-                message: "Invalid Content status transition.",
-                invalidUpdates,
-            };
+            if (!validUpdate) {
+                continue;
+            }
+
+            content.contentStatus = newStatus;
+            content.updatedBy = userId;
+            content.updatedAt = new Date();
+            content.modifiedDate = new Date();
+            await content.save();
+
+            updatedContents.push(content);
         }
 
-        content.contentStatus = newStatus;
-        content.updatedBy = userId;
-        content.updatedAt = new Date();
-        await content.save();
-
         return {
-            success: true,
-            message: `Content status successfully updated to ${newStatus}.`,
-            updatedContent: content,
+            success: invalidUpdates.length === 0,
+            message: invalidUpdates.length === 0
+                ? `All content statuses updated to ${newStatus}.`
+                : `Some content statuses could not be updated.`,
+            updatedContents,
+            invalidUpdates
         };
     },
 
-    deleteTrainingModuleContentByID: async ({ id }, context) => {
-        const { subscriberId } = AuthUser(context);
-        const content = await TrainingModuleContent.findOneAndDelete({
-            _id: id,
-            subscriber: subscriberId,
+    deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        const invalidDeletes = [];
 
-        });
+        for (const id of ids) {
+            try {
+                const content = await TrainingModuleContent.findOne({
+                    _id: id,
+                    subscriber: subscriberId,
+                    contentStatus: 'RETIRED',
+                });
 
-        if (!content) {
-            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+                if (!content) {
+                    invalidDeletes.push({
+                        id,
+                        reason: "Content not found.",
+                    });
+                    continue;
+                }
+
+                content.isDeleted = true;
+                content.updatedAt = new Date();
+                content.updatedBy = userId;
+                content.modifiedDate = new Date();
+                await content.save();
+            } catch (error) {
+                invalidDeletes.push({
+                    id,
+                    reason: `Error deleting content: ${error.message}`,
+                });
+            }
         }
+
         return {
-            success: true,
-            message: "Content deleted successfully."
+            success: invalidDeletes.length === 0,
+            message: invalidDeletes.length === 0
+                ? "All content deleted successfully."
+                : "Some content could not be deleted.",
+            invalidDeletes,
         };
     },
 
@@ -421,16 +454,32 @@ module.exports.mutations = {
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
 
+            function streamToBuffer(stream) {
+                return new Promise((resolve, reject) => {
+                    const chunks = [];
+                    stream.on('data', (chunk) => chunks.push(chunk));
+                    stream.on('end', () => resolve(Buffer.concat(chunks)));
+                    stream.on('error', reject);
+                });
+            }
+
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
 
                 if (fileExtension === 'ppt' || fileExtension === 'pptx') {
                     const readStream = mediaFile.createReadStream();
-                    const pptData = new pptx2json(readStream);
-                    const pptSlides = pptData.slides ? pptData.slides.length : 0;
+                    const buffer = await streamToBuffer(readStream);
 
-                    console.log("pptData", pptData);
-                    console.log("Total Slides:", pptSlides);
+                    const zip = await JSZip.loadAsync(buffer);
+
+                    const slideFolder = zip.folder('ppt/slides');
+                    const slideFiles = slideFolder.file(/\/slide\d+\.xml$/);
+
+                    slideFiles.forEach(file => console.log(`Matched slide file: ${file.name}`));
+
+                    const actualSlideCount = slideFiles.length;
+
+                    console.log(`Total number of actual slides: ${actualSlideCount}`);
 
                 }
                 return allowedFileFormats.includes(fileExtension);
@@ -459,16 +508,6 @@ module.exports.mutations = {
 
             if (fileFile && !validateFileFormat(fileFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
-
-            const existingContent = await TrainingModuleContent.findOne({
-                $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
-                })),
-            }).lean().select("_id");
-
-            if (existingContent) {
-                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
             }
 
             if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
@@ -559,6 +598,17 @@ module.exports.mutations = {
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
+        const existingContent = await TrainingModuleContent.findOne({
+            _id: input._id ?? undefined,
+            subscriber: subscriberId,
+            UID: input.UID ?? undefined,
+            isUpdated: false
+        });
+
+        if (!existingContent) {
+            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+        }
+
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
@@ -568,7 +618,7 @@ module.exports.mutations = {
 
         let pptSlides = 0;
 
-        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
+        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
         const validateFileFormat = async (mediaFile) => {
             const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
@@ -577,10 +627,6 @@ module.exports.mutations = {
                 const readStream = mediaFile.createReadStream();
                 const pptData = new pptx2json(readStream);
                 const pptSlides = pptData.slides ? pptData.slides.length : 0;
-
-                console.log("pptData", pptData);
-                console.log("Total Slides:", pptSlides);
-
             }
             return allowedFileFormats.includes(fileExtension);
         };
@@ -610,30 +656,22 @@ module.exports.mutations = {
             throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
         }
 
-        const existingContent = await TrainingModuleContent.findOne({
-            $or: input.title.map(x => ({
-                "title.value": { $regex: x.value.trim(), $options: "i" },
-            })),
-            _id: { $ne: input._id }
-        }).lean().select("_id");
+        const extractFileExtension = (url) => {
+            return url ? url.split('.').pop().toLowerCase() : null;
+        };
 
-        if (existingContent) {
-            throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
-        }
+        const validateMatchingFileExtension = (existingUrl, uploadedFile) => {
+            const existingExtension = extractFileExtension(existingUrl);
+            const uploadedExtension = typeof uploadedFile.filename === 'string' ? uploadedFile.filename.split('.').pop().toLowerCase() : '';
+
+            if (existingExtension !== uploadedExtension) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, `Uploaded file format (${uploadedExtension}) does not match existing content format (${existingExtension})`);
+            }
+        };
 
         if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
             input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
         }
-
-        // const existingContent = await TrainingModuleContent.findOne({
-        //     _id: input._id ?? undefined,
-        //     subscriber: subscriberId,
-        //     UID: input.UID ?? undefined
-        // });
-
-        // if (!existingContent) {
-        //     throw CustomError(ErrorName.CONTENT_NOT_FOUND);
-        // }
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
@@ -664,8 +702,6 @@ module.exports.mutations = {
         let isUpdated = false;
         let isMediaUpdated = false;
 
-        console.log("Existing")
-
         const fieldsToCheck = [
             "title",
             "description",
@@ -691,6 +727,9 @@ module.exports.mutations = {
                 updateData.thumbnail = null;
                 isUpdated = true;
             } else if (thumbnail) {
+                if (existingContent?.thumbnail) {
+                    validateMatchingFileExtension(existingContent.thumbnail, thumbnailFile);
+                }
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
@@ -701,8 +740,11 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            console.log("thumbnail");
+
             if (video) {
+                if (existingContent.videos?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.videos[0].url, videoFile);
+                }
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content-${existingContent._id}`,
@@ -717,8 +759,11 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            console.log("video");
+
             if (audio) {
+                if (existingContent.audios?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.audios[0].url, audioFile);
+                }
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
                     folderName: `audio-content-${existingContent._id}`,
@@ -733,8 +778,11 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            console.log("audio");
+
             if (image) {
+                if (existingContent.images?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.images[0].url, imageFile);
+                }
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
                     folderName: `image-content-${existingContent._id}`,
@@ -749,8 +797,11 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            console.log("image");
+
             if (file) {
+                if (existingContent.files?.[0]?.url) {
+                    validateMatchingFileExtension(existingContent.files[0].url, fileFile);
+                }
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
                     folderName: `file-content-${existingContent._id}`,
@@ -765,7 +816,7 @@ module.exports.mutations = {
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            console.log("file");
+
             if (scorm) {
                 let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
 
@@ -790,6 +841,11 @@ module.exports.mutations = {
                     subscriber: subscriberId,
                 });
                 savedContent = await savedContentData.save();
+
+                await TrainingModuleContent.findOneAndUpdate(
+                    { _id: input._id, subscriber: subscriberId },
+                    { $set: { isUpdated: true } }
+                )
             } else {
                 savedContent = await TrainingModuleContent.findOneAndUpdate(
                     { _id: existingContent._id, subscriber: subscriberId },
