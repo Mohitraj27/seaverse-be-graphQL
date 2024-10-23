@@ -41,6 +41,7 @@ const { v4: uuidv4 } = require('uuid')
 const UserHelper = require("../user_helper");
 const { Vessel } = require("../../vessle/vessel_model");
 const { parse } = require("json2csv");
+const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
 
 const sendCredentialMail = async ({ userData }) => {
@@ -512,7 +513,7 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
 
     if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
     else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-
+    
     return errors;
 }
 
@@ -1048,7 +1049,7 @@ module.exports = {
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
-        
+
         const existingUsers = await User.find({
             $or: [
                 { civilIdOrPassport: { $in: empIdsArray } },
@@ -1285,5 +1286,50 @@ module.exports = {
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+    },
+    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+
+        let validationErrors = [];
+
+        await new Promise((resolve, reject) => {
+            const stream = createReadStream();
+            const parser = csvParse({ columns: true, trim: true });
+            stream.pipe(parser);
+
+            let rowIndex = 0;
+            
+            parser.on("data", async (row) => {
+                
+                    validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+                    
+                    if (validationErrors.length > 0) {
+
+                        const createImportLog = await ImportLog.create({
+                            subscriber: subscriberId,
+                            uploadedBy: userId,
+                            fileName: newFileName,
+                            filePath: saveCSV,
+                            importStatus: "FAILED",
+                            description: `${validationErrors[0]}`
+                        })
+
+                        if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+                        
+
+                    } else {
+                        const formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
+                    }
+
+                    rowIndex++;
+
+            });
+
+            parser.on("end", resolve);
+            parser.on("error", reject);
+
+        });
+        
+        return validationErrors;
     }
 };

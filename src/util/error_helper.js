@@ -437,6 +437,7 @@ const formatError = error => {
 };
 
 const customError = (error, extra) => {
+    console.log({ error, extra });
     if (typeof error === "object" || extra?.length) {
         return new Error(JSON.stringify({ error, extra }));
     } else {

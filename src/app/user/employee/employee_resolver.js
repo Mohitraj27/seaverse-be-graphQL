@@ -480,8 +480,8 @@ module.exports.queries = {
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
-            
-        let startDate,endDate ;
+
+        let startDate, endDate;
         let filterConditions = {
             subscriber: subscriberId,
         };
@@ -611,25 +611,25 @@ module.exports.queries = {
             },
             ...(filterInput?.vesselName?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.name": {
-                                  $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.name": {
+                                $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.vesselType?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.typeOfVessel": {
-                                  $in: filterInput.vesselType.map((id) => ObjectId(id)),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.typeOfVessel": {
+                                $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.search
                 ? [
@@ -1201,7 +1201,6 @@ module.exports.mutations = {
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
 
             let users = [];
-            let errors = [];
 
             const emails = new Set();
             const empIds = new Set();
@@ -1214,54 +1213,14 @@ module.exports.mutations = {
 
             const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
 
-            await new Promise((resolve, reject) => {
-                const stream = createReadStream();
-                const parser = parse({ columns: true, trim: true });
-                stream.pipe(parser);
+            const errors = await EmployeeHelper.bulkValidationHelper(createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId,  subscriberId, newFileName, saveCSV);
 
-                let rowIndex = 0;
-
-                parser.on("data", async (row) => {
-                    try {
-
-                        const validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
-
-                        if (validationErrors.length > 0) {
-
-                            const createImportLog = await ImportLog.create({
-                                subscriber: subscriberId,
-                                uploadedBy: userId,
-                                fileName: newFileName,
-                                filePath: saveCSV,
-                                importStatus: "FAILED",
-                                description: `${validationErrors[0]}`
-                            })
-                            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-                            errors.push(`${validationErrors[0]}`);
-                            throw CustomError(
-                                ErrorName.VALIDATION_ERROR,
-                                `${validationErrors[0]}`
-                            )
-                        } else {
-                            const formatedData = mapCSVRowToUser(row);
-                            users.push(formatedData);
-                        }
-                    } catch (err) {
-                        errors.push(`${err.message}`);
-                    }
-                    rowIndex++;
-                });
-
-                parser.on("end", resolve);
-                parser.on("error", reject);
-            });
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
+            }
 
             const empIdsArray = Array.from(empIds);
             const emailsArray = Array.from(emails);
-
-            const response = {
-                message: "The bulk import is being processed in the background. You can continue working.",
-            };
 
             const child = fork('./src/app/user/employee/csv_import_process.js');
 
@@ -1270,12 +1229,15 @@ module.exports.mutations = {
             child.on('message', (message) => {
                 console.log('Message from child process:', message);
             });
-
+            
             child.on('error', (error) => {
                 console.error('Error in child process:', error);
             });
 
-            return response;
+            return {
+                status: "The bulk import is being processed in the background. You can continue working."
+            }
+
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);

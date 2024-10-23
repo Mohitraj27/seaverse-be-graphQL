@@ -228,7 +228,6 @@ module.exports.queries = {
                 }
             ]);
 
-
             const unregisteredUserGroups = await User.aggregate([
                 {
                     $match: {
