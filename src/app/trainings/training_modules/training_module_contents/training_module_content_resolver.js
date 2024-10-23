@@ -530,7 +530,6 @@ module.exports.mutations = {
             }
 
             if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-                console.log("thumbnail", thumbnailFile);
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
             }
 
@@ -630,7 +629,6 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -694,7 +692,7 @@ module.exports.mutations = {
                 input.totalQuestions = questionsIdArr.length;
 
                 if (input.percentageCriteria > score) {
-                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA, 'Percentage criteria should be less than the total score');
+                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
                     input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
                 }
@@ -722,7 +720,6 @@ module.exports.mutations = {
                 return savedContent;
             }
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -768,7 +765,6 @@ module.exports.mutations = {
         }
 
         if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-            console.log("thumbnail", thumbnailFile);
             throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
         }
 
@@ -846,9 +842,6 @@ module.exports.mutations = {
 
         for (const field of fieldsToCheck) {
             if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                console.log("input field", input[field]);
-                console.log("existing field", existingContent[field]);
-                console.log("yes");
                 isUpdated = true;
                 break;
             }
@@ -992,7 +985,6 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
