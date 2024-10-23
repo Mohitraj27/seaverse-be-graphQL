@@ -12,6 +12,8 @@ module.exports = {
             isActive: Boolean
             isPredefined: Boolean
             description : String
+            isDefault: Boolean
+            primaryRole: String
         }
         type SubRoleList {
             assignablePermissions: [Permission]
@@ -28,6 +30,8 @@ module.exports = {
             permissions: [Permission]
             isActive: Boolean
             description : String
+            isDefault: Boolean
+            primaryRole: String
         }
     `,
     queries: `

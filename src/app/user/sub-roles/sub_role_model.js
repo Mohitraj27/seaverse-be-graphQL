@@ -45,6 +45,14 @@ const subRoleSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        isDefault: {
+            type: Boolean,
+            default: true,
+        },
+        primaryRole: {
+            type: String,
+            ref: "Role",
+        }
     },
     { timestamps: true }
 );
