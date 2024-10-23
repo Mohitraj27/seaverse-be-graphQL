@@ -28,7 +28,7 @@ module.exports = {
         type TrainingModuleContent {
             _id: ID
             UID: String
-            contentType: String
+            contentType: TrainingModuleContentType
             duration: String
             contentStatus: TrainingModuleContentStatus
             quiz: [QuestionNew]
