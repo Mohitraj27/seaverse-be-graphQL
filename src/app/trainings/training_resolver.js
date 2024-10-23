@@ -27,8 +27,8 @@ const Permission = require("../user/sub-roles/permission.json");
 const ApprovalStatus = require("./approval_status.json");
 const LogType = require("../logs/log_type.json");
 const ScromHelper = require("./scrom_helper");
-const ContentStatus = require("./training_modules/training_module_contents/content_status.json")  
-const {queries} = require("./training_modules/training_module_contents/training_module_content_resolver")
+const ContentStatus = require("./training_modules/training_module_contents/content_status.json")
+const { queries } = require("./training_modules/training_module_contents/training_module_content_resolver")
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -150,14 +150,27 @@ module.exports.mutations = {
 
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
+
         if (input.images) {
             input.images = await TrainingHelper.uploadTrainingImages({
                 images: input.images,
             });
         }
+        
+        const moduleContentIds = [];
 
-        if (input.trainingModuleContents.length) {
-            let moduleContentIds = input.trainingModuleContents;
+        if (input.trainingModules?.length) {
+            for (const trainingModule of input.trainingModules) {
+                if (trainingModule.trainingModuleContents) {
+                    for (const trainingModuleContent of trainingModule.trainingModuleContents) {
+                        moduleContentIds.push(trainingModuleContent._id);
+                    }
+                }
+            }
+        }
+
+        if (moduleContentIds.length > 0) {
+
             const getTrainingModuleContentStatus = await TrainingModuleContent.find({
                 _id: { $in: moduleContentIds },
             }).select("contentStatus");
@@ -165,15 +178,18 @@ module.exports.mutations = {
                 content => content.contentStatus === ContentStatus.PUBLISHED
             );
             if (!areAllPublished) {
-                throw new Error("Some contents are not published");
+                throw CustomError(ErrorName.NOT_ALL_PUBLISHED, "Selected training modules should be published!");
             }
+
         }
-        
+
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, session },
                 context
             );
+
             savedTraining.trainingModules = [];
 
             if (input.trainingModules?.length) {
@@ -189,30 +205,6 @@ module.exports.mutations = {
                             },
                             context
                         );
-
-                    savedTrainingModule.trainingModuleContents = [];
-
-                    if (trainingModule.trainingModuleContents?.length) {
-                        for (const trainingModuleContent of trainingModule.trainingModuleContents) {
-                            const savedTrainingModuleContent =
-                                await TrainingModuleContentHelper.createOrUpdateTrainingModuleContent(
-                                    {
-                                        input: {
-                                            ...trainingModuleContent,
-                                            training: savedTraining,
-                                            trainingModule: savedTrainingModule,
-                                        },
-                                        session,
-                                    },
-                                    context
-                                );
-                            savedTrainingModule.trainingModuleContents.push(
-                                savedTrainingModuleContent
-                            );
-                        }
-                    }
-
-                    savedTraining.trainingModules.push(savedTrainingModule);
                 }
             }
 
@@ -222,24 +214,6 @@ module.exports.mutations = {
                         _id: { $in: input.deletedTrainingModules },
                         subscriber: subscriberId,
                         training: savedTraining._id,
-                    },
-                    { lean: true, session }
-                );
-            }
-
-            if (input.deletedTrainingModuleContents?.length) {
-                await TrainingModuleContent.deleteMany(
-                    {
-                        subscriber: subscriberId,
-                        training: savedTraining._id,
-                        $or: [
-                            {
-                                _id: { $in: input.deletedTrainingModuleContents },
-                            },
-                            {
-                                trainingModule: { $in: input.deletedTrainingModules },
-                            },
-                        ],
                     },
                     { lean: true, session }
                 );
@@ -276,7 +250,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        
 
         return savedTraining;
     },
@@ -284,7 +257,7 @@ module.exports.mutations = {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const deletedTraining = await DbTransactionHelper.performDbTransaction(async session => {
-            
+
             const deletedTraining = await Training.findOneAndDelete(
                 { _id: id, subscriber: subscriberId },
                 { lean: true, session }

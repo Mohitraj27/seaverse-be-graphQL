@@ -5,6 +5,7 @@ const { TrainingModule } = require("./training_module_model");
 
 module.exports = {
     createOrUpdateTrainingModule: async ({ input, session }, context) => {
+        
         const { userId, subscriberId } = AuthUser(context);
 
         const trainingModuleFilterConditions = {
@@ -19,6 +20,7 @@ module.exports = {
         if (input.description) trainingModuleUpdateData.description = input.description;
         if (input.displayPosition) trainingModuleUpdateData.displayPosition = input.displayPosition;
         if (typeof input.isActive === "boolean") trainingModuleUpdateData.isActive = input.isActive;
+        if (input.trainingModuleContents) trainingModuleUpdateData.trainingModuleContents = input.trainingModuleContents;
 
         const savedTrainingModule = await TrainingModule.findOneAndUpdate(
             trainingModuleFilterConditions,
