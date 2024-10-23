@@ -83,15 +83,16 @@ module.exports = {
         }
         input TrainingModuleContentInput {
             _id: ID
-            contentType: TrainingModuleContentType!
+            UID: String
+            contentType: TrainingModuleContentType
             
             duration: String
             
-            contentStatus: TrainingModuleContentStatus!
+            contentStatus: TrainingModuleContentStatus
             quiz: QuizContentQuizInput @deprecated(reason: "uses quizContent")
             quizContent: ID
             
-            title: [LocalisedDataInput]!
+            title: [LocalisedDataInput]
             description: [LocalisedDataInput]
             videos: [MultiMediaInfoInput]
             audios: [MultiMediaInfoInput]

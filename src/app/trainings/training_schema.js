@@ -88,7 +88,7 @@ module.exports = {
             manadatoryModules: String  
             classroomModule: ClassroomModule
             authorName: String
-            }
+        }
         type Scorm {
             type:String
             launchUrl:String
@@ -156,7 +156,6 @@ module.exports = {
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents: [ID]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
@@ -187,7 +186,7 @@ module.exports = {
             manadatoryModules: String 
             classroomModule: ClassroomModuleInput
             isCertificate : Boolean
-            }
+        }
         input TrainingFilterInput {
             search: String
             trainingCategory: ID

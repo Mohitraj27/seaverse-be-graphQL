@@ -1,4 +1,4 @@
-const { JwtHelper, CryptoHelper } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
 const {
     CustomError,
     ErrorName,
@@ -29,22 +29,25 @@ const { GroupMember } = require("../group-user/group_member_model");
 const { ImportLog } = require("../import-log/import_log_model");
 const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
-const { sendNotificationOn } = require("../../user/user-profile/user_profile_helper");
+const { sendNotificationOn, generateRandomString } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require('uuid')
-async function fetchVesselUsersByStatus(vesselStatus,vesselType,vesselObjectId) {
+const { SubRole } = require('../sub-roles/sub_role_model');
+const { fork } = require('child_process');
+
+async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
-        userVesselFilter.vesselStatus = { $in: vesselStatus }; 
+        userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
     if (vesselType && vesselType.length > 0) {
         userVesselFilter.vesselType = { $in: vesselType };
     }
     if (vesselObjectId) {
-        userVesselFilter.vesselObjectId = vesselObjectId; 
+        userVesselFilter.vesselObjectId = vesselObjectId;
     }
     const userVessels = await UserVessel.find(userVesselFilter).select('user');
-    const userIds = userVessels.map(vessel => vessel.user);  
-    return userIds; 
+    const userIds = userVessels.map(vessel => vessel.user);
+    return userIds;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -479,13 +482,48 @@ module.exports.queries = {
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
+        let startDate, endDate;
         let filterConditions = {
             subscriber: subscriberId,
         };
         if (filterInput?.organization) {
             filterConditions.organization = filterInput?.organization;
         }
-
+        if (filterInput?.lastSeen) {
+            const today = Moment();
+            switch (filterInput.lastSeen) {
+                case "TODAY":
+                    startDate = today.startOf('day').toDate();
+                    endDate = today.endOf('day').toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, 'day').startOf('day').toDate();
+                    endDate = today
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, 'days').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, 'days').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, 'months').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, 'months').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, 'year').startOf('day').toDate();
+                    endDate = Moment().toDate();
+                    break;
+                default:
+                    break;
+            }
+        }
         if (filterInput?.regType && filterInput?.regType != 0) {
             filterConditions.regType = filterInput?.regType;
         }
@@ -555,8 +593,8 @@ module.exports.queries = {
             },
             {
                 $lookup: {
-                    from: "vessels",  
-                    localField: "user.currentVessel", 
+                    from: "vessels",
+                    localField: "user.currentVessel",
                     foreignField: "_id",
                     as: "currentVessel",
                 },
@@ -564,7 +602,7 @@ module.exports.queries = {
             {
                 $unwind: {
                     path: "$currentVessel",
-                    preserveNullAndEmptyArrays: true, 
+                    preserveNullAndEmptyArrays: true,
                 }
             },
             {
@@ -572,13 +610,12 @@ module.exports.queries = {
                     "currentVessel.isActive": { $ne: false },
                 }
             },
-            ...(filterInput?.vesselName
+            ...(filterInput?.vesselName?.length > 0
                 ? [
                     {
                         $match: {
                             "currentVessel.name": {
-                                $regex: ".*" + filterInput.vesselName + ".*",
-                                $options: "i",
+                                $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
                             },
                         },
                     },
@@ -586,14 +623,14 @@ module.exports.queries = {
                 : []),
             ...(filterInput?.vesselType?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.typeOfVessel": {
-                                  $in: filterInput.vesselType.map((id) => ObjectId(id)),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.typeOfVessel": {
+                                $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.search
                 ? [
@@ -673,6 +710,15 @@ module.exports.queries = {
                     {
                         $match: {
                             "user.isRegistered": filterInput.isRegistered,
+                        },
+                    },
+                ]
+                : []),
+            ...(filterInput?.lastSeen
+                ? [
+                    {
+                        $match: {
+                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
                         },
                     },
                 ]
@@ -1155,11 +1201,10 @@ module.exports.mutations = {
 
             if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
 
-            const users = [];
-            const errors = [];
+            let users = [];
 
-            let emails = new Set();
-            let empIds = new Set();
+            const emails = new Set();
+            const empIds = new Set();
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
@@ -1169,304 +1214,31 @@ module.exports.mutations = {
 
             const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
 
-            await new Promise((resolve, reject) => {
-                const stream = createReadStream();
-                const parser = parse({ columns: true, trim: true });
-                stream.pipe(parser);
-
-                let rowIndex = 0;
-
-                parser.on("data", async (row) => {
-                    try {
-                        const validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
-
-                        if (validationErrors.length > 0) {
-
-                            const createImportLog = await ImportLog.create({
-                                subscriber: subscriberId,
-                                uploadedBy: userId,
-                                fileName: newFileName,
-                                filePath: saveCSV,
-                                importStatus: "FAILED",
-                                description: `${validationErrors[0]}`
-                            })
-                            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-                            errors.push(`${validationErrors[0]}`);
-                            throw CustomError(
-                                ErrorName.VALIDATION_ERROR,
-                                `${validationErrors[0]}`
-                            )
-                        } else {
-                            const formatedData = mapCSVRowToUser(row);
-                            users.push(formatedData);
-                        }
-                    } catch (err) {
-                        errors.push(`${err.message}`);
-                    }
-                    rowIndex++;
-                });
-
-                parser.on("end", resolve);
-                parser.on("error", reject);
-            });
+            const errors = await EmployeeHelper.bulkValidationHelper(createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId,  subscriberId, newFileName, saveCSV);
 
             if (errors.length > 0) {
-
-                const createImportLog = await ImportLog.create({
-                    subscriber: subscriberId,
-                    uploadedBy: userId,
-                    fileName: newFileName,
-                    filePath: saveCSV,
-                    importStatus: "FAILED",
-                    description: `${errors[0]}`
-                })
-
-                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    `${errors[0]}`
-                );
-
+                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
             }
 
-            const existingUsers = await User.find({
-                $or: [
-                    { civilIdOrPassport: { $in: Array.from(empIds) } },
-                    { email: { $in: Array.from(emails) } }
-                ]
-            }).lean();
+            const empIdsArray = Array.from(empIds);
+            const emailsArray = Array.from(emails);
 
-            const existingEmailsInDB = existingUsers.map(user => user.email);
+            const child = fork('./src/app/user/employee/csv_import_process.js');
 
-            const existingEmpIdsInDB = existingUsers.map(user => ({
-                [user.civilIdOrPassport]: user.email
-            }));
+            child.send({ users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV });
 
-            const updates = [];
-            const inserts = [];
-
-            let userIndex = 0;
-
-            const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
-
-            const vesselMap = new Map(
-                existingVessels.map(vessel => [
-                    vessel.imoNumber,
-                    { id: vessel._id }
-                ])
-            );
-
-            for (const user of users) {
-
-                const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
-
-                if (existingEmpIdsMap) {
-
-                    const email = existingEmpIdsMap[user.civilIdOrPassport];
-
-                    if (email !== user.email && existingEmailsInDB.includes(user.email)) {
-
-                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
-                        break;
-
-                    } else {
-
-                        console.log(vesselMap.get(user.imoNumber).id);
-
-
-                        updates.push({
-                            updateOne: {
-                                filter: { civilIdOrPassport: user.civilIdOrPassport },
-                                update: {
-                                    $set: {
-                                        firstName: user.firstName,
-                                        lastName: user.lastName,
-                                        email: user.email,
-                                        vesselStatus: user.vesselStatus,
-                                        currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
-                                    },
-                                },
-                                upsert: true,
-                            },
-                        });
-
-                    }
-
-                } else {
-
-                    if (existingEmailsInDB.includes(user.email)) {
-
-                        errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
-                        break;
-
-                    } else {
-
-                        inserts.push({
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            email: user.email,
-                            vesselStatus: user.vesselStatus,
-                            currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
-                            password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
-                        });
-
-                    }
-                }
-                userIndex++;
-            };
-
-            if (errors.length > 0) {
-
-                const createImportLog = await ImportLog.create({
-                    subscriber: subscriberId,
-                    uploadedBy: userId,
-                    fileName: newFileName,
-                    filePath: saveCSV,
-                    importStatus: "FAILED",
-                    description: `${errors[0]}`
-                })
-
-                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    `${errors[0]}`
-                );
-
-            }
-
-            let bulkInsertUsers;
-            let bulkUpdateUsers;
-
-            let insertedUsers;
-            let updatedUsers;
-
-
-            const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-
-                bulkInsertUsers = await User.insertMany(inserts, { session: session });
-
-                insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
-
-                bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
-                const upIds = bulkUpdateUsers.result.upserted;
-                const updatedIds = upIds.map(item => item._id);
-                updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
-
-                const designationMap = new Map(
-                    existingDesignations.map(designation => [
-                        designation.name,
-                        { id: designation._id }
-                    ])
-                );
-
-                const bulkId = uuidv4();
-                const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
-
-                if (allUpdatedUsers.length > 0) {
-
-                    const userVesselsInsert = allUpdatedUsers.map(user => {
-
-                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                        return {
-                            updateOne: {
-                                filter: { user: user },
-                                update: {
-                                    $set: {
-                                        user: user,
-                                        vessel: vesselMap.get(originalUserData.imoNumber).id,
-                                        isActive: true,
-                                    }
-                                },
-                                upsert: true
-                            }
-                        };
-
-                    })
-
-
-                    await UserVessel.bulkWrite(userVesselsInsert, { session });
-
-
-                    const employeesToInsert = allUpdatedUsers.map(user => {
-                        const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                        // invitationList.push({
-                        //     userData: user
-                        // });
-                        return {
-                            updateOne: {
-                                filter: { user: user },
-                                update: {
-                                    $set: {
-                                        user: user,
-                                        subscriber: subscriberId,
-                                        empDesignation: designationMap.get(originalUserData.designation).id,
-                                        bulkId: bulkId,
-                                        regType: 2
-                                    }
-                                },
-                                upsert: true
-                            }
-                        };
-                    });
-
-                    await Employee.bulkWrite(employeesToInsert, { session });
-
-                    const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
-
-                    const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
-                        const UID = await EmployeeHelper.generateEmployeeUID({ subscriberId, session });
-                        return {
-                            updateOne: {
-                                filter: { _id: employee._id },
-                                update: { UID },
-                                upsert: false
-                            }
-                        };
-                    }));
-
-                    await Employee.bulkWrite(uidUpdates, { session });
-
-                } else {
-
-                    const createImportLog = await ImportLog.create({
-                        subscriber: subscriberId,
-                        uploadedBy: userId,
-                        fileName: newFileName,
-                        filePath: saveCSV,
-                        importStatus: "FAILED",
-                        description: `No new data created/updated`
-                    })
-
-                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-                    throw CustomError(
-                        ErrorName.VALIDATION_ERROR,
-                        `No new data created/updated`
-                    );
-                }
-
-
+            child.on('message', (message) => {
+                console.log('Message from child process:', message);
             });
-
-
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: saveCSV,
-                importStatus: "SUCCESS",
-                description: `New data(s) created/updated`
-            })
-
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+            
+            child.on('error', (error) => {
+                console.error('Error in child process:', error);
+            });
 
             return {
-                count: insertedUsers.length + updatedUsers.length,
-            };
+                status: "The bulk import is being processed in the background. You can continue working."
+            }
+
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
@@ -1515,6 +1287,8 @@ module.exports.mutations = {
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             const savedEmployees = [];
+
+            const generatePassword = generateRandomString(10);
 
             input.user.password = input.user.password ? await CryptoHelper.hash(input.user.password, 10) : await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10);
 
@@ -1579,7 +1353,7 @@ module.exports.mutations = {
 
         return {
             status: true,
-            message: "User created successfully",
+            message: "User created successfully!",
         };
 
     },
@@ -1883,70 +1657,50 @@ module.exports.mutations = {
 
         return savedEmployees;
     },
-};
+    assignSubroleToLearners: async ({ input }, context) => {
 
-const emails = new Set();
-async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
-
-    const errors = [];
-
-    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
-
-    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
-    else if (emails.has(row["Email"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
-    } else {
-        emails.add(row["Email"]);
-    }
-
-    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
-    else if (empIds.has(row["EmployeeID"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
-    } else {
-        empIds.add(row["EmployeeID"]);
-    }
-
-    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
-
-    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
-    if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
-
-    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-
-    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
-    else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-
-    return errors;
-}
-
-function mapCSVRowToUser(row) {
-    const mandatoryFields = [
-        "FirstName",
-        "Email",
-        "Designation",
-        "EmployeeID",
-        "VesselIMONumber",
-        "Status"
-    ];
-
-    Object.keys(row).forEach(key => {
-        if (!mandatoryFields.includes(key)) {
-            const fieldName = key;
-            let fieldValue = row[key];
+        const { role, userId, primaryRole, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);       
+        if (!SubRoleHelper.hasPermission({currentRole: role,primaryRole: primaryRole, })) { 
+            throw CustomError(ErrorName.FORBIDDEN);
         }
-    });
 
-    const result = {
-        firstName: row["FirstName"],
-        lastName: row["LastName"] ?? "",
-        email: row["Email"],
-        designation: row["Designation"],
-        civilIdOrPassport: row["EmployeeID"],
-        imoNumber: row["VesselIMONumber"],
-        vesselStatus: row["Status"],
-        imoNumber: row["VesselIMONumber"],
-    };
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+        try{
+            const { users, subrole } = input;
+            if (role !== 'ADMIN' && primaryRole[0] !== 'ADMIN' ) {
+                throw new Error('Unauthorized: Only admins can assign subroles');
+              }
+              const validSubRole = await SubRole.findById(subrole);
+              if(!validSubRole ){
+                throw new Error('Invalid subrole');
+              }
+              const usersToUpdate = await User.find({ _id: { $in: users } });
+              if (!usersToUpdate || usersToUpdate.length === 0) {
+                throw new Error('No valid users found');
+              }
+              await Promise.all(
+                usersToUpdate.map(async (user) => {
+                if (!user.subRoles) {
+                    user.subRoles = [];
+                  }
+                if (!user.subRoles.includes(subrole)) {
+                    user.subRoles.push(subrole);
+                  }
+                  await user.save();
+                })
+              );
+            return {
+                success: true,
+                message: 'Subrole successfully assigned to all learners',
+              };
+        }
+        catch(error){
+            return {
+                success: false,
+                message: `Error assigning subrole: ${error.message}`,
+              };
+        }   
+    }
 
-    return result;
-}
+};

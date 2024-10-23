@@ -68,6 +68,7 @@ module.exports = {
         }
         type BulkCsvUserResponse {
             count: Int
+            status: String
         }
         type importlogs {
             date_of_import: String
@@ -142,6 +143,7 @@ module.exports = {
             ADMIN
             AUTHOR
             EMPLOYEE
+            LEARNER
         }
         enum AssignChange {
             Assign
@@ -157,6 +159,15 @@ module.exports = {
             ONSHORE
             ASSIGNED
         }
+        enum LastSeenEnum {
+            TODAY
+            YESTERDAY
+            LAST_7_DAYS
+            LAST_30_DAYS
+            LAST_3_MONTHS
+            LAST_6_MONTHS
+            LAST_YEAR
+        }
         input manageRoleInput {
             users: [ID!]!
             change: AssignChange!
@@ -171,6 +182,14 @@ module.exports = {
             users: [ID!]!
             type: deleteResponseType!
         }
+        input AssignSubroleInput {
+            users: [ID!]!
+            subrole: ID!
+        }
+        type AssignSubroleResponse {
+            success: Boolean
+            message: String
+        }
         type manageRoleResponse {
             count: Int
             success: Boolean
@@ -184,8 +203,9 @@ module.exports = {
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
-            vesselName: String
+            vesselName: [String]
             vesselType: [ID]
+            lastSeen: LastSeenEnum
         }
         input deleteRequestFilterInput {
             search: String
@@ -248,5 +268,6 @@ module.exports = {
         changeRegisterEmployees(input: changeRegisterInput!): BulkChangeRegisterResponse!
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
+        assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
     `,
 };

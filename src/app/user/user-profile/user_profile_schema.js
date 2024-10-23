@@ -24,8 +24,13 @@ module.exports = {
         input DeleteRequestInput {
             reasonForDelete: String!
         }
+        type menuItem{
+            role_name: String!
+            platform : String!
+        }
         type UserProfile {
-            user: User
+            user: User,
+            menuItem: [menuItem]
         }
         type forgetPasswordRes {
             success: Boolean
