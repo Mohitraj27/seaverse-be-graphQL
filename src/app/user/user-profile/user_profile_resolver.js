@@ -270,7 +270,7 @@ module.exports.queries = {
         let errors = [];
 
         const result = await AwsHelper.sendEmail({
-            receiverEmail: email,
+            receiverEmail: user.email,
             subject: "Reset Password",
             htmlContent: `<!DOCTYPE html>
                 <html lang="en">

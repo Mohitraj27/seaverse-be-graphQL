@@ -129,7 +129,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Designation',
+                        typeOfGroup: 'designation',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -173,7 +173,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Role',
+                        typeOfGroup: 'role',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -217,7 +217,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Registered Users',
+                        typeOfGroup: 'regStatus',
                         description: {
                             $concat: [
                                 "All Registered users."
@@ -259,7 +259,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Unregistered Users',
+                        typeOfGroup: 'regStatus',
                         description: {
                             $concat: [
                                 "All Unregistered users."
@@ -315,7 +315,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Sub Role',
+                        typeOfGroup: 'subRole',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -378,7 +378,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        groupType: 'Vessel',
+                        groupType: 'vessel',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -429,7 +429,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Vessel Status',
+                        typeOfGroup: 'vesselStatus',
                         description: {
                             $concat: [
                                 "All the members in ",
@@ -503,7 +503,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'Vessel Type',
+                        typeOfGroup: 'vesselType',
                         description: {
                             $concat: [
                                 "All the ",
@@ -704,16 +704,35 @@ module.exports.mutations = {
         // check group typ
 
         if (!input.groupType) {
-            throw CustomError(ErrorName.GROUP_TYPE_REQUIRED);
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
+        }
+
+        if (!input.list || input.list.length <= 0) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
         if (input.groupType === "GROUP") {
 
-            if (!input.groups) {
-                throw CustomError(ErrorName.GROUPS_REQUIRED);
+            // { typeOfGroup: "designation", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
+            // { typeOfGroup: "vessel", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
+            // { typeOfGroup: "vesselType", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
+            // { typeOfGroup: "vesselStatus", id: "ASSIGNED/ONBOARDED/ONSHORE" }
+            // { typeOfGroup: "subRole", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
+            // { typeOfGroup: "customGroup", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
+            // { typeOfGroup: "role", id: "Admin" }
+            // { typeOfGroup: "regStatus", id: "true/false" }
+
+
+
+            for (list of input.list) {
+
+                let typeOfGroup = list.typeOfGroup;
             }
 
-            // Go through input.groups and if groups is groups: [ { groupName: String, groupId: ObjectId }]
+            let getDesignation
+            if (typeOfGroup === "designation") {
+
+            }
 
         }
 

@@ -22,6 +22,14 @@ module.exports = {
              Customgroups
              Autosyncedgroups
         }
+        enum createGroupType {
+            GROUP
+            MEMBER
+        }
+        input createGroupInput {
+            groupType: createGroupType!
+            list: [String]
+        }
         type GroupList {
             groups: [Group]
             totalCount: Int
@@ -64,7 +72,7 @@ module.exports = {
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
     `,
     mutations: `
-        createOrUpdateGroup(input: GroupInput!): GroupResponse!
+        createOrUpdateGroup(input: createGroupInput!): GroupResponse!
         deleteGroup(ids: [ID!]!): DeleteGroupResponse!
     `,
 };
