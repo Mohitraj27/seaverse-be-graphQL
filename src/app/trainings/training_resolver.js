@@ -37,8 +37,8 @@ module.exports.queries = {
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
-        let filterConditions = { subscriber: subscriberId };
-
+        let filterConditions = { subscriber: subscriberId , isDeleted:false };
+        let sortOrder = { createdAt: "descending" };
         if (filterInput) {
             if (filterInput.trainingCategory)
                 filterConditions.trainingCategories = filterInput.trainingCategory;
@@ -57,6 +57,14 @@ module.exports.queries = {
 
             if (typeof filterInput.isActive === "boolean")
                 filterConditions.isActive = filterInput.isActive;
+
+            if (filterInput.status)
+                filterConditions.status = filterInput.status;
+            if (filterInput.dateFilter === -1) {
+                sortOrder = { createdAt: "descending" };
+            } else {
+                sortOrder = { createdAt: "ascending" };
+            }
         }
 
         return Training.aggregatePaginate(
@@ -113,7 +121,7 @@ module.exports.queries = {
             {
                 offset: skip,
                 limit,
-                sort: { createdAt: "descending" },
+                sort: sortOrder,
                 customLabels: {
                     docs: "trainings",
                     totalDocs: "totalCount",
@@ -256,27 +264,25 @@ module.exports.mutations = {
     deleteTraining: async ({ id }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const deletedTraining = await DbTransactionHelper.performDbTransaction(async session => {
-
-            const deletedTraining = await Training.findOneAndDelete(
-                { _id: id, subscriber: subscriberId },
-                { lean: true, session }
-            ).populate({ path: "trainingModules", populate: "trainingModuleContents" });
+        
+            const deletedTraining = await Training.findOne({
+                _id: id,
+                subscriber: subscriberId,
+            });
 
             if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
 
-            await TrainingModule.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
+            if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
+                throw CustomError(ErrorName.FORBIDDEN,`Deleting a course with status ${deletedTraining.status} is not allowed`);
+            }
 
-            await TrainingModuleContent.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
-
-            return deletedTraining;
-        });
+            try {
+                deletedTraining.isDeleted = true;
+                deletedTraining.isActive = false;
+                deletedTraining.save();
+            } catch {
+                throw CustomError(ErrorName.FAILED, `Failed to delete course`);
+            }
 
         if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
         TrainingHelper.sendNotificationOnCRUD({
@@ -308,28 +314,61 @@ module.exports.mutations = {
 
         return deletedTraining;
     },
-    updateTrainingStatus: async ({ id, isActive }, context) => {
+    updateTrainingStatus: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const savedTraining = await Training.findOneAndUpdate(
-            {
-                _id: id,
+
+            const currentTraining = await Training.findOne({
+                _id: input.id,
                 subscriber: subscriberId,
-            },
-            { isActive },
-            { new: true, lean: true }
-        ).select("title approvalStatus isActive");
+            })
+            if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
+            const currentStatus = currentTraining.status;
 
-        if (!savedTraining) throw CustomError(ErrorName.NOT_FOUND);
+            const updateFields = {};
+            if (typeof input.isActive !== 'undefined') {
+                updateFields.isActive = input.isActive; 
+            } else {
+                updateFields.isActive = currentIsActive; 
+            }
+            if (input.newStatus) {
+                const newStatus = input.newStatus;
+                const invalidUpdates = [];
+                if (currentStatus === ContentStatus.PUBLISHED && newStatus === ContentStatus.DRAFT) {
+                    invalidUpdates.push({
+                        name: currentTraining.title,
+                        reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                    });
+                    throw new Error("Invalid status transition: Published to Draft is not allowed.");
+                }
+                else if (currentStatus === ContentStatus.PUBLISHED && newStatus === ContentStatus.RETIRED) {
+                    updateFields.status = newStatus;
+                }
+                else if (currentStatus === ContentStatus.DRAFT && newStatus === ContentStatus.PUBLISHED) {
+                    updateFields.status = newStatus;
+                }
+                else if (currentStatus === ContentStatus.RETIRED && newStatus === ContentStatus.PUBLISHED) {
+                    updateFields.status = newStatus;
+                } else {
+                    invalidUpdates.push({
+                        name: currentTraining.title,
+                        reason: "Invalid status transition."
+                    });
+                    throw new Error("Invalid status transition.");
+                }
+            }
 
-        TrainingHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            training: savedTraining,
-            action: isActive ? "ENABLED" : "DISABLED",
-            createdBy: userInfo,
-        });
+            currentTraining.status = updateFields.status;
+            currentTraining.updatedBy = userId;
+            currentTraining.updatedAt = new Date();
+            currentTraining.modifiedDate = new Date();
+            await currentTraining.save();   
 
-        return savedTraining;
+            if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+       
+
+        return currentTraining;
     },
     approveOrRejectTraining: async ({ id, approvalStatus }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);

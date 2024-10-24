@@ -60,7 +60,7 @@
                 default: null
             },
             manadatoryModules: {
-                type:String,
+                type: Number,
             },
             images: [
                 {
@@ -116,10 +116,9 @@
             },
             isCertificate:{
                 type : Boolean,
-                required : true
             },
             price: Number,
-            durationHours: { type: Number, required: true },
+            durationHours: { type: Number},
             certifications: [
                 {
                     url: String,
@@ -134,6 +133,7 @@
             courseId: { type: String, unique:true, required:true },
             skills:{ type: [String]},
             course_validity: { type: Date, default: null },
+            isOrdered: { type: Boolean, default: false },
             hideCourseProgress: { type: Boolean, default: false },
             allowMultipleAttempts: Boolean,
             attemptFlexibility: {

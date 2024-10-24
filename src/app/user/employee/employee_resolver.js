@@ -1,5 +1,7 @@
 const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
 const {
+    SendEmail,
+    EmailTemplate,
     CustomError,
     ErrorName,
     AuthUser,
@@ -950,6 +952,66 @@ module.exports.queries = {
         }
 
     },
+    sendWelcomeMails: async ({ emailInput }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+    
+        const emails = emailInput.email; 
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; 
+        let messages = [];
+    
+        for (const email of emails) {
+            if (!emailRegex.test(email)) {
+                throw CustomError(ErrorName.INVALID_EMAIL, `Invalid email format: ${email}`);
+            }
+    
+            let currentUserData = await User.findOne({ email: email });
+            if (!currentUserData) {
+                throw CustomError(ErrorName.NOT_FOUND, `No user data found for email: ${email}`);
+            }
+            let html = ``
+            if(currentUserData.isResetPasswordDialog){
+                html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                <p>Welcome</p>
+                <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                Get ready for a great career journey with our Learning Management System</div>
+                <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                    Click Here
+                </a>
+                </div>`
+            }else{
+                const generatePassword = generateRandomString(10);
+                currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                try{
+                    await currentUserData.save();
+                }catch{
+                    throw CustomError(ErrorName.FAILED,"Failed to create new dummy password");
+                }    
+                html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                <p>Welcome</p>
+                <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                Get ready for a great career journey with our Learning Management System</div>
+                <h4>User Name: ${currentUserData.email}</h4>
+                <h4>Temporary Password: ${generatePassword}</h4>
+                <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                    Click Here
+                </a>
+                </div>`
+            }
+            try {
+                await SendEmail({
+                    receiverEmail: email,
+                    subject: "Registration Invitation",
+                    htmlContent: html,
+                });
+                messages.push(`Email sent successfully to ${email}`);
+            } catch (error) {
+                messages.push(`Unable to send Welcome mail to ${email}`);
+            }
+        }
+    
+        return messages;
+    }
+ 
 };
 
 const validateDeleteUserRow = row => {
