@@ -349,28 +349,28 @@ module.exports.mutations = {
 
             const existingUser = await User.findById(userId);
             if (!existingUser) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND);
             }
             if (newPassword !== confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
-                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
                 }
             } else {
                 if (!newPassword || !confirmPassword) {
-                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
                 }
             }
             if (!isAlphanumeric(newPassword)) {
-                throw new CustomError(ErrorName.INVALID_PASSWORD);
+                throw CustomError(ErrorName.INVALID_PASSWORD, "Password must have 8 characters and should be alphanumeric with a special character");
             }
             if (isResetPasswordDialog) {
                 const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
                 if (!isPasswordValid) {
-                    throw new CustomError(ErrorName.INVALID_PASSWORD);
+                    throw CustomError(ErrorName.INVALID_PASSWORD, "Current password is incorrect");
                 }
             }
             existingUser.password = await CryptoHelper.hash(newPassword, 10);
@@ -388,7 +388,7 @@ module.exports.mutations = {
             });
             return "Password updated successfully!";
         } catch (error) {
-            throw error instanceof CustomError ? error : new CustomError(ErrorName.SERVER_ERROR, error.message);
+            throw CustomError(ErrorName.SERVER_ERROR, error.message);
         }
     },
 
