@@ -866,8 +866,6 @@ module.exports.queries = {
 
             const importLogs = await ImportLog.find().sort({ _id: -1 }).limit(12);
 
-            console.log(importLogs);
-
             if (importLogs.length > 0) {
 
                 const result = [];
