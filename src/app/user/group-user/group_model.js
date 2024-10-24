@@ -38,6 +38,10 @@ const groupSchema = new Schema({
         type: ObjectId,
         ref: "User"         
     }],
+    groupType: {
+        type: String,
+        required: true,
+    },
     createdBy: {
         type: ObjectId,
         ref: "User",

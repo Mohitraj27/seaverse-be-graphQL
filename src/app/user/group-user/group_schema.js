@@ -27,6 +27,7 @@ module.exports = {
             MEMBER
         }
         input createGroupInput {
+            groupName: String!
             groupType: createGroupType!
             list: [String]
         }

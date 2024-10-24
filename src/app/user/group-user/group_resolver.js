@@ -259,7 +259,7 @@ module.exports.queries = {
                 {
                     $addFields: {
                         memberCount: { $size: '$members' },
-                        typeOfGroup: 'regStatus',
+                        typeOfGroup: 'unRegStatus',
                         description: {
                             $concat: [
                                 "All Unregistered users."
@@ -695,13 +695,30 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
     }
 };
 
+const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
+    try {
+
+        const group = groupData.map(user => ({
+            subscriber: subscriberId,
+            group: groupId,
+            groupType,
+            groupData
+        }));
+
+        const result = await GroupMember.insertMany(group, { ordered: false });
+        return result.length;
+
+    } catch (error) {
+        console.error(error)
+        return 0;
+    }
+};
+
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
 
         const { role, userId, userInfo, userPermissions, subscriberId } =
             AuthUser(context);
-
-        // check group typ
 
         if (!input.groupType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
@@ -711,29 +728,8 @@ module.exports.mutations = {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
-        if (input.groupType === "GROUP") {
-
-            // { typeOfGroup: "designation", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
-            // { typeOfGroup: "vessel", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
-            // { typeOfGroup: "vesselType", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
-            // { typeOfGroup: "vesselStatus", id: "ASSIGNED/ONBOARDED/ONSHORE" }
-            // { typeOfGroup: "subRole", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
-            // { typeOfGroup: "customGroup", id: ["5f6e8e8b8e8e8e8e8e8e8e8e"] }
-            // { typeOfGroup: "role", id: "Admin" }
-            // { typeOfGroup: "regStatus", id: "true/false" }
-
-
-
-            for (list of input.list) {
-
-                let typeOfGroup = list.typeOfGroup;
-            }
-
-            let getDesignation
-            if (typeOfGroup === "designation") {
-
-            }
-
+        if (!input.groupName) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
         const groupFilterConditions = {
@@ -742,31 +738,74 @@ module.exports.mutations = {
             isDeleted: false
         };
 
-        const groupUpdateData = {};
+        const existingGroup = await Group.findOne({
+            groupName: { $regex: `^${input.groupName}$`, $options: "i" },
+            subscriber: subscriberId
+        }).lean().select("_id");
 
-        if (input.groupName) {
-            const existingGroup = await Group.findOne({
-                groupName: { $regex: `^${input.groupName}$`, $options: "i" },
-                subscriber: subscriberId
-            })
-                .lean()
-                .select("_id");
-
-            if (
-                existingGroup &&
-                existingGroup?._id?.toString() !==
-                groupFilterConditions._id?.toString()
-            ) {
-                throw CustomError(ErrorName.ALREADY_EXIST);
-            }
+        if (
+            existingGroup &&
+            existingGroup?._id?.toString() !==
+            groupFilterConditions._id?.toString()
+        ) {
+            throw CustomError(ErrorName.ALREADY_EXIST, "Group name already exist");
         }
+
+        const groupUpdateData = {};
 
         if (input.groupName) groupUpdateData.groupName = input.groupName;
         if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
         if (input.description) groupUpdateData.description = input.description;
-        if (input.isManager) groupUpdateData.isManager = input.isManager;
-        if (input.isCustomGroup !== undefined) groupUpdateData.isCustomGroup = input.isCustomGroup;
-        if (input.isAutoSynced !== undefined) groupUpdateData.isAutoSynced = input.isAutoSynced;
+        if (input.groupType) groupUpdateData.groupType = input.groupType;
+
+        let getDesignationIds = [];
+        let roleIds = [];
+        let vesselIds = [];
+        let vesselTypeIds = [];
+        let vesselStatusIds = [];
+        let subRoleIds = [];
+        let regStatusIds = [];
+        let unRegStatusIds = [];
+
+        if (input.groupType === "GROUP") {
+
+
+            for (list of input.list) {
+
+                let typeOfGroup = list.typeOfGroup;
+
+                switch (typeOfGroup) {
+                    case "designation":
+                        getDesignationIds.push(list.id);
+                        break;
+                    case "role":
+                        roleIds.push(list.id);
+                        break;
+                    case "vessel":
+                        vesselIds.push(list.id);
+                        break;
+                    case "vesselType":
+                        vesselTypeIds.push(list.id);
+                        break;
+                    case "vesselStatus":
+                        vesselStatusIds.push(list.id);
+                        break;
+                    case "subRole":
+                        subRoleIds.push(list.id);
+                        break;
+                    case "regStatus":
+                        regStatusIds.push(list.id);
+                        break;
+                    case "unRegStatus":
+                        unRegStatusIds.push(list.id);
+                        break;
+                    default:
+                        console.log(`Unknown group type: ${typeOfGroup}`);
+                }
+            }
+
+
+        }
 
         const savedGroupName = await Group.findOneAndUpdate(
             groupFilterConditions,
@@ -788,9 +827,9 @@ module.exports.mutations = {
         );
 
         if (savedGroupName) {
+
             const groupMemberFilterConditions = {
                 group: savedGroupName._id,
-                member: savedGroupName.groupAdmin,
                 isDeleted: false
             };
 
@@ -828,13 +867,52 @@ module.exports.mutations = {
                 );
                 savedGroupName.members = input.members;
             }
-            const updatedGroup = await Group.findById(savedGroupName._id).populate('members groupAdmin').lean();
+
+            if (savedGroupName && input.groupType === "GROUP") {
+
+                if (getDesignationIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Designation', getDesignationIds)
+                }
+
+                if (regStatusIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Registered', regStatusIds)
+                }
+
+                if (unRegStatusIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Unregistered', unRegStatusIds)
+                }
+
+                if (subRoleIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Sub Role', subRoleIds)
+                }
+
+                if (vesselIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel', vesselIds)
+                }
+
+                if (vesselTypeIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel Type', vesselTypeIds)
+                }
+
+                if (vesselStatusIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel Status', vesselStatusIds)
+                }
+
+                if (roleIds.length > 0) {
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Role', roleIds)
+                }
+
+            }
+
+            const updatedGroup = await Group.findById(savedGroupName._id);
+            
             return {
                 message: input._id ? "Group updated successfully" : "Group created successfully",
                 group: {
                     ...updatedGroup,
                 },
             };
+
         }
 
         LogHelper.logActivity({
