@@ -898,8 +898,6 @@ module.exports.queries = {
 
             const importLogs = await ImportLog.find().sort({ _id: -1 }).limit(12);
 
-            console.log(importLogs);
-
             if (importLogs.length > 0) {
 
                 const result = [];
@@ -1522,7 +1520,7 @@ module.exports.mutations = {
             Get ready for a great career journey with our Learning Management System</div>
             <h4>User Name: ${savedUser.email}</h4>
             <h4>Temporary Password: ${generatePassword}</h4>
-                        <a href="${process.env.APP_URL}/login/isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
+                        <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
                             Click Here
                         </a>
                     </div>

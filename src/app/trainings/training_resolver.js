@@ -164,7 +164,7 @@ module.exports.mutations = {
                 images: input.images,
             });
         }
-        
+
         const moduleContentIds = [];
 
         if (input.trainingModules?.length) {
@@ -262,6 +262,7 @@ module.exports.mutations = {
         return savedTraining;
     },
     deleteTraining: async ({ id }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         
@@ -270,7 +271,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
             });
 
-            if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
+        if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
 
             if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
                 throw CustomError(ErrorName.FORBIDDEN,`Deleting a course with status ${deletedTraining.status} is not allowed`);
