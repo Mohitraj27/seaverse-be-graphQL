@@ -26,10 +26,14 @@ module.exports = {
             GROUP
             MEMBER
         }
+        input listGroupType {
+            groupType: String!
+            group: String!
+        }
         input createGroupInput {
             groupName: String!
             groupType: createGroupType!
-            list: [String]
+            list: [listGroupType]
         }
         type GroupList {
             groups: [Group]

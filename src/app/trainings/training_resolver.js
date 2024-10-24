@@ -37,7 +37,7 @@ module.exports.queries = {
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
-        let filterConditions = { subscriber: subscriberId };
+        let filterConditions = { subscriber: subscriberId, isDeleted: false };
 
         if (filterInput) {
             if (filterInput.trainingCategory)
@@ -57,6 +57,16 @@ module.exports.queries = {
 
             if (typeof filterInput.isActive === "boolean")
                 filterConditions.isActive = filterInput.isActive;
+
+            if (filterInput.status)
+                filterConditions.status = filterInput.status;
+
+            if (filterInput.dataFilter === -1) {
+                sortOrder = { createdAt: "descending" };
+            } else {
+                sortOrder = { createdAt: "ascending" };
+            }
+
         }
 
         return Training.aggregatePaginate(
@@ -156,7 +166,7 @@ module.exports.mutations = {
                 images: input.images,
             });
         }
-        
+
         const moduleContentIds = [];
 
         if (input.trainingModules?.length) {
@@ -254,29 +264,28 @@ module.exports.mutations = {
         return savedTraining;
     },
     deleteTraining: async ({ id }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const deletedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
-            const deletedTraining = await Training.findOneAndDelete(
-                { _id: id, subscriber: subscriberId },
-                { lean: true, session }
-            ).populate({ path: "trainingModules", populate: "trainingModuleContents" });
-
-            if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
-
-            await TrainingModule.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
-
-            await TrainingModuleContent.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
-
-            return deletedTraining;
+        const deletedTraining = await Training.findOne({
+            _id: id,
+            subscriber: subscriberId
         });
+
+        if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        try {
+            deletedTraining.isDeleted = true;
+            deletedTraining.isActive = false;
+            await deletedTraining.save();
+        } catch {
+            throw CustomError(ErrorName.FAILED, `Failed to delete course`);
+        }
 
         if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
         TrainingHelper.sendNotificationOnCRUD({

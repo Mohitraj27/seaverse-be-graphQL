@@ -768,40 +768,40 @@ module.exports.mutations = {
         let unRegStatusIds = [];
 
         if (input.groupType === "GROUP") {
-
-
+            
             for (list of input.list) {
 
-                let typeOfGroup = list.typeOfGroup;
+                let typeOfGroup = list.groupType;
 
                 switch (typeOfGroup) {
                     case "designation":
-                        getDesignationIds.push(list.id);
+                        getDesignationIds.push(list.group);
                         break;
                     case "role":
-                        roleIds.push(list.id);
+                        roleIds.push(list.group);
                         break;
                     case "vessel":
-                        vesselIds.push(list.id);
+                        vesselIds.push(list.group);
                         break;
                     case "vesselType":
-                        vesselTypeIds.push(list.id);
+                        vesselTypeIds.push(list.group);
                         break;
                     case "vesselStatus":
-                        vesselStatusIds.push(list.id);
+                        vesselStatusIds.push(list.group);
                         break;
                     case "subRole":
-                        subRoleIds.push(list.id);
+                        subRoleIds.push(list.group);
                         break;
                     case "regStatus":
-                        regStatusIds.push(list.id);
+                        regStatusIds.push(list.group);
                         break;
                     case "unRegStatus":
-                        unRegStatusIds.push(list.id);
+                        unRegStatusIds.push(list.group);
                         break;
                     default:
                         console.log(`Unknown group type: ${typeOfGroup}`);
                 }
+
             }
 
 

@@ -1458,7 +1458,7 @@ module.exports.mutations = {
             Get ready for a great career journey with our Learning Management System</div>
             <h4>User Name: ${savedUser.email}</h4>
             <h4>Temporary Password: ${generatePassword}</h4>
-                        <a href="${process.env.APP_URL}/login/isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
+                        <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
                             Click Here
                         </a>
                     </div>
