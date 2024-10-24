@@ -159,7 +159,9 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-
+            if(vessel.isDeleted) {
+                throw new Error('Vessel already deleted.');
+            }
             vessel.isDeleted = true;
             vessel.updatedBy = userId;
 

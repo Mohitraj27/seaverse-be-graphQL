@@ -124,7 +124,9 @@ module.exports.mutations = {
             if (alreadyInUse) {
                 throw CustomError(ErrorName.ALREADY_IN_USE, 'Vessel Type already in use.');
             }
-
+            if(vesselType.isDeleted) {
+                throw new Error('Vessel Type already deleted.');
+            }
             vesselType.isDeleted = true;
             vesselType.updatedBy = userId;
 
