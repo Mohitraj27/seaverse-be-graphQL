@@ -60,7 +60,7 @@
                 default: null
             },
             manadatoryModules: {
-                type:String,
+                type: Number,
             },
             images: [
                 {

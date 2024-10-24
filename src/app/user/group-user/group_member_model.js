@@ -15,17 +15,14 @@ const groupMemberSchema = new Schema({
         type: ObjectId,
         ref: "User",
     },
-    groupType: {
-        type: String,
-        enum: ["GROUP", "MEMBER"],
-    },
-    groups: [
+    groupData: [
         {
-            typeOfGroup: String,
-            groupName: String,
-            groupId: ObjectId,
+            type: String
         }
     ],
+    groupType: {
+        type: String,
+    },
     isExclude: {
         type: Boolean,
         default: false,
