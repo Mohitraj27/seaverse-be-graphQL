@@ -1,7 +1,7 @@
 module.exports = {
     types: `
         type Group {
-            _id: ID!
+            _id: ID
             groupName: String!
             groupAdmin: User
             isManagerDefault: Boolean
@@ -31,9 +31,11 @@ module.exports = {
             group: String!
         }
         input createGroupInput {
+            _id: ID
             groupName: String!
             groupType: createGroupType!
             list: [listGroupType]
+            members: [ID]
         }
         type GroupList {
             groups: [Group]
@@ -41,7 +43,6 @@ module.exports = {
         }
         type GroupResponse {
             message: String
-            group: Group
         }
         input GroupFilterInput {
             search: String

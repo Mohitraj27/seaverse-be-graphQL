@@ -698,11 +698,11 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
     try {
 
-        const group = groupData.map(user => ({
+        const group = groupData.map(data => ({
             subscriber: subscriberId,
             group: groupId,
             groupType,
-            groupData
+            groupData: data
         }));
 
         const result = await GroupMember.insertMany(group, { ordered: false });
@@ -717,14 +717,17 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => 
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
 
-        const { role, userId, userInfo, userPermissions, subscriberId } =
-            AuthUser(context);
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
 
         if (!input.groupType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
+        
+        if(!input.description) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
+        }
 
-        if (!input.list || input.list.length <= 0) {
+        if (!input.list && !input.members) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
@@ -768,7 +771,7 @@ module.exports.mutations = {
         let unRegStatusIds = [];
 
         if (input.groupType === "GROUP") {
-            
+
             for (list of input.list) {
 
                 let typeOfGroup = list.groupType;
@@ -801,10 +804,7 @@ module.exports.mutations = {
                     default:
                         console.log(`Unknown group type: ${typeOfGroup}`);
                 }
-
             }
-
-
         }
 
         const savedGroupName = await Group.findOneAndUpdate(
@@ -871,41 +871,41 @@ module.exports.mutations = {
             if (savedGroupName && input.groupType === "GROUP") {
 
                 if (getDesignationIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Designation', getDesignationIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'designation', getDesignationIds)
                 }
 
                 if (regStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Registered', regStatusIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'registered', regStatusIds)
                 }
 
                 if (unRegStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Unregistered', unRegStatusIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'unregistered', unRegStatusIds)
                 }
 
                 if (subRoleIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Sub Role', subRoleIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'subRole', subRoleIds)
                 }
 
                 if (vesselIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel', vesselIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'vessel', vesselIds)
                 }
 
                 if (vesselTypeIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel Type', vesselTypeIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'vesselType', vesselTypeIds)
                 }
 
                 if (vesselStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Vessel Status', vesselStatusIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'vesselStatus', vesselStatusIds)
                 }
 
                 if (roleIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'Role', roleIds)
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, 'role', roleIds)
                 }
 
             }
 
             const updatedGroup = await Group.findById(savedGroupName._id);
-            
+
             return {
                 message: input._id ? "Group updated successfully" : "Group created successfully",
                 group: {
