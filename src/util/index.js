@@ -207,6 +207,7 @@ module.exports = {
     AppConfig: require("./app_config"),
     Event: require("./event"),
     Role,
+    groupType: require("./group_types"),
     VesselStatus,
     Language: require("./language"),
     EmailTemplate: require("./email_template"),

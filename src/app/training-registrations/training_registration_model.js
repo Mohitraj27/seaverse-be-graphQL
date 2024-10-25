@@ -10,6 +10,9 @@ const trainingRegistrationSchema = new Schema(
             required: true,
             index: true,
         },
+        batchUID: {
+            type: String,
+        },
         training: {
             type: ObjectId,
             ref: "Training",
@@ -47,16 +50,6 @@ const trainingRegistrationSchema = new Schema(
             registrationId: String,
             learnerId: String
         },
-        unitPrice: Number,
-        customPrice: Number,
-        remarks: String,
-        invoice: {
-            type: ObjectId,
-            ref: "TrainingRegistrationInvoice",
-        },
-        startedAt: Date,
-        completedAt: Date,
-
         feedback: FeedbackAttemptSchema,
         isRegistered: {
             type: Boolean,
