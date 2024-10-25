@@ -68,6 +68,7 @@ const errorName = {
     INVALID_FILE_FORMAT: "INVALID_FILE_FORMAT",
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
     INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
+    ALREADY_DELETED: "ALREADY_DELETED",
 };
 
 const errorType = {
@@ -410,6 +411,11 @@ const errorType = {
         message: "Percentage criteria should be less than the total score",
         statusCode: 400,
         type: "INVALID_PERCENTAGE_CRITERIA"
+    },
+    ALREADY_DELETED: {
+        message: 'Already Deleted',
+        statusCode: 400,
+        type: "ALREADY_DELETED"
     }
 };
 
