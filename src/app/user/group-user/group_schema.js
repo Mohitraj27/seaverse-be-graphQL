@@ -36,6 +36,7 @@ module.exports = {
             groupType: createGroupType!
             list: [listGroupType]
             members: [ID]
+            description: String
         }
         type GroupList {
             groups: [Group]

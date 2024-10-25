@@ -722,16 +722,8 @@ module.exports.mutations = {
         if (!input.groupType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
-        
-        if(!input.description) {
-            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
-        }
 
         if (!input.list && !input.members) {
-            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
-        }
-
-        if (!input.groupName) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
@@ -760,6 +752,7 @@ module.exports.mutations = {
         if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
         if (input.description) groupUpdateData.description = input.description;
         if (input.groupType) groupUpdateData.groupType = input.groupType;
+        if (input.description) groupUpdateData.description = input.description;
 
         let getDesignationIds = [];
         let roleIds = [];
@@ -835,26 +828,26 @@ module.exports.mutations = {
 
             const groupMemberData = { group: savedGroupName._id, member: savedGroupName.groupAdmin };
 
-            const savedGroupMember = await GroupMember.findOneAndUpdate(
-                groupMemberFilterConditions,
-                {
-                    ...groupMemberFilterConditions,
-                    ...groupMemberData,
-                    $setOnInsert: {
-                        createdBy: userId,
-                    },
-                    updatedBy: userId,
-                },
-                {
-                    upsert: true,
-                    new: true,
-                    setDefaultsOnInsert: true,
-                    runValidators: true,
-                    lean: true,
-                }
-            );
+            // const savedGroupMember = await GroupMember.findOneAndUpdate(
+            //     groupMemberFilterConditions,
+            //     {
+            //         ...groupMemberFilterConditions,
+            //         ...groupMemberData,
+            //         $setOnInsert: {
+            //             createdBy: userId,
+            //         },
+            //         updatedBy: userId,
+            //     },
+            //     {
+            //         upsert: true,
+            //         new: true,
+            //         setDefaultsOnInsert: true,
+            //         runValidators: true,
+            //         lean: true,
+            //     }
+            // );
 
-            if (savedGroupName && input.members) {
+            if (savedGroupName && input.members.length > 0) {
                 const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
                 await Group.updateOne(
                     { _id: savedGroupName._id },
