@@ -15,11 +15,9 @@ const groupMemberSchema = new Schema({
         type: ObjectId,
         ref: "User",
     },
-    groupData: [
-        {
-            type: String
-        }
-    ],
+    groupData: {
+        type: String
+    },
     groupType: {
         type: String,
     },
