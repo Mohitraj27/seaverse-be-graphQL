@@ -51,6 +51,7 @@ const AwsHelper = require("../util/aws_helper");
 const { ContactSupportResolver } = require('../app/contact-support');
 const { UserVesselResolver } = require('../app/user/user-vessel-bridge');
 const { QuestionResolver } = require('../app/trainings/training_modules/training_module_contents/question');
+const { TrainingEnrolmentResolver } = require("../app/training-registrations/training-enrolment");
 
 module.exports = {
     ID: new GraphQLScalarType({
@@ -135,7 +136,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(TrainingModuleContentResolver.queries),
         ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
         ...AuthHelper.requiresAdmin(VesselResolver.queries),
-        ...AuthHelper.requiresAdmin(VesselResolver.queries),
+        ...AuthHelper.requiresAdmin(TrainingEnrolmentResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -171,9 +172,9 @@ module.exports = {
         ...AuthHelper.requiresAdmin(VesselTypeResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselResolver.mutations),
         ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
-        ...AuthHelper.requiresAdmin(VesselResolver.mutations),
         ...AuthHelper.requiresAdmin(UserVesselResolver.mutations),
         ...AuthHelper.requiresAdmin(QuestionResolver.mutations),
+        ...AuthHelper.requiresAdmin(TrainingEnrolmentResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
