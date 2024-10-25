@@ -13,11 +13,6 @@ const groupSchema = new Schema({
         trim: true
     },
     description: String,
-    groupAdmin: {
-        type: ObjectId,
-        ref: "User",
-        default: null,
-    },
     isManagerDefault: {
         type: Boolean,
         default: false,
@@ -26,18 +21,14 @@ const groupSchema = new Schema({
         type: Number,
         default: false,
     },
-    isCustomGroup: {
-        type: Boolean,
-        default: false, 
-    },
-    isAutoSynced: {
-        type: Boolean,
-        default: false,  
-    },
     members: [{
         type: ObjectId,
         ref: "User"         
     }],
+    groupType: {
+        type: String,
+        required: true,
+    },
     createdBy: {
         type: ObjectId,
         ref: "User",

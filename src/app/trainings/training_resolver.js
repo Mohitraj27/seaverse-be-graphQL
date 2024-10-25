@@ -27,8 +27,10 @@ const Permission = require("../user/sub-roles/permission.json");
 const ApprovalStatus = require("./approval_status.json");
 const LogType = require("../logs/log_type.json");
 const ScromHelper = require("./scrom_helper");
-const ContentStatus = require("./training_modules/training_module_contents/content_status.json")
-const { queries } = require("./training_modules/training_module_contents/training_module_content_resolver")
+const ContentStatus = require("./training_modules/training_module_contents/content_status.json");
+const {
+    queries,
+} = require("./training_modules/training_module_contents/training_module_content_resolver");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -37,8 +39,8 @@ module.exports.queries = {
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
-        let filterConditions = { subscriber: subscriberId };
-
+        let filterConditions = { subscriber: subscriberId, isDeleted: false };
+        let sortOrder = { createdAt: "descending" };
         if (filterInput) {
             if (filterInput.trainingCategory)
                 filterConditions.trainingCategories = filterInput.trainingCategory;
@@ -57,6 +59,13 @@ module.exports.queries = {
 
             if (typeof filterInput.isActive === "boolean")
                 filterConditions.isActive = filterInput.isActive;
+
+            if (filterInput.status) filterConditions.status = filterInput.status;
+            if (filterInput.dateFilter === -1) {
+                sortOrder = { createdAt: "descending" };
+            } else {
+                sortOrder = { createdAt: "ascending" };
+            }
         }
 
         return Training.aggregatePaginate(
@@ -113,7 +122,7 @@ module.exports.queries = {
             {
                 offset: skip,
                 limit,
-                sort: { createdAt: "descending" },
+                sort: sortOrder,
                 customLabels: {
                     docs: "trainings",
                     totalDocs: "totalCount",
@@ -132,7 +141,7 @@ module.exports.queries = {
         })
             .lean()
             .populate("createdBy")
-            .populate('targetAudienceId')
+            .populate("targetAudienceId")
             .populate({
                 path: "trainingModules",
                 options: { sort: { displayPosition: 1 } },
@@ -147,7 +156,6 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createOrUpdateTraining: async ({ input }, context) => {
-
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -156,7 +164,7 @@ module.exports.mutations = {
                 images: input.images,
             });
         }
-        
+
         const moduleContentIds = [];
 
         if (input.trainingModules?.length) {
@@ -170,7 +178,6 @@ module.exports.mutations = {
         }
 
         if (moduleContentIds.length > 0) {
-
             const getTrainingModuleContentStatus = await TrainingModuleContent.find({
                 _id: { $in: moduleContentIds },
             }).select("contentStatus");
@@ -178,13 +185,14 @@ module.exports.mutations = {
                 content => content.contentStatus === ContentStatus.PUBLISHED
             );
             if (!areAllPublished) {
-                throw CustomError(ErrorName.NOT_ALL_PUBLISHED, "Selected training modules should be published!");
+                throw CustomError(
+                    ErrorName.NOT_ALL_PUBLISHED,
+                    "Selected training modules should be published!"
+                );
             }
-
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
-
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, session },
                 context
@@ -256,27 +264,28 @@ module.exports.mutations = {
     deleteTraining: async ({ id }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const deletedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
-            const deletedTraining = await Training.findOneAndDelete(
-                { _id: id, subscriber: subscriberId },
-                { lean: true, session }
-            ).populate({ path: "trainingModules", populate: "trainingModuleContents" });
-
-            if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
-
-            await TrainingModule.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
-
-            await TrainingModuleContent.deleteMany(
-                { subscriber: subscriberId, training: id },
-                { lean: true, session }
-            );
-
-            return deletedTraining;
+        const deletedTraining = await Training.findOne({
+            _id: id,
+            subscriber: subscriberId,
         });
+
+        if (!deletedTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
+            throw CustomError(
+                ErrorName.FORBIDDEN,
+                `Deleting a course with status ${deletedTraining.status} is not allowed`
+            );
+        }
+
+        try {
+            deletedTraining.isDeleted = true;
+            deletedTraining.isActive = false;
+            deletedTraining.save();
+        } catch {
+            throw CustomError(ErrorName.FAILED, `Failed to delete course`);
+        }
 
         if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
         TrainingHelper.sendNotificationOnCRUD({
@@ -308,28 +317,65 @@ module.exports.mutations = {
 
         return deletedTraining;
     },
-    updateTrainingStatus: async ({ id, isActive }, context) => {
+    updateTrainingStatus: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const savedTraining = await Training.findOneAndUpdate(
-            {
-                _id: id,
-                subscriber: subscriberId,
-            },
-            { isActive },
-            { new: true, lean: true }
-        ).select("title approvalStatus isActive");
 
-        if (!savedTraining) throw CustomError(ErrorName.NOT_FOUND);
-
-        TrainingHelper.sendNotificationOnCRUD({
+        const currentTraining = await Training.findOne({
+            _id: input.id,
             subscriber: subscriberId,
-            training: savedTraining,
-            action: isActive ? "ENABLED" : "DISABLED",
-            createdBy: userInfo,
         });
+        if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
+        const currentStatus = currentTraining.status;
 
-        return savedTraining;
+        const updateFields = {};
+        if (typeof input.isActive !== "undefined") {
+            updateFields.isActive = input.isActive;
+        } else {
+            updateFields.isActive = currentIsActive;
+        }
+        if (input.newStatus) {
+            const newStatus = input.newStatus;
+            const invalidUpdates = [];
+            if (currentStatus === ContentStatus.PUBLISHED && newStatus === ContentStatus.DRAFT) {
+                invalidUpdates.push({
+                    name: currentTraining.title,
+                    reason: "Published to Draft is not allowed directly. Must move to Retired first.",
+                });
+                throw new Error("Invalid status transition: Published to Draft is not allowed.");
+            } else if (
+                currentStatus === ContentStatus.PUBLISHED &&
+                newStatus === ContentStatus.RETIRED
+            ) {
+                updateFields.status = newStatus;
+            } else if (
+                currentStatus === ContentStatus.DRAFT &&
+                newStatus === ContentStatus.PUBLISHED
+            ) {
+                updateFields.status = newStatus;
+            } else if (
+                currentStatus === ContentStatus.RETIRED &&
+                newStatus === ContentStatus.PUBLISHED
+            ) {
+                updateFields.status = newStatus;
+            } else {
+                invalidUpdates.push({
+                    name: currentTraining.title,
+                    reason: "Invalid status transition.",
+                });
+                throw new Error("Invalid status transition.");
+            }
+        }
+
+        currentTraining.status = updateFields.status;
+        currentTraining.updatedBy = userId;
+        currentTraining.updatedAt = new Date();
+        currentTraining.modifiedDate = new Date();
+        await currentTraining.save();
+
+        if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        return currentTraining;
     },
     approveOrRejectTraining: async ({ id, approvalStatus }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
@@ -346,8 +392,8 @@ module.exports.mutations = {
                 ...(approvalStatus === ApprovalStatus.APPROVED
                     ? { approvedAt: CurrentDateTime().utcDateTime }
                     : approvalStatus === ApprovalStatus.REJECTED
-                        ? { rejectedAt: CurrentDateTime().utcDateTime }
-                        : undefined),
+                    ? { rejectedAt: CurrentDateTime().utcDateTime }
+                    : undefined),
             },
             { new: true, lean: true }
         ).select("title approvalStatus approvedAt rejectedAt isActive createdBy");

@@ -157,9 +157,11 @@ module.exports.mutations = {
             const vessel = await Vessel.findOne({ _id: id });
 
             if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                throw  CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-
+            if(vessel.isDeleted) {
+                throw  CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
+            }
             vessel.isDeleted = true;
             vessel.updatedBy = userId;
 
