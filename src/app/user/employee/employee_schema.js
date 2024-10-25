@@ -44,6 +44,7 @@ module.exports = {
             trainingCertificates: [TrainingCertificate]
             signature: String
             currentVessel: Vessel
+            groupDetails: Group
         }
         type EmployeeList {
             batch: Batch
