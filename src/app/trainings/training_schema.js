@@ -85,9 +85,10 @@ module.exports = {
             enableEmailNotification: Boolean  
             setReminder: Boolean 
             setFrequencyDate: String 
-            manadatoryModules: String  
+            manadatoryModules: Int  
             classroomModule: ClassroomModule
             authorName: String
+            isOrdered : Boolean
         }
         type Scorm {
             type:String
@@ -183,9 +184,10 @@ module.exports = {
             setReminder: Boolean 
             setFrequencyDate: String 
             authorName: String 
-            manadatoryModules: String 
+            manadatoryModules: Int 
             classroomModule: ClassroomModuleInput
             isCertificate : Boolean
+            isOrdered : Boolean
         }
         input TrainingFilterInput {
             search: String
@@ -195,7 +197,6 @@ module.exports = {
             isActive: Boolean
             status: StatusType
             dateFilter: Int
-            isDeleted: Boolean
         }
         input ClassroomModuleInput {
             title: [LocalisedDataInput]!
@@ -217,9 +218,10 @@ module.exports = {
             startTime: String
             endTime: String
         }
+         
         input UpdateTrainingStatusInput {
-            id: ID!
-            newStatus: StatusType
+            id: ID!,  
+            newStatus : StatusType
         }
     `,
     queries: `

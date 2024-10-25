@@ -258,6 +258,9 @@ module.exports = {
             description: String,
             createdAt: String
         }
+        input emailIDInput{
+            email: [String]!
+        }    
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -267,6 +270,7 @@ module.exports = {
         getImportLogs: [importlogs]
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
+          sendWelcomeMails(emailInput: emailIDInput): [String]
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
