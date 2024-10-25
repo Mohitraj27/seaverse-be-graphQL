@@ -1,7 +1,7 @@
 module.exports = {
     types: `
         type Group {
-            _id: ID!
+            _id: ID
             groupName: String!
             groupAdmin: User
             isManagerDefault: Boolean
@@ -22,13 +22,28 @@ module.exports = {
              Customgroups
              Autosyncedgroups
         }
+        enum createGroupType {
+            GROUP
+            MEMBER
+        }
+        input listGroupType {
+            groupType: String!
+            group: String!
+        }
+        input createGroupInput {
+            _id: ID
+            groupName: String!
+            groupType: createGroupType!
+            list: [listGroupType]
+            members: [ID]
+            description: String
+        }
         type GroupList {
             groups: [Group]
             totalCount: Int
         }
         type GroupResponse {
             message: String
-            group: Group
         }
         input GroupFilterInput {
             search: String
@@ -64,7 +79,7 @@ module.exports = {
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
     `,
     mutations: `
-        createOrUpdateGroup(input: GroupInput!): GroupResponse!
+        createOrUpdateGroup(input: createGroupInput!): GroupResponse!
         deleteGroup(ids: [ID!]!): DeleteGroupResponse!
     `,
 };

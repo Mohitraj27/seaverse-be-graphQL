@@ -85,9 +85,10 @@ module.exports = {
             enableEmailNotification: Boolean  
             setReminder: Boolean 
             setFrequencyDate: String 
-            manadatoryModules: String  
+            manadatoryModules: Int  
             classroomModule: ClassroomModule
             authorName: String
+            isOrdered : Boolean
         }
         type Scorm {
             type:String
@@ -183,9 +184,10 @@ module.exports = {
             setReminder: Boolean 
             setFrequencyDate: String 
             authorName: String 
-            manadatoryModules: String 
+            manadatoryModules: Int 
             classroomModule: ClassroomModuleInput
             isCertificate : Boolean
+            isOrdered : Boolean
         }
         input TrainingFilterInput {
             search: String
@@ -193,6 +195,8 @@ module.exports = {
             trainingSubCategory: ID
             approvalStatus: ApprovalStatus
             isActive: Boolean
+            status: StatusType
+            dateFilter: Int
         }
         input ClassroomModuleInput {
             title: [LocalisedDataInput]!
@@ -214,6 +218,11 @@ module.exports = {
             startTime: String
             endTime: String
         }
+         
+        input UpdateTrainingStatusInput {
+            id: ID!,  
+            newStatus : StatusType
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
@@ -222,7 +231,7 @@ module.exports = {
     mutations: `
         createOrUpdateTraining(input: TrainingInput!): Training!
         deleteTraining(id: ID!): Training!
-        updateTrainingStatus(id: ID!, isActive: Boolean!): Training!
+        updateTrainingStatus(input: UpdateTrainingStatusInput!): Training!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
     `,
