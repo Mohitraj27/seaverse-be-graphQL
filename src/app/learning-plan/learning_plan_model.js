@@ -27,6 +27,19 @@ const learningPlanSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        matchingAnyCondition: {
+            type: Boolean,
+            default: false,
+        },
+        matchingAllConditions: {
+            type: Boolean,
+            default: false,
+        },
+        conditions: [
+            {
+                type: String,
+            },
+        ],
         createdBy: {
             type: ObjectId,
             ref: "User",
