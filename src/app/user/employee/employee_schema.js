@@ -271,7 +271,7 @@ module.exports = {
         getImportLogs: [importlogs]
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
-          sendWelcomeMails(emailInput: emailIDInput): [String]
+        sendWelcomeMails(emailInput: emailIDInput): [String]
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
