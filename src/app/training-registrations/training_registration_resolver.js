@@ -572,88 +572,24 @@ module.exports.mutations = {
         }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+        
+        // Groups
+        // input.groups = [{ groupType: "designation", groupId: "sdkfjklsjf34i2rd34230por" }]
 
-        const existingEmployee = await Employee.findById(input.employee)
-            .lean()
-            .select("organization");
-
-        if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-
-        if (
-            existingEmployee.organization &&
-            input.organization &&
-            input.organization?.toString() !== existingEmployee.organization?.toString()
-        ) {
-            throw CustomError(ErrorName.ORGANIZATION_MISMATCH_ERROR);
-        }
         const existingTraining = await Training.findById(input.training).lean().select("title");
         if (existingTraining) input.trainingTitle = existingTraining.title;
-
-        if (input.organization) {
-            const existingOrganization = await Organization.findById(input.organization)
-                .lean()
-                .select("name");
-            if (existingOrganization) input.organizationName = existingOrganization.name;
-        }
-
-        if (input.trainer) {
-            const existingTrainer = await Employee.findById(input.trainer)
-                .lean()
-                .select("user")
-                .populate({ path: "user", select: "firstName lastName" });
-            if (existingTrainer)
-                input.trainerName = `${existingTrainer.user?.firstName ?? ""} ${
-                    existingTrainer.user?.lastName ?? ""
-                }`.trim();
-        }
 
         const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
             async session => {
                 const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-                let savedBatch = await new Batch({
-                    UID: batchUID,
-                    subscriber: subscriberId,
-                    organization: input.organization,
-                    organizationName: input.organizationName,
-                    training: input.training,
-                    trainingTitle: input.trainingTitle,
-                    trainingDuration: input.trainingDuration,
-                    trainer: input.trainer,
-                    trainerName: input.trainerName,
-                    employees: [],
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    trainingMode: input.trainingMode,
-                    status: BatchStatus.PENDING,
-                    purchaseInfo: { status: BatchStatus.PENDING },
-                    certificateInfo: { status: BatchStatus.PENDING },
-                    invoiceInfo: { status: BatchStatus.PENDING },
-                    paymentInfo: { status: BatchStatus.PENDING },
-                    createdBy: userId,
-                }).save({ session });
-
-                if (!savedBatch) throw CustomError(ErrorName.FAILED);
-
                 const savedTrainingRegistration = await new TrainingRegistration({
                     subscriber: subscriberId,
                     training: input.training,
-                    batch: savedBatch._id,
-                    batchNumber: savedBatch.UID,
-                    trainingDuration: input.trainingDuration,
-                    certificateValidity: input.certificateValidity,
-                    organization: input.organization,
-                    branch: input.branch,
-                    employee: input.employee,
+                    user: input.users,
+                    groups: input.groups,
                     trainer: input.trainer,
                     status: TrainingRegistrationStatus.REGISTERED,
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    unitPrice: input.unitPrice,
-                    customPrice: input.customPrice,
-                    remarks: input.remarks,
-                    trainingMode: input.trainingMode,
-                    createdBy: userId,
                 })
                     .save({ session })
                     .then(t =>
