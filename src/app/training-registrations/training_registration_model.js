@@ -15,56 +15,30 @@ const trainingRegistrationSchema = new Schema(
             ref: "Training",
             required: true,
         },
-        batch: {
-            type: ObjectId,
-            ref: "Batch",
-        },
-        batchNumber: String,
-        trainingDuration: Number, 
-        certificateValidity: Number, 
-        sortedTrainingModules: [
+        trainingDuration: Number,
+        certificateValidity: Number,
+        groups: [
             {
-                trainingModule: {
-                    type: ObjectId,
-                    ref: "TrainingModule",
+                groupType: {
+                    type: String,
                 },
-                title: [LocalisedDataSchema],
-                description: [LocalisedDataSchema],
-                trainingModuleContents: [
-                    {
-                        type: ObjectId,
-                        ref: "TrainingModuleContent",
-                    },
-                ],
-            },
+                groupId: {
+                    type: String,
+                }
+            }
         ],
-        organization: {
-            type: ObjectId,
-            ref: "Organization",
-        },
-        branch: {
-            type: ObjectId,
-            ref: "Branch",
-        },
-        employee: {
-            type: ObjectId,
-            ref: "Employee",
-            index: true,
-        },
-        trainer: {
-            type: ObjectId,
-            ref: "Employee",
-        },
-        supervisor: {
-            type: ObjectId,
-            ref: "Employee",
-        },
+        users: [
+            {
+                type: ObjectId,
+                ref: "Employee",
+                index: true,
+            }
+        ],
         status: {
             type: String,
             uppercase: true,
             required: true,
         },
-        trainingProgressPercentage: Number,
         startDate: Date,
         endDate: Date,
         scorm: {
@@ -84,11 +58,6 @@ const trainingRegistrationSchema = new Schema(
         completedAt: Date,
 
         feedback: FeedbackAttemptSchema,
-
-        trainingMode: {
-            type: String,
-            uppercase: true,
-        },
         isRegistered: {
             type: Boolean,
             default: false,
