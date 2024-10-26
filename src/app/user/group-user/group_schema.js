@@ -5,7 +5,7 @@ module.exports = {
             groupName: String!
             groupAdmin: User
             isManagerDefault: Boolean
-            typeOfGroup: String
+            groupType: String
             memberCount: Int
             description: String
             members: [MemberDetails]
@@ -39,6 +39,7 @@ module.exports = {
             description: String
         }
         type GroupList {
+            status : String
             groups: [Group]
             totalCount: Int
         }
