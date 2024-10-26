@@ -424,7 +424,7 @@ module.exports.mutations = {
                 
                                 <p>Please visit the link below to reset your password</p>
                 
-                                <a href="${process.env.APP_URL}/reset-password?token=${token}" target="_blank">
+                                <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>
