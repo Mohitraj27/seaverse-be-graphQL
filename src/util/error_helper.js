@@ -69,6 +69,8 @@ const errorName = {
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
     INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
     ALREADY_DELETED: "ALREADY_DELETED",
+    EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
+    INVALID_EMAIL: "INVALID_EMAIL"
 };
 
 const errorType = {
@@ -416,7 +418,17 @@ const errorType = {
         message: 'Already Deleted',
         statusCode: 400,
         type: "ALREADY_DELETED"
-    }
+    },
+    EMPLOYEE_NOT_REGISTERED: {
+        message: "Employee Not Registered",
+        statusCode: 400,
+        type: "EMPLOYEE_NOT_REGISTERED"
+    },
+    INVALID_EMAIL: {
+        message: "Invalid Email",
+        statusCode: 400,
+        type: "INVALID_EMAIL"
+    },
 };
 
 const formatError = error => {
