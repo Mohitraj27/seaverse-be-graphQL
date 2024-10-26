@@ -1,4 +1,4 @@
-const { ObjectId, Moment } = require("../../tools");
+const { ObjectId, Moment, Validator } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -28,6 +28,8 @@ const Permission = require("../user/sub-roles/permission.json");
 const TrainingRegistrationStatus = require("./training_registration_status.json");
 const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
+const { User } = require("../user/user_model");
+const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolment_model");
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ pageInput, filterInput }, context) => {
@@ -176,19 +178,19 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -273,12 +275,12 @@ module.exports.queries = {
                 },
                 ...(filterInput?.trainingCategory
                     ? [
-                          {
-                              $match: {
-                                  "training.trainingCategories": filterInput.trainingCategory,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "training.trainingCategories": filterInput.trainingCategory,
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -297,12 +299,12 @@ module.exports.queries = {
                 },
                 ...(filterInput?.invoiceStatus
                     ? [
-                          {
-                              $match: {
-                                  "invoice.status": filterInput.invoiceStatus,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "invoice.status": filterInput.invoiceStatus,
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -389,37 +391,37 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "employee.user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.civilIdOrPassport": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "employee.user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.civilIdOrPassport": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -556,6 +558,7 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input, invoiceInput }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -573,108 +576,55 @@ module.exports.mutations = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
-        const existingEmployee = await Employee.findById(input.employee)
-            .lean()
-            .select("organization");
+        const users = [];
+        if (input.users.length > 0) {
 
-        if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
+            const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(input.users);
 
-        if (
-            existingEmployee.organization &&
-            input.organization &&
-            input.organization?.toString() !== existingEmployee.organization?.toString()
-        ) {
-            throw CustomError(ErrorName.ORGANIZATION_MISMATCH_ERROR);
+            if (verifiedUsers.unRegEmails.length > 0) {
+                throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+            }
+
+            if (verifiedUsers.invalidEmails.length > 0) {
+                throw CustomError(ErrorName.INVALID_EMAIL);
+            }
+
+            if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                throw CustomError(ErrorName.ALREADY_EXIST);
+            }
+
+            users = verifiedUsers.users;
         }
+
+        let userObjectIds = [];
+        if (users.length > 0) {
+            userObjectIds = users.map(user => user._id);
+        }
+
+        // Manage groups
+
         const existingTraining = await Training.findById(input.training).lean().select("title");
-        if (existingTraining) input.trainingTitle = existingTraining.title;
-
-        if (input.organization) {
-            const existingOrganization = await Organization.findById(input.organization)
-                .lean()
-                .select("name");
-            if (existingOrganization) input.organizationName = existingOrganization.name;
-        }
-
-        if (input.trainer) {
-            const existingTrainer = await Employee.findById(input.trainer)
-                .lean()
-                .select("user")
-                .populate({ path: "user", select: "firstName lastName" });
-            if (existingTrainer)
-                input.trainerName = `${existingTrainer.user?.firstName ?? ""} ${
-                    existingTrainer.user?.lastName ?? ""
-                }`.trim();
-        }
+        // if (existingTraining) input.trainingTitle = existingTraining.title;
 
         const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
             async session => {
                 const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-                let savedBatch = await new Batch({
-                    UID: batchUID,
+                const savedTrainingRegistration = await new TrainingRegistration({
+                    batchUID,
                     subscriber: subscriberId,
-                    organization: input.organization,
-                    organizationName: input.organizationName,
                     training: input.training,
-                    trainingTitle: input.trainingTitle,
-                    trainingDuration: input.trainingDuration,
-                    trainer: input.trainer,
-                    trainerName: input.trainerName,
-                    employees: [],
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    trainingMode: input.trainingMode,
-                    status: BatchStatus.PENDING,
-                    purchaseInfo: { status: BatchStatus.PENDING },
-                    certificateInfo: { status: BatchStatus.PENDING },
-                    invoiceInfo: { status: BatchStatus.PENDING },
-                    paymentInfo: { status: BatchStatus.PENDING },
-                    createdBy: userId,
+                    users: userObjectIds,
+                    groups: input.groups,
                 }).save({ session });
 
-                if (!savedBatch) throw CustomError(ErrorName.FAILED);
-
-                const savedTrainingRegistration = await new TrainingRegistration({
-                    subscriber: subscriberId,
-                    training: input.training,
-                    batch: savedBatch._id,
-                    batchNumber: savedBatch.UID,
-                    trainingDuration: input.trainingDuration,
-                    certificateValidity: input.certificateValidity,
-                    organization: input.organization,
-                    branch: input.branch,
-                    employee: input.employee,
-                    trainer: input.trainer,
-                    status: TrainingRegistrationStatus.REGISTERED,
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    unitPrice: input.unitPrice,
-                    customPrice: input.customPrice,
-                    remarks: input.remarks,
-                    trainingMode: input.trainingMode,
-                    createdBy: userId,
-                })
-                    .save({ session })
-                    .then(t =>
-                        t
-                            .populate({
-                                path: "employee",
-                                populate: "user",
-                            })
-                            .execPopulate()
-                    );
-
                 if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-                const employee = savedTrainingRegistration.employee;
-                const employeeUser = savedTrainingRegistration.employee?.user;
 
                 savedBatch.employees.push({
                     trainingRegistration: savedTrainingRegistration._id,
                     employee: input.employee,
-                    employeeName: `${employeeUser?.firstName ?? ""} ${
-                        employeeUser?.lastName ?? ""
-                    }`.trim(),
+                    employeeName: `${employeeUser?.firstName ?? ""} ${employeeUser?.lastName ?? ""
+                        }`.trim(),
                     employeeEmail: employeeUser?.email,
                     employeeCivilIdOrPassport: employeeUser?.civilIdOrPassport,
                     employeeRigNumber: employee?.rigNumber,

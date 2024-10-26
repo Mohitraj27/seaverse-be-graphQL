@@ -69,10 +69,15 @@ const errorName = {
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
     INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
     ALREADY_DELETED: "ALREADY_DELETED",
+<<<<<<< HEAD
     GROUP_NOT_FOUND: "GROUP_NOT_FOUND",
     INVALID_GROUP_ID: "INVALID_GROUP_ID",
     LEARNING_PLAN_ALREADY_EXISTS: "LEARNING_PLAN_ALREADY_EXISTS",
     LEARNING_PLAN_NOT_CREATED: "LEARNING_PLAN_NOT_CREATED"
+=======
+    EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
+    INVALID_EMAIL: "INVALID_EMAIL"
+>>>>>>> 554a4067841b7e0cf3ad78f723dfc11f034291ba
 };
 
 const errorType = {
@@ -440,7 +445,17 @@ const errorType = {
         message: 'Learning Plan Not Created',
         status: 400,    
         type: "LEARNING_PLAN_NOT_CREATED"
-    }
+    },
+    EMPLOYEE_NOT_REGISTERED: {
+        message: "Employee Not Registered",
+        statusCode: 400,
+        type: "EMPLOYEE_NOT_REGISTERED"
+    },
+    INVALID_EMAIL: {
+        message: "Invalid Email",
+        statusCode: 400,
+        type: "INVALID_EMAIL"
+    },
 };
 
 const formatError = error => {

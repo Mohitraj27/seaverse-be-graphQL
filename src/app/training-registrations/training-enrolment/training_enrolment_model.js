@@ -1,8 +1,7 @@
-const { Schema, Model, ObjectId, AggregatePaginate } = require("../../tools");
-const { LocalisedDataSchema } = require("../../util/localised_data_schema");
-const { FeedbackAttemptSchema } = require("../feedbacks/feedback_content_model");
+const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools");
+const { LocalisedDataSchema } = require("../../../util/localised_data_schema");
 
-const trainingRegistrationSchema = new Schema(
+const userTrainingEnrolmentSchema = new Schema(
     {
         subscriber: {
             type: ObjectId,
@@ -15,25 +14,16 @@ const trainingRegistrationSchema = new Schema(
             ref: "Training",
             required: true,
         },
-        group: [
-            {
-                groupType: {
-                    type: String,
-                },
-                groupId: {
-                    type: String,
-                }
-            }
-        ],
-        employee: [
-            {
-                type: ObjectId,
-                ref: "User",
-                index: true,
-            }
-        ],
+        user: {
+            type: ObjectId,
+            ref: "User",
+            required: true,
+        },
+        enroledStatus: {
+            type: Boolean,
+        }
     },
     { timestamps: true }
 );
 
-module.exports.TrainingRegistration = Model("TrainingRegistration", trainingRegistrationSchema);
+module.exports.UserTrainingEnrolment = Model("UserTrainingEnrolment", userTrainingEnrolmentSchema);
