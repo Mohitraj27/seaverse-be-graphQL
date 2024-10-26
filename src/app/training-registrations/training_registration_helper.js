@@ -12,6 +12,9 @@ const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolme
 
 const { groupType } = require("../../util");
 const { Designation } = require("../designations/designation_model");
+const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
+const { Vessel } = require("../vessle/vessel_model");
+const { GroupMember } = require("../user/group-user/group_member_model");
 
 module.exports = {
     sendNotificationOnCRUD: async notificationData => {
@@ -174,12 +177,24 @@ module.exports = {
                         users.push(...groupUsers);
                     }
                     break;
+                case groupType.vesselStatus:
+                    const vesselTypes = await UserVessel.find({ vesselType: groupId }).populate("user");
+                    if (vesselTypes.length > 0) {
+                        users.push(...vesselTypes.map(x => x.user));
+                    }
+                    break;
+                case group.vesselType:
+                    const vessels = await Vessel.find({ typeOfVessel: groupId });
+                    if (vessels.length > 0) {
+                        const userVessel = await UserVessel.find({ vessel: { $in: vessels.map(x => x._id) } }).populate("user");
+                        if (userVessel.length > 0) {
+                            users.push(...userVessel.map(x => x.user));
+                        }
+                    }
+                    break;
                 default:
                     break;
             }
-
         }
-
-
     }
 };
