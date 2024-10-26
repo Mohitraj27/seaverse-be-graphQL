@@ -69,6 +69,10 @@ const errorName = {
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
     INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
     ALREADY_DELETED: "ALREADY_DELETED",
+    GROUP_NOT_FOUND: "GROUP_NOT_FOUND",
+    INVALID_GROUP_ID: "INVALID_GROUP_ID",
+    LEARNING_PLAN_ALREADY_EXISTS: "LEARNING_PLAN_ALREADY_EXISTS",
+    LEARNING_PLAN_NOT_CREATED: "LEARNING_PLAN_NOT_CREATED"
 };
 
 const errorType = {
@@ -416,6 +420,26 @@ const errorType = {
         message: 'Already Deleted',
         statusCode: 400,
         type: "ALREADY_DELETED"
+    },
+    GROUP_NOT_FOUND: {
+        message: 'Group Not Found',
+        status: 400,
+        type: "GROUP_NOT_FOUND"
+    },
+    INVALID_GROUP_ID: {
+        message: 'Invalid Group Id',
+        status: 400,
+        type: "INVALID_GROUP_ID"
+    },
+    LEARNING_PLAN_ALREADY_EXISTS: {
+        message: 'Learning Plan with this title already exists',
+        status: 400,
+        type: "LEARNING_PLAN_ALREADY_EXISTS"
+    },
+    LEARNING_PLAN_NOT_CREATED:{
+        message: 'Learning Plan Not Created',
+        status: 400,    
+        type: "LEARNING_PLAN_NOT_CREATED"
     }
 };
 

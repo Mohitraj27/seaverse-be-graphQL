@@ -1,57 +1,45 @@
-const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools");
-
+const { Schema, Model, ObjectId } = require("../../tools");
+const  TargetAudience  =  require("./enumFields/targetAudienceEnum.json");
+const  LearningPlanStatus  = require("./enumFields/learning_plan_status.json");
+const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");
+const conditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const learningPlanSchema = new Schema(
     {
-        subscriber: {
-            type: ObjectId,
-            ref: "Subscriber",
-            required: true,
-        },
-        name: {
+        title: {
             type: String,
             required: true,
         },
-        assignedTo: {
+        targetAudience: {
+            type: String,
+            default: TargetAudience.EVERYONE_IN_ORGANIZATION,
+        },
+        designationIds: [{
+            type: ObjectId,
+            ref: "Designation",
+        }],
+        status: {
+            type: String,
+            default: LearningPlanStatus.DRAFT,  
+            enum: Object.values(LearningPlanStatus)
+        },
+        groupIDs:[{
+            type: [ObjectId],
+            ref: "Group"
+        }],
+        audienceSelection: {
             type: String,
             required: true,
+            enum: Object.values(audienceSelectionEnum)
         },
-        allEmployeesInThisOrganization: {
-            type: Boolean,
-            default: false,
+        conditionType: {
+            type: String,
+            enum: Object.values(conditionTypeEnum),
         },
-        automaticAssignmentBasedOnCondition: {
-            type: Boolean,
-            default: false,
-        },
-        manualSelection: {
-            type: Boolean,
-            default: false,
-        },
-        matchingAnyCondition: {
-            type: Boolean,
-            default: false,
-        },
-        matchingAllConditions: {
-            type: Boolean,
-            default: false,
-        },
-        conditions: [
-            {
-                type: String,
-            },
-        ],
-        createdBy: {
-            type: ObjectId,
-            ref: "User",
-        },
-        updatedBy: {
-            type: ObjectId,
-            ref: "User",
-        },
-        isDeleted: {
-            type: Boolean,
-            default: false,
-        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
     },
     { timestamps: true }
 );
+module.exports.LearningPlan = Model("LearningPlan", learningPlanSchema);
