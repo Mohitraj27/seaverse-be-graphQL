@@ -14,9 +14,8 @@ const Content_status = require("./content_status.json");
 const ContentType = require("./content_type.json");
 const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
-const pptx2json = require('pptx2json');
-const JSZip = require('jszip');
-const xml2js = require('xml2js');
+const PptxGenJS = require('pptxgenjs');
+const pdfParse = require('pdf-parse');
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
@@ -490,40 +489,48 @@ module.exports.mutations = {
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
 
-            let pptSlides = 0;
+            let pagesOrSlides = 0;
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
 
-            function streamToBuffer(stream) {
-                return new Promise((resolve, reject) => {
-                    const chunks = [];
-                    stream.on('data', (chunk) => chunks.push(chunk));
-                    stream.on('end', () => resolve(Buffer.concat(chunks)));
-                    stream.on('error', reject);
-                });
-            }
+            // function streamToBuffer(stream) {
+            //     return new Promise((resolve, reject) => {
+            //         const chunks = [];
+            //         stream.on('data', (chunk) => chunks.push(chunk));
+            //         stream.on('end', () => resolve(Buffer.concat(chunks)));
+            //         stream.on('error', reject);
+            //     });
+            // }
+
+            // async function extractPPTSlides(pptStream) {
+            //     let ppt = new PptxGenJS();
+            //     await ppt.load(pptStream);
+            //     console.log("PPT", ppt);
+            //     return ppt.getSlideCount();
+            // }
+
+            // async function extractPDFPages(pdfStream) {
+            //     const data = await pdfParse(pdfStream);
+            //     return data.numpages;
+            // }
 
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-
-                if (fileExtension === 'ppt' || fileExtension === 'pptx') {
-                    const readStream = mediaFile.createReadStream();
-                    const buffer = await streamToBuffer(readStream);
-
-                    const zip = await JSZip.loadAsync(buffer);
-
-                    const slideFolder = zip.folder('ppt/slides');
-                    const slideFiles = slideFolder.file(/\/slide\d+\.xml$/);
-
-                    slideFiles.forEach(file => console.log(`Matched slide file: ${file.name}`));
-
-                    const actualSlideCount = slideFiles.length;
-
-                    console.log(`Total number of actual slides: ${actualSlideCount}`);
-
-                }
+                // if (fileExtension === 'ppt' || fileExtension === 'pptx') {
+                //     console.log("asdfghj");
+                //     const { createReadStream, filename, mimetype } = await mediaFile;
+                //     const stream = createReadStream();
+                //     pagesOrSlides = await extractPDFPages(stream);
+                // } else if (fileExtension === 'pdf') {
+                //     const { createReadStream, filename, mimetype } = await mediaFile;
+                //     const stream = createReadStream();
+                //     pagesOrSlides = await extractPPTSlides(stream);
+                // }
                 return allowedFileFormats.includes(fileExtension);
-            };
+            }
+
+
+            console.log("Total slides", pagesOrSlides);
 
             if (scormFile && !validateFileFormat(scormFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
@@ -629,6 +636,7 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
+            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -751,12 +759,6 @@ module.exports.mutations = {
 
         const validateFileFormat = async (mediaFile) => {
             const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-
-            if (fileExtension === 'ppt' || fileExtension === 'pptx') {
-                const readStream = mediaFile.createReadStream();
-                const pptData = new pptx2json(readStream);
-                const pptSlides = pptData.slides ? pptData.slides.length : 0;
-            }
             return allowedFileFormats.includes(fileExtension);
         };
 
