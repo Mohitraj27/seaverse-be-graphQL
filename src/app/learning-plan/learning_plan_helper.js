@@ -9,6 +9,9 @@
     const { Designation } = require("../designations/designation_model");
     const approval_status = require("../trainings/approval_status.json")
     const  { Training }  = require("../trainings/training_model");
+    const errorMessages = require("./error_helper/error_message");
+    const audienceSelection = require("./enumFields/audienceSelectionEnum.json")
+    const targetAudienceEnum = require("./enumFields/targetAudienceEnum.json");
     const validateConditionalCustomFields = async (conditionalCustomFields) => {
         const errors = [];
         
@@ -61,39 +64,39 @@
         let errorList = [];
         
         try {
-            if (!input.title){ errorList.push("Title is required.");}
-            if (!input.targetAudience) { errorList.push("Target audience is required.");}
-            if (!input.audienceSelection) { errorList.push("Audience selection is required.");}
-            if (!input.selectCourses) { errorList.push("Selecting the courses is required.");}
-            if (input.audienceSelection === "ALL_EMPLOYEES" && input.conditionType) {
-                errorList.push("Condition type should not be provided when audience selection is ALL_EMPLOYEES.");
+            if (!input.title){ errorList.push(errorMessages.TITLE_REQUIRED);}
+            if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED);}
+            if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED);}
+            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED);}
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
+                errorList.push(errorMessages.INVALID_CONDITION_FOR_ALL_EMPLOYEES);
             }
-            if (input.audienceSelection === "AUTOMATIC" && !input.conditionType) {
-                errorList.push("Condition type is required when audience selection is AUTOMATIC.");
+            if (input.audienceSelection === audienceSelection.AUTOMATIC && !input.conditionType) {
+                errorList.push(errorMessages.CONDITION_TYPE_REQUIRED_FOR_AUTOMATIC);
             }
-            if (input.targetAudience === "EVERYONE_IN_ORGANIZATION" && input.groupIDs && input.groupIDs.length > 0) {
-                errorList.push("Group ObjectIds should not be provided when target audience is EVERYONE_IN_ORGANIZATION.");
+            if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs && input.groupIDs.length > 0) {
+                errorList.push(errorMessages.INVALID_GROUP_IDS_FOR_TARGET_AUDIENCE);
             }
-            if (input.audienceSelection === 'ALL_EMPLOYEES' && input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
-                errorList.push("Conditional custom fields cannot be passed when audience selection is ALL_EMPLOYEES.");
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                errorList.push(errorMessages.CONDITIONAL_FIELDS_NOT_ALLOWED_FOR_ALL_EMPLOYEES);
             }
-            if ((input.audienceSelection === 'AUTOMATIC' ) && 
+            if ((input.audienceSelection === audienceSelection.AUTOMATIC ) && 
                 (!input.conditionType || !input.conditionalCustomFields || input.conditionalCustomFields.length === 0)) {
-                errorList.push("Condition Type & Conditional custom fields are required when condition type is AUTOMATIC.");
+                errorList.push(errorMessages.AUTOMATIC_SELECTION_FIELDS_REQUIRED);
             }
-            if (input.audienceSelection === "MANUAL") {
+            if (input.audienceSelection === audienceSelection.MANUAL ) {
                 if (input.conditionalCustomFields || input.conditionType) {
-                    errorList.push("Conditional custom fields and condition type should not be provided for MANUAL audience selection.");
+                    errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_MANUAL);
                 }
                 if (!Array.isArray(input.userObjectIds) || input.userObjectIds.length === 0) {
-                    errorList.push("A list of user ObjectIds is required for MANUAL audience selection.");
+                    errorList.push(errorMessages.USER_OBJECT_IDS_REQUIRED_FOR_MANUAL);
                 } else {
                     const validUserIds = await User.find({
                         _id: { $in: input.userObjectIds },
                         isDeleted: false
                     });
                     if (validUserIds.length !== input.userObjectIds.length) {
-                        errorList.push("One or more user ObjectIds are invalid.");
+                        errorList.push(errorMessages.INVALID_USER_OBJECT_IDS);
                     }
                 }
             }
@@ -104,7 +107,7 @@
             if (input.selectCourses && input.selectCourses.length > 0) {
                 const isValidCourses = await validatePickingCourses(input.selectCourses);
                 if (!isValidCourses) {
-                    errorList.push("Please Select a valid course from the list.");
+                    errorList.push(errorMessages.INVALID_COURSE_SELECTION);
                 }
             }
             if(errorList.length > 0){
@@ -113,21 +116,21 @@
             const existingLearningPlan = await LearningPlan.findOne({
                 title: input.title,
             });
-            if (existingLearningPlan) {  errorList.push("Learning Plan already exists.");
+            if (existingLearningPlan) {  errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
                 return { sucess: false, errors: errorList};
             }
-            const targetAudience = input.targetAudience || 'EVERYONE_IN_ORGANIZATION';
+            const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
             let groupIDs = input.groupIDs || [];  
-            if (targetAudience === 'GROUP_BASED') {
+            if (targetAudience === targetAudienceEnum.GROUP_BASED) {
                 if (!Array.isArray(groupIDs) || groupIDs.length === 0) {
-                    errorList.push("Group ObjectIds are required for GROUP_BASED target audience.");
+                    errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
                 }
                 const validGroupCount = await Group.find({
                     _id: { $in: groupIDs },
                     isDeleted: false
                 });
                 if (validGroupCount.length !== groupIDs.length) {
-                    errorList.push("One or more Group ObjectIds are invalid",);
+                    errorList.push(errorMessages.INVALID_GROUP_IDS);
                 }
             }
             if (errorList.length > 0) {
