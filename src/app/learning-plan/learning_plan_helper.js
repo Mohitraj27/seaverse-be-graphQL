@@ -6,7 +6,7 @@
     const { User } = require("../user/user_model");
     const { Vessel } = require("../vessle/vessel_model");
     const { VesselType } = require("../vessle/vessel-type/vessel_type_model");
-    const {Designation} = require("../designations/designation_model");
+    const { Designation } = require("../designations/designation_model");
     
     const validateConditionalCustomFields = async (conditionalCustomFields) => {
         const errors = [];
@@ -37,10 +37,10 @@
                 return await User.find({ _id: { $in: valueOfField }, isDeleted: false }); 
     
             case typeOfConditionalCustomFieldEnum.VESSEL:
-                return await Vessel.find({ _id: { $in: valueOfField }, isDeleted: false });
+                return await Vessel.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
     
             case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
-                return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false }); 
+                return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true }); 
     
             default:
                 return [];
