@@ -7,7 +7,8 @@
     const { Vessel } = require("../vessle/vessel_model");
     const { VesselType } = require("../vessle/vessel-type/vessel_type_model");
     const { Designation } = require("../designations/designation_model");
-    
+    const approval_status = require("../trainings/approval_status.json")
+    const  { Training }  = require("../trainings/training_model");
     const validateConditionalCustomFields = async (conditionalCustomFields) => {
         const errors = [];
         
@@ -46,6 +47,15 @@
                 return [];
         }
     };
+    const validatePickingCourses = async (selectCourses) => {
+        const validCourses = await Training.find({
+            _id: { $in: selectCourses },
+            approvalStatus: approval_status.APPROVED,
+            isDeleted: false,
+            isActive: true
+        });
+        return validCourses.length === selectCourses.length;
+    };
     
     const createLearningPlanHelper = async (input) => {
         let errorList = [];
@@ -54,6 +64,7 @@
             if (!input.title){ errorList.push("Title is required.");}
             if (!input.targetAudience) { errorList.push("Target audience is required.");}
             if (!input.audienceSelection) { errorList.push("Audience selection is required.");}
+            if (!input.selectCourses) { errorList.push("Selecting the courses is required.");}
             if (input.audienceSelection === "ALL_EMPLOYEES" && input.conditionType) {
                 errorList.push("Condition type should not be provided when audience selection is ALL_EMPLOYEES.");
             }
@@ -90,6 +101,12 @@
                 const conditionalFieldErrors = await validateConditionalCustomFields(input.conditionalCustomFields);
                 errorList = errorList.concat(conditionalFieldErrors);
             }
+            if (input.selectCourses && input.selectCourses.length > 0) {
+                const isValidCourses = await validatePickingCourses(input.selectCourses);
+                if (!isValidCourses) {
+                    errorList.push("Please Select a valid course from the list.");
+                }
+            }
             if(errorList.length > 0){
                 return { sucess: false, errors: errorList};
             }
@@ -124,7 +141,8 @@
                 audienceSelection: input.audienceSelection,
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields,
-                userObjectIds: input.userObjectIds
+                userObjectIds: input.userObjectIds,
+                selectCourses: input.selectCourses
             });
           await newLearningPlan.save();
           return { success: true, learningPlan: newLearningPlan };

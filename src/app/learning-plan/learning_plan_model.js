@@ -58,6 +58,10 @@ const learningPlanSchema = new Schema(
             type: ObjectId,
             ref: "User"
         }],
+        selectCourses:[{
+            type: ObjectId,
+            ref: "Training"
+        }],
         createdAt: {
             type: Date,
             default: Date.now

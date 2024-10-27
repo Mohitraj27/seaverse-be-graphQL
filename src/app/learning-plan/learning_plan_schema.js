@@ -33,6 +33,7 @@ module.exports = {
         type LearningPlan {
             _id: ID
             title: String!
+            selectCourses: [ID]!
             targetAudience: TargetAudienceEnum
             groupIDs: [ID]
             userObjectIds: [ID]
@@ -47,6 +48,7 @@ module.exports = {
         input LearningPlanInput {
             title: String!
             targetAudience: TargetAudienceEnum
+            selectCourses: [ID!]!
             groupIDs: [ID!]
             userObjectIds: [ID]
             status: LearningPlanStatus
