@@ -283,7 +283,7 @@ module.exports.queries = {
             
                             <p>Please visit the link below to reset your password</p>
             
-                            <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                            <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                 Click Here
                             </a>
                         </div>
@@ -351,9 +351,17 @@ module.exports.mutations = {
             if (!existingUser) {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
+
+
             if (newPassword !== confirmPassword) {
                 throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
+
+            const sameOldPassword = await CryptoHelper.compare(input.newPassword, existingUser.password);
+            if (sameOldPassword) {
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Please enter a new password");
+            }
+
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
@@ -424,7 +432,7 @@ module.exports.mutations = {
                 
                                 <p>Please visit the link below to reset your password</p>
                 
-                                <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                                <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>

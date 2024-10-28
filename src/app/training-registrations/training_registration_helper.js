@@ -10,11 +10,105 @@ const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolment_model");
 
-const { groupType } = require("../../util");
+const { groupTypes } = require("../../util");
 const { Designation } = require("../designations/designation_model");
 const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const { Vessel } = require("../vessle/vessel_model");
 const { GroupMember } = require("../user/group-user/group_member_model");
+const { Group } = require("../user/group-user/group_model");
+
+
+const fetchUserFromAutoSyncedGroups = (async (groups) => {
+
+    try {
+        const users = [];
+
+        const designationIds = [];
+        const roleIds = [];
+        const subRoleIds = [];
+        const regStatusIds = [];
+        const vesselIds = [];
+        const vesselStatusIds = [];
+        const vesselTypeIds = [];
+
+        for (let group of groups) {
+            const { groupType, groupId } = group;
+            switch (groupType) {
+                case groupTypes.designation:
+                    designationIds.push(groupId);
+                    break;
+                case groupTypes.role:
+                    roleIds.push(groupId);
+                    break;
+                case groupTypes.subRole:
+                    subRoleIds.push(groupId);
+                    break;
+                case groupTypes.regStatus:
+                    regStatusIds.push(groupId);
+                    break;
+                case groupTypes.vessel:
+                    vesselIds.push(groupId);
+                    break;
+                case groupTypes.vesselStatus:
+                    vesselStatusIds.push(groupId);
+                    break;
+                case groupTypes.vesselType:
+                    vesselTypeIds.push(groupId);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        const designationQuery = designationIds.length ? User.find({ designation: { $in: designationIds } }) : Promise.resolve([]);
+        const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
+        const subRoleQuery = subRoleIds.length ? User.find({ subRole: { $in: subRoleIds } }) : Promise.resolve([]);
+        const regStatusQuery = regStatusIds.length ? User.find({ regStatus: { $in: regStatusIds } }) : Promise.resolve([]);
+        const vesselQuery = vesselIds.length ? User.find({ vessel: { $in: vesselIds } }) : Promise.resolve([]);
+        const vesselStatusQuery = vesselStatusIds.length ? Employee.find({ vesselStatus: { $in: vesselStatusIds } }) : Promise.resolve([]);
+
+        let vesselTypeQuery;
+        if (vesselTypeIds.length) {
+            const vessels = await Vessel.find({ typeOfVessel: { $in: vesselTypeIds } });
+            const vesselIdsFromType = vessels.map(x => x._id);
+            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType } }).populate("user") : Promise.resolve([]);
+        } else {
+            vesselTypeQuery = Promise.resolve([]);
+        }
+
+        const [
+            designationUsers,
+            roleUsers,
+            subRoleUsers,
+            regStatusUsers,
+            vesselUsers,
+            vesselStatusUsers,
+            vesselTypeUsers
+        ] = await Promise.all([
+            designationQuery,
+            roleQuery,
+            subRoleQuery,
+            regStatusQuery,
+            vesselQuery,
+            vesselStatusQuery,
+            vesselTypeQuery
+        ]);
+
+        return users = [
+            ...designationUsers,
+            ...roleUsers,
+            ...subRoleUsers,
+            ...regStatusUsers,
+            ...vesselUsers,
+            ...vesselStatusUsers,
+            ...vesselTypeUsers.map(x => x.user)
+        ];
+
+    } catch (error) {
+        console.log(error);
+    }
+
+})
 
 module.exports = {
     sendNotificationOnCRUD: async notificationData => {
@@ -77,37 +171,19 @@ module.exports = {
     },
     enrolUserVerificationHelper: async (inputUsers) => {
 
-        let objectIds = [];
         let emails = [];
         let invalidEmails = [];
         let unRegEmails = [];
         let alreadyEnrolledEmails = [];
 
-        for (let user of inputUsers) {
-            if (ObjectId.isValid(user)) {
-                objectIds.push(user);
-            } else {
-                if (!Validator.isEmail(user)) {
-                    invalidEmails.push(user)
-                } else {
-                    emails.push(user);
-                }
-            }
-        }
-
         let users = [];
 
-        if (objectIds.length > 0 && emails.length > 0) {
-            users = await User.find({
-                $or: [
-                    { _id: { $in: objectIds } },
-                    { email: { $in: emails } }
-                ]
-            });
-        } else if (objectIds.length > 0) {
-            users = await User.find({ _id: { $in: objectIds } });
-        } else if (emails.length > 0) {
-            users = await User.find({ email: { $in: emails } });
+        for (let user of inputUsers) {
+            if (!Validator.isEmail(user.email)) {
+                invalidEmails.push(user.email)
+            } else {
+                emails.push(user);
+            }
         }
 
         for (let user of users) {
@@ -124,77 +200,54 @@ module.exports = {
             alreadyEnrolledEmails = alreadyEnrolled.map(user => user.user.email);
         }
 
-        return { objectIds, emails, invalidEmails, unRegEmails, alreadyEnrolledEmails, users };
+        return { emails, invalidEmails, unRegEmails, alreadyEnrolledEmails, users };
 
     },
     getAutoSyncUsers: async (groups) => {
 
-        // Group structure: [
-        //  { groupType: 'designation', groupId: '5f5f5f5f5f5f5f5f5f5f5f5f' },
-        //  { groupType: 'role', groupId: 'LEARNER' }
-        // ]
+        if (groups.length <= 0) {
+            return [];
+        }
 
         const users = [];
 
-        for (let group of groups) {
-            const groupTypes = group.groupType;
-            const groupId = group.groupId;
+        const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groups);
+        if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+            return users.push(...autoSyncedUsers);
+        } else {
+            return [];
+        }
+    },
+    getCustomGroupUsers: async (groups) => {
 
-            switch (groupTypes) {
-                case groupType.designation:
-                    const designationUsers = await User.find({ designation: groupId });
-                    if (designationUsers) {
-                        users.push(...designationUsers);
-                    }
-                    break;
-                case groupType.role:
-                    const roleUsers = await User.find({ role: groupId });
-                    if (roleUsers) {
-                        users.push(...roleUsers);
-                    }
-                    break;
-                case groupType.subRole:
-                    const subRoleUsers = await User.find({ subRole: { $in: [groupId] } });
-                    if (subRoleUsers) {
-                        users.push(...subRoleUsers);
-                    }
-                    break;
-                case groupType.regStatus:
-                    const regStatusUsers = await User.find({ regStatus: groupId });
-                    if (regStatusUsers) {
-                        users.push(...regStatusUsers);
-                    }
-                    break;
-                case groupType.vessel:
-                    const vesselUsers = await User.find({ vessel: groupId });
-                    if (vesselUsers) {
-                        users.push(...vesselUsers);
-                    }
-                    break;
-                case groupType.vesselStatus:
-                    const groupUsers = await Employee.find({ vesselStatus: groupId });
-                    if (groupUsers) {
-                        users.push(...groupUsers);
-                    }
-                    break;
-                case groupType.vesselStatus:
-                    const vesselTypes = await UserVessel.find({ vesselType: groupId }).populate("user");
-                    if (vesselTypes.length > 0) {
-                        users.push(...vesselTypes.map(x => x.user));
-                    }
-                    break;
-                case group.vesselType:
-                    const vessels = await Vessel.find({ typeOfVessel: groupId });
-                    if (vessels.length > 0) {
-                        const userVessel = await UserVessel.find({ vessel: { $in: vessels.map(x => x._id) } }).populate("user");
-                        if (userVessel.length > 0) {
-                            users.push(...userVessel.map(x => x.user));
-                        }
-                    }
-                    break;
-                default:
-                    break;
+        if (groups.length <= 0) {
+            return [];
+        }
+
+        const users = [];
+        const groupIds = groups.map(group => group.groupId);
+        const getGroups = await GroupMember.find({ group: { $in: groupIds } });
+
+        if (getGroups.length > 0) {
+
+            users.push(...getGroups.map(group => group.member).filter(member => member != null));
+
+            const groupOfGroups = getGroups.filter(group => group.groupType != null && group.groupData != null);
+
+            if (groupOfGroups && groupOfGroups.length > 0) {
+
+                const formattedGroups = groupOfGroups.map(group => ({
+                    groupType: group.groupType,
+                    groupId: group.groupData
+                }));
+
+                const membersInGroupGroups = await fetchUserFromAutoSyncedGroups(formattedGroups);
+
+                return users.push(...membersInGroupGroups);
+            } else {
+                return [];
             }
         }
+
     }
 };

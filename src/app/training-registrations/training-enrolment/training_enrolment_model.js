@@ -3,12 +3,6 @@ const { LocalisedDataSchema } = require("../../../util/localised_data_schema");
 
 const userTrainingEnrolmentSchema = new Schema(
     {
-        subscriber: {
-            type: ObjectId,
-            ref: "Subscriber",
-            required: true,
-            index: true,
-        },
         training: {
             type: ObjectId,
             ref: "Training",
@@ -21,7 +15,16 @@ const userTrainingEnrolmentSchema = new Schema(
         },
         enroledStatus: {
             type: Boolean,
-        }
+            default: true
+        },
+        courseStatus: {
+            type: String,
+            enum: ["notStarted", "inProgress", "completed"]
+        },
+        progress: {
+            type: Number,
+            default: 0
+        },
     },
     { timestamps: true }
 );
