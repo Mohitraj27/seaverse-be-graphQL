@@ -1,4 +1,4 @@
-const { CryptoHelper, MomentTimezone } = require("../../../tools");
+const { CryptoHelper, MomentTimezone, ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
 
 const { User } = require("../user_model");
@@ -44,7 +44,7 @@ module.exports.queries = {
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {
-          
+
             if (userInfo.role === 'ADMIN') {
                 return [
                     {
@@ -70,9 +70,9 @@ module.exports.queries = {
 
             }
         };
-        
+
         if (isAuthenticated) {
-            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo)};
+            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
         }
 
         throw CustomError(ErrorName.FORBIDDEN);
@@ -283,7 +283,7 @@ module.exports.queries = {
             
                             <p>Please visit the link below to reset your password</p>
             
-                            <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                            <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                 Click Here
                             </a>
                         </div>
@@ -351,9 +351,17 @@ module.exports.mutations = {
             if (!existingUser) {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
+
+
             if (newPassword !== confirmPassword) {
                 throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
+
+            const sameOldPassword = await CryptoHelper.compare(input.newPassword, existingUser.password);
+            if (sameOldPassword) {
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Please enter a new password");
+            }
+
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
@@ -424,7 +432,7 @@ module.exports.mutations = {
                 
                                 <p>Please visit the link below to reset your password</p>
                 
-                                <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                                <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>
@@ -471,8 +479,11 @@ module.exports.mutations = {
     newPasswordAfterReset: async ({ input }, context) => {
 
         try {
+
+            let userId = null;
+
             if (!input.token) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide all the required fields');
+                userId = AuthUser(context).userId;
             }
 
             if (input.newPassword !== input.confirmPassword) {
@@ -481,7 +492,7 @@ module.exports.mutations = {
 
             const user = await User.findOne({
                 $or: [
-                    { resetPasswordToken: input.token }
+                    ObjectId.isValid(userId) ? { _id: userId } : { resetPasswordToken: input.token }
                 ]
             });
 
@@ -499,6 +510,7 @@ module.exports.mutations = {
 
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
+            user.isResetPasswordDialog = true;
 
             const updateUser = await user.save();
 

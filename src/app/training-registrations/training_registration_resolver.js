@@ -1,4 +1,4 @@
-const { ObjectId, Moment } = require("../../tools");
+const { ObjectId, Moment, Validator } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -6,6 +6,7 @@ const {
     Role,
     DbTransactionHelper,
     ParseDateTime,
+    courseStatus,
 } = require("../../util");
 
 const { TrainingRegistration } = require("./training_registration_model");
@@ -28,6 +29,8 @@ const Permission = require("../user/sub-roles/permission.json");
 const TrainingRegistrationStatus = require("./training_registration_status.json");
 const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
+const { User } = require("../user/user_model");
+const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolment_model");
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ pageInput, filterInput }, context) => {
@@ -176,19 +179,19 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -273,12 +276,12 @@ module.exports.queries = {
                 },
                 ...(filterInput?.trainingCategory
                     ? [
-                          {
-                              $match: {
-                                  "training.trainingCategories": filterInput.trainingCategory,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "training.trainingCategories": filterInput.trainingCategory,
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -297,12 +300,12 @@ module.exports.queries = {
                 },
                 ...(filterInput?.invoiceStatus
                     ? [
-                          {
-                              $match: {
-                                  "invoice.status": filterInput.invoiceStatus,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "invoice.status": filterInput.invoiceStatus,
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -389,37 +392,37 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "employee.user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.civilIdOrPassport": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "employee.user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.civilIdOrPassport": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -555,7 +558,8 @@ module.exports.queries = {
 };
 
 module.exports.mutations = {
-    createTrainingRegistration: async ({ input, invoiceInput }, context) => {
+    createTrainingRegistration: async ({ input }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -573,154 +577,140 @@ module.exports.mutations = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
-        const existingEmployee = await Employee.findById(input.employee)
-            .lean()
-            .select("organization");
+        try {
 
-        if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-
-        if (
-            existingEmployee.organization &&
-            input.organization &&
-            input.organization?.toString() !== existingEmployee.organization?.toString()
-        ) {
-            throw CustomError(ErrorName.ORGANIZATION_MISMATCH_ERROR);
-        }
-        const existingTraining = await Training.findById(input.training).lean().select("title");
-        if (existingTraining) input.trainingTitle = existingTraining.title;
-
-        if (input.organization) {
-            const existingOrganization = await Organization.findById(input.organization)
-                .lean()
-                .select("name");
-            if (existingOrganization) input.organizationName = existingOrganization.name;
-        }
-
-        if (input.trainer) {
-            const existingTrainer = await Employee.findById(input.trainer)
-                .lean()
-                .select("user")
-                .populate({ path: "user", select: "firstName lastName" });
-            if (existingTrainer)
-                input.trainerName = `${existingTrainer.user?.firstName ?? ""} ${
-                    existingTrainer.user?.lastName ?? ""
-                }`.trim();
-        }
-
-        const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
-            async session => {
-                const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
-
-                let savedBatch = await new Batch({
-                    UID: batchUID,
-                    subscriber: subscriberId,
-                    organization: input.organization,
-                    organizationName: input.organizationName,
-                    training: input.training,
-                    trainingTitle: input.trainingTitle,
-                    trainingDuration: input.trainingDuration,
-                    trainer: input.trainer,
-                    trainerName: input.trainerName,
-                    employees: [],
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    trainingMode: input.trainingMode,
-                    status: BatchStatus.PENDING,
-                    purchaseInfo: { status: BatchStatus.PENDING },
-                    certificateInfo: { status: BatchStatus.PENDING },
-                    invoiceInfo: { status: BatchStatus.PENDING },
-                    paymentInfo: { status: BatchStatus.PENDING },
-                    createdBy: userId,
-                }).save({ session });
-
-                if (!savedBatch) throw CustomError(ErrorName.FAILED);
-
-                const savedTrainingRegistration = await new TrainingRegistration({
-                    subscriber: subscriberId,
-                    training: input.training,
-                    batch: savedBatch._id,
-                    batchNumber: savedBatch.UID,
-                    trainingDuration: input.trainingDuration,
-                    certificateValidity: input.certificateValidity,
-                    organization: input.organization,
-                    branch: input.branch,
-                    employee: input.employee,
-                    trainer: input.trainer,
-                    status: TrainingRegistrationStatus.REGISTERED,
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    unitPrice: input.unitPrice,
-                    customPrice: input.customPrice,
-                    remarks: input.remarks,
-                    trainingMode: input.trainingMode,
-                    createdBy: userId,
-                })
-                    .save({ session })
-                    .then(t =>
-                        t
-                            .populate({
-                                path: "employee",
-                                populate: "user",
-                            })
-                            .execPopulate()
-                    );
-
-                if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-                const employee = savedTrainingRegistration.employee;
-                const employeeUser = savedTrainingRegistration.employee?.user;
-
-                savedBatch.employees.push({
-                    trainingRegistration: savedTrainingRegistration._id,
-                    employee: input.employee,
-                    employeeName: `${employeeUser?.firstName ?? ""} ${
-                        employeeUser?.lastName ?? ""
-                    }`.trim(),
-                    employeeEmail: employeeUser?.email,
-                    employeeCivilIdOrPassport: employeeUser?.civilIdOrPassport,
-                    employeeRigNumber: employee?.rigNumber,
-                    employeeDesignation: employee?.designation,
-                });
-
-                savedBatch = await savedBatch?.save({ session });
-                if (!savedBatch) throw CustomError(ErrorName.FAILED);
-
-                return savedTrainingRegistration;
+            if(!input.groups && !input.users) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
-        );
-        EmployeeHelper.sendEnrollmentNotification([
-            {
+
+            const autoSyncUsers = await TrainingRegistrationHelper.getAutoSyncUsers(input.groups);
+
+            const customGroups = input.groups.filter(group => group.groupType === 'custom');
+
+            let customGroupUsers = [];
+            if (customGroups && customGroups.length > 0) {
+                customGroupUsers = await TrainingRegistrationHelper.getCustomGroupUsers(customGroups);
+            }
+
+
+            const userIds = [];
+            const emails = [];
+
+            for (const user of input.users) {
+                if (ObjectId.isValid(user)) {
+                    userIds.push(user);
+                } else {
+                    emails.push(user);
+                }
+            }
+
+            const criteria = [];
+            if (userIds.length) criteria.push({ _id: { $in: userIds } });
+            if (emails.length) criteria.push({ email: { $in: emails } });
+
+            const inputUsers = await User.find({ $or: criteria });
+
+            let users = new Set([...autoSyncUsers, ...customGroupUsers, ...inputUsers]);
+
+            if (users > 0) {
+
+                const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users);
+
+                if (verifiedUsers.unRegEmails.length > 0) {
+                    throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                }
+
+                if (verifiedUsers.invalidEmails.length > 0) {
+                    throw CustomError(ErrorName.INVALID_EMAIL);
+                }
+
+                if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                    throw CustomError(ErrorName.ALREADY_EXIST);
+                }
+
+            }
+
+            let userObjectIds = [];
+            if (users.length > 0) {
+                userObjectIds = users.map(user => user._id);
+            }
+
+            const existingTraining = await Training.findById(input.training).lean().select("title");
+
+            const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
+                async session => {
+
+                    const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
+
+                    const savedTrainingRegistration = await new TrainingRegistration({
+                        batchUID,
+                        subscriber: subscriberId,
+                        training: input.training,
+                        users: userObjectIds,
+                        groups: input.groups,
+                    }).save({ session });
+
+                    if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+                    const enrollments = userObjectIds.map(userId => ({
+                        subscriber: subscriberId,
+                        training: savedTrainingRegistration._id,
+                        user: userId,
+                        enroledStatus: true,
+                        courseStatus: courseStatus.notStarted,
+
+                    }));
+
+                    let enrollUsers = [];
+                    if (enrollments.length > 0) {
+                        enrollUsers = await UserTrainingEnrolment.insertMany(enrollments, { session });
+                    }
+
+                    if (!enrollUsers) throw CustomError(ErrorName.FAILED);
+
+                    return savedTrainingRegistration;
+                }
+            );
+
+            // EmployeeHelper.sendEnrollmentNotification([
+            //     {
+            //         subscriber: subscriberId,
+            //         trainingRegistration: savedTrainingRegistration,
+            //         createdBy: userInfo,
+            //     },
+            // ]);
+
+            LogHelper.logActivity({
                 subscriber: subscriberId,
-                trainingRegistration: savedTrainingRegistration,
+                logType: LogType.TRAINING_REGISTRATION_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "TrainingRegistration",
+                        target: savedTrainingRegistration._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "TRAINING_REGISTRATION_INFO",
+                        infoData: JSON.stringify(input),
+                    },
+                ],
                 createdBy: userInfo,
-            },
-        ]);
+            });
 
-        LogHelper.logActivity({
-            subscriber: subscriberId,
-            logType: LogType.TRAINING_REGISTRATION_LOG,
-            operation: "CREATE",
-            ipInfo: context.ipInfo,
-            affected: [
-                {
-                    targetRef: "TrainingRegistration",
-                    target: savedTrainingRegistration._id,
-                },
-            ],
-            additionalInfo: [
-                {
-                    infoType: "TRAINING_REGISTRATION_INFO",
-                    infoData: JSON.stringify(input),
-                },
-            ],
-            createdBy: userInfo,
-        });
+            // EmployeeHelper.sendCourseInvitationMail({
+            //     userData: savedTrainingRegistration.employee.user,
+            //     trainingRegistrationId: savedTrainingRegistration._id,
+            // });
 
-        EmployeeHelper.sendCourseInvitationMail({
-            userData: savedTrainingRegistration.employee.user,
-            trainingRegistrationId: savedTrainingRegistration._id,
-        });
+            return savedTrainingRegistration;
 
-        return savedTrainingRegistration;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+
     },
     updateTrainingRegistration: async ({ id, input }, context) => {
         const { role, userId, userPermissions, isOrganizationManager } = AuthUser(context);

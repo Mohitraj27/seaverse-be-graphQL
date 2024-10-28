@@ -1,0 +1,10 @@
+{
+    "designation": "designation",
+    "role": "role",
+    "subRole": "subRole",
+    "regStatus": "regStatus",
+    "vessel": "vessel",
+    "unRegStatus": "unRegStatus",
+    "vesselType": "vesselType",
+    "vesselStatus": "vesselStatus"
+}

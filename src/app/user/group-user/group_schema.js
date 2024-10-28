@@ -26,8 +26,18 @@ module.exports = {
             GROUP
             MEMBER
         }
+        enum groupTypes {
+            designation
+            role
+            vessel
+            vesselType
+            vesselStatus
+            subRole
+            regStatus
+            unRegStatus
+        }
         input listGroupType {
-            groupType: String!
+            groupType: groupTypes!
             group: String!
         }
         input createGroupInput {

@@ -332,12 +332,8 @@ module.exports.mutations = {
                 member: savedGroupName.groupAdmin,
             };
 
-            if (savedGroupName && input.members.length > 0) {
-                const memberCount = await bulkInsertGroupMembers(
-                    subscriberId,
-                    savedGroupName._id,
-                    input.members
-                );
+            if (savedGroupName && input.members && input.members.length > 0) {
+                const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
                 await Group.updateOne(
                     { _id: savedGroupName._id },
                     {
