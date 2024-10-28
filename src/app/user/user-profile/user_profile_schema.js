@@ -37,7 +37,7 @@ module.exports = {
             message: String
         }
         input newPasswordInput {
-            token: String!
+            token: String
             newPassword: String!
             confirmPassword: String!
         }
