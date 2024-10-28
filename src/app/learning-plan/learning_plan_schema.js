@@ -48,6 +48,15 @@ module.exports = {
             learningPlans: [LearningPlan!]!
             totalCount: Int!
         }
+        type LearningPlanStatusUpdateResponse {
+            success: Boolean!
+            message: String!
+            updatedLearningPlans: [LearningPlan!]!
+        }
+        input UpdateLearningPlanStatusInput {
+            learningPlanIDs: [ID!]!
+            newStatus: LearningPlanStatus!
+        }
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
@@ -69,5 +78,6 @@ module.exports = {
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
+        updateLearningPlanStatus(input: UpdateLearningPlanStatusInput!): LearningPlanStatusUpdateResponse!
     `,
 };

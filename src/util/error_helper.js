@@ -74,7 +74,9 @@ const errorName = {
     LEARNING_PLAN_ALREADY_EXISTS: "LEARNING_PLAN_ALREADY_EXISTS",
     LEARNING_PLAN_NOT_CREATED: "LEARNING_PLAN_NOT_CREATED",
     EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
-    INVALID_EMAIL: "INVALID_EMAIL"
+    INVALID_EMAIL: "INVALID_EMAIL",
+    INVALID_LEARNING_PLAN_STATUS_UPDATE:"INVALID_LEARNING_PLAN_STATUS_UPDATE",
+    INVALID_LEARNING_PLAN:"INVALID_LEARNING_PLAN",
 };
 
 const errorType = {
@@ -453,6 +455,16 @@ const errorType = {
         statusCode: 400,
         type: "INVALID_EMAIL"
     },
+    INVALID_LEARNING_PLAN_STATUS_UPDATE: {
+        message: "Learning Plan Status Update Cannot be DRAFT",
+        statusCode: 400,
+        type: "INVALID_LEARNING_PLAN_STATUS_UPDATE"
+    },
+    INVALID_LEARNING_PLAN: {
+        message: "Invalid Learning Plan Provided",
+        statusCode: 400,
+        type: "INVALID_LEARNING_PLAN"
+    }
 };
 
 const formatError = error => {
