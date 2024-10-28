@@ -78,7 +78,7 @@ module.exports.queries = {
         }
 
         if (groupType === "Autosyncedgroups") {
-            const allGroups = await getAutoSyncedGroups(context);
+            const allGroups = await getAutoSyncedGroups(subscriberId);
             let filteredGroups = allGroups;
             if (groupFilter?.search) {
                 filteredGroups = allGroups.filter(group =>

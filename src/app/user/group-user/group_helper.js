@@ -54,8 +54,7 @@ module.exports = {
         console.log(allGroups);
         return allGroups;
     },
-    getAutoSyncedGroups: async context => {
-        const { subscriberId } = AuthUser(context);
+    getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
 
         const empDesignationGroups = await Employee.aggregate([
@@ -519,41 +518,3 @@ module.exports = {
         return allGroups;
     },
 };
-
-/* export async function searchGroupsByNames(groupFilter, userData, groupType) {
-    let searchResults = {
-        autoSyncedGroups : {},
-        customGroups : {}
-    }
-
-    let filterConditions = {
-        subscriber: userData.subscriberId,
-        isDeleted: { $ne: true },
-        groupName: { $ne: null },
-    };
-
-    if (groupFilter?.search) {
-        filterConditions = {
-            ...filterConditions,
-            groupName: {
-                $regex: ".*" + groupFilter.search + ".*",
-                $options: "i",
-            },
-        };
-    }
-
-    switch (toUpper(groupType)) {
-        case "AUTOSYNCEDGROUPS":
-            searchResults.autoSyncedGroups = await getAutoSyncedGroupsByName(groupFilter, userData);
-            break; 
-        case "CUSTOMGROUPS":
-            searchResults.getCustomGroupsByName = await getCustomGroupsByName(filterConditions);
-            break;
-        default:
-            searchResults.autoSyncedGroups = await getAutoSyncedGroupsByName(groupFilter, userData);
-            searchResults.getCustomGroupsByName = await getCustomGroupsByName(filterConditions);
-    }
-
-    return searchResults;
-}
- */
