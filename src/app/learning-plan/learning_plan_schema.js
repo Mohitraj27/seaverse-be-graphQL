@@ -44,7 +44,14 @@ module.exports = {
             createdAt: String
             updatedAt: String
         }
-      
+        type LearningPlanResponse {
+            learningPlans: [LearningPlan!]!
+            totalCount: Int!
+        }
+        input LearningPlanFilterInput {
+            title: String
+            status: LearningPlanStatus
+        }
         input LearningPlanInput {
             title: String!
             targetAudience: TargetAudienceEnum
@@ -58,7 +65,7 @@ module.exports = {
         }
     `,
     queries: `
-        getLearningPlans: [LearningPlan]
+        getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!

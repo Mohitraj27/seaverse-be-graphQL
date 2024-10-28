@@ -14,10 +14,6 @@ const learningPlanSchema = new Schema(
             type: String,
             default: TargetAudience.EVERYONE_IN_ORGANIZATION,
         },
-        designationIds: [{
-            type: ObjectId,
-            ref: "Designation",
-        }],
         status: {
             type: String,
             default: LearningPlanStatus.DRAFT,  

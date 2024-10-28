@@ -137,6 +137,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
         ...AuthHelper.requiresAdmin(VesselResolver.queries),
         ...AuthHelper.requiresAdmin(TrainingEnrolmentResolver.queries),
+        ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
