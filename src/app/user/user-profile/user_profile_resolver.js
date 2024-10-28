@@ -351,9 +351,17 @@ module.exports.mutations = {
             if (!existingUser) {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
+
+
             if (newPassword !== confirmPassword) {
                 throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
+
+            const sameOldPassword = await CryptoHelper.compare(input.newPassword, existingUser.password);
+            if (sameOldPassword) {
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Please enter a new password");
+            }
+
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
