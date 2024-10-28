@@ -579,7 +579,7 @@ module.exports.mutations = {
 
         try {
 
-            if(!input.groups && !input.users) {
+            if (!input.groups && !input.users) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
@@ -591,7 +591,6 @@ module.exports.mutations = {
             if (customGroups && customGroups.length > 0) {
                 customGroupUsers = await TrainingRegistrationHelper.getCustomGroupUsers(customGroups);
             }
-
 
             const userIds = [];
             const emails = [];
@@ -609,7 +608,7 @@ module.exports.mutations = {
             if (emails.length) criteria.push({ email: { $in: emails } });
 
             const inputUsers = await User.find({ $or: criteria });
-
+            
             let users = new Set([...autoSyncUsers, ...customGroupUsers, ...inputUsers]);
 
             if (users > 0) {
@@ -631,8 +630,8 @@ module.exports.mutations = {
             }
 
             let userObjectIds = [];
-            if (users.length > 0) {
-                userObjectIds = users.map(user => user._id);
+            if (users.size > 0) {
+                userObjectIds = Array.from(users).map(user => user._id);
             }
 
             const existingTraining = await Training.findById(input.training).lean().select("title");
@@ -658,7 +657,6 @@ module.exports.mutations = {
                         user: userId,
                         enroledStatus: true,
                         courseStatus: courseStatus.notStarted,
-
                     }));
 
                     let enrollUsers = [];
@@ -701,11 +699,14 @@ module.exports.mutations = {
             });
 
             // EmployeeHelper.sendCourseInvitationMail({
+
             //     userData: savedTrainingRegistration.employee.user,
             //     trainingRegistrationId: savedTrainingRegistration._id,
             // });
-
-            return savedTrainingRegistration;
+            
+            return {
+                message: "Course enrollment successful!",
+            };
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
