@@ -5,6 +5,9 @@ module.exports = {
             name: String!
             typeOfVessel: VesselTypeNew!
             imoNumber: String!
+            companyName: String
+            ownerName: String
+            address: String
             isActive: Boolean!
             createdAt: String!
             updatedAt: String!
@@ -21,6 +24,9 @@ module.exports = {
             name: String!
             typeOfVessel: ID!
             imoNumber: String!
+            companyName: String
+            ownerName: String
+            address: String
         }
         input VesselFilterInput {
             search: String
