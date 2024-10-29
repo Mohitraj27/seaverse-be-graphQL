@@ -21,6 +21,15 @@ const vesselSchema = new Schema(
             trim: true,
             index: { unique: true, sparse: true },
         },
+        companyName: {
+            type: String,
+        },
+        ownerName: {
+            type: String,
+        },
+        address: {
+            type: String,
+        },
         isActive: {
             type: Boolean,
             default: true,
