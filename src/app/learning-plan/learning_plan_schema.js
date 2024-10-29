@@ -1,6 +1,6 @@
 const learningPlanStatus = require("./enumFields/learning_plan_status.json");
 const targetAudienceEnum = require("./enumFields/targetAudienceEnum.json");
-const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");  
+const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");
 const ConditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const typeOfConditionalCustomFieldEnum = require("./enumFields/typeOfConditionalCustomField.json");
 module.exports = {
@@ -30,10 +30,80 @@ module.exports = {
             valueOfField: [ID!]!  
             isOrIsNot: String!
         }
+        type LocalizedField {
+            _id: ID
+            lang: String
+            value: String
+        }
+
+        type Feedback {
+            questionAnswers: [QuestionAnswer]
+        }
+        type QuestionAnswer {
+            question: String
+            answer: String
+        }
+        type courseDetails {
+            _id: ID!
+            UID: String
+            trainingCategories: [TrainingCategory]
+            trainingSubCategories: [TrainingSubCategory]
+            title: [LocalizedField]
+            description: [LocalizedField]
+            instructions: [LocalizedField]
+            overview: String
+            feedback: FeedbackContentFeedback
+            feedbackContent: FeedbackContent
+            images: [MultiMediaInfo]
+            price: Float
+            durationHours: Int
+            certificateValidity: Int
+            targetAudienceId: TargetAudience
+            courseType: CourseType
+            enableFreeFlow: Boolean
+            unlockOn: UnlockOn
+            status: StatusType
+            trainingModuleContents: [TrainingModuleContent]
+            courseId: String
+            course_validity: String
+            courseLevel: CourseLevel
+            hideCourseProgress: Boolean
+            allowMultipleAttempts: Boolean
+            attemptFlexibility: AttemptFlexibility
+            attemptType: AttemptType
+            setLimitAttempt: Int
+            disableFurtherAttemptsOnPass: Boolean
+            lockModulesBetweenAttempts: Boolean
+            setTimeLimitForModule: Boolean
+            approvalStatus: String
+            certifications: [MultiMediaInfo]
+            bannerImage: [MultiMediaInfo]
+            appliedAt: String
+            approvedAt: String
+            rejectedAt: String
+            isActive: Boolean
+            createdBy: User
+            isDeleted: Boolean
+            createdAt: String
+            trainingModules: [TrainingModule]
+            scorm: Scorm
+            groupTrainingModule: [GroupTrainingModule]
+            skills: [String]
+            userFeedback: Boolean
+            managerFeedback: Boolean
+            setFrequency: Int
+            enableEmailNotification: Boolean
+            setReminder: Boolean
+            setFrequencyDate: String
+            manadatoryModules: Int
+            classroomModule: ClassroomModule
+            authorName: String
+            isOrdered: Boolean
+        }
         type LearningPlan {
             _id: ID
             title: String!
-            selectCourses: [ID]!
+            selectCourses: [courseDetails!]!
             targetAudience: TargetAudienceEnum
             groupIDs: [ID]
             userObjectIds: [ID]
