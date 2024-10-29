@@ -403,9 +403,6 @@ module.exports.mutations = {
                 if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
                     return true;
                 }
-                if (content.ContentType === 'QUIZ' && content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
-                    return true;
-                }
                 invalidUpdates.push({
                     id: id,
                     reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
@@ -445,7 +442,7 @@ module.exports.mutations = {
                 const content = await TrainingModuleContent.findOne({
                     _id: id,
                     subscriber: subscriberId,
-                    contentStatus: 'RETIRED',
+                    contentStatus: { $in: [Content_status.DRAFT, Content_status.RETIRED] },
                 });
 
                 if (!content) {
@@ -489,48 +486,12 @@ module.exports.mutations = {
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
 
-            let pagesOrSlides = 0;
-
-            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
-
-            // function streamToBuffer(stream) {
-            //     return new Promise((resolve, reject) => {
-            //         const chunks = [];
-            //         stream.on('data', (chunk) => chunks.push(chunk));
-            //         stream.on('end', () => resolve(Buffer.concat(chunks)));
-            //         stream.on('error', reject);
-            //     });
-            // }
-
-            // async function extractPPTSlides(pptStream) {
-            //     let ppt = new PptxGenJS();
-            //     await ppt.load(pptStream);
-            //     console.log("PPT", ppt);
-            //     return ppt.getSlideCount();
-            // }
-
-            // async function extractPDFPages(pdfStream) {
-            //     const data = await pdfParse(pdfStream);
-            //     return data.numpages;
-            // }
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-                // if (fileExtension === 'ppt' || fileExtension === 'pptx') {
-                //     console.log("asdfghj");
-                //     const { createReadStream, filename, mimetype } = await mediaFile;
-                //     const stream = createReadStream();
-                //     pagesOrSlides = await extractPDFPages(stream);
-                // } else if (fileExtension === 'pdf') {
-                //     const { createReadStream, filename, mimetype } = await mediaFile;
-                //     const stream = createReadStream();
-                //     pagesOrSlides = await extractPPTSlides(stream);
-                // }
                 return allowedFileFormats.includes(fileExtension);
             }
-
-
-            console.log("Total slides", pagesOrSlides);
 
             if (scormFile && !validateFileFormat(scormFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
@@ -753,8 +714,6 @@ module.exports.mutations = {
         const audioFile = audio ? await audio : null;
         const fileFile = file ? await file : null;
 
-        let pptSlides = 0;
-
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
         const validateFileFormat = async (mediaFile) => {
@@ -785,19 +744,6 @@ module.exports.mutations = {
         if (fileFile && !validateFileFormat(fileFile)) {
             throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
         }
-
-        const extractFileExtension = (url) => {
-            return url ? url.split('.').pop().toLowerCase() : null;
-        };
-
-        const validateMatchingFileExtension = (existingUrl, uploadedFile) => {
-            const existingExtension = extractFileExtension(existingUrl);
-            const uploadedExtension = typeof uploadedFile.filename === 'string' ? uploadedFile.filename.split('.').pop().toLowerCase() : '';
-
-            if (existingExtension !== uploadedExtension) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, `Uploaded file format (${uploadedExtension}) does not match existing content format (${existingExtension})`);
-            }
-        };
 
         if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
             input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
