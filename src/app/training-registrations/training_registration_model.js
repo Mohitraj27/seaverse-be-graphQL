@@ -33,7 +33,7 @@ const trainingRegistrationSchema = new Schema(
         users: [
             {
                 type: ObjectId,
-                ref: "Employee",
+                ref: "User",
                 index: true,
             }
         ],

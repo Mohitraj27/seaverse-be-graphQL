@@ -583,130 +583,225 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
-            const autoSyncUsers = await TrainingRegistrationHelper.getAutoSyncUsers(input.groups);
-
-            const customGroups = input.groups.filter(group => group.groupType === 'custom');
-
-            let customGroupUsers = [];
-            if (customGroups && customGroups.length > 0) {
-                customGroupUsers = await TrainingRegistrationHelper.getCustomGroupUsers(customGroups);
+            let existingTraining = null;
+            if (input.training) {
+                existingTraining = await TrainingRegistration.findOne({ training: input.training });
             }
 
-            const userIds = [];
-            const emails = [];
+            if (input.type === "ENROLL") {
 
-            for (const user of input.users) {
-                if (ObjectId.isValid(user)) {
-                    userIds.push(user);
-                } else {
-                    emails.push(user);
-                }
-            }
+                const autoSyncUsers = await TrainingRegistrationHelper.getAutoSyncUsers(input.groups);
 
-            const criteria = [];
-            if (userIds.length) criteria.push({ _id: { $in: userIds } });
-            if (emails.length) criteria.push({ email: { $in: emails } });
+                const customGroups = input.groups.filter(group => group.groupType === 'custom');
 
-            const inputUsers = await User.find({ $or: criteria });
-            
-            let users = new Set([...autoSyncUsers, ...customGroupUsers, ...inputUsers]);
-
-            if (users > 0) {
-
-                const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users);
-
-                if (verifiedUsers.unRegEmails.length > 0) {
-                    throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                let customGroupUsers = [];
+                if (customGroups && customGroups.length > 0) {
+                    customGroupUsers = await TrainingRegistrationHelper.getCustomGroupUsers(customGroups);
                 }
 
-                if (verifiedUsers.invalidEmails.length > 0) {
-                    throw CustomError(ErrorName.INVALID_EMAIL);
+                const userIds = [];
+                const emails = [];
+
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
                 }
 
-                if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
-                    throw CustomError(ErrorName.ALREADY_EXIST);
-                }
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
 
-            }
+                const inputUsers = await User.find({ $or: criteria });
 
-            let userObjectIds = [];
-            if (users.size > 0) {
-                userObjectIds = Array.from(users).map(user => user._id);
-            }
+                let allUsersFetched = [
+                    ...autoSyncUsers,
+                    ...customGroupUsers,
+                    ...inputUsers
+                ];
 
-            const existingTraining = await Training.findById(input.training).lean().select("title");
+                const users = Array.from(
+                    new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
+                );
 
-            const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
-                async session => {
+                if (users.length > 0) {
 
-                    const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
+                    const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTraining);
 
-                    const savedTrainingRegistration = await new TrainingRegistration({
-                        batchUID,
-                        subscriber: subscriberId,
-                        training: input.training,
-                        users: userObjectIds,
-                        groups: input.groups,
-                    }).save({ session });
-
-                    if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
-                    const enrollments = userObjectIds.map(userId => ({
-                        subscriber: subscriberId,
-                        training: savedTrainingRegistration._id,
-                        user: userId,
-                        enroledStatus: true,
-                        courseStatus: courseStatus.notStarted,
-                    }));
-
-                    let enrollUsers = [];
-                    if (enrollments.length > 0) {
-                        enrollUsers = await UserTrainingEnrolment.insertMany(enrollments, { session });
+                    if (verifiedUsers.unRegEmails.length > 0) {
+                        console.log(verifiedUsers.unRegEmails);
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
                     }
 
-                    if (!enrollUsers) throw CustomError(ErrorName.FAILED);
+                    if (verifiedUsers.invalidEmails.length > 0) {
+                        throw CustomError(ErrorName.INVALID_EMAIL);
+                    }
 
-                    return savedTrainingRegistration;
+                    if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                        throw CustomError(ErrorName.ALREADY_EXIST);
+                    }
+
                 }
-            );
 
-            // EmployeeHelper.sendEnrollmentNotification([
-            //     {
-            //         subscriber: subscriberId,
-            //         trainingRegistration: savedTrainingRegistration,
-            //         createdBy: userInfo,
-            //     },
-            // ]);
+                let userObjectIds = [];
+                if (users.length > 0) {
+                    userObjectIds = users.map(user => user._id);
+                }
 
-            LogHelper.logActivity({
-                subscriber: subscriberId,
-                logType: LogType.TRAINING_REGISTRATION_LOG,
-                operation: "CREATE",
-                ipInfo: context.ipInfo,
-                affected: [
-                    {
-                        targetRef: "TrainingRegistration",
-                        target: savedTrainingRegistration._id,
-                    },
-                ],
-                additionalInfo: [
-                    {
-                        infoType: "TRAINING_REGISTRATION_INFO",
-                        infoData: JSON.stringify(input),
-                    },
-                ],
-                createdBy: userInfo,
-            });
+                const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
+                    async session => {
 
-            // EmployeeHelper.sendCourseInvitationMail({
+                        const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-            //     userData: savedTrainingRegistration.employee.user,
-            //     trainingRegistrationId: savedTrainingRegistration._id,
-            // });
-            
-            return {
-                message: "Course enrollment successful!",
-            };
+                        const updateFields = {
+                            $addToSet: {
+                                users: { $each: userObjectIds },
+                                groups: { $each: input.groups }
+                            }
+                        };
+
+                        if (!existingTraining) {
+                            updateFields.subscriber = subscriberId;
+                            updateFields.training = input.training;
+                            updateFields.batchUID = batchUID;
+                        }
+
+                        const savedTrainingRegistration = await TrainingRegistration.findOneAndUpdate(
+                            { _id: existingTraining?._id || new ObjectId() },
+                            updateFields,
+                            {
+                                upsert: true,
+                                new: true,
+                                session
+                            }
+                        );
+
+                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+                        return savedTrainingRegistration;
+                    }
+                );
+
+                // EmployeeHelper.sendEnrollmentNotification([
+                //     {
+                //         subscriber: subscriberId,
+                //         trainingRegistration: savedTrainingRegistration,
+                //         createdBy: userInfo,
+                //     },
+                // ]);
+
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.TRAINING_REGISTRATION_LOG,
+                    operation: "CREATE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "TrainingRegistration",
+                            target: savedTrainingRegistration._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "TRAINING_REGISTRATION_INFO",
+                            infoData: JSON.stringify(input),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
+
+                // EmployeeHelper.sendCourseInvitationMail({
+
+                //     userData: savedTrainingRegistration.employee.user,
+                //     trainingRegistrationId: savedTrainingRegistration._id,
+                // });
+
+                return {
+                    message: "Course enrollment successful!",
+                };
+
+            }
+
+            if (input.type === "UNENROLL") {
+
+                if (!input.users) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+                }
+
+                const userIds = [];
+                const emails = [];
+
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
+                }
+
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
+
+                const inputUsers = await User.find({ $or: criteria });
+
+                let userObjectIds = [];
+                if (inputUsers.length > 0) {
+                    userObjectIds = inputUsers.map(user => user._id);
+
+                    const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(inputUsers, existingTraining);
+
+                    if (verifiedUsers.unRegEmails.length > 0) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                    }
+
+                    if (verifiedUsers.invalidEmails.length > 0) {
+                        throw CustomError(ErrorName.INVALID_EMAIL);
+                    }
+
+                    if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_ENROLLED, "Selected employee is not enrolled before!");
+                    }
+                }
+
+                const unenrollTrainingRegistration = await DbTransactionHelper.performDbTransaction(
+                    async session => {
+
+                        if (!existingTraining) {
+                            throw CustomError(ErrorName.NOT_FOUND, "Pass the training ID");
+                        }
+
+                        const userObjectIdStrings = userObjectIds.map(id => id.toString());
+                        const updatedUsersInTraining = existingTraining.users.filter(
+                            userId => !userObjectIdStrings.includes(userId.toString())
+                        );
+
+                        existingTraining.users = updatedUsersInTraining;
+                        const updateTrainingRegistration = await existingTraining.save({ session });
+
+                        if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+                        const operations = userObjectIds.map(userId => ({
+                            updateOne: {
+                                filter: { user: userId, training: input.training },
+                                update: { $set: { enroledStatus: false } },
+                                upsert: true
+                            }
+                        }));
+
+                        const unenrollUsers = await TrainingProgress.bulkWrite(operations, { session });
+
+                        return updateTrainingRegistration;
+                    }
+                );
+
+                return {
+                    message: "Course unenrollment successful!",
+                }
+
+            }
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);

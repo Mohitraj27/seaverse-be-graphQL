@@ -80,7 +80,12 @@ module.exports = {
             groupType: groupTypeEnums!
             groupId: String!
         }
+        enum enrollType {
+            ENROLL
+            UNENROLL
+        }
         input TrainingRegistrationInput {
+            type: enrollType!
             training: ID
             trainingDuration: Int
             certificateValidity: Int
