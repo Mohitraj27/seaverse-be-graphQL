@@ -30,7 +30,6 @@ const TrainingRegistrationStatus = require("./training_registration_status.json"
 const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
-const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolment_model");
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ pageInput, filterInput }, context) => {

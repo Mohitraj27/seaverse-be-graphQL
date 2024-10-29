@@ -1407,6 +1407,7 @@ module.exports.mutations = {
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
+
             const imoNumbers = vessels.map(vessel => vessel.imoNumber);
 
             const vesselStatus = [
