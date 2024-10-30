@@ -119,7 +119,11 @@ module.exports.mutations = {
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
 
-            return vesselData;
+            return {
+                success: true,
+                message: 'Vessel created successfully.',
+                vessel: vesselData
+            }
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
@@ -150,28 +154,36 @@ module.exports.mutations = {
 
             await vessel.save();
 
-            return vessel;
+            const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
+
+            return {
+                success: true,
+                message: 'Vessel updated successfully.',
+                vessel: vesselData
+            }
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
 
-    deleteVessel: async ({ id }, context) => {
+    deleteVessel: async ({ ids }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
 
-            const vessel = await Vessel.findOne({ _id: id });
+            for (let id of ids) {
+                const vessel = await Vessel.findOne({ _id: id });
 
-            if (!vessel) {
-                throw  CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
-            }
-            if(vessel.isDeleted) {
-                throw  CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
-            }
-            vessel.isDeleted = true;
-            vessel.updatedBy = userId;
+                if (!vessel) {
+                    throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                }
+                if (vessel.isDeleted) {
+                    throw CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
+                }
+                vessel.isDeleted = true;
+                vessel.updatedBy = userId;
 
-            await vessel.save();
+                await vessel.save();
+            }
 
             return {
                 success: true,
@@ -182,19 +194,22 @@ module.exports.mutations = {
         }
     },
 
-    activateDeactivateVessel: async ({ id }, context) => {
+    activateDeactivateVessel: async ({ ids }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
 
-            const vessel = await Vessel.findOne({ _id: id });
-            if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+            let vessel
+            for (let id of ids) {
+                vessel = await Vessel.findOne({ _id: id });
+                if (!vessel) {
+                    throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                }
+
+                vessel.isActive = !vessel.isActive;
+                vessel.updatedBy = userId;
+
+                await vessel.save();
             }
-
-            vessel.isActive = !vessel.isActive;
-            vessel.updatedBy = userId;
-
-            await vessel.save();
 
             return {
                 success: true,
