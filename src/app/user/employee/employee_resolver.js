@@ -122,55 +122,55 @@ module.exports.queries = {
             },
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      "user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.civilIdOrPassport": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.companyEmail": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.phone.number": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeNo: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    "user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.companyEmail": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.phone.number": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeNo: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
                 : []),
         ]);
     },
@@ -250,55 +250,55 @@ module.exports.queries = {
             },
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      "user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.civilIdOrPassport": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.companyEmail": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.phone.number": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeNo: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    "user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.companyEmail": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.phone.number": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeNo: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
                 : []),
         ]);
 
@@ -384,55 +384,55 @@ module.exports.queries = {
             },
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      "user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.civilIdOrPassport": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.companyEmail": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.phone.number": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeNo: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    "user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.companyEmail": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.phone.number": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeNo: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
                 : []),
             {
                 $lookup: {
@@ -691,118 +691,118 @@ module.exports.queries = {
             },
             ...(filterInput?.vesselName?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.name": {
-                                  $in: filterInput.vesselName.map(
-                                      name => new RegExp(".*" + name + ".*", "i")
-                                  ),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.name": {
+                                $in: filterInput.vesselName.map(
+                                    name => new RegExp(".*" + name + ".*", "i")
+                                ),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.vesselType?.length > 0
                 ? [
-                      {
-                          $match: {
-                              "currentVessel.typeOfVessel": {
-                                  $in: filterInput.vesselType.map(id => ObjectId(id)),
-                              },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "currentVessel.typeOfVessel": {
+                                $in: filterInput.vesselType.map(id => ObjectId(id)),
+                            },
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      "user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.civilIdOrPassport": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.companyEmail": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.phone.number": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeNo: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "managerObjectId.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "managerObjectId.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    "user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.companyEmail": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.phone.number": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeNo: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "managerObjectId.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "managerObjectId.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.role
                 ? [
-                      {
-                          $match: {
-                              "user.role": filterInput.role,
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "user.role": filterInput.role,
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.isRegistered !== undefined
                 ? [
-                      {
-                          $match: {
-                              "user.isRegistered": filterInput.isRegistered,
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "user.isRegistered": filterInput.isRegistered,
+                        },
+                    },
+                ]
                 : []),
             ...(filterInput?.lastSeen
                 ? [
-                      {
-                          $match: {
-                              "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                        },
+                    },
+                ]
                 : []),
         ]);
         return result;
@@ -831,12 +831,12 @@ module.exports.queries = {
 
         const searchCriteria = filterInput?.search
             ? {
-                  $or: [
-                      { firstName: { $regex: filterInput.search, $options: "i" } },
-                      { lastName: { $regex: filterInput.search, $options: "i" } },
-                      { email: { $regex: filterInput.search, $options: "i" } },
-                  ],
-              }
+                $or: [
+                    { firstName: { $regex: filterInput.search, $options: "i" } },
+                    { lastName: { $regex: filterInput.search, $options: "i" } },
+                    { email: { $regex: filterInput.search, $options: "i" } },
+                ],
+            }
             : {};
 
         const result = await User.find({ deleteRequest: true, ...searchCriteria })
@@ -1407,6 +1407,7 @@ module.exports.mutations = {
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
+
             const imoNumbers = vessels.map(vessel => vessel.imoNumber);
 
             const vesselStatus = [
