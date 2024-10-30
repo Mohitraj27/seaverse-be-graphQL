@@ -34,6 +34,12 @@ module.exports = {
             isActive: Boolean
         }
 
+        type CreateOrUpdateVesselResponse {
+            success: Boolean!
+            message: String
+            vessel: Vessel
+        }
+
         type VesselList {
             vessels: [Vessel]
             totalCount: Int
@@ -54,9 +60,9 @@ module.exports = {
         getVesselById(id: ID!): Vessel!
     `,
     mutations: `
-        createVessel(input: VesselInput!): Vessel!
-        updateVessel(id: ID!, input: VesselInput!): Vessel!
-        deleteVessel(id: ID!): DeleteVesselResponse!
-        activateDeactivateVessel(id: ID!): ActivateDeactivateVesselResponse!
+        createVessel(input: VesselInput!): CreateOrUpdateVesselResponse
+        updateVessel(ids: ID!, input: VesselInput!): CreateOrUpdateVesselResponse
+        deleteVessel(ids: [ID!]): DeleteVesselResponse!
+        activateDeactivateVessel(ids: [ID!]): ActivateDeactivateVesselResponse!
         `,
 };

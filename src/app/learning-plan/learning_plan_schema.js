@@ -123,6 +123,10 @@ module.exports = {
             message: String!
             updatedLearningPlans: [LearningPlan!]!
         }
+        type GetUsersForLearningPlanResponse {
+            userIds: [ID]
+            count: Int
+        }
         input UpdateLearningPlanStatusInput {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
@@ -132,9 +136,9 @@ module.exports = {
             status: LearningPlanStatus
         }
         input LearningPlanInput {
-            title: String!
+            title: String
             targetAudience: TargetAudienceEnum
-            selectCourses: [ID!]!
+            selectCourses: [ID!]
             groupIDs: [ID!]
             userObjectIds: [ID]
             status: LearningPlanStatus
@@ -145,6 +149,7 @@ module.exports = {
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
+        getUsersForLearningPlan(input: LearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
