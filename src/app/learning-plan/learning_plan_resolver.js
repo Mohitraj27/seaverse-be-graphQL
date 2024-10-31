@@ -15,7 +15,7 @@ module.exports.mutations = {
             if (userInfo.role !== 'ADMIN') {
                 throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
             }
-            const result = await createLearningPlanHelper(input);
+            const result = await createLearningPlanHelper({ ...input, createdBy:userId , updatedBy: userId });
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
             }
@@ -55,6 +55,34 @@ module.exports.mutations = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
+    },
+    deleteLearningPlan : async ({ id }, context) => {
+        const { userInfo , userId } = AuthUser(context);
+        try {
+            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+            if(userInfo.role !== 'ADMIN') {
+                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can delete Learning Plans");
+            }
+            const learningPlan = await LearningPlan.findById({ _id: id });
+            if (!learningPlan) {
+                throw  CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
+            }
+            if(learningPlan.isDeleted) {
+                throw  CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
+            }
+            learningPlan.isDeleted = true;
+            learningPlan.updatedBy = userId;
+
+            await learningPlan.save();
+
+            return {
+                success: true,
+                message: 'Learning Plan  deleted successfully.'
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+       
     }
 };
 module.exports.queries = {
@@ -69,6 +97,7 @@ module.exports.queries = {
             }
             const queryConditions = {
                 ...filterInput,
+                isDeleted: false,
             };
             if (filterInput?.title) {
                 queryConditions.title = { $regex: filterInput.title, $options: "i" };

@@ -111,8 +111,15 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomField]
+            isDeleted: Boolean
+            createdBy: ID
+            updatedBy: ID
             createdAt: String
             updatedAt: String
+        }
+        type DeleteLearningPlanResponse {
+            success: Boolean!
+            message: String
         }
         type LearningPlanResponse {
             learningPlans: [LearningPlan!]!
@@ -149,5 +156,6 @@ module.exports = {
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
         updateLearningPlanStatus(input: UpdateLearningPlanStatusInput!): LearningPlanStatusUpdateResponse!
+        deleteLearningPlan(id: ID!): DeleteLearningPlanResponse!
     `,
 };

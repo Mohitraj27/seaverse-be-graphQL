@@ -145,7 +145,9 @@
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields,
                 userObjectIds: input.userObjectIds,
-                selectCourses: input.selectCourses
+                selectCourses: input.selectCourses,
+                createdBy: input.createdBy,
+                updatedBy: input.updatedBy
             });
           await newLearningPlan.save();
           return { success: true, learningPlan: newLearningPlan };
