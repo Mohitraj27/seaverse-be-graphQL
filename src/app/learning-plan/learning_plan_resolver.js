@@ -44,13 +44,14 @@ module.exports.mutations = {
             }
             const updatedLearningPlans = await LearningPlan.updateMany(
                 { _id: { $in: learningPlanIDs } },
-                { $set: { status: newStatus } },
+                { $set: { status: newStatus, updatedBy: userId, updatedAt: new Date() } },
                 { new: true }
             );
+            const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
             return {
                 success: true,
                 message: `Updated ${updatedLearningPlans.nModified} Learning Plans to status ${newStatus}.`,
-                updatedLearningPlans: await LearningPlan.find({ _id: { $in: learningPlanIDs } }),
+                updatedLearningPlans: updatedPlans,
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
