@@ -1,7 +1,7 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper } = require("./learning_plan_helper");
+const { createLearningPlanHelper, getUsersAndCount } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 module.exports.mutations = {
@@ -219,6 +219,26 @@ module.exports.queries = {
                 totalCount: totalCount,
             };
         } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
+
+    getUsersForLearningPlan: async ({ input }, context) => {
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+    
+        try {
+            if (userInfo.role !== 'ADMIN') {
+                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
+            }
+    
+            const {userIds, count } = await getUsersAndCount(input);
+            return {
+                userIds,
+                count
+            };
+        } catch (error) {
+            console.log('error', error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
