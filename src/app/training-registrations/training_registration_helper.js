@@ -189,52 +189,81 @@ module.exports = {
             );
         }
     },
-    enrolUserVerificationHelper: async (inputUsers, existingTraining) => {
+    enrolUserVerificationHelper: async (inputUsers, existingTrainings) => {
 
-        let emails = [];
+        let remainingUsers = [];
         let invalidEmails = [];
         let unRegEmails = [];
         let alreadyEnrolledEmails = [];
+        let notEnrolledEmails = [];
 
         for (let user of inputUsers) {
 
             if (!Validator.isEmail(user.email)) {
                 invalidEmails.push(user.email)
-            } else {
-                emails.push(user);
-            }
-
-            if (!user.isRegistered) {
+            } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
+            } else {
+                remainingUsers.push(user);
             }
 
         }
 
-        const userObjectIds = inputUsers.map(user => user._id);
+        const userObjectIds = remainingUsers.map(user => user._id);
         const userObjectIdStrings = userObjectIds.map(id => id.toString());
 
-        const query = {
-            users: { $in: userObjectIds },
-        };
+        let alreadyEnrolledUserIds = [];
+        let notEnrolledUserIds = [];
 
-        if (existingTraining) {
-            query.training = existingTraining._id;
+        existingTrainings.forEach(training => {
+            alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
+            notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
+        });
+
+        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+        if (alreadyEnrolledUserIds.length > 0) {
+            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
         }
 
-        const alreadyEnrolledUsers = existingTraining.users.filter(user => userObjectIdStrings.includes(user.toString()));
-
-        console.log(alreadyEnrolledUsers);
-
-        if (alreadyEnrolledUsers.length > 0) {
-            const fetchUserDetail = await User.find({ _id: { $in: alreadyEnrolledUsers } });
-
-            for (let user of fetchUserDetail) {
-                alreadyEnrolledEmails.push(user.email);
-            }
-            
+        if (notEnrolledUserIds.length > 0) {
+            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
         }
 
-        return { emails, invalidEmails, unRegEmails, alreadyEnrolledEmails };
+        return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
+
+    },
+    createTrainingProgressHelper: async (users, trainings) => {
+
+        let trainingProgressData;
+        const existingProgressRecords = await TrainingProgress.find({
+            training: { $in: trainings },
+            user: { $in: users.map(user => user._id) }
+        });
+
+        const existingProgressSet = new Set(
+            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
+        );
+
+        const newProgressEntries = trainings.flatMap(trainingId =>
+            users.map(user => ({
+                training: trainingId,
+                user: user._id,
+                status: 'notStarted',
+                enroledStatus: true
+            }))
+        ).filter(entry =>
+            !existingProgressSet.has(`${entry.training}-${entry.user}`)
+        );
+
+        if (newProgressEntries.length > 0) {
+            trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
+        }
+
+        return trainingProgressData;
 
     },
     getAutoSyncUsers: async (groups) => {

@@ -87,6 +87,8 @@ module.exports = {
         input TrainingRegistrationInput {
             type: enrollType!
             training: ID
+            trainings: [ID]
+            learningPlan: ID
             trainingDuration: Int
             certificateValidity: Int
             trainer: ID
@@ -129,6 +131,19 @@ module.exports = {
         type trainingEnrollmentRes {
             message: String!
         }
+        input verifyRegistrationEmailsInput {
+            training: ID
+            users: [String]!
+            type: enrollType!
+        }
+        type verifyRegistrationEmailsRes {
+            unregEmails: [String]
+            invalidEmails: [String]
+            alreadyEnrolledEmails: [String]
+            notEnrolledEmails: [String]
+            remainingEmails: [String]
+            status: Boolean
+        }
     `,
     queries: `
         getTrainingRegistrations(pageInput: PageInput, filterInput: TrainingRegistrationFilterInput): TrainingRegistrationList!
@@ -138,6 +153,7 @@ module.exports = {
     mutations: `
         """used for assign course to employee"""
         createTrainingRegistration(input: TrainingRegistrationInput!): trainingEnrollmentRes!
+        verifyRegistrationEmails(input: verifyRegistrationEmailsInput!): verifyRegistrationEmailsRes!
         updateTrainingRegistration(id: ID!, input: TrainingRegistrationUpdateInput!): TrainingRegistration!
         deleteTrainingRegistration(id: ID!): TrainingRegistration!
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!

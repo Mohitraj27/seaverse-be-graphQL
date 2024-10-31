@@ -75,6 +75,7 @@ module.exports = {
             createdBy: User
             isDeleted: Boolean
             createdAt: String
+            updatedAt: String
             trainingModules: [TrainingModule]
             scorm:Scorm
             groupTrainingModule: [GroupTrainingModule]
