@@ -238,16 +238,17 @@ module.exports = {
     },
     createTrainingProgressHelper: async (users, trainings) => {
 
+        
         let trainingProgressData;
         const existingProgressRecords = await TrainingProgress.find({
             training: { $in: trainings },
             user: { $in: users.map(user => user._id) }
         });
-
+        
         const existingProgressSet = new Set(
             existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
         );
-
+        
         const newProgressEntries = trainings.flatMap(trainingId =>
             users.map(user => ({
                 training: trainingId,
@@ -258,7 +259,7 @@ module.exports = {
         ).filter(entry =>
             !existingProgressSet.has(`${entry.training}-${entry.user}`)
         );
-
+        
         if (newProgressEntries.length > 0) {
             trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
         }

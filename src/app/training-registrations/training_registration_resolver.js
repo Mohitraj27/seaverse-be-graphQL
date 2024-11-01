@@ -631,24 +631,28 @@ module.exports.mutations = {
                     new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
                 );
 
-                if (users.length > 0) {
+                if (input.learningPlan) {
 
-                    const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTrainings);
-
-                    if (verifiedUsers.unRegEmails.length > 0) {
-                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
-                    }
-
-                    if (verifiedUsers.invalidEmails.length > 0) {
-                        throw CustomError(ErrorName.INVALID_EMAIL);
-                    }
-
-                    if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
-                        throw CustomError(ErrorName.ALREADY_EXIST);
+                    if (users.length > 0) {
+    
+                        const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTrainings);
+    
+                        if (verifiedUsers.unRegEmails.length > 0) {
+                            throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                        }
+    
+                        if (verifiedUsers.invalidEmails.length > 0) {
+                            throw CustomError(ErrorName.INVALID_EMAIL);
+                        }
+    
+                        if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                            throw CustomError(ErrorName.ALREADY_EXIST);
+                        }
+    
                     }
 
                 }
-
+                
                 let userObjectIds = [];
                 if (users.length > 0) {
                     userObjectIds = users.map(user => user._id);
@@ -696,7 +700,7 @@ module.exports.mutations = {
 
                         let trainingProgressData;
                         if (savedTrainingRegistration) {
-                            trainingProgressData = await TrainingRegistrationHelper.createTrainingProgressHelper(users, input.trainings);
+                            trainingProgressData = await TrainingRegistrationHelper.createTrainingProgressHelper(users, input.trainings, input.trainingPlan);
                         }
 
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
@@ -744,12 +748,6 @@ module.exports.mutations = {
                         },
                     ],
                     createdBy: userInfo,
-                });
-
-                EmployeeHelper.sendCourseInvitationMail({
-
-                    userData: savedTrainingRegistration.employee.user,
-                    trainingRegistrationId: savedTrainingRegistration._id,
                 });
 
                 return {
