@@ -1494,7 +1494,7 @@ module.exports.mutations = {
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-        const existingUser = await User.findOne({ email: input.user.email });m
+        const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
 
