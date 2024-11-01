@@ -273,7 +273,6 @@ module.exports.queries = {
                 count
             };
         } catch (error) {
-            console.log('error', error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },

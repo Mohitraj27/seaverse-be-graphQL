@@ -81,6 +81,11 @@ module.exports = {
             message: String!
             updatedContent: TrainingModuleContent
         }
+        type UpdateContentQuizResponse {
+            success: Boolean!
+            message: String!
+            updatedContent: TrainingModuleContent
+        }
         input TrainingModuleContentInput {
             _id: ID
             UID: String
@@ -105,8 +110,11 @@ module.exports = {
         }
         input TrainingModuleContentQuizInput {
             _id: ID
+            UID: String
             title: [LocalisedDataInput]!
             description: [LocalisedDataInput]
+            contentType: TrainingModuleContentType
+            contentStatus: TrainingModuleContentStatus
             percentageCriteria: Int
             duration: String
             randomiseQuestionOrder: Boolean
@@ -152,5 +160,6 @@ module.exports = {
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
+        updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
          `,
 };
