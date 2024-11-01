@@ -153,6 +153,17 @@ module.exports = {
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
         }
+        input UpdateLearningPlanInput {
+            title: String
+            targetAudience: TargetAudienceEnum
+            selectCourses: [ID!]
+            groupIDs: [ID!]
+            userObjectIds: [ID]
+            status: LearningPlanStatus
+            audienceSelection: AudienceSelectionEnum
+            conditionType: ConditionTypeEnum
+            conditionalCustomFields: [ConditionalCustomFieldInput]
+        }
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
@@ -162,5 +173,6 @@ module.exports = {
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
         updateLearningPlanStatus(input: UpdateLearningPlanStatusInput!): LearningPlanStatusUpdateResponse!
         deleteLearningPlan(id: ID!): DeleteLearningPlanResponse!
+        updateLearningPlan(id: ID!, input: UpdateLearningPlanInput!): LearningPlan! 
     `,
 };

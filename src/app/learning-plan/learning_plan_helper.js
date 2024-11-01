@@ -166,6 +166,33 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
         }
     };
 
+    const updateLearningPlanHelper = async (existingLearningPlan, input) => {
+        let errorList = [];
+        if (input.title && input.title !== existingLearningPlan.title) {
+            const titleExists = await LearningPlan.findOne({ title: input.title });
+            if (titleExists) {
+                errorList.push("Learning Plan title already exists.");
+            }
+        }
+        if (input.targetAudience && input.targetAudience !== existingLearningPlan.targetAudience) {
+            if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs?.length > 0) {
+                errorList.push("Group IDs cannot be set for targetAudience EVERYONE_IN_ORGANIZATION.");
+            }
+        }
+        if (input.audienceSelection && input.audienceSelection !== existingLearningPlan.audienceSelection) {
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
+                errorList.push("Condition Type should not be provided when audience selection is ALL_EMPLOYEES.");
+            }
+            if (input.audienceSelection === audienceSelection.MANUAL && !input.userObjectIds?.length) {
+                errorList.push("User Object IDs are required for MANUAL audience selection.");
+            }
+        }
+        if (errorList.length > 0) {
+            return { success: false, errors: errorList };
+        }
+        return { success: true };
+    };
+    
 async function getUsersBasedOnConditions(conditions, matchAll = true) {
     const filters = conditions.map(condition => {
         const fieldMapping = {
@@ -307,7 +334,7 @@ const getUsersAndCount = async (input) => {
 
 };
 
-module.exports = { createLearningPlanHelper, getUsersAndCount };
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper};
 
 conditions = [
     {
