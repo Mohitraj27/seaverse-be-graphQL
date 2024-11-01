@@ -40,7 +40,7 @@ const learningPlanSchema = new Schema(
                     enum: Object.values(typeOfConditionalCustomFieldEnum),
                 },
                 valueOfField: {
-                    type: [ObjectId],  
+                    type: [String],  
                     required: true,
                 },
                 isOrIsNot: {

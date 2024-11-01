@@ -22,12 +22,12 @@ module.exports = {
         }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [ID!]!  
+            valueOfField: [String!]!  
             isOrIsNot: String!
         }
         type ConditionalCustomField {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [ID!]!  
+            valueOfField: [String!]!  
             isOrIsNot: String!
         }
         type LocalizedField {
@@ -164,10 +164,17 @@ module.exports = {
             conditionType: ConditionTypeEnum
             conditionalCustomFields: [ConditionalCustomFieldInput]
         }
+
+        input GetUsersForLearningPlanInput {
+            targetAudience: TargetAudienceEnum
+            audienceSelection: AudienceSelectionEnum!
+            conditionType: ConditionTypeEnum
+            conditionalCustomFields:[ConditionalCustomFieldInput]
+        }
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
-        getUsersForLearningPlan(input: LearningPlanInput!): GetUsersForLearningPlanResponse
+        getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
