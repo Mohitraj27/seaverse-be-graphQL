@@ -40,133 +40,159 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     return errors;
 };
 
-const getValidObjectIds = async (type_of_Field, valueOfField) => {
-    switch (type_of_Field) {
-        case typeOfConditionalCustomFieldEnum.DESIGNATION:
-            return await Designation.find({ _id: { $in: valueOfField }, isDeleted: false });
-
-        case typeOfConditionalCustomFieldEnum.GROUP:
-            return await Group.find({ _id: { $in: valueOfField }, isDeleted: false });
-
-        case typeOfConditionalCustomFieldEnum.EMAIL:
-            return await User.find({ _id: { $in: valueOfField }, isDeleted: false });
-
-        case typeOfConditionalCustomFieldEnum.VESSEL:
-            return await Vessel.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
-
-        case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
-            return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
-
-        default:
-            return [];
-    }
-};
-const validatePickingCourses = async (selectCourses) => {
-    const validCourses = await Training.find({
-        _id: { $in: selectCourses },
-        approvalStatus: approval_status.APPROVED,
-        isDeleted: false,
-        isActive: true
-    });
-    return validCourses.length === selectCourses.length;
-};
-
-const createLearningPlanHelper = async (input) => {
-    let errorList = [];
-
-    try {
-        if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
-        if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED); }
-        if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
-        if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
-            errorList.push(errorMessages.INVALID_CONDITION_FOR_ALL_EMPLOYEES);
+    const getValidObjectIds = async (type_of_Field, valueOfField) => {
+        switch (type_of_Field) {
+            case typeOfConditionalCustomFieldEnum.DESIGNATION:
+                return await Designation.find({ _id: { $in: valueOfField }, isDeleted: false }); 
+            
+            case typeOfConditionalCustomFieldEnum.GROUP:
+                return await Group.find({ _id: { $in: valueOfField }, isDeleted: false });
+            
+            case typeOfConditionalCustomFieldEnum.EMAIL:
+                return await User.find({ _id: { $in: valueOfField }, isDeleted: false }); 
+    
+            case typeOfConditionalCustomFieldEnum.VESSEL:
+                return await Vessel.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
+    
+            case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
+                return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true }); 
+    
+            default:
+                return [];
         }
-        if (input.audienceSelection === audienceSelection.AUTOMATIC && !input.conditionType) {
-            errorList.push(errorMessages.CONDITION_TYPE_REQUIRED_FOR_AUTOMATIC);
-        }
-        if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs && input.groupIDs.length > 0) {
-            errorList.push(errorMessages.INVALID_GROUP_IDS_FOR_TARGET_AUDIENCE);
-        }
-        if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
-            errorList.push(errorMessages.CONDITIONAL_FIELDS_NOT_ALLOWED_FOR_ALL_EMPLOYEES);
-        }
-        if ((input.audienceSelection === audienceSelection.AUTOMATIC) &&
-            (!input.conditionType || !input.conditionalCustomFields || input.conditionalCustomFields.length === 0)) {
-            errorList.push(errorMessages.AUTOMATIC_SELECTION_FIELDS_REQUIRED);
-        }
-        if (input.audienceSelection === audienceSelection.MANUAL) {
-            if (input.conditionalCustomFields || input.conditionType) {
-                errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_MANUAL);
+    };
+    const validatePickingCourses = async (selectCourses) => {
+        const validCourses = await Training.find({
+            _id: { $in: selectCourses },
+            approvalStatus: approval_status.APPROVED,
+            isDeleted: false,
+            isActive: true
+        });
+        return validCourses.length === selectCourses.length;
+    };
+    
+    const createLearningPlanHelper = async (input) => {
+        let errorList = [];
+        
+        try {
+            if (!input.title){ errorList.push(errorMessages.TITLE_REQUIRED);}
+            if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED);}
+            if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED);}
+            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED);}
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
+                errorList.push(errorMessages.INVALID_CONDITION_FOR_ALL_EMPLOYEES);
             }
-            if (!Array.isArray(input.userObjectIds) || input.userObjectIds.length === 0) {
-                errorList.push(errorMessages.USER_OBJECT_IDS_REQUIRED_FOR_MANUAL);
-            } else {
-                const validUserIds = await User.find({
-                    _id: { $in: input.userObjectIds },
-                    isDeleted: false
-                });
-                if (validUserIds.length !== input.userObjectIds.length) {
-                    errorList.push(errorMessages.INVALID_USER_OBJECT_IDS);
+            if (input.audienceSelection === audienceSelection.AUTOMATIC && !input.conditionType) {
+                errorList.push(errorMessages.CONDITION_TYPE_REQUIRED_FOR_AUTOMATIC);
+            }
+            if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs && input.groupIDs.length > 0) {
+                errorList.push(errorMessages.INVALID_GROUP_IDS_FOR_TARGET_AUDIENCE);
+            }
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                errorList.push(errorMessages.CONDITIONAL_FIELDS_NOT_ALLOWED_FOR_ALL_EMPLOYEES);
+            }
+            if ((input.audienceSelection === audienceSelection.AUTOMATIC ) && 
+                (!input.conditionType || !input.conditionalCustomFields || input.conditionalCustomFields.length === 0)) {
+                errorList.push(errorMessages.AUTOMATIC_SELECTION_FIELDS_REQUIRED);
+            }
+            if (input.audienceSelection === audienceSelection.MANUAL ) {
+                if (input.conditionalCustomFields || input.conditionType) {
+                    errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_MANUAL);
+                }
+                if (!Array.isArray(input.userObjectIds) || input.userObjectIds.length === 0) {
+                    errorList.push(errorMessages.USER_OBJECT_IDS_REQUIRED_FOR_MANUAL);
+                } else {
+                    const validUserIds = await User.find({
+                        _id: { $in: input.userObjectIds },
+                        isDeleted: false
+                    });
+                    if (validUserIds.length !== input.userObjectIds.length) {
+                        errorList.push(errorMessages.INVALID_USER_OBJECT_IDS);
+                    }
                 }
             }
-        }
-        if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
-            const conditionalFieldErrors = await validateConditionalCustomFields(input.conditionalCustomFields);
-            errorList = errorList.concat(conditionalFieldErrors);
-        }
-        if (input.selectCourses && input.selectCourses.length > 0) {
-            const isValidCourses = await validatePickingCourses(input.selectCourses);
-            if (!isValidCourses) {
-                errorList.push(errorMessages.INVALID_COURSE_SELECTION);
+            if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                const conditionalFieldErrors = await validateConditionalCustomFields(input.conditionalCustomFields);
+                errorList = errorList.concat(conditionalFieldErrors);
             }
-        }
-        if (errorList.length > 0) {
-            return { sucess: false, errors: errorList };
-        }
-        const existingLearningPlan = await LearningPlan.findOne({
-            title: input.title,
-        });
-        if (existingLearningPlan) {
-            errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
-            return { sucess: false, errors: errorList };
-        }
-        const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
-        let groupIDs = input.groupIDs || [];
-        if (targetAudience === targetAudienceEnum.GROUP_BASED) {
-            if (!Array.isArray(groupIDs) || groupIDs.length === 0) {
-                errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+            if (input.selectCourses && input.selectCourses.length > 0) {
+                const isValidCourses = await validatePickingCourses(input.selectCourses);
+                if (!isValidCourses) {
+                    errorList.push(errorMessages.INVALID_COURSE_SELECTION);
+                }
             }
-            const validGroupCount = await Group.find({
-                _id: { $in: groupIDs },
-                isDeleted: false
+            if(errorList.length > 0){
+                return { sucess: false, errors: errorList};
+            }
+            const existingLearningPlan = await LearningPlan.findOne({
+                title: input.title,
             });
-            if (validGroupCount.length !== groupIDs.length) {
-                errorList.push(errorMessages.INVALID_GROUP_IDS);
+            if (existingLearningPlan) {  errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+                return { sucess: false, errors: errorList};
+            }
+            const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
+            let groupIDs = input.groupIDs || [];  
+            if (targetAudience === targetAudienceEnum.GROUP_BASED) {
+                if (!Array.isArray(groupIDs) || groupIDs.length === 0) {
+                    errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+                }
+                const validGroupCount = await Group.find({
+                    _id: { $in: groupIDs },
+                    isDeleted: false
+                });
+                if (validGroupCount.length !== groupIDs.length) {
+                    errorList.push(errorMessages.INVALID_GROUP_IDS);
+                }
+            }
+            if (errorList.length > 0) {
+                return { success: false, errors: errorList };  
+            }
+            const newLearningPlan = new LearningPlan({
+                title: input.title,
+                targetAudience,
+                groupIDs,
+                status: input.status,
+                audienceSelection: input.audienceSelection,
+                conditionType: input.conditionType,
+                conditionalCustomFields: input.conditionalCustomFields,
+                userObjectIds: input.userObjectIds,
+                selectCourses: input.selectCourses
+            });
+          await newLearningPlan.save();
+          return { success: true, learningPlan: newLearningPlan };
+        } catch (error) {
+            errorList.push(error.message);
+             return { success: false, errors: errorList };
+        }
+    };
+
+    const updateLearningPlanHelper = async (existingLearningPlan, input) => {
+        let errorList = [];
+        if (input.title && input.title !== existingLearningPlan.title) {
+            const titleExists = await LearningPlan.findOne({ title: input.title });
+            if (titleExists) {
+                errorList.push("Learning Plan title already exists.");
+            }
+        }
+        if (input.targetAudience && input.targetAudience !== existingLearningPlan.targetAudience) {
+            if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs?.length > 0) {
+                errorList.push("Group IDs cannot be set for targetAudience EVERYONE_IN_ORGANIZATION.");
+            }
+        }
+        if (input.audienceSelection && input.audienceSelection !== existingLearningPlan.audienceSelection) {
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
+                errorList.push("Condition Type should not be provided when audience selection is ALL_EMPLOYEES.");
+            }
+            if (input.audienceSelection === audienceSelection.MANUAL && !input.userObjectIds?.length) {
+                errorList.push("User Object IDs are required for MANUAL audience selection.");
             }
         }
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
-        const newLearningPlan = new LearningPlan({
-            title: input.title,
-            targetAudience,
-            groupIDs,
-            status: input.status,
-            audienceSelection: input.audienceSelection,
-            conditionType: input.conditionType,
-            conditionalCustomFields: input.conditionalCustomFields,
-            userObjectIds: input.userObjectIds,
-            selectCourses: input.selectCourses
-        });
-        await newLearningPlan.save();
-        return { success: true, learningPlan: newLearningPlan };
-    } catch (error) {
-        errorList.push(error.message);
-        return { success: false, errors: errorList };
-    }
-};
-
+        return { success: true };
+    };
+    
 async function getUsersBasedOnConditions(conditions, matchAll = true) {
     const filters = conditions.map(condition => {
         const fieldMapping = {
@@ -308,7 +334,7 @@ const getUsersAndCount = async (input) => {
 
 };
 
-module.exports = { createLearningPlanHelper, getUsersAndCount };
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper};
 
 conditions = [
     {
