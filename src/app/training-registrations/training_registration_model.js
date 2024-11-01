@@ -33,14 +33,13 @@ const trainingRegistrationSchema = new Schema(
         users: [
             {
                 type: ObjectId,
-                ref: "Employee",
+                ref: "User",
                 index: true,
             }
         ],
         status: {
             type: String,
             uppercase: true,
-            required: true,
         },
         startDate: Date,
         endDate: Date,
@@ -51,10 +50,6 @@ const trainingRegistrationSchema = new Schema(
             learnerId: String
         },
         feedback: FeedbackAttemptSchema,
-        isRegistered: {
-            type: Boolean,
-            default: false,
-        },
         isActive: {
             type: Boolean,
             default: true,

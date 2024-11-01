@@ -5,6 +5,9 @@ module.exports = {
             name: String!
             typeOfVessel: VesselTypeNew!
             imoNumber: String!
+            companyName: String
+            ownerName: String
+            address: String
             isActive: Boolean!
             createdAt: String!
             updatedAt: String!
@@ -21,11 +24,20 @@ module.exports = {
             name: String!
             typeOfVessel: ID!
             imoNumber: String!
+            companyName: String
+            ownerName: String
+            address: String
         }
         input VesselFilterInput {
             search: String
             vesselType: ID
             isActive: Boolean
+        }
+
+        type CreateOrUpdateVesselResponse {
+            success: Boolean!
+            message: String
+            vessel: Vessel
         }
 
         type VesselList {
@@ -48,9 +60,9 @@ module.exports = {
         getVesselById(id: ID!): Vessel!
     `,
     mutations: `
-        createVessel(input: VesselInput!): Vessel!
-        updateVessel(id: ID!, input: VesselInput!): Vessel!
-        deleteVessel(id: ID!): DeleteVesselResponse!
-        activateDeactivateVessel(id: ID!): ActivateDeactivateVesselResponse!
+        createVessel(input: VesselInput!): CreateOrUpdateVesselResponse
+        updateVessel(ids: ID!, input: VesselInput!): CreateOrUpdateVesselResponse
+        deleteVessel(ids: [ID!]): DeleteVesselResponse!
+        activateDeactivateVessel(ids: [ID!]): ActivateDeactivateVesselResponse!
         `,
 };

@@ -18,7 +18,7 @@ module.exports = {
         }
         type TrainingRegistration {
             _id: ID
-            training: Training
+            training: ID
             batch: Batch
             batchNumber: String
             trainingDuration: Int
@@ -49,6 +49,7 @@ module.exports = {
             trainingAttendance: TrainingAttendance
             trainingCertificate: TrainingCertificate
             scorm:Scorm
+            users: [ID]
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -65,19 +66,36 @@ module.exports = {
             employee: ID!
             trainer: ID
         }
+        enum groupTypeEnums {
+            designation
+            role
+            subRole
+            regStatus
+            vessel
+            vesselType
+            vesselStatus
+            custom
+        }
+        input GroupInputForEnroll {
+            groupType: groupTypeEnums!
+            groupId: String!
+        }
+        enum enrollType {
+            ENROLL
+            UNENROLL
+        }
         input TrainingRegistrationInput {
-            employee: ID
-            branch: ID
-            organization: ID
+            type: enrollType!
             training: ID
+            trainings: [ID]
+            learningPlan: ID
             trainingDuration: Int
             certificateValidity: Int
             trainer: ID
             startDate: String
             endDate: String
-            unitPrice: Float
-            customPrice: Float
-            remarks: String
+            groups: [GroupInputForEnroll]
+            users: [String]
             trainingMode: TrainingMode
         }
         input TrainingRegistrationUpdateInput {
@@ -110,6 +128,22 @@ module.exports = {
         input AssignedTrainingRegistrationFilterInput {
             organization: ID
         }
+        type trainingEnrollmentRes {
+            message: String!
+        }
+        input verifyRegistrationEmailsInput {
+            training: ID
+            users: [String]!
+            type: enrollType!
+        }
+        type verifyRegistrationEmailsRes {
+            unregEmails: [String]
+            invalidEmails: [String]
+            alreadyEnrolledEmails: [String]
+            notEnrolledEmails: [String]
+            remainingEmails: [String]
+            status: Boolean
+        }
     `,
     queries: `
         getTrainingRegistrations(pageInput: PageInput, filterInput: TrainingRegistrationFilterInput): TrainingRegistrationList!
@@ -118,7 +152,8 @@ module.exports = {
     `,
     mutations: `
         """used for assign course to employee"""
-        createTrainingRegistration(input: TrainingRegistrationInput!, invoiceInput: TrainingRegistrationInvoiceInput): TrainingRegistration
+        createTrainingRegistration(input: TrainingRegistrationInput!): trainingEnrollmentRes!
+        verifyRegistrationEmails(input: verifyRegistrationEmailsInput!): verifyRegistrationEmailsRes!
         updateTrainingRegistration(id: ID!, input: TrainingRegistrationUpdateInput!): TrainingRegistration!
         deleteTrainingRegistration(id: ID!): TrainingRegistration!
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!

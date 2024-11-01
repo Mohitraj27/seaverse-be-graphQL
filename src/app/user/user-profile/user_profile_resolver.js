@@ -414,10 +414,12 @@ module.exports.mutations = {
 
             existingUser.resetPasswordToken = token;
             existingUser.resetPasswordExpires = Date.now() + (7 * 3600000);
-            await existingUser.save();
+            const updatedUser = await existingUser.save();
 
-            let errors = [];
-
+            if(!updatedUser) {
+                throw CustomError(ErrorName.FAILED);
+            }
+            
             const result = await AwsHelper.sendEmail({
                 receiverEmail: email,
                 subject: "Reset Password",
@@ -439,10 +441,6 @@ module.exports.mutations = {
                         </body>
                     </html>`,
             });
-
-            if (errors.length > 0) {
-                throw new CustomError(ErrorName.FAILED);
-            }
 
             if (result) {
                 return {
