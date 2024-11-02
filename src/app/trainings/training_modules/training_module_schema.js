@@ -22,7 +22,7 @@ module.exports = {
             """
             Use this input only with createOrUpdateTraining mutation 
             """
-            trainingModuleContents: [ID]
+            trainingModuleContents: [TrainingModuleContentInput]
         }
     `,
     mutations: `
