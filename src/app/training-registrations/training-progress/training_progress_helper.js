@@ -33,6 +33,7 @@ const Permission = require("../../user/sub-roles/permission.json");
 const { EnvSubscriberHelper } = require("../../env_subscriber_helper");
 const { Subscriber } = require("../../saas/subscriber/subscriber_model");
 const ScromHelper = require("../../trainings/scrom_helper");
+const { TrainingModule } = require("../../trainings/training_modules/training_module_model");
 
 const sendCourseCompletionMail = async data => {
     try {
@@ -271,7 +272,8 @@ module.exports = {
 
         if (!input.trainingRegistrationId) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-
+        if (input.playerSettings) {
+        }
 
         const findAndUpdateTrainingProgress = async filterConditions => {
             let savedTrainingCertificate, notificationTrainingRegistrationStatus;
@@ -281,11 +283,11 @@ module.exports = {
             let quizStatus;
 
             if (input.currentTrainingModuleContentId) {
-                currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
-                    input.currentTrainingModuleContentId
-                )
-                    .lean()
-                    .populate("quizContent");
+                // currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
+                //     input.currentTrainingModuleContentId
+                // )
+                //     .lean()
+                //     .populate("quizContent");
 
                 if (!currentExistingTrainingModuleContent) throw CustomError(ErrorName.NOT_FOUND);
 
@@ -298,6 +300,7 @@ module.exports = {
 
                 currentExistingTrainingProgress.updatedBy = userId;
 
+                // Quiz management
                 if (input.currentTrainingModuleContentQuestionAnswers) {
                     const quizContent =
                         currentExistingTrainingModuleContent?.quizContent?.quiz ??
@@ -356,20 +359,6 @@ module.exports = {
                         delete input.trainingRegistrationStatus;
                         delete input.trainingRegistrationProgressPercentage;
                     }
-                }
-
-                if (input.currentTrainingModuleContentStatus === "inProgress" &&
-                    currentExistingTrainingProgress.status !== "notStarted") {
-
-                    currentExistingTrainingProgress.trainingModuleContentData = {
-                        trainingId: currentExistingTrainingModuleContent.training,
-                        trainingModuleId: currentExistingTrainingModuleContent.trainingModule,
-                        trainingModuleContentId: currentExistingTrainingModuleContent._id,
-                        ...currentExistingTrainingModuleContent,
-                    };
-
-                    
-
                 }
 
                 if (

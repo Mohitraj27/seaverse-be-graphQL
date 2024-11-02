@@ -18,9 +18,17 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
-        trainingModuleContent: {
-            type: ObjectId,
-            ref: "TrainingModuleContent",
+        trainingModuleContent: [
+            {
+                trainingModuleContentId: {
+                    type: ObjectId,
+                    ref: "TrainingModuleContent",
+                },
+                progressPercent: Number
+            }
+        ],
+        playerSettings: {
+            type: Schema.Types.Mixed,
         },
         trainingModuleContentData: {
             trainingId: ObjectId,
