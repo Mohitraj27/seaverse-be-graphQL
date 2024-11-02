@@ -29,7 +29,7 @@ module.exports = {
             startedAt: String
             completedAt: String
         }
-        type genericObjectInput :{
+        input genericObjectInput {
             key: String!
             value: JSON
         }
