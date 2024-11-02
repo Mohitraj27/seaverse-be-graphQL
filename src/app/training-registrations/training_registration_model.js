@@ -1,7 +1,6 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../tools");
 const { LocalisedDataSchema } = require("../../util/localised_data_schema");
 const { FeedbackAttemptSchema } = require("../feedbacks/feedback_content_model");
-
 const trainingRegistrationSchema = new Schema(
     {
         subscriber: {
@@ -27,20 +26,19 @@ const trainingRegistrationSchema = new Schema(
                 },
                 groupId: {
                     type: String,
-                }
-            }
+                },
+            },
         ],
         users: [
             {
                 type: ObjectId,
-                ref: "Employee",
+                ref: "User",
                 index: true,
-            }
+            },
         ],
         status: {
             type: String,
             uppercase: true,
-            required: true,
         },
         startDate: Date,
         endDate: Date,
@@ -48,13 +46,9 @@ const trainingRegistrationSchema = new Schema(
             courseId: String,
             launchUrl: String,
             registrationId: String,
-            learnerId: String
+            learnerId: String,
         },
         feedback: FeedbackAttemptSchema,
-        isRegistered: {
-            type: Boolean,
-            default: false,
-        },
         isActive: {
             type: Boolean,
             default: true,
@@ -74,20 +68,17 @@ const trainingRegistrationSchema = new Schema(
     },
     { timestamps: true }
 );
-
 trainingRegistrationSchema.virtual("trainingProgresses", {
     ref: "TrainingProgress",
     localField: "_id",
     foreignField: "trainingRegistration",
 });
-
 trainingRegistrationSchema.virtual("trainingAttendance", {
     ref: "TrainingAttendance",
     localField: "_id",
     foreignField: "trainingRegistration",
     justOne: true,
 });
-
 trainingRegistrationSchema.virtual("trainingCertificate", {
     ref: "TrainingCertificate",
     localField: "_id",
@@ -104,6 +95,8 @@ trainingRegistrationSchema.index({ subscriber: 1, organization: 1 });
 trainingRegistrationSchema.index({ subscriber: 1, trainer: 1 });
 
 trainingRegistrationSchema.index({ subscriber: 1, employee: 1 });
+
+trainingRegistrationSchema.index({ subscriber: 1, user: 1 });
 
 trainingRegistrationSchema.index({ createdAt: -1 });
 

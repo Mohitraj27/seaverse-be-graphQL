@@ -47,8 +47,9 @@ const sendCourseCompletionMail = async data => {
                 .lean()
                 .populate("user");
             subscriberLogo = subscriberData?.user?.avatar;
-            subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${subscriberData?.user?.lastName ?? ""
-                }`;
+            subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${
+                subscriberData?.user?.lastName ?? ""
+            }`;
         }
         const receiverEmail = data.employee?.user?.email;
         const trainingTitle = data.trainingTitle?.find(x => x.lang === "en")?.value;
@@ -451,20 +452,20 @@ module.exports = {
                 ])
                 .execPopulate();
 
-            if (existingTrainingRegistration.training.scorm) {
+            if (existingTrainingRegistration.training?.scorm) {
                 if (existingTrainingRegistration.training.scorm.type == "CLOUD") {
                     let scormInput = {
                         learnerId: String(subscriberId),
                         courseId: String(existingTrainingRegistration.training.scorm.courseId),
-                        registrationId: existingTrainingRegistration?.scorm.registrationId
-                    }
+                        registrationId: existingTrainingRegistration?.scorm.registrationId,
+                    };
                     let launchData = await ScromHelper.buildLaunchUrl(scormInput);
                     existingTrainingRegistration.scorm = {
                         courseId: String(existingTrainingRegistration.training.scorm.courseId),
                         launchUrl: launchData.launchLink,
                         registrationId: launchData.registrationId,
-                        learnerId: String(subscriberId)
-                    }
+                        learnerId: String(subscriberId),
+                    };
                 }
 
             }
@@ -608,14 +609,11 @@ module.exports = {
                                     ?.utcDateTimeObj.add({ days: certificateValidity })
                                     .format()
                                 : undefined;
-
-                        ({ trainerName, trainerSignature } =
-                            EnvSubscriberHelper.getEnvCertificateRelatedValues());
+                
+                        ({ trainerName, trainerSignature } = EnvSubscriberHelper.getEnvCertificateRelatedValues());
                     } else {
-                        const endDate = ParseDateTime(
-                            savedTrainingRegistration.endDate
-                        )?.utcDateTimeObj?.format();
-
+                        const endDate = ParseDateTime(savedTrainingRegistration.endDate)?.utcDateTimeObj?.format();
+                
                         completedAt =
                             endDate ??
                             savedTrainingRegistration.completedAt ??
@@ -627,16 +625,15 @@ module.exports = {
                                     ?.utcDateTimeObj?.add({ days: certificateValidity })
                                     ?.format()
                                 : undefined;
-
-                        trainerName = `${existingTrainingRegistration.trainer?.user?.firstName ?? ""
-                            } ${existingTrainingRegistration.trainer?.user?.lastName ?? ""}`;
-
+                
+                        trainerName = `${existingTrainingRegistration.trainer?.user?.firstName ?? ""} ${existingTrainingRegistration.trainer?.user?.lastName ?? ""}`;
                         trainerSignature = existingTrainingRegistration.trainer?.signature;
                     }
-
-                    ({ mdName, mdSignature, approvalInfo, contactInfo } =
-                        EnvSubscriberHelper.getEnvCertificateRelatedValues());
-
+                
+                    ({ mdName, mdSignature, approvalInfo, contactInfo } = EnvSubscriberHelper.getEnvCertificateRelatedValues());
+                
+                    const additionalData = input.additionalData || []; 
+                
                     savedTrainingCertificate = await TrainingCertificate.findOneAndUpdate(
                         { trainingRegistration: input.trainingRegistrationId },
                         {
@@ -646,46 +643,35 @@ module.exports = {
                                 training: savedTrainingRegistration.training,
                                 organization: savedTrainingRegistration.organization,
                                 branch: savedTrainingRegistration.branch,
-                                employee: savedTrainingRegistration.employee,
+                                user: savedTrainingRegistration.user, 
                                 trainer: savedTrainingRegistration.trainer,
                                 supervisor: savedTrainingRegistration.supervisor,
                                 subscriberLogo: existingSubscriberUser?.avatar,
-                                employeeName: `${existingTrainingRegistration.employee?.user?.firstName ?? ""
-                                    } ${existingTrainingRegistration.employee?.user?.lastName ?? ""}`,
-                                employeeUID: existingTrainingRegistration.employee?.UID,
-                                employeeDesignation:
-                                    existingTrainingRegistration.employee?.designation,
-                                employeeCivilIdOrPassport:
-                                    existingTrainingRegistration.employee?.user?.civilIdOrPassport,
-                                employeeNo: existingTrainingRegistration.employee?.employeeNo,
-                                employeeRigNumber: existingTrainingRegistration.employee?.rigNumber,
-                                employeeEmail: existingTrainingRegistration.employee?.user?.email,
-                                employeeAvatar: existingTrainingRegistration.employee?.user?.avatar,
+                                userName: `${existingTrainingRegistration.user?.firstName ?? ""} ${existingTrainingRegistration.user?.lastName ?? ""}`, 
+                                userUID: existingTrainingRegistration.user?.UID, 
+                                userDesignation: existingTrainingRegistration.user?.designation, 
+                                userCivilIdOrPassport: existingTrainingRegistration.user?.civilIdOrPassport, 
+                                userNo: existingTrainingRegistration.user?.employeeNo, 
+                                userRigNumber: existingTrainingRegistration.user?.rigNumber, 
+                                userEmail: existingTrainingRegistration.user?.email, 
+                                userAvatar: existingTrainingRegistration.user?.avatar, 
                                 organizationName: existingTrainingRegistration.organization?.name,
                                 trainerName,
                                 trainerSignature,
                                 trainingTitle: existingTrainingRegistration.training?.title,
-                                trainingDescription:
-                                    existingTrainingRegistration.training?.description,
+                                trainingDescription: existingTrainingRegistration.training?.description,
                                 trainingImages: existingTrainingRegistration.training?.images,
-                                trainingCategories:
-                                    existingTrainingRegistration.training?.trainingCategories,
-                                trainingSubCategories:
-                                    existingTrainingRegistration.training?.trainingSubCategories,
-                                trainingDuration:
-                                    existingTrainingRegistration.trainingDuration ??
-                                    existingTrainingRegistration.training?.duration,
+                                trainingCategories: existingTrainingRegistration.training?.trainingCategories,
+                                trainingSubCategories: existingTrainingRegistration.training?.trainingSubCategories,
+                                trainingDuration: existingTrainingRegistration.trainingDuration ?? existingTrainingRegistration.training?.duration,
                                 trainingCertificateValidity: certificateValidity,
                                 status: TrainingRegistrationStatus.COMPLETED,
-                                gradeMark: 0, 
-                                badge: 0, 
-                                certificateNumber:
-                                    await TrainingCertificateHelper.generateTrainingCertificateNumber(
-                                        {
-                                            subscriberId,
-                                            session,
-                                        }
-                                    ),
+                                gradeMark: 0,
+                                badge: 0,
+                                certificateNumber: await TrainingCertificateHelper.generateTrainingCertificateNumber({
+                                    subscriberId,
+                                    session,
+                                }),
                                 startDate: savedTrainingRegistration.startDate,
                                 endDate: savedTrainingRegistration.endDate,
                                 startedAt: savedTrainingRegistration.startedAt,
@@ -697,6 +683,7 @@ module.exports = {
                                 mdSignature,
                                 approvalInfo,
                                 contactInfo,
+                                additionalData, 
                                 createdBy: userId,
                                 version: "1.0",
                             },
@@ -709,14 +696,14 @@ module.exports = {
                             session,
                         }
                     );
-
+                
                     if (!savedTrainingCertificate) throw CustomError(ErrorName.FAILED);
                 }
                 let response = {
                     ...existingTrainingRegistration.toJSON(),
                     trainingProgresses: savedTrainingProgresses,
-                    scorm: existingTrainingRegistration.scorm
-                }
+                    scorm: existingTrainingRegistration.scorm,
+                };
                 return response;
             });
 
@@ -758,7 +745,7 @@ module.exports = {
                 notificationsList.push({
                     notificationType:
                         notificationTrainingRegistrationStatus ===
-                            TrainingRegistrationStatus.STARTED
+                        TrainingRegistrationStatus.STARTED
                             ? NotificationType.TRAINING_STARTED
                             : NotificationType.TRAINING_COMPLETED,
                     trainingRegistration: existingTrainingRegistration,
@@ -779,7 +766,9 @@ module.exports = {
 
             return result;
         };
-
+/** 
+ *          COMMENTED PART IS REQUIRED IN THE FUTURE
+ *  
         if (context.platform === Role.EMPLOYEE && role === Role.EMPLOYEE && employeeId) {
             input.trainingMode = TrainingMode.ONLINE;
             return await findAndUpdateTrainingProgress({ employee: employeeId });
@@ -798,16 +787,34 @@ module.exports = {
             input.trainingMode = TrainingMode.OFFLINE;
             return await findAndUpdateTrainingProgress();
         }
-
         throw CustomError(ErrorName.FORBIDDEN);
+ */
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: Permission.UPDATE_TRAINING_REGISTRATION,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        input.trainingMode = TrainingMode.OFFLINE;
+        return await findAndUpdateTrainingProgress();
     },
     updateScormTrainingProgress: async ({ input }, context) => {
-        let existingTrainingRegistration = await TrainingRegistration.findOne({ _id: input.trainingRegistrationId });
-        let scormStatus = await ScromHelper.checkScormCourseStatus(existingTrainingRegistration.scorm.registrationId)
+        let existingTrainingRegistration = await TrainingRegistration.findOne({
+            _id: input.trainingRegistrationId,
+        });
+        let scormStatus = await ScromHelper.checkScormCourseStatus(
+            existingTrainingRegistration.scorm.registrationId
+        );
         if (scormStatus.registrationCompletion == "COMPLETE") {
-            existingTrainingRegistration.status = "COMPLETED"
+            existingTrainingRegistration.status = "COMPLETED";
             await existingTrainingRegistration.save();
         }
         return existingTrainingRegistration;
-    }
-}
+    },
+};
