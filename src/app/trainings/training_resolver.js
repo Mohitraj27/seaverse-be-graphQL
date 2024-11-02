@@ -327,6 +327,7 @@ module.exports.mutations = {
         });
         if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
         const currentStatus = currentTraining.status;
+        const updateFields = {};
         if (input.newStatus) {
             const newStatus = input.newStatus;
             const invalidUpdates = [];
