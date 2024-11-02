@@ -22,12 +22,12 @@ module.exports = {
         }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [ID!]!  
+            valueOfField: [String!]!  
             isOrIsNot: String!
         }
         type ConditionalCustomField {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [ID!]!  
+            valueOfField: [String!]!  
             isOrIsNot: String!
         }
         type LocalizedField {
@@ -111,8 +111,15 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomField]
+            isDeleted: Boolean
+            createdBy: ID
+            updatedBy: ID
             createdAt: String
             updatedAt: String
+        }
+        type DeleteLearningPlanResponse {
+            success: Boolean!
+            message: String
         }
         type LearningPlanResponse {
             learningPlans: [LearningPlan!]!
@@ -123,6 +130,10 @@ module.exports = {
             message: String!
             updatedLearningPlans: [LearningPlan!]!
         }
+        type GetUsersForLearningPlanResponse {
+            userIds: [ID]
+            count: Int
+        }
         input UpdateLearningPlanStatusInput {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
@@ -132,9 +143,9 @@ module.exports = {
             status: LearningPlanStatus
         }
         input LearningPlanInput {
-            title: String!
+            title: String
             targetAudience: TargetAudienceEnum
-            selectCourses: [ID!]!
+            selectCourses: [ID!]
             groupIDs: [ID!]
             userObjectIds: [ID]
             status: LearningPlanStatus
@@ -142,12 +153,33 @@ module.exports = {
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
         }
+        input UpdateLearningPlanInput {
+            title: String
+            targetAudience: TargetAudienceEnum
+            selectCourses: [ID!]
+            groupIDs: [ID!]
+            userObjectIds: [ID]
+            status: LearningPlanStatus
+            audienceSelection: AudienceSelectionEnum
+            conditionType: ConditionTypeEnum
+            conditionalCustomFields: [ConditionalCustomFieldInput]
+        }
+
+        input GetUsersForLearningPlanInput {
+            targetAudience: TargetAudienceEnum
+            audienceSelection: AudienceSelectionEnum!
+            conditionType: ConditionTypeEnum
+            conditionalCustomFields:[ConditionalCustomFieldInput]
+        }
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
+        getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
         updateLearningPlanStatus(input: UpdateLearningPlanStatusInput!): LearningPlanStatusUpdateResponse!
+        deleteLearningPlan(id: ID!): DeleteLearningPlanResponse!
+        updateLearningPlan(id: ID!, input: UpdateLearningPlanInput!): LearningPlan! 
     `,
 };

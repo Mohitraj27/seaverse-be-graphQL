@@ -403,9 +403,6 @@ module.exports.mutations = {
                 if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
                     return true;
                 }
-                if (content.ContentType === 'QUIZ' && content.contentStatus === Content_status.RETIRED && newStatus === Content_status.DRAFT) {
-                    return true;
-                }
                 invalidUpdates.push({
                     id: id,
                     reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
@@ -445,7 +442,7 @@ module.exports.mutations = {
                 const content = await TrainingModuleContent.findOne({
                     _id: id,
                     subscriber: subscriberId,
-                    contentStatus: 'RETIRED',
+                    contentStatus: { $in: [Content_status.DRAFT, Content_status.RETIRED] },
                 });
 
                 if (!content) {
@@ -489,48 +486,12 @@ module.exports.mutations = {
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
 
-            let pagesOrSlides = 0;
-
-            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'mp3', 'mp4', 'wav', 'zip'];
-
-            // function streamToBuffer(stream) {
-            //     return new Promise((resolve, reject) => {
-            //         const chunks = [];
-            //         stream.on('data', (chunk) => chunks.push(chunk));
-            //         stream.on('end', () => resolve(Buffer.concat(chunks)));
-            //         stream.on('error', reject);
-            //     });
-            // }
-
-            // async function extractPPTSlides(pptStream) {
-            //     let ppt = new PptxGenJS();
-            //     await ppt.load(pptStream);
-            //     console.log("PPT", ppt);
-            //     return ppt.getSlideCount();
-            // }
-
-            // async function extractPDFPages(pdfStream) {
-            //     const data = await pdfParse(pdfStream);
-            //     return data.numpages;
-            // }
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-                // if (fileExtension === 'ppt' || fileExtension === 'pptx') {
-                //     console.log("asdfghj");
-                //     const { createReadStream, filename, mimetype } = await mediaFile;
-                //     const stream = createReadStream();
-                //     pagesOrSlides = await extractPDFPages(stream);
-                // } else if (fileExtension === 'pdf') {
-                //     const { createReadStream, filename, mimetype } = await mediaFile;
-                //     const stream = createReadStream();
-                //     pagesOrSlides = await extractPPTSlides(stream);
-                // }
                 return allowedFileFormats.includes(fileExtension);
             }
-
-
-            console.log("Total slides", pagesOrSlides);
 
             if (scormFile && !validateFileFormat(scormFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
@@ -645,88 +606,81 @@ module.exports.mutations = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
-            if (input.questions && input.questions.length > 0) {
+            const { name, description, questions = [], percentageCriteria } = input;
 
+            input.contentStatus = (name && description && questions.length > 0)
+                ? Content_status.DRAFT
+                : Content_status.PUBLISHED;
+
+            if (input.contentStatus === Content_status.PUBLISHED) {
                 input.contentType = ContentType.QUIZ;
-                input.contentStatus = Content_status.PUBLISHED;
+            }
 
-                let questionsIdArr = [];
-                let score = 0;
-                for (const questionDetails of input.questions) {
-                    const { question, questionType, choices, answerKey, allowMultipleAnswers, points, negativePoints } = questionDetails;
+            let totalScore = 0;
+            let questionsIdArr = [];
 
-                    let choicesIdArr = [];
-
-                    for (const choiceDetail of choices) {
-                        const formattedChoice = choiceDetail.choice.map(item => ({
-                            lang: item.lang,
-                            value: item.value
-                        }));
-                        const choiceData = new AnswerChoice({
-                            subscriber: subscriberId,
-                            question: ObjectId(),
-                            choice: formattedChoice,
-                            createdBy: userId,
-                            updatedBy: userId
-                        });
-                        const choice = await choiceData.save();
-                        choicesIdArr.push(choice._id);
-                    }
-
-                    const questionData = new Question({
+            if (questions.length > 0) {
+                for (const questionDetails of questions) {
+                    const questionId = ObjectId();
+                    const choiceDocs = questionDetails.choices.map(choiceDetail => ({
                         subscriber: subscriberId,
-                        question: question,
-                        questionType: questionType,
-                        choices: choicesIdArr,
-                        answerKey: answerKey,
-                        allowMultipleAnswers: allowMultipleAnswers,
-                        points: points,
-                        negativePoints: negativePoints,
+                        question: questionId,
+                        choice: choiceDetail.choice.map(item => ({ lang: item.lang, value: item.value })),
                         createdBy: userId,
-                        updatedBy: userId
+                        updatedBy: userId,
+                    }));
+
+                    const savedChoices = await AnswerChoice.insertMany(choiceDocs);
+                    const choiceIds = savedChoices.map(choice => choice._id);
+
+                    const questionDoc = new Question({
+                        subscriber: subscriberId,
+                        question: questionDetails.question,
+                        questionType: questionDetails.questionType,
+                        choices: choiceIds,
+                        answerKey: questionDetails.answerKey,
+                        allowMultipleAnswers: questionDetails.allowMultipleAnswers,
+                        points: questionDetails.points,
+                        negativePoints: questionDetails.negativePoints,
+                        createdBy: userId,
+                        updatedBy: userId,
                     });
-                    const newQuestion = await questionData.save();
 
-                    for (const choiceId of choicesIdArr) {
-                        await AnswerChoice.findByIdAndUpdate(choiceId, { question: newQuestion._id });
-                    }
-
-                    questionsIdArr.push(newQuestion._id);
-                    score += points;
+                    const savedQuestion = await questionDoc.save();
+                    questionsIdArr.push(savedQuestion._id);
+                    totalScore += questionDetails.points;
                 }
 
                 input.quiz = questionsIdArr;
-                input.totalScore = score;
+                input.totalScore = totalScore;
                 input.totalQuestions = questionsIdArr.length;
 
-                if (input.percentageCriteria > score) {
+                if (percentageCriteria > totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
-                    input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
+                    input.percentageCriteria = Math.round((percentageCriteria / totalScore) * 100);
                 }
-                if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
-                    input.contentStatus = Content_status.PUBLISHED;
-                }
-
-                const contentData = {
-                    ...input,
-                    createdBy: userId,
-                    updatedBy: userId,
-                };
-
-                const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
-                    const savedContent = new TrainingModuleContent({
-                        ...contentData,
-                        subscriber: subscriberId,
-                        UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
-                    })
-                    await savedContent.save();
-                    return savedContent;
-                });
-
-                if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
-                return savedContent;
             }
+
+            const contentData = {
+                ...input,
+                createdBy: userId,
+                updatedBy: userId,
+            };
+
+            const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
+                const contentDoc = new TrainingModuleContent({
+                    ...contentData,
+                    subscriber: subscriberId,
+                    UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
+                });
+                await contentDoc.save();
+                return contentDoc;
+            });
+
+            if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+
+            return savedContent;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
@@ -752,8 +706,6 @@ module.exports.mutations = {
         const videoFile = video ? await video : null;
         const audioFile = audio ? await audio : null;
         const fileFile = file ? await file : null;
-
-        let pptSlides = 0;
 
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
@@ -785,19 +737,6 @@ module.exports.mutations = {
         if (fileFile && !validateFileFormat(fileFile)) {
             throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
         }
-
-        const extractFileExtension = (url) => {
-            return url ? url.split('.').pop().toLowerCase() : null;
-        };
-
-        const validateMatchingFileExtension = (existingUrl, uploadedFile) => {
-            const existingExtension = extractFileExtension(existingUrl);
-            const uploadedExtension = typeof uploadedFile.filename === 'string' ? uploadedFile.filename.split('.').pop().toLowerCase() : '';
-
-            if (existingExtension !== uploadedExtension) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, `Uploaded file format (${uploadedExtension}) does not match existing content format (${existingExtension})`);
-            }
-        };
 
         if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
             input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
@@ -990,4 +929,100 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+
+    updateTrainingModuleContentQuiz: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+            const existingContent = await TrainingModuleContent.findOne({
+                _id: input._id ?? undefined,
+                subscriber: subscriberId,
+                UID: input.UID ?? undefined,
+                isUpdated: false
+            });
+
+            if (!existingContent) {
+                throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+            }
+
+            const compareQuestions = (existingQuestions, updatedQuestions) => {
+                if (existingQuestions.length !== updatedQuestions.length) return false;
+                return existingQuestions.every((question, index) => {
+                    const updatedQuestion = updatedQuestions[index];
+                    return (
+                        JSON.stringify(question.question) === JSON.stringify(updatedQuestion.question) &&
+                        question.questionType === updatedQuestion.questionType &&
+                        JSON.stringify(question.choices) === JSON.stringify(updatedQuestion.choices) &&
+                        JSON.stringify(question.answerKey) === JSON.stringify(updatedQuestion.answerKey) &&
+                        question.allowMultipleAnswers === updatedQuestion.allowMultipleAnswers &&
+                        question.points === updatedQuestion.points &&
+                        question.negativePoints === updatedQuestion.negativePoints
+                    );
+                });
+            };
+
+            let questionsChanged = false;
+
+            if (input.questions && input.questions.length > 0) {
+                questionsChanged = !compareQuestions(existingContent.quiz, input.questions);
+            }
+
+
+            const updateData = {
+                title: input.title,
+                description: input.description,
+                duration: input.duration,
+                contentStatus: existingContent.contentStatus,
+                updatedBy: userId,
+                updatedAt: new Date(),
+                modifiedDate: new Date(),
+            };
+
+            if (questionsChanged) {
+                updateData.version = existingContent.version + 1;
+                updateData.isUpdated = false;
+
+                const newContent = new TrainingModuleContent({
+                    ...existingContent.toObject(),
+                    ...updateData,
+                    questions: input.questions,
+                    subscriber: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    _id: undefined
+                });
+
+                await newContent.save();
+
+                existingContent.isUpdated = true;
+                existingContent.modifiedDate = new Date();
+                await existingContent.save();
+
+                return {
+                    success: true,
+                    message: "Quiz content updated with a new version.",
+                    updatedContent: newContent,
+                };
+            } else {
+                const fieldsToUpdate = ['title', 'description', 'duration'];
+                fieldsToUpdate.forEach(field => {
+                    if (input[field]) {
+                        existingContent[field] = input[field];
+                    }
+                });
+
+                existingContent.updatedBy = userId;
+                await existingContent.save();
+
+                return {
+                    success: true,
+                    message: "Quiz content updated successfully.",
+                    updatedContent: existingContent,
+                };
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `${error.message}`);
+        }
+    },
+
 };

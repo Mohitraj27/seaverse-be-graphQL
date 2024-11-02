@@ -8,7 +8,6 @@ const { User } = require("../user/user_model");
 const NotificationHelper = require("../notifications/notification_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
-const { UserTrainingEnrolment } = require("./training-enrolment/training_enrolment_model");
 
 const { groupTypes } = require("../../util");
 const { Designation } = require("../designations/designation_model");
@@ -16,6 +15,7 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const { Vessel } = require("../vessle/vessel_model");
 const { GroupMember } = require("../user/group-user/group_member_model");
 const { Group } = require("../user/group-user/group_model");
+const { TrainingProgress } = require("./training-progress/training_progress_model");
 
 
 const fetchUserFromAutoSyncedGroups = (async (groups) => {
@@ -33,6 +33,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
 
         for (let group of groups) {
             const { groupType, groupId } = group;
+
             switch (groupType) {
                 case groupTypes.designation:
                     designationIds.push(groupId);
@@ -62,16 +63,23 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
 
         const designationQuery = designationIds.length ? User.find({ designation: { $in: designationIds } }) : Promise.resolve([]);
         const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
-        const subRoleQuery = subRoleIds.length ? User.find({ subRole: { $in: subRoleIds } }) : Promise.resolve([]);
-        const regStatusQuery = regStatusIds.length ? User.find({ regStatus: { $in: regStatusIds } }) : Promise.resolve([]);
+        const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
+        const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
         const vesselQuery = vesselIds.length ? User.find({ vessel: { $in: vesselIds } }) : Promise.resolve([]);
-        const vesselStatusQuery = vesselStatusIds.length ? Employee.find({ vesselStatus: { $in: vesselStatusIds } }) : Promise.resolve([]);
+        const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds } })
+            .select({ user: 1 })
+            .lean()
+            .then(results => results.map(doc => ({ _id: doc.user })))
+            : Promise.resolve([]);
 
         let vesselTypeQuery;
         if (vesselTypeIds.length) {
             const vessels = await Vessel.find({ typeOfVessel: { $in: vesselTypeIds } });
             const vesselIdsFromType = vessels.map(x => x._id);
-            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType } }).populate("user") : Promise.resolve([]);
+            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType } })
+                .select({ user: 1 })
+                .lean()
+                .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
         } else {
             vesselTypeQuery = Promise.resolve([]);
         }
@@ -82,8 +90,8 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             subRoleUsers,
             regStatusUsers,
             vesselUsers,
-            vesselStatusUsers,
-            vesselTypeUsers
+            vesselStatusUserIds,
+            vesselTypeUserIds
         ] = await Promise.all([
             designationQuery,
             roleQuery,
@@ -94,15 +102,27 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             vesselTypeQuery
         ]);
 
-        return users = [
+        let vesselStatusUsers = [];
+        if (vesselStatusUserIds.length) {
+            vesselStatusUsers = await User.find({ _id: { $in: vesselStatusUserIds } });
+        }
+
+        let vesselTypeUsers = [];
+        if (vesselTypeUserIds.length) {
+            vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds } });
+        }
+
+        return [
             ...designationUsers,
             ...roleUsers,
             ...subRoleUsers,
             ...regStatusUsers,
             ...vesselUsers,
             ...vesselStatusUsers,
-            ...vesselTypeUsers.map(x => x.user)
+            ...vesselTypeUsers
         ];
+
+
 
     } catch (error) {
         console.log(error);
@@ -169,38 +189,82 @@ module.exports = {
             );
         }
     },
-    enrolUserVerificationHelper: async (inputUsers) => {
+    enrolUserVerificationHelper: async (inputUsers, existingTrainings) => {
 
-        let emails = [];
+        let remainingUsers = [];
         let invalidEmails = [];
         let unRegEmails = [];
         let alreadyEnrolledEmails = [];
-
-        let users = [];
+        let notEnrolledEmails = [];
 
         for (let user of inputUsers) {
+
             if (!Validator.isEmail(user.email)) {
                 invalidEmails.push(user.email)
-            } else {
-                emails.push(user);
-            }
-        }
-
-        for (let user of users) {
-            if (!user.isRegistered) {
+            } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
+            } else {
+                remainingUsers.push(user);
             }
+
         }
 
-        const userObjectIds = users.map(user => user._id);
+        const userObjectIds = remainingUsers.map(user => user._id);
+        const userObjectIdStrings = userObjectIds.map(id => id.toString());
 
-        const alreadyEnrolled = await UserTrainingEnrolment.find({ user: { $in: userObjectIds } }).populate("user");
+        let alreadyEnrolledUserIds = [];
+        let notEnrolledUserIds = [];
 
-        if (alreadyEnrolled.length > 0) {
-            alreadyEnrolledEmails = alreadyEnrolled.map(user => user.user.email);
+        existingTrainings.forEach(training => {
+            alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
+            notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
+        });
+
+        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+        if (alreadyEnrolledUserIds.length > 0) {
+            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
         }
 
-        return { emails, invalidEmails, unRegEmails, alreadyEnrolledEmails, users };
+        if (notEnrolledUserIds.length > 0) {
+            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+        }
+
+        return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
+
+    },
+    createTrainingProgressHelper: async (users, trainings) => {
+
+        
+        let trainingProgressData;
+        const existingProgressRecords = await TrainingProgress.find({
+            training: { $in: trainings },
+            user: { $in: users.map(user => user._id) }
+        });
+        
+        const existingProgressSet = new Set(
+            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
+        );
+        
+        const newProgressEntries = trainings.flatMap(trainingId =>
+            users.map(user => ({
+                training: trainingId,
+                user: user._id,
+                status: 'notStarted',
+                enroledStatus: true
+            }))
+        ).filter(entry =>
+            !existingProgressSet.has(`${entry.training}-${entry.user}`)
+        );
+        
+        if (newProgressEntries.length > 0) {
+            trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
+        }
+
+        return trainingProgressData;
 
     },
     getAutoSyncUsers: async (groups) => {
@@ -209,11 +273,9 @@ module.exports = {
             return [];
         }
 
-        const users = [];
-
         const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groups);
         if (autoSyncedUsers && autoSyncedUsers.length > 0) {
-            return users.push(...autoSyncedUsers);
+            return autoSyncedUsers;
         } else {
             return [];
         }
@@ -226,6 +288,7 @@ module.exports = {
 
         const users = [];
         const groupIds = groups.map(group => group.groupId);
+
         const getGroups = await GroupMember.find({ group: { $in: groupIds } });
 
         if (getGroups.length > 0) {
@@ -243,7 +306,8 @@ module.exports = {
 
                 const membersInGroupGroups = await fetchUserFromAutoSyncedGroups(formattedGroups);
 
-                return users.push(...membersInGroupGroups);
+                users.push(...membersInGroupGroups);
+                return [...users];
             } else {
                 return [];
             }

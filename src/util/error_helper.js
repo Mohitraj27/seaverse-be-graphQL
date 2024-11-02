@@ -77,6 +77,7 @@ const errorName = {
     INVALID_EMAIL: "INVALID_EMAIL",
     INVALID_LEARNING_PLAN_STATUS_UPDATE:"INVALID_LEARNING_PLAN_STATUS_UPDATE",
     INVALID_LEARNING_PLAN:"INVALID_LEARNING_PLAN",
+    LEARNING_PLAN_NOT_FOUND:"LEARNING_PLAN_NOT_FOUND"
 };
 
 const errorType = {
@@ -464,6 +465,11 @@ const errorType = {
         message: "Invalid Learning Plan Provided",
         statusCode: 400,
         type: "INVALID_LEARNING_PLAN"
+    },
+    LEARNING_PLAN_NOT_FOUND: {
+        message: "Learning Plan Not Found",
+        statusCode: 400,
+        type: "LEARNING_PLAN_NOT_FOUND"
     }
 };
 

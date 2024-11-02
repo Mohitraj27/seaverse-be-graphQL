@@ -10,18 +10,18 @@ const trainingProgressSchema = new Schema(
         subscriber: {
             type: ObjectId,
             ref: "Subscriber",
-            required: true,
         },
-        trainingRegistration: {
+        training: {
             type: ObjectId,
-            ref: "TrainingRegistration",
-            required: true,
-            index: true,
+            ref: "Training",
+        },
+        user: {
+            type: ObjectId,
+            ref: "User",
         },
         trainingModuleContent: {
             type: ObjectId,
             ref: "TrainingModuleContent",
-            required: true,
         },
         trainingModuleContentData: {
             trainingId: ObjectId,
@@ -36,7 +36,12 @@ const trainingProgressSchema = new Schema(
         retryCount: Number,
         status: {
             type: String,
-            uppercase: true,
+            default: 'notStarted',
+            enum: ["notStarted", "inProgress", "completed"],
+        },
+        enroledStatus: {
+            type: Boolean,
+            default: true
         },
         lastAccessedItem: String,
         lastAccessedAt: Date,

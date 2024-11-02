@@ -359,6 +359,20 @@ module.exports = {
                     }
                 }
 
+                if (input.currentTrainingModuleContentStatus === "inProgress" &&
+                    currentExistingTrainingProgress.status !== "notStarted") {
+
+                    currentExistingTrainingProgress.trainingModuleContentData = {
+                        trainingId: currentExistingTrainingModuleContent.training,
+                        trainingModuleId: currentExistingTrainingModuleContent.trainingModule,
+                        trainingModuleContentId: currentExistingTrainingModuleContent._id,
+                        ...currentExistingTrainingModuleContent,
+                    };
+
+                    
+
+                }
+
                 if (
                     input.currentTrainingModuleContentStatus === "COMPLETED" &&
                     currentExistingTrainingProgress.status !== "COMPLETED"
@@ -668,10 +682,13 @@ module.exports = {
                                 status: TrainingRegistrationStatus.COMPLETED,
                                 gradeMark: 0,
                                 badge: 0,
-                                certificateNumber: await TrainingCertificateHelper.generateTrainingCertificateNumber({
-                                    subscriberId,
-                                    session,
-                                }),
+                                certificateNumber:
+                                    await TrainingCertificateHelper.generateTrainingCertificateNumber(
+                                        {
+                                            subscriberId,
+                                            session,
+                                        }
+                                    ),
                                 startDate: savedTrainingRegistration.startDate,
                                 endDate: savedTrainingRegistration.endDate,
                                 startedAt: savedTrainingRegistration.startedAt,
