@@ -150,6 +150,12 @@ const createLearningPlanHelper = async (input) => {
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
+        const { userIds, count } = await getUsersAndCount({
+            targetAudience: input.targetAudience,
+            audienceSelection: input.audienceSelection,
+            conditionType: input.conditionType,
+            conditionalCustomFields: input.conditionalCustomFields
+        });
         const newLearningPlan = new LearningPlan({
             title: input.title,
             targetAudience,
@@ -159,7 +165,8 @@ const createLearningPlanHelper = async (input) => {
             conditionType: input.conditionType,
             conditionalCustomFields: input.conditionalCustomFields,
             userObjectIds: input.userObjectIds,
-            selectCourses: input.selectCourses
+            selectCourses: input.selectCourses,
+            assignedLearnerIDs: userIds, 
         });
         await newLearningPlan.save();
         return { success: true, learningPlan: newLearningPlan };

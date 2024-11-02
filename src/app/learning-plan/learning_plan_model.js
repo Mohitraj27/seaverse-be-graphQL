@@ -58,6 +58,10 @@ const learningPlanSchema = new Schema(
             type: ObjectId,
             ref: "Training"
         }],
+        assignedLearnerIDs: [{ 
+            type: ObjectId, 
+            ref: "User" 
+        }],
         createdBy: {
             type: ObjectId,
             ref: "User",

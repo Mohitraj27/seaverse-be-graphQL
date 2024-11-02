@@ -111,6 +111,7 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomField]
+            assignedLearnerIDs: [ID]
             isDeleted: Boolean
             createdBy: ID
             updatedBy: ID
