@@ -71,6 +71,9 @@ module.exports.mutations = {
             if(learningPlan.isDeleted) {
                 throw  CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
             }
+            if (learningPlan.status !== LearningPlanStatus.INACTIVE) {
+                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, 'Only Learning Plans with status INACTIVE can be deleted.');
+            }
             learningPlan.isDeleted = true;
             learningPlan.updatedBy = userId;
 
