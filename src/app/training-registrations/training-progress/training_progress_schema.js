@@ -29,6 +29,10 @@ module.exports = {
             startedAt: String
             completedAt: String
         }
+        input genericObjectInput {
+            key: String!
+            value: JSON
+        }
         input TrainingProgressInput {
             trainingRegistrationId: ID
             trainingRegistrationSortedTrainingModules: [TrainingRegistrationSortedTrainingModuleInput]
@@ -41,6 +45,9 @@ module.exports = {
             currentTrainingModuleContentQuestionAnswers: [QuizAttemptQuestionAnswerInput]
             nextTrainingModuleId: ID
             nextTrainingModuleContentId: ID
+            additionalData : genericObjectInput
+            settings: genericObjectInput
+            training : ID
         }
         type initialTrainingProgress {
             message: String

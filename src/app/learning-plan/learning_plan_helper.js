@@ -15,6 +15,8 @@ const targetAudienceEnum = require("./enumFields/targetAudienceEnum.json");
 const conditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const e = require("express");
 const { Employee } = require("../user/employee/employee_model");
+const { ObjectId } = require("../../tools");
+const mongoose = require("mongoose");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -148,6 +150,12 @@ const createLearningPlanHelper = async (input) => {
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
+        const { userIds, count } = await getUsersAndCount({
+            targetAudience: input.targetAudience,
+            audienceSelection: input.audienceSelection,
+            conditionType: input.conditionType,
+            conditionalCustomFields: input.conditionalCustomFields
+        });
         const newLearningPlan = new LearningPlan({
             title: input.title,
             targetAudience,
@@ -157,7 +165,8 @@ const createLearningPlanHelper = async (input) => {
             conditionType: input.conditionType,
             conditionalCustomFields: input.conditionalCustomFields,
             userObjectIds: input.userObjectIds,
-            selectCourses: input.selectCourses
+            selectCourses: input.selectCourses,
+            assignedLearnerIDs: userIds, 
         });
         await newLearningPlan.save();
         return { success: true, learningPlan: newLearningPlan };
@@ -167,178 +176,153 @@ const createLearningPlanHelper = async (input) => {
     }
 };
 
-async function getUsersBasedOnConditions(conditions, matchAll = true) {
-    const filters = conditions.map(condition => {
-        const fieldMapping = {
-            DESIGNATION: 'employee.designation',
-            GROUP: 'employee.group',
-            VESSEL: 'currentVessel',
-            VESSEL_TYPE: 'vessel.typeOfVessel',
-            EMAIL: 'email',
-            CURRENT_STATUS: 'vesselStatus'
-        };
-
-        const field = fieldMapping[condition.type_of_Field];
-        const value = condition.valueOfField;
-
-        return condition.isOrIsNot === 'IS'
-            ? { [field]: { $in: value } }
-            : { [field]: { $nin: value } };
-    });
-
-    const query = matchAll ? { $and: filters } : { $or: filters };
-
-    const users = await User.aggregate([
-        {
-            $match: query
-        },
-        {
-            $lookup: {
-                from: "employees",
-                localField: "_id",
-                foreignField: "userId",
-                as: "employee"
-            }
-        },
-        { $unwind: "$employee" },
-        {
-            $group: {
-                _id: "$_id" // Group by unique user IDs to avoid duplicates
-            }
-        },
-        {
-            $project: {
-                _id: 1 // Project only the user ID field
-            }
+const updateLearningPlanHelper = async (existingLearningPlan, input) => {
+    let errorList = [];
+    if (input.title && input.title !== existingLearningPlan.title) {
+        const titleExists = await LearningPlan.findOne({ title: input.title });
+        if (titleExists) {
+            errorList.push("Learning Plan title already exists.");
         }
-    ]);
-
-    return { userIds: users.map(user => user._id), count: users.length };
-}
+    }
+    if (input.targetAudience && input.targetAudience !== existingLearningPlan.targetAudience) {
+        if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION && input.groupIDs?.length > 0) {
+            errorList.push("Group IDs cannot be set for targetAudience EVERYONE_IN_ORGANIZATION.");
+        }
+    }
+    if (input.audienceSelection && input.audienceSelection !== existingLearningPlan.audienceSelection) {
+        if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
+            errorList.push("Condition Type should not be provided when audience selection is ALL_EMPLOYEES.");
+        }
+        if (input.audienceSelection === audienceSelection.MANUAL && !input.userObjectIds?.length) {
+            errorList.push("User Object IDs are required for MANUAL audience selection.");
+        }
+    }
+    if (errorList.length > 0) {
+        return { success: false, errors: errorList };
+    }
+    return { success: true };
+};
 
 const getUsersAndCount = async (input) => {
-    let userIds = [];
-
     try {
+        let filter = {};
+        filter.isDeleted = false;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
-            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-                const allUsers = await User.find({ isDeleted: false }).select('_id').lean();
-                userIds = allUsers.map(user => user._id);
-            } else if (input.audienceSelection === audienceSelection.AUTOMATIC) {
-                console.log("Automatic selection based on conditions");
+            if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
+                if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                    let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
+                        const fieldMapping = {
+                            DESIGNATION: '_id',
+                            GROUP: 'employee.group',
+                            VESSEL: 'currentVessel',
+                            VESSEL_TYPE: 'currentVessel.typeOfVessel',
+                            EMAIL: 'email',
+                            CURRENT_STATUS: 'vesselStatus'
+                        };
+                        const field = fieldMapping[condition.type_of_Field];
 
-                let userSet = new Set();
+                        let valueData;
+                        if (condition.type_of_Field === "VESSEL") {
+                            const value = condition.valueOfField.map(id => ObjectId(id));
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $in: value },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $nin: value },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
+                        } else if (condition.type_of_Field === "VESSEL_TYPE") {
+                            const typeOfVesselIds = condition.valueOfField.map(id => ObjectId(id));
+                            const vessels = await Vessel.find(
+                                { typeOfVessel: { $in: typeOfVesselIds }, isDeleted: false },
+                                { _id: 1 }
+                            ).exec();
 
-                if (input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION) {
-                    for (const condition of input.conditionalCustomFields) {
-                        const { type_of_Field, valueOfField, isOrIsNot } = condition;
-                        if (isOrIsNot !== 'IS' && isOrIsNot !== 'IS_NOT') {
-                            return { userIds: [], count: 0 };
-                        }
+                            const vesselIds = vessels.map(vessel => vessel._id);
 
-                        let currentUserIds = [];
-                        if (type_of_Field === typeOfConditionalCustomFieldEnum.DESIGNATION) {
-                            const employees = await Employee.find({
-                                empDesignation: isOrIsNot === 'IS' ? { $in: valueOfField } : { $nin: valueOfField },
-                                isDeleted: false
-                            }).select('user').lean();
-                            currentUserIds = employees.map(employee => employee.user);
+                            if (vesselIds.length === 0) {
+                                return {
+                                    userIds: [],
+                                    count: 0
+                                };
+                            }
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $in: vesselIds },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
+                        } else if (condition.type_of_Field === "DESIGNATION") {
+                            const designationIds = condition.valueOfField.map(id => ObjectId(id));
+                            const employees = await Employee.find(
+                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { user: 1 }
+                            ).exec();
+                            const value = employees.map(user => user.user);
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
 
-                        } else if (type_of_Field === typeOfConditionalCustomFieldEnum.VESSEL) {
-                            const users = await User.find({
-                                currentVessel: isOrIsNot === 'IS' ? { $in: valueOfField } : { $nin: valueOfField },
-                                isDeleted: false
-                            }).select('_id').lean();
-                            currentUserIds = users.map(user => user._id);
-                        }
-                        if (userSet.size === 0) {
-                            currentUserIds.forEach(userId => userSet.add(userId));
                         } else {
-                            userSet = new Set(currentUserIds.filter(userId => userSet.has(userId)));
+                            const value = condition.valueOfField.map(status => status);
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
                         }
-
-                        if (userSet.size === 0) {
-                            console.log("No users found matching all conditions at this stage.");
-                            return { userIds: [], count: 0 };
-                        }
-                    }
-
-                    userIds = Array.from(userSet);
-
-                } else if (input.conditionType === conditionTypeEnum.MATCH_ANY_CONDITION) {
-                    for (const condition of input.conditionalCustomFields) {
-                        const { type_of_Field, valueOfField, isOrIsNot } = condition;
-
-                        let currentUserIds = [];
-
-                        if (type_of_Field === typeOfConditionalCustomFieldEnum.DESIGNATION) {
-                            const employees = await Employee.find({
-                                empDesignation: isOrIsNot === 'IS' ? { $in: valueOfField } : { $nin: valueOfField },
-                                isDeleted: false
-                            }).select('user').lean();
-                            currentUserIds = employees.map(employee => employee.user);
-
-                        } else if (type_of_Field === typeOfConditionalCustomFieldEnum.VESSEL) {
-                            const users = await User.find({
-                                currentVessel: isOrIsNot === 'IS' ? { $in: valueOfField } : { $nin: valueOfField },
-                                isDeleted: false
-                            }).select('_id').lean();
-                            currentUserIds = users.map(user => user._id);
-                        }
-                        currentUserIds.forEach(userId => userSet.add(userId));
-                    }
-
-                    userIds = Array.from(userSet);
+                        return valueData;
+                    }));
+                    filter[queryOperator] = conditions;
                 }
-
-            } else if (input.audienceSelection === audienceSelection.MANUAL) {
-                const manualUsers = await User.find({ _id: { $in: input.userObjectIds }, isDeleted: false }).select('_id').lean();
-                userIds = manualUsers.map(user => user._id);
             }
         }
 
+        const userData = await User.aggregate([
+            {
+                $lookup: {
+                    from: "vessels",
+                    localField: "currentVessel",
+                    foreignField: "_id",
+                    as: "currentVessel"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$currentVessel",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $match: {
+                    ...filter,
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    userIds: { $push: "$_id" },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
         return {
-            userIds: userIds,
-            count: userIds.length
+            userIds: userData[0].userIds,
+            count: userData.length > 0 ? userData[0].count : 0
         };
     } catch (error) {
-        console.log("Error", error);
         return { userIds: [], count: 0 };
     }
 
 };
 
-module.exports = { createLearningPlanHelper, getUsersAndCount };
-
-conditions = [
-    {
-        type_of_Field: "DESIGNATION",
-        valueOfField: ["5f1f4c0f9b3e0f0017f3c3a4"],
-        isOrIsNot: "IS"
-    },
-    {
-        type_of_Field: "GROUP",
-        valueOfField: ["5f1f4c0f9b3e0f0017f3c3a4"],
-        isOrIsNot: "IS"
-    },
-    {
-        type_of_Field: "VESSEL",
-        valueOfField: ["5f1f4c0f9b3e0f0017f3c3a4"],
-        isOrIsNot: "IS"
-    },
-    {
-        type_of_Field: "VESSEL_TYPE",
-        valueOfField: ["5f1f4c0f9b3e0f0017f3c3a4"],
-        isOrIsNot: "IS"
-    },
-    {
-        type_of_Field: "EMAIL",
-        valueOfField: ["eranna@gmail.com"],
-        isOrIsNot: "IS"
-    },
-    {
-        type_of_Field: "CURRENT_STATUS",
-        valueOfField: ["ASSIGNED"],
-        isOrIsNot: "IS"
-    }
-]
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper };
