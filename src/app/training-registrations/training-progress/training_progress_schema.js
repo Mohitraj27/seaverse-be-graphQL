@@ -34,7 +34,7 @@ module.exports = {
             value: JSON
         }
         input TrainingProgressInput {
-            trainingRegistrationId: ID!
+            trainingRegistrationId: ID
             trainingRegistrationSortedTrainingModules: [TrainingRegistrationSortedTrainingModuleInput]
             trainingRegistrationStatus: TrainingRegistrationStatus
             trainingRegistrationProgressPercentage: Float
@@ -49,8 +49,12 @@ module.exports = {
             settings: genericObjectInput
             training : ID
         }
+        type initialTrainingProgress {
+            message: String
+        }
     `,
     mutations: `
+        initiateTrainingProgress(input: TrainingProgressInput!): initialTrainingProgress!
         updateTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
         updateScormTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
     `,

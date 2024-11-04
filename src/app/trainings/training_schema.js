@@ -53,7 +53,7 @@ module.exports = {
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents:[TrainingModuleContent]
+            trainingModuleContents:[String]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
@@ -147,7 +147,7 @@ module.exports = {
             feedback: FeedbackContentFeedbackInput
             feedbackContent: ID
             
-            images: [MultiMediaInfoInput]
+            coverImage: MultiMediaInfoInput
             price: Float
             """in days"""
             durationHours: Int
@@ -167,7 +167,7 @@ module.exports = {
             attemptType: AttemptType
             setLimitAttempt: Int
             certifications: [MultiMediaInfoInput]
-            bannerImage: [MultiMediaInfoInput]
+            bannerImage: MultiMediaInfoInput
             disableFurtherAttemptsOnPass: Boolean
             lockModulesBetweenAttempts: Boolean
             setTimeLimitForModule: Boolean

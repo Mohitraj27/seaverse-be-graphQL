@@ -1,48 +1,55 @@
 const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser } = require("../../../util");
+const { TrainingContentBridge } = require("../training_content_bridge/training_content_model");
 
 const { TrainingModule } = require("./training_module_model");
 
 module.exports = {
     createOrUpdateTrainingModule: async ({ input, session }, context) => {
-        
         const { userId, subscriberId } = AuthUser(context);
 
-        const trainingModuleFilterConditions = {
-            _id: input._id ?? ObjectId(),
-            subscriber: subscriberId,
-            training: input.training?._id ?? input.training,
-        };
+        const trainingModuleContentUpdateData = [];
+        const trainingModuleBulkOperations = input.trainingModules.map((module) => {
 
-        const trainingModuleUpdateData = {};
+            const trainingModuleFilterConditions = {
+                _id: module._id ?? ObjectId(),
+                subscriber: subscriberId,
+                training: module.training?._id ?? module.training,
+            };
 
-        if (input.title) trainingModuleUpdateData.title = input.title;
-        if (input.description) trainingModuleUpdateData.description = input.description;
-        if (input.displayPosition) trainingModuleUpdateData.displayPosition = input.displayPosition;
-        if (typeof input.isActive === "boolean") trainingModuleUpdateData.isActive = input.isActive;
-        if (input.trainingModuleContents) trainingModuleUpdateData.trainingModuleContents = input.trainingModuleContents;
+            const trainingModuleUpdateData = {};
 
-        const savedTrainingModule = await TrainingModule.findOneAndUpdate(
-            trainingModuleFilterConditions,
-            {
-                ...trainingModuleFilterConditions,
-                ...trainingModuleUpdateData,
-                $setOnInsert: {
-                    createdBy: userId,
+            if (module.title) trainingModuleUpdateData.title = module.title;
+            if (module.description) trainingModuleUpdateData.description = module.description;
+            if (typeof module.isActive === "boolean") trainingModuleUpdateData.isActive = module.isActive;
+            if (module.trainingModuleContents) trainingModuleContentUpdateData.push(...module.trainingModuleContents);
+
+            return {
+                updateOne: {
+                    filter: trainingModuleFilterConditions,
+                    update: {
+                        ...trainingModuleFilterConditions,
+                        ...trainingModuleUpdateData,
+                        $setOnInsert: { createdBy: userId },
+                        updatedBy: userId,
+                    },
+                    upsert: true,
                 },
-                updatedBy: userId,
-            },
-            {
-                upsert: true,
-                new: true,
-                setDefaultsOnInsert: true,
-                runValidators: true,
-                lean: true,
-                session,
-            }
-        );
+            };
 
-        if (!savedTrainingModule) throw CustomError(ErrorName.FAILED);
-        return savedTrainingModule;
-    },
+            
+        });
+
+        const updatedModules = await TrainingModule.bulkWrite(trainingModuleBulkOperations, {
+            session,
+            setDefaultsOnInsert: true,
+            runValidators: true,
+        });
+
+        if (!updatedModules) {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+        return updatedModules;
+    }
 };

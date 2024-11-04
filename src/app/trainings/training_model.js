@@ -62,11 +62,9 @@ const trainingSchema = new Schema(
         manadatoryModules: {
             type: Number,
         },
-        images: [
-            {
-                url: String,
-            },
-        ],
+        coverImage: {
+            url: String,
+        },
         scorm: {
             launchUrl: String,
             courseId: String,
@@ -121,13 +119,11 @@ const trainingSchema = new Schema(
                 url: String,
             },
         ],
-        bannerImage: [
-            {
-                url: String,
-            },
-        ],
+        bannerImage: {
+            url: String,
+        },
         certificateValidity: Number,
-        courseId: { type: String, unique: true},
+        courseId: { type: String, unique: true },
         skills: { type: [String] },
         course_validity: { type: Date, default: null },
         isOrdered: { type: Boolean, default: false },
