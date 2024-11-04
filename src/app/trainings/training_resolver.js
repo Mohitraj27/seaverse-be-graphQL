@@ -204,12 +204,6 @@ module.exports.mutations = {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        if (input.images) {
-            input.images = await TrainingHelper.uploadTrainingImages({
-                images: input.images,
-            });
-        }
-
         const moduleContentIds = [];
 
         if (input.training?.length && input.trainingModules?.length) {
@@ -223,7 +217,6 @@ module.exports.mutations = {
                 { input, session },
                 context
             );
-
 
             savedTraining.trainingModules = [];
             let savedTrainingModule;

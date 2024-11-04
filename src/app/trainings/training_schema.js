@@ -49,6 +49,7 @@ module.exports = {
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudience
+            courseType: CourseType
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
@@ -146,7 +147,7 @@ module.exports = {
             feedback: FeedbackContentFeedbackInput
             feedbackContent: ID
             
-            images: [MultiMediaInfoInput]
+            coverImage: MultiMediaInfoInput
             price: Float
             """in days"""
             durationHours: Int
@@ -166,7 +167,7 @@ module.exports = {
             attemptType: AttemptType
             setLimitAttempt: Int
             certifications: [MultiMediaInfoInput]
-            bannerImage: [MultiMediaInfoInput]
+            bannerImage: MultiMediaInfoInput
             disableFurtherAttemptsOnPass: Boolean
             lockModulesBetweenAttempts: Boolean
             setTimeLimitForModule: Boolean

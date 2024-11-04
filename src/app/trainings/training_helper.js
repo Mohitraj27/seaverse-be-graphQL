@@ -14,28 +14,25 @@ const { TargetAudience } = require("./targetAudience/targetAudienceModel");
 const { User } = require("../user/user_model");
 const { Group } = require("../user/group-user");
 const { ClassroomModule } = require("./Classroom_module/Classroom_model");
-const uploadTrainingImages = async ({ images, folderName }) => {
-    const trainingImages = [];
+const uploadTrainingImages = async ({ coverImage, folderName }) => {
 
-    for (const item of images) {
-        item._id = item._id ?? ObjectId();
+    coverImage._id = coverImage._id ?? ObjectId();
 
-        const savedItem = await UploadHelper.uploadImage({
-            data: item.url,
-            folderName: folderName ?? "training-image",
-            fileName: `image_${item._id}_${Date.now()}`,
-            uploadType: UploadHelper.uploadType.trainingImage,
-        });
+    const savedItem = await UploadHelper.uploadImage({
+        data: coverImage.url,
+        folderName: folderName ?? "cover-image",
+        fileName: `image_${coverImage._id}_${Date.now()}`,
+        uploadType: UploadHelper.uploadType.trainingImage,
+    });
 
-        if (savedItem) {
-            trainingImages.push({
-                _id: item._id,
-                url: savedItem,
-            });
-        }
+    if (savedItem) {
+        coverImage = {
+            _id: coverImage._id,
+            url: savedItem,
+        };
     }
 
-    return trainingImages;
+    return coverImage;
 };
 
 const uploadCertificateTrainingImages = async ({ images, folderName }) => {
@@ -61,27 +58,24 @@ const uploadCertificateTrainingImages = async ({ images, folderName }) => {
 
     return trainingCertificateImage;
 }
-const uploadTrainingBannerImage = async ({ images, folderName }) => {
-    const trainingBannerImage = [];
+const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
 
-    for (const item of images) {
-        item._id = item._id ?? ObjectId();
+    bannerImage._id = bannerImage._id ?? ObjectId();
 
-        const savedItem = await UploadHelper.uploadImage({
-            data: item.url,
-            folderName: folderName ?? "training-banner-image",
-            fileName: `image_${item._id}_${Date.now()}`,
-            uploadType: UploadHelper.uploadType.trainingBannerImage,
-        });
+    const savedItem = await UploadHelper.uploadImage({
+        data: bannerImage.url,
+        folderName: folderName ?? "training-banner-image",
+        fileName: `image_${bannerImage._id}_${Date.now()}`,
+        uploadType: UploadHelper.uploadType.trainingBannerImage,
+    });
 
-        if (savedItem) {
-            trainingBannerImage.push({
-                _id: item._id,
-                url: savedItem,
-            });
-        }
+    if (savedItem) {
+        bannerImage = {
+            _id: bannerImage._id,
+            url: savedItem,
+        };
     }
-    return trainingBannerImage;
+    return bannerImage;
 }
 const generateTrainingUID = async ({ subscriberId, session }) => {
     const savedCounter = await CounterHelper.updateCounter({
@@ -132,7 +126,7 @@ module.exports = {
 
         if (input.title) trainingUpdateData.title = input.title;
         if (input.overview) trainingUpdateData.overview = input.overview;
-        
+
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
         if (input.certifications && input.isCertification) {
@@ -143,7 +137,7 @@ module.exports = {
         }
         if (input.bannerImage) {
             trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                images: input.bannerImage,
+                bannerImage: input.bannerImage,
                 folderName: trainingFilterConditions._id,
             });
         }
@@ -174,9 +168,9 @@ module.exports = {
         }
         if (input.description) trainingUpdateData.description = input.description;
 
-        if (input.images) {
-            trainingUpdateData.images = await uploadTrainingImages({
-                images: input.images,
+        if (input.coverImage) {
+            trainingUpdateData.coverImage = await uploadTrainingImages({
+                coverImage: input.coverImage,
                 folderName: trainingFilterConditions._id,
             });
         }

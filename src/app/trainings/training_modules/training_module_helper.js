@@ -50,14 +50,6 @@ module.exports = {
             throw CustomError(ErrorName.FAILED);
         }
 
-        // const upsertedIds = Object.values(result.upserted).map(upsert => upsert._id);
-
-        // const updatedModules = await TrainingModule.updateMany(
-        //     { _id: { $in: upsertedIds } },
-        //     { $set: { trainingModuleContents: updateTrainingBridge.upsertedIds } },
-        //     { session, lean: true }
-        // );
-
         return updatedModules;
     }
 };
