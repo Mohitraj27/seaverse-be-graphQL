@@ -49,11 +49,10 @@ module.exports = {
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudience
-            courseType: CourseType
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents:[TrainingModuleContent]
+            trainingModuleContents:[String]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
