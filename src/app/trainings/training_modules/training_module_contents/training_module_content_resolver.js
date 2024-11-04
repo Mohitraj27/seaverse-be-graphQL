@@ -692,8 +692,7 @@ module.exports.mutations = {
         const existingContent = await TrainingModuleContent.findOne({
             _id: input._id ?? undefined,
             subscriber: subscriberId,
-            UID: input.UID ?? undefined,
-            isUpdated: false
+            UID: input.UID ?? undefined
         });
 
         if (!existingContent) {
