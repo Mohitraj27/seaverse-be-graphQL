@@ -53,6 +53,7 @@ const { ContactSupportSchema } = require('../app/contact-support');
 const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
 const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question');
 const { LearningPlanSchema } = require("../app/learning-plan");
+const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
 
 const schemas = [
     AppDataSchema,
@@ -99,7 +100,9 @@ const schemas = [
     ContactSupportSchema,
     UserVesselSchema,
     QuestionSchema,
-    LearningPlanSchema
+    LearningPlanSchema,
+
+    CertificateLayoutSchema,
 ];
 
 const types = [];

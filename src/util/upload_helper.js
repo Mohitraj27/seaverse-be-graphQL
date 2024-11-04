@@ -36,7 +36,8 @@ const uploadType = {
     trainingContentFile: "trainingContentFile",
     trainingCertificateImage: "trainingCertificateImage",
     trainingBannerImage: "trainingBannerImage",
-    bulkCSV: "bulkCSV"
+    bulkCSV: "bulkCSV",
+    certificateLogo : "certificateLogo"
 };
 
 
@@ -69,6 +70,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.trainingCertificateImage) return `${rootFolder}/trainings/${folder}/certificate-images/${filename}`;
     else if (type === uploadType.trainingBannerImage) return `${rootFolder}/trainings/${folder}/training-banner-images/${filename}`;
     else if (type === uploadType.bulkCSV) return `${rootFolder}/import-logs/${folder}/csv-files/${filename}`;
+    else if (type === uploadType.certificateLogo) return `${rootFolder}/certificate-layout/${folder}/${filename}`;
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;
