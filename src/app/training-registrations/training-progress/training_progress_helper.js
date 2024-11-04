@@ -282,7 +282,7 @@ module.exports = {
             let currentExistingTrainingModuleContent;
             let currentExistingTrainingProgress;
             let quizStatus;
-
+            // check and update status of current training module content
             if (input.currentTrainingModuleContentId) {
                 // currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
                 //     input.currentTrainingModuleContentId
@@ -389,6 +389,8 @@ module.exports = {
                         input.currentTrainingModuleContentLastAccessedDuration;
                 }
             }
+            
+            //set next content status as on_going
             let nextExistingTrainingModuleContent;
             let nextTrainingProgressUpdateData;
 
@@ -481,6 +483,7 @@ module.exports = {
                     input.trainingRegistrationSortedTrainingModules;
             }
 
+            //User course status update 
             if (
                 input.trainingRegistrationStatus &&
                 existingTrainingRegistration.status !== input.trainingRegistrationStatus
@@ -507,19 +510,19 @@ module.exports = {
                     }
                 }
             }
-
+            //User training progress percentage update
             if (input.trainingRegistrationProgressPercentage != null) {
                 existingTrainingRegistration.trainingProgressPercentage =
                     input.trainingRegistrationProgressPercentage;
             }
-
+            // user training mode update
             if (input.trainingMode && !existingTrainingRegistration.trainingMode) {
                 existingTrainingRegistration.trainingMode = input.trainingMode;
             }
 
             const result = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedTrainingProgresses = [];
-
+                //update current training progress in db
                 if (currentExistingTrainingProgress) {
                     const currentSavedTrainingProgress = await currentExistingTrainingProgress.save(
                         { session }
@@ -534,6 +537,7 @@ module.exports = {
                         });
                     }
                 }
+                // update the next training progress into the db
                 if (nextTrainingProgressUpdateData) {
                     const nextSavedTrainingProgress = await TrainingProgress.findOneAndUpdate(
                         {
@@ -562,11 +566,15 @@ module.exports = {
                         });
                     }
                 }
+
+                //update the training registration details into the db
                 const savedTrainingRegistration = await existingTrainingRegistration.save({
                     session,
                 });
 
                 if (!savedTrainingRegistration) throw CustomError(ErrorName.NOT_FOUND);
+
+                // training attendace
                 if (input.trainingRegistrationStatus === TrainingRegistrationStatus.STARTED) {
                     savedTrainingRegistration.trainingAttendance =
                         await TrainingAttendanceHelper.createOrUpdateTrainingAttendance(
@@ -583,6 +591,7 @@ module.exports = {
                             context
                         );
                 }
+                // certificate assignment
                 if (
                     !existingTrainingCertificate &&
                     savedTrainingRegistration.status === TrainingRegistrationStatus.COMPLETED &&
@@ -601,7 +610,8 @@ module.exports = {
                     let completedAt;
                     let generatedAt;
                     let expiresAt;
-
+                    
+                    //update completion date 
                     if (trainingMode === TrainingMode.ONLINE) {
                         completedAt =
                             savedTrainingRegistration.completedAt ?? CurrentDateTime()?.utcDateTime;
@@ -636,7 +646,7 @@ module.exports = {
                     ({ mdName, mdSignature, approvalInfo, contactInfo } = EnvSubscriberHelper.getEnvCertificateRelatedValues());
                 
                     const additionalData = input.additionalData || []; 
-                
+                    //find and update in DB
                     savedTrainingCertificate = await TrainingCertificate.findOneAndUpdate(
                         { trainingRegistration: input.trainingRegistrationId },
                         {
@@ -717,17 +727,14 @@ module.exports = {
             if (savedTrainingCertificate) {
                 await savedTrainingCertificate
                     .populate({
-                        path: "employee",
-                        select: "user",
-                        populate: {
-                            path: "user",
-                            select: "firstName lastName email languagePreference",
-                        },
+                        path: "user", 
+                        select: "firstName lastName email languagePreference",
                     })
                     .execPopulate();
-
+            
                 sendCourseCompletionMail(savedTrainingCertificate);
             }
+            
             const notificationsList = [];
 
             if (quizStatus === "PASSED" || quizStatus === "FAILED") {
@@ -743,7 +750,7 @@ module.exports = {
                     },
                 });
             }
-
+            //NOTIFICATIONS 
             if (
                 notificationTrainingRegistrationStatus === TrainingRegistrationStatus.STARTED ||
                 notificationTrainingRegistrationStatus === TrainingRegistrationStatus.COMPLETED
