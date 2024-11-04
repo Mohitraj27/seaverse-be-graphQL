@@ -69,25 +69,9 @@ module.exports.queries = {
             }
         }
 
-        return Training.aggregatePaginate(
+        const result = await Training.aggregatePaginate(
             Training.aggregate([
                 { $match: filterConditions },
-                {
-                    $lookup: {
-                        from: TrainingCategory.collection.name,
-                        localField: "trainingCategories",
-                        foreignField: "_id",
-                        as: "trainingCategories",
-                    },
-                },
-                {
-                    $lookup: {
-                        from: TrainingSubCategory.collection.name,
-                        localField: "trainingSubCategories",
-                        foreignField: "_id",
-                        as: "trainingSubCategories",
-                    },
-                },
                 {
                     $lookup: {
                         from: TrainingModule.collection.name,
@@ -97,27 +81,32 @@ module.exports.queries = {
                         pipeline: [
                             {
                                 $lookup: {
-                                    from: TrainingModuleContent.collection.name,
-                                    let: { moduleUIDs: "$trainingModuleContents" },
+                                    from: "TrainingContentBridge",
+                                    localField: "trainingModuleContents",
+                                    foreignField: "_id",
+                                    as: "trainingContentBridges",
                                     pipeline: [
                                         {
-                                            $match: {
-                                                $expr: {
-                                                    $in: ["$UID", "$$moduleUIDs"],
-                                                },
+                                            $lookup: {
+                                                from: TrainingModuleContent.collection.name,
+                                                localField: "trainingContent",
+                                                foreignField: "_id",
+                                                as: "trainingModuleContentDetails",
                                             },
                                         },
-                                        { $sort: { version: -1 } },
+                                        {
+                                            $unwind: "$trainingModuleContentDetails",
+                                        },
+                                        {
+                                            $sort: { "trainingModuleContentDetails.version": -1 },
+                                        },
                                         {
                                             $group: {
-                                                _id: "$UID",
-                                                contentStatus: { $first: "$contentStatus" },
-                                                version: { $first: "$version" },
-                                                otherField: { $first: "$otherField" },
+                                                _id: "$_id",
+                                                trainingModuleContentDetails: { $first: "$trainingModuleContentDetails" },
                                             },
                                         },
                                     ],
-                                    as: "trainingModuleContents",
                                 },
                             },
                         ],
@@ -149,6 +138,10 @@ module.exports.queries = {
             }
         );
 
+        console.log(result);
+
+        return result;
+
     },
     getTraining: async ({ id }, context) => {
 
@@ -170,28 +163,14 @@ module.exports.queries = {
                 },
             });
 
-        const moduleUIDs = training.trainingModules.flatMap(module => module.trainingModuleContents);
+        const moduleBridgeIDs = training.trainingModules.flatMap(module => module.trainingModuleContents);
 
-        const latestContents = await TrainingModuleContent.aggregate([
-            {
-                $match: { UID: { $in: moduleUIDs } },
-            },
-            {
-                $sort: { UID: 1, version: -1 },
-            },
-            {
-                $group: {
-                    _id: "$UID",
-                    doc: { $first: "$$ROOT" },
-                },
-            },
-            {
-                $replaceRoot: { newRoot: "$doc" },
-            },
-        ]);
+        const latestContents = await TrainingContentBridge.find({
+            _id: { $in: moduleBridgeIDs },
+        })
 
         training.trainingModules.forEach(module => {
-            module.trainingModuleContents = latestContents.filter(content => module.trainingModuleContents.includes(content.UID));
+            module.trainingModuleContents = latestContents;
         });
 
         return training;
