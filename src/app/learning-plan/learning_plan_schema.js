@@ -3,6 +3,7 @@ const targetAudienceEnum = require("./enumFields/targetAudienceEnum.json");
 const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");
 const ConditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const typeOfConditionalCustomFieldEnum = require("./enumFields/typeOfConditionalCustomField.json");
+const groupTypeEnums = require("../../util/group_types.json");
 module.exports = {
     types: `
         enum LearningPlanStatus {
@@ -20,10 +21,17 @@ module.exports = {
         enum TypeOfConditionalCustomFieldEnum {
             ${Object.keys(typeOfConditionalCustomFieldEnum).join(" ")}
         }
+        enum GroupTypeEnum {
+            ${Object.keys(groupTypeEnums).join(" ")}
+        }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]!  
             isOrIsNot: String!
+        }
+        input GroupTypeInput {
+            groupType: GroupTypeEnum!
+            groupIDs: [String!]!
         }
         type ConditionalCustomField {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
@@ -147,7 +155,7 @@ module.exports = {
             title: String
             targetAudience: TargetAudienceEnum
             selectCourses: [ID!]
-            groupIDs: [ID!]
+            groupIDs: [GroupTypeInput!] 
             userObjectIds: [ID]
             status: LearningPlanStatus
             audienceSelection: AudienceSelectionEnum!
@@ -158,7 +166,7 @@ module.exports = {
             title: String
             targetAudience: TargetAudienceEnum
             selectCourses: [ID!]
-            groupIDs: [ID!]
+            groupIDs: [GroupTypeInput!]
             userObjectIds: [ID]
             status: LearningPlanStatus
             audienceSelection: AudienceSelectionEnum
