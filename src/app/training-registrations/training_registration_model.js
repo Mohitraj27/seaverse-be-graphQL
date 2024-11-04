@@ -17,6 +17,8 @@ const trainingRegistrationSchema = new Schema(
             ref: "Training",
             required: true,
         },
+        contentIds: [ObjectId],
+        lessonIds: [ObjectId],
         trainingDuration: Number,
         certificateValidity: Number,
         groups: [
@@ -65,6 +67,7 @@ const trainingRegistrationSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        totalProgress: String,
     },
     { timestamps: true }
 );
