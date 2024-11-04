@@ -224,9 +224,11 @@ module.exports.mutations = {
                 context
             );
 
+
             savedTraining.trainingModules = [];
+            let savedTrainingModule;
             if (input.trainingModules?.length) {
-                const savedTrainingModule =
+                savedTrainingModule =
                     await TrainingModuleHelper.createOrUpdateTrainingModule(
                         {
                             input: {
@@ -238,6 +240,28 @@ module.exports.mutations = {
                         context
                     );
             }
+
+            const savedTrainingModuleIDs = savedTrainingModule.result.upserted.map(item => item._id)
+
+            input.trainingModules.forEach((trainingModule, index) => {
+                if (!trainingModule._id && savedTrainingModuleIDs[index]) {
+                    trainingModule._id = savedTrainingModuleIDs[index];
+                }
+            });
+
+            if (input.trainingModules?.length) {
+                savedTrainingContent = await TrainingModuleContentHelper.createOrUpdateTrainingModuleContentInTrainingCreation(
+                    {
+                        input: {
+                            trainingModules: input.trainingModules,
+                            training: savedTraining,
+                        },
+                        session,
+                    },
+                    context
+                );
+            }
+
 
             if (input.deletedTrainingModules?.length) {
                 await TrainingModule.updateMany(
