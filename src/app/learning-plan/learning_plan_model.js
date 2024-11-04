@@ -4,6 +4,7 @@ const  LearningPlanStatus  = require("./enumFields/learning_plan_status.json");
 const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");
 const conditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const typeOfConditionalCustomFieldEnum = require("./enumFields/typeOfConditionalCustomField.json");
+const groupTypes = require("../../util/group_types.json");
 const learningPlanSchema = new Schema(
     {
         title: {
@@ -20,9 +21,17 @@ const learningPlanSchema = new Schema(
             enum: Object.values(LearningPlanStatus)
         },
         groupIDs:[{
-            type: [ObjectId],
-            ref: "Group"
-        }],
+            groupType: {
+                type: String,
+                required: true,
+                enum: Object.values(groupTypes),
+            },
+            groupIDs: {
+                type: Schema.Types.Mixed,
+                required: true,
+            }
+        }
+        ],
         audienceSelection: {
             type: String,
             required: true,

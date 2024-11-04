@@ -17,6 +17,9 @@ const e = require("express");
 const { Employee } = require("../user/employee/employee_model");
 const { ObjectId } = require("../../tools");
 const mongoose = require("mongoose");
+const { getCustomGroupUsers, getAutoSyncUsers } = require("../training-registrations/training_registration_helper");
+const  roles  = require("../../util/role.json");
+const  vesselStatusEnum  = require("../../util/vessel_status.json");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -134,19 +137,59 @@ const createLearningPlanHelper = async (input) => {
             return { sucess: false, errors: errorList };
         }
         const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
-        let groupIDs = input.groupIDs || [];
+        let groupIDs =  [];
         if (targetAudience === targetAudienceEnum.GROUP_BASED) {
-            if (!Array.isArray(groupIDs) || groupIDs.length === 0) {
+            if (!input.groupIDs || input.groupIDs.length === 0) {
                 errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
-            }
-            const validGroupCount = await Group.find({
-                _id: { $in: groupIDs },
-                isDeleted: false
-            });
-            if (validGroupCount.length !== groupIDs.length) {
-                errorList.push(errorMessages.INVALID_GROUP_IDS);
-            }
+            } else {
+                const { groupType , groupIDs: groupIdArray} = input.groupIDs[0];
+                const [groupId] = groupIdArray;
+                if (!groupId) {
+                    errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+                }else {
+                    switch(groupType){
+                        case 'custom':
+                            groupIDs = await getCustomGroupUsers([{ groupType, groupId }]);
+                            break;
+                        case 'designation':
+                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            break;
+                        case 'role':
+                            if(![roles].includes(groupId)){
+                                errorList.push(errorMessages.INVALID_ROLE_ID);
+                            } else {
+                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            }
+                            break;
+                        case 'subRole':
+                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            break;
+                        case 'regStatus':
+                            if (typeof groupId !== "boolean") {
+                                errorList.push(errorMessages.INVALID_REG_STATUS);
+                            } else {
+                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            }
+                            break;
+                        case 'vessel':
+                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            break;
+                        case 'vesselType':
+                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            break;
+                        case 'vesselStatus':
+                            if(![vesselStatusEnum].includes(groupId)){
+                                errorList.push(errorMessages.INVALID_VESSEL_STATUS);
+                            }else {
+                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
+                            }
+                            break;
+                        default:
+                            errorList.push(errorMessages.INVALID_GROUP_TYPE);
+                    }
+                }
         }
+    }
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -159,7 +202,7 @@ const createLearningPlanHelper = async (input) => {
         const newLearningPlan = new LearningPlan({
             title: input.title,
             targetAudience,
-            groupIDs,
+            groupIDs: input.groupIDs,
             status: input.status,
             audienceSelection: input.audienceSelection,
             conditionType: input.conditionType,
@@ -238,7 +281,6 @@ const updateLearningPlanHelper = async (existingLearningPlan, input) => {
     existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
     existingLearningPlan.status = input.status || existingLearningPlan.status;
     await existingLearningPlan.save();
-    console.log(existingLearningPlan);
     return { success: true };
 };
 

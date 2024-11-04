@@ -16,5 +16,9 @@ module.exports = {
     INVALID_COURSE_SELECTION: "Please select a valid course from the list.",
     LEARNING_PLAN_EXISTS: "Learning Plan already exists.",
     GROUP_IDS_REQUIRED_FOR_GROUP_BASED: "Group ObjectIds are required for GROUP_BASED target audience.",
-    INVALID_GROUP_IDS: "One or more Group ObjectIds are invalid."
+    INVALID_GROUP_IDS: "One or more Group ObjectIds are invalid.",
+    INVALID_GROUP_TYPE: "Invalid group type provided.",
+    INVALID_ROLE_ID: "Invalid Role Provided.",
+    INVALID_REG_STATUS: "Invalid regStatus must be true or false.",
+    INVALID_VESSEL_STATUS: "VesselStatus  must be ASSIGNED or ONBOARDED or ONSHORE.",
 };
