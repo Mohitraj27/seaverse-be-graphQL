@@ -62,11 +62,9 @@ const trainingSchema = new Schema(
         manadatoryModules: {
             type: Number,
         },
-        images: [
-            {
-                url: String,
-            },
-        ],
+        coverImage: {
+            url: String,
+        },
         scorm: {
             launchUrl: String,
             courseId: String,
@@ -79,7 +77,6 @@ const trainingSchema = new Schema(
 
         overview: {
             type: String,
-            required: true,
         },
         targetAudienceId: {
             type: ObjectId,
@@ -88,7 +85,6 @@ const trainingSchema = new Schema(
         courseType: {
             type: String,
             uppercase: true,
-            required: true,
         },
         ClassroomModule: {
             type: ObjectId,
@@ -112,7 +108,6 @@ const trainingSchema = new Schema(
         courseLevel: {
             type: String,
             uppercase: true,
-            required: true,
         },
         isCertificate: {
             type: Boolean,
@@ -124,13 +119,11 @@ const trainingSchema = new Schema(
                 url: String,
             },
         ],
-        bannerImage: [
-            {
-                url: String,
-            },
-        ],
+        bannerImage: {
+            url: String,
+        },
         certificateValidity: Number,
-        courseId: { type: String, unique: true, required: true },
+        courseId: { type: String, unique: true },
         skills: { type: [String] },
         course_validity: { type: Date, default: null },
         isOrdered: { type: Boolean, default: false },
