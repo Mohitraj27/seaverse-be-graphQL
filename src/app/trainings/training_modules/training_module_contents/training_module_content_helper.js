@@ -3,6 +3,7 @@ const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../../
 
 const { TrainingModuleContent } = require("./training_module_content_model");
 const CounterHelper = require("../../../counters/counter_helper");
+const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 
 const uploadTrainingModuleContentVideos = async ({ videos, folderName }) => {
     const trainingModuleContentVideos = [];
@@ -141,15 +142,15 @@ module.exports = {
 
         if (input.contentType) trainingModuleContentUpdateData.contentType = input.contentType;
         if (input.duration) trainingModuleContentUpdateData.duration = input.duration;
-       
+
         if (input.quiz) trainingModuleContentUpdateData.quiz = input.quiz;
         if (input.quizContent) {
             trainingModuleContentUpdateData.title = undefined;
             trainingModuleContentUpdateData.description = undefined;
-            trainingModuleContentUpdateData.quiz = undefined; 
+            trainingModuleContentUpdateData.quiz = undefined;
             trainingModuleContentUpdateData.quizContent = input.quizContent;
         }
-       
+
         else {
             if (input.title) trainingModuleContentUpdateData.title = input.title;
             if (input.description) trainingModuleContentUpdateData.description = input.description;
@@ -183,7 +184,7 @@ module.exports = {
             });
         }
         if (input.text) trainingModuleContentUpdateData.text = input.text;
-        
+
 
         if (input.displayPosition)
             trainingModuleContentUpdateData.displayPosition = input.displayPosition;
@@ -213,4 +214,92 @@ module.exports = {
         if (!savedTrainingModuleContent) throw CustomError(ErrorName.FAILED);
         return savedTrainingModuleContent;
     },
-};
+    createOrUpdateTrainingModuleContentInTrainingCreation: async ({ input, session }, context) => {
+
+        let updateTrainingBridge;
+        let trainingModuleContentUpdateData = [];
+        let trainingModuleIds = [];
+        const trainingModuleContentBulkOperations = input.trainingModules.map((module) => {
+            if (module.trainingModuleContents) trainingModuleContentUpdateData.push(...module.trainingModuleContents);
+            if (module._id) trainingModuleIds.push(module._id);
+        });
+        
+        if (trainingModuleContentUpdateData.length > 0) {
+
+            const existingContentBridges = await TrainingContentBridge.find(
+                {
+                    training: input.training,
+                    trainingModule: { $in: trainingModuleIds },
+                },
+                { trainingModule: 1, trainingContent: 1, isDeleted: 1 }
+            ).lean();
+
+            const existingContentMap = new Map();
+            if (existingContentBridges) {
+                existingContentBridges.forEach(doc => {
+                    const key = `${doc.trainingModule}_${doc.trainingContent}`;
+                    existingContentMap.set(key, doc);
+                });
+            }
+
+            const trainingContentBridgeBulkOperations = [];
+
+            for (const module of input.trainingModules) {
+                const moduleId = module._id;
+
+                module.trainingModuleContents.forEach(contentId => {
+                    const key = `${moduleId}_${contentId}`;
+                    if (!existingContentMap.has(key)) {
+                        trainingContentBridgeBulkOperations.push({
+                            updateOne: {
+                                filter: {
+                                    training: input.training,
+                                    trainingModule: moduleId,
+                                    trainingContent: contentId,
+                                },
+                                update: {
+                                    $setOnInsert: { isDeleted: false },
+                                },
+                                upsert: true,
+                            },
+                        });
+                    } else {
+                        trainingContentBridgeBulkOperations.push({
+                            updateOne: {
+                                filter: {
+                                    training: input.training,
+                                    trainingModule: moduleId,
+                                    trainingContent: contentId,
+                                },
+                                update: { $set: { isDeleted: false } },
+                            },
+                        });
+                    }
+                });
+
+                existingContentBridges.forEach(doc => {
+                    const key = `${doc.trainingModule}_${doc.trainingContent}`;
+                    if (doc.trainingModule.toString() === moduleId.toString() &&
+                        !module.trainingModuleContents.includes(doc.trainingContent.toString()) &&
+                        doc.isDeleted === false) {
+                        trainingContentBridgeBulkOperations.push({
+                            updateOne: {
+                                filter: {
+                                    training: input.training,
+                                    trainingModule: moduleId,
+                                    trainingContent: doc.trainingContent,
+                                },
+                                update: { $set: { isDeleted: true } },
+                            },
+                        });
+                    }
+                });
+            }
+
+            updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations);
+        }
+
+        return updateTrainingBridge;
+
+    }
+}

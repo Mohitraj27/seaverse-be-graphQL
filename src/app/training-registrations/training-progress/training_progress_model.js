@@ -3,6 +3,7 @@ const {
     TrainingModuleContentSpecificSchema,
 } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { QuizAttemptSpecificSchema } = require("../../quizzes/quiz-attempts/quiz_attempt_model");
+const Types  = require('mongoose');
 
 const trainingProgressSchema = new Schema(
     {
@@ -18,9 +19,17 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
-        trainingModuleContent: {
-            type: ObjectId,
-            ref: "TrainingModuleContent",
+        trainingModuleContent: [
+            {
+                trainingModuleContentId: {
+                    type: ObjectId,
+                    ref: "TrainingModuleContent",
+                },
+                progressPercent: Number
+            }
+        ],
+        playerSettings: {
+            type: Schema.Types.Mixed,
         },
         trainingModuleContentData: {
             trainingId: ObjectId,
@@ -28,6 +37,10 @@ const trainingProgressSchema = new Schema(
             trainingModuleContentId: ObjectId,
             ...TrainingModuleContentSpecificSchema,
         },
+        playerSettings: [{
+            key: { type: String, required: true },
+            value: { type: Types.Mixed, required: true }
+        }],
         retryCount: Number,
         status: {
             type: String,
@@ -41,7 +54,7 @@ const trainingProgressSchema = new Schema(
         lastAccessedItem: String,
         lastAccessedAt: Date,
         lastAccessedDuration: Number,
-
+        completedModules:Number,
         quizAttempts: [QuizAttemptSpecificSchema],
 
         startedAt: Date,

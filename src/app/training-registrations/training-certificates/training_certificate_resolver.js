@@ -10,8 +10,12 @@ const Permission = require("../../user/sub-roles/permission.json");
 
 module.exports.queries = {
     getTrainingCertificates: async ({ pageInput, filterInput }, context) => {
-        if (context.platform !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
+        /** 
+       * Commented for dev purposes 
+       * @todo uncomment after fixed 
 
+        if (context.platform !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
+ */
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
 

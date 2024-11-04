@@ -31,6 +31,7 @@ const ContentStatus = require("./training_modules/training_module_contents/conte
 const {
     queries,
 } = require("./training_modules/training_module_contents/training_module_content_resolver");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -70,9 +71,7 @@ module.exports.queries = {
 
         return Training.aggregatePaginate(
             Training.aggregate([
-                {
-                    $match: filterConditions,
-                },
+                { $match: filterConditions },
                 {
                     $lookup: {
                         from: TrainingCategory.collection.name,
@@ -94,17 +93,34 @@ module.exports.queries = {
                         from: TrainingModule.collection.name,
                         localField: "_id",
                         foreignField: "training",
+                        as: "trainingModules",
                         pipeline: [
                             {
                                 $lookup: {
                                     from: TrainingModuleContent.collection.name,
-                                    localField: "_id",
-                                    foreignField: "trainingModule",
+                                    let: { moduleUIDs: "$trainingModuleContents" },
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                $expr: {
+                                                    $in: ["$UID", "$$moduleUIDs"],
+                                                },
+                                            },
+                                        },
+                                        { $sort: { version: -1 } },
+                                        {
+                                            $group: {
+                                                _id: "$UID",
+                                                contentStatus: { $first: "$contentStatus" },
+                                                version: { $first: "$version" },
+                                                otherField: { $first: "$otherField" },
+                                            },
+                                        },
+                                    ],
                                     as: "trainingModuleContents",
                                 },
                             },
                         ],
-                        as: "trainingModules",
                     },
                 },
                 {
@@ -132,10 +148,13 @@ module.exports.queries = {
                 allowDiskUse: true,
             }
         );
+
     },
     getTraining: async ({ id }, context) => {
+
         const { role, userPermissions, subscriberId } = AuthUser(context);
-        return Training.findOne({
+
+        const training = await Training.findOne({
             _id: id,
             subscriber: subscriberId,
         })
@@ -146,11 +165,37 @@ module.exports.queries = {
                 path: "trainingModules",
                 options: { sort: { displayPosition: 1 } },
                 populate: {
-                    path: "trainingModuleContents",
-                    populate: "quizContent",
+                    path: "quizContent",
                     options: { sort: { displayPosition: 1 } },
                 },
             });
+
+        const moduleUIDs = training.trainingModules.flatMap(module => module.trainingModuleContents);
+
+        const latestContents = await TrainingModuleContent.aggregate([
+            {
+                $match: { UID: { $in: moduleUIDs } },
+            },
+            {
+                $sort: { UID: 1, version: -1 },
+            },
+            {
+                $group: {
+                    _id: "$UID",
+                    doc: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $replaceRoot: { newRoot: "$doc" },
+            },
+        ]);
+
+        training.trainingModules.forEach(module => {
+            module.trainingModuleContents = latestContents.filter(content => module.trainingModuleContents.includes(content.UID));
+        });
+
+        return training;
+
     },
 };
 
@@ -167,29 +212,10 @@ module.exports.mutations = {
 
         const moduleContentIds = [];
 
-        if (input.trainingModules?.length) {
-            for (const trainingModule of input.trainingModules) {
-                if (trainingModule.trainingModuleContents) {
-                    for (const trainingModuleContent of trainingModule.trainingModuleContents) {
-                        moduleContentIds.push(trainingModuleContent._id);
-                    }
-                }
-            }
-        }
-
-        if (moduleContentIds.length > 0) {
-            const getTrainingModuleContentStatus = await TrainingModuleContent.find({
-                _id: { $in: moduleContentIds },
-            }).select("contentStatus");
-            const areAllPublished = getTrainingModuleContentStatus.every(
-                content => content.contentStatus === ContentStatus.PUBLISHED
+        if (input.training?.length && input.trainingModules?.length) {
+            moduleContentIds = await TrainingContentBridge.find(
+                { training: input.training, trainingModule: { $in: input.trainingModules } }
             );
-            if (!areAllPublished) {
-                throw CustomError(
-                    ErrorName.NOT_ALL_PUBLISHED,
-                    "Selected training modules should be published!"
-                );
-            }
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
@@ -198,31 +224,53 @@ module.exports.mutations = {
                 context
             );
 
-            savedTraining.trainingModules = [];
 
+            savedTraining.trainingModules = [];
+            let savedTrainingModule;
             if (input.trainingModules?.length) {
-                for (const trainingModule of input.trainingModules) {
-                    const savedTrainingModule =
-                        await TrainingModuleHelper.createOrUpdateTrainingModule(
-                            {
-                                input: {
-                                    ...trainingModule,
-                                    training: savedTraining,
-                                },
-                                session,
+                savedTrainingModule =
+                    await TrainingModuleHelper.createOrUpdateTrainingModule(
+                        {
+                            input: {
+                                ...input,
+                                training: savedTraining,
                             },
-                            context
-                        );
-                }
+                            session,
+                        },
+                        context
+                    );
             }
 
+            const savedTrainingModuleIDs = savedTrainingModule.result.upserted.map(item => item._id)
+
+            input.trainingModules.forEach((trainingModule, index) => {
+                if (!trainingModule._id && savedTrainingModuleIDs[index]) {
+                    trainingModule._id = savedTrainingModuleIDs[index];
+                }
+            });
+
+            if (input.trainingModules?.length) {
+                savedTrainingContent = await TrainingModuleContentHelper.createOrUpdateTrainingModuleContentInTrainingCreation(
+                    {
+                        input: {
+                            trainingModules: input.trainingModules,
+                            training: savedTraining,
+                        },
+                        session,
+                    },
+                    context
+                );
+            }
+
+
             if (input.deletedTrainingModules?.length) {
-                await TrainingModule.deleteMany(
+                await TrainingModule.updateMany(
                     {
                         _id: { $in: input.deletedTrainingModules },
                         subscriber: subscriberId,
                         training: savedTraining._id,
                     },
+                    { isDeleted: true },
                     { lean: true, session }
                 );
             }
@@ -327,13 +375,7 @@ module.exports.mutations = {
         });
         if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
         const currentStatus = currentTraining.status;
-
         const updateFields = {};
-        if (typeof input.isActive !== "undefined") {
-            updateFields.isActive = input.isActive;
-        } else {
-            updateFields.isActive = currentIsActive;
-        }
         if (input.newStatus) {
             const newStatus = input.newStatus;
             const invalidUpdates = [];
@@ -392,8 +434,8 @@ module.exports.mutations = {
                 ...(approvalStatus === ApprovalStatus.APPROVED
                     ? { approvedAt: CurrentDateTime().utcDateTime }
                     : approvalStatus === ApprovalStatus.REJECTED
-                    ? { rejectedAt: CurrentDateTime().utcDateTime }
-                    : undefined),
+                        ? { rejectedAt: CurrentDateTime().utcDateTime }
+                        : undefined),
             },
             { new: true, lean: true }
         ).select("title approvalStatus approvedAt rejectedAt isActive createdBy");
