@@ -30,7 +30,7 @@ const learningPlanSchema = new Schema(
         },
         conditionType: {
             type: String,
-            enum: Object.values(conditionTypeEnum),
+            enum: [...Object.values(conditionTypeEnum), null],
         },
         conditionalCustomFields: [
             {
@@ -65,14 +65,20 @@ const learningPlanSchema = new Schema(
         createdBy: {
             type: ObjectId,
             ref: "User",
+            required: true,
         },
         updatedBy: {
             type: ObjectId,
             ref: "User",
+            required: true,
         },
         isDeleted: {             
             type: Boolean,
             default: false
+        },
+        isUpdated: {          
+            type: Boolean,
+            default: false,
         },
         createdAt: {
             type: Date,

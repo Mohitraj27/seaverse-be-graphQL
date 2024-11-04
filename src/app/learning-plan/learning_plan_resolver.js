@@ -103,18 +103,9 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            if (input.title) learningPlan.title = input.title;
-            if (input.targetAudience) learningPlan.targetAudience = input.targetAudience;
-            if (input.status) learningPlan.status = input.status;
-            if (input.audienceSelection) learningPlan.audienceSelection = input.audienceSelection;
-            if (input.conditionType) learningPlan.conditionType = input.conditionType;
-            if (input.conditionalCustomFields) learningPlan.conditionalCustomFields = input.conditionalCustomFields;
-            if (input.groupIDs) learningPlan.groupIDs = input.groupIDs;
-            if (input.userObjectIds) learningPlan.userObjectIds = input.userObjectIds;
-            if (input.selectCourses) learningPlan.selectCourses = input.selectCourses;
-    
             learningPlan.updatedBy = userId;
             learningPlan.updatedAt = new Date();
+            learningPlan.isUpdated = true;
     
             await learningPlan.save();
             return learningPlan;

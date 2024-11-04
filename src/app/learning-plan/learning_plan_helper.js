@@ -167,6 +167,8 @@ const createLearningPlanHelper = async (input) => {
             userObjectIds: input.userObjectIds,
             selectCourses: input.selectCourses,
             assignedLearnerIDs: userIds, 
+            createdBy: input.createdBy,
+            updatedBy: input.updatedBy         
         });
         await newLearningPlan.save();
         return { success: true, learningPlan: newLearningPlan };
@@ -197,9 +199,46 @@ const updateLearningPlanHelper = async (existingLearningPlan, input) => {
             errorList.push("User Object IDs are required for MANUAL audience selection.");
         }
     }
-    if (errorList.length > 0) {
-        return { success: false, errors: errorList };
+    const shouldUpdateUsers = 
+        input.targetAudience !== existingLearningPlan.targetAudience ||
+        input.audienceSelection !== existingLearningPlan.audienceSelection ||
+        input.conditionType !== existingLearningPlan.conditionType ||
+        JSON.stringify(input.conditionalCustomFields) !== JSON.stringify(existingLearningPlan.conditionalCustomFields);
+   
+        if (input.audienceSelection) {
+            if (input.audienceSelection === audienceSelection.MANUAL) {
+                input.conditionalCustomFields = [];  
+                input.conditionType = null;
+            } else if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+                input.userObjectIds = [];  
+                input.conditionType = null;
+                input.conditionalCustomFields = [];
+            } else if (input.audienceSelection === audienceSelection.AUTOMATIC && !input.conditionType) {
+                errorList.push("Condition Type is required for AUTOMATIC audience selection.");
+            }
+        }
+        if (errorList.length > 0) {
+            return { success: false, errors: errorList };
+        }
+    if (shouldUpdateUsers) {
+        const { userIds, count } = await getUsersAndCount({
+            targetAudience: input.targetAudience,
+            audienceSelection: input.audienceSelection,
+            conditionType: input.conditionType,
+            conditionalCustomFields: input.conditionalCustomFields
+        });
+        existingLearningPlan.assignedLearnerIDs = userIds;
     }
+    existingLearningPlan.title = input.title || existingLearningPlan.title;
+    existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
+    existingLearningPlan.audienceSelection = input.audienceSelection || existingLearningPlan.audienceSelection;
+    existingLearningPlan.conditionType = input.conditionType ? input.conditionType : null;  
+    existingLearningPlan.conditionalCustomFields = input.conditionalCustomFields || []; 
+    existingLearningPlan.userObjectIds = input.userObjectIds || [];  
+    existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
+    existingLearningPlan.status = input.status || existingLearningPlan.status;
+    await existingLearningPlan.save();
+    console.log(existingLearningPlan);
     return { success: true };
 };
 
