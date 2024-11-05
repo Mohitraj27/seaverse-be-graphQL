@@ -4,6 +4,7 @@ const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } 
 const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
+const {  Moment } = require("../../tools");
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -135,6 +136,50 @@ module.exports.queries = {
             if (filterInput?.status) {
                 queryConditions.status = filterInput.status;
             }
+            if (filterInput?.audienceSelection) {
+                queryConditions.audienceSelection = filterInput.audienceSelection;
+            }
+            let startDate, endDate;
+            if (filterInput?.lastModified) {
+            delete queryConditions.lastModified
+            const today = Moment();
+            switch (filterInput.lastModified) {
+                case "TODAY":
+                    startDate = today.startOf("day").toDate();
+                    endDate = today.endOf("day").toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, "day").startOf("day").toDate();
+                    endDate = today.subtract(1, "day").endOf("day").toDate();
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, "year").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                default:
+                    break;
+            }
+
+            if (startDate && endDate) {
+                queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+            }
+        }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
 
