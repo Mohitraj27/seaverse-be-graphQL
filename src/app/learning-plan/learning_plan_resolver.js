@@ -186,6 +186,32 @@ module.exports.queries = {
                 { $match: queryConditions },
                 {
                     $lookup: {
+                        from: "users", 
+                        localField: "createdBy",
+                        foreignField: "_id",
+                        as: "createdByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "updatedBy",
+                        foreignField: "_id",
+                        as: "updatedByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
+                    }
+                },
+                {
+                    $lookup: {
                         from: "trainings",
                         localField: "selectCourses",
                         foreignField: "_id",
@@ -287,6 +313,33 @@ module.exports.queries = {
                         }
                     }
                 },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        targetAudience: 1,
+                        groupIDs: 1,
+                        userObjectIds: 1,
+                        status: 1,
+                        audienceSelection: 1,
+                        conditionType: 1,
+                        isDeleted: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        selectCourses: 1,
+                        assignedLearnerIDs: 1,
+                        "createdBy._id": "$createdByDetails._id",
+                        "createdBy.firstName": "$createdByDetails.firstName",
+                        "createdBy.lastName": "$createdByDetails.lastName",
+                        "createdBy.email": "$createdByDetails.email",
+                        "createdBy.role": "$createdByDetails.role",
+                        "updatedBy._id": "$updatedByDetails._id",
+                        "updatedBy.firstName": "$updatedByDetails.firstName",
+                        "updatedBy.lastName": "$updatedByDetails.lastName",
+                        "updatedBy.email": "$updatedByDetails.email",
+                        "updatedBy.role": "$updatedByDetails.role"
+                    }
+                }
             ]);
             return {
                 learningPlans: learningPlans,

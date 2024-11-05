@@ -130,8 +130,8 @@ module.exports = {
             conditionalCustomFields:[ConditionalCustomField]
             assignedLearnerIDs: [ID]
             isDeleted: Boolean
-            createdBy: ID
-            updatedBy: ID
+            createdBy: User
+            updatedBy: User
             createdAt: String
             updatedAt: String
         }
