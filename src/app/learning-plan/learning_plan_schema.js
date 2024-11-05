@@ -24,6 +24,15 @@ module.exports = {
         enum GroupTypeEnum {
             ${Object.keys(groupTypeEnums).join(" ")}
         }
+         enum lastModifiedEnum {
+            TODAY
+            YESTERDAY
+            LAST_7_DAYS
+            LAST_30_DAYS
+            LAST_3_MONTHS
+            LAST_6_MONTHS
+            LAST_YEAR
+        }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]!  
@@ -150,6 +159,8 @@ module.exports = {
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
+            audienceSelection: AudienceSelectionEnum
+            lastModified: lastModifiedEnum
         }
         input LearningPlanInput {
             title: String
