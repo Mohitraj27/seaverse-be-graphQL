@@ -25,6 +25,7 @@ const { BatchHelper } = require("../batches/batch_helper");
 const { sendEmail } = require("../../util/aws_helper");
 const Permission = require("../user/sub-roles/permission.json");
 const LogType = require("../logs/log_type.json");
+const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 
 const fetchUserFromAutoSyncedGroups = (async (groups) => {
@@ -185,38 +186,48 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
     return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
-})
-const createTrainingProgressHelper = (async (users, trainings) => {
-
-
-    let trainingProgressData;
-    const existingProgressRecords = await TrainingProgress.find({
-        training: { $in: trainings },
-        user: { $in: users.map(user => user._id) }
-    });
-
-    const existingProgressSet = new Set(
-        existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
-    );
-
-    const newProgressEntries = trainings.flatMap(trainingId =>
-        users.map(user => ({
-            training: trainingId,
-            user: user._id,
-            status: 'notStarted',
-            enroledStatus: true
-        }))
-    ).filter(entry =>
-        !existingProgressSet.has(`${entry.training}-${entry.user}`)
-    );
-
-    if (newProgressEntries.length > 0) {
-        trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
+    },
+    createTrainingProgressHelper = async (users, trainings, subscriberId, savedTrainingRegistrationId, learningPlanId) => {
+        let trainingProgressData;
+    
+        const existingProgressRecords = await OverallTrainingProgress.find({
+            training: { $in: trainings.map(training => training._id) },
+            user: { $in: users.map(user => user._id) }
+        });
+    
+        const existingProgressSet = new Set(
+            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
+        );
+    
+        const newProgressEntries = trainings.flatMap(training => 
+            users.map(user => {
+                const progressKey = `${training._id.toString()}-${user._id.toString()}`;
+    
+                if (existingProgressSet.has(progressKey)) {
+                    return null;
+                }
+    
+                return {
+                    learningPlan: learningPlanId ? learningPlanId : null,
+                    training: training._id,
+                    user: user._id,
+                    registrationId: savedTrainingRegistrationId,
+                    subscriberId: subscriberId.toString(),
+                    status: 'NOT_STARTED',
+                    isEnrolled: true,
+                    progressPercentage: "0%",
+                    completedModules: 0
+                };
+            })
+        ).filter(entry => entry !== null);
+    
+        if (newProgressEntries.length > 0) {
+            trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+        }
+    
+        return trainingProgressData;
     }
-
-    return trainingProgressData;
-
-});
+    );
 
 const getAutoSyncUsers = (async (groups) => {
 
@@ -414,11 +425,11 @@ module.exports = {
 
                         let trainingProgressData;
                         if (savedTrainingRegistration) {
-                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, input.trainingPlan);
+                            learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings,subscriberId,savedTrainingRegistration._id, learningPlanId);
                         }
 
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-                        if (!trainingProgressData) throw CustomError(ErrorName.FAILED);
 
                         users.forEach(user => {
                             sendEmail({

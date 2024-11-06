@@ -32,6 +32,7 @@ const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
 const { create } = require("lodash");
+const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ pageInput, filterInput }, context) => {

@@ -20,15 +20,14 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
-        trainingModuleContent: [
-            {
-                trainingModuleContentId: {
-                    type: ObjectId,
-                    ref: "TrainingModuleContent",
-                },
-                progressPercent: Number
-            }
-        ],
+        trainingRegistration: {
+            type: ObjectId,
+            ref: "TrainingRegistration",
+        },
+        trainingModuleContent: {
+            type: ObjectId,
+            ref: "TrainingModuleContent",
+        },
         playerSettings: {
             type: Schema.Types.Mixed,
         },
@@ -36,9 +35,9 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "TrainingModule",
         },
-        contentType:{
-            type : String,
-            enum : contentTypes
+        contentType: {
+            type: String,
+            enum: contentTypes,
         },
         trainingModuleContentData: {
             trainingId: ObjectId,
@@ -56,7 +55,7 @@ const trainingProgressSchema = new Schema(
         status: {
             type: String,
             default: "notStarted",
-            enum: ["notStarted", "inProgress", "completed"],
+            enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
         },
         enroledStatus: {
             type: Boolean,
@@ -65,7 +64,6 @@ const trainingProgressSchema = new Schema(
         lastAccessedItem: String,
         lastAccessedAt: Date,
         lastAccessedDuration: Number,
-        completedModules: Number,
         quizAttempts: [QuizAttemptSpecificSchema],
 
         startedAt: Date,

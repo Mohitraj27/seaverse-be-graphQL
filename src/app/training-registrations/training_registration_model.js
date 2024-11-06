@@ -17,8 +17,6 @@ const trainingRegistrationSchema = new Schema(
             ref: "Training",
             required: true,
         },
-        contentIds: [ObjectId],
-        lessonIds: [ObjectId],
         trainingDuration: Number,
         certificateValidity: Number,
         groups: [
