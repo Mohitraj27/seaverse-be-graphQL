@@ -1044,6 +1044,36 @@ module.exports.queries = {
 
         return messages;
     },
+    validateEmailorEmployeeId: async ({ input }, context) => {
+        const { role} = AuthUser(context);
+        if (role !== "ADMIN") {
+            throw new CustomError(ErrorName.FORBIDDEN);
+        }
+        try {
+            const messages = [];
+            const [emailExists, empNoExists] = await Promise.all([
+                User.findOne({ email: input.email }),
+                User.findOne({ civilIdOrPassport: input.civilIdOrPassport }),
+              ]);
+              if (emailExists || empNoExists) {
+                messages.push("This email or employee number already exists.");
+              }
+              
+            if (messages.length > 0) {
+                return {
+                    status: false,
+                    message: messages.join(" "),
+                };
+            }
+            return {
+                status: true,
+                message: "Email and Employee No are both available.",
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    }
+      
 };
 
 const validateDeleteUserRow = row => {
