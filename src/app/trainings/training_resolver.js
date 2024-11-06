@@ -179,7 +179,8 @@ module.exports.queries = {
 };
 
 module.exports.mutations = {
-    createOrUpdateTraining: async ({ input }, context) => {
+    createOrUpdateTraining: async ({ input, coverImage, bannerImage }, context) => {
+        
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -193,7 +194,7 @@ module.exports.mutations = {
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
-                { input, session },
+                { input, coverImage, bannerImage, session },
                 context
             );
 
@@ -278,6 +279,7 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
+        
 
         return savedTraining;
     },

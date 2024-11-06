@@ -147,7 +147,6 @@ module.exports = {
             feedback: FeedbackContentFeedbackInput
             feedbackContent: ID
             
-            coverImage: MultiMediaInfoInput
             price: Float
             """in days"""
             durationHours: Int
@@ -167,7 +166,6 @@ module.exports = {
             attemptType: AttemptType
             setLimitAttempt: Int
             certifications: [MultiMediaInfoInput]
-            bannerImage: MultiMediaInfoInput
             disableFurtherAttemptsOnPass: Boolean
             lockModulesBetweenAttempts: Boolean
             setTimeLimitForModule: Boolean
@@ -230,7 +228,7 @@ module.exports = {
         getTraining(id: ID!): Training!
     `,
     mutations: `
-        createOrUpdateTraining(input: TrainingInput!): Training!
+        createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): Training!
         deleteTraining(id: ID!): Training!
         updateTrainingStatus(input: UpdateTrainingStatusInput!): Training!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!

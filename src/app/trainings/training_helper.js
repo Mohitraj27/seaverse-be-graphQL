@@ -19,7 +19,7 @@ const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
 
     const savedItem = await UploadHelper.uploadImage({
-        data: coverImage.url,
+        data: coverImage,
         folderName: folderName ?? "cover-image",
         fileName: `image_${coverImage._id}_${Date.now()}`,
         uploadType: UploadHelper.uploadType.trainingImage,
@@ -63,7 +63,7 @@ const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
     bannerImage._id = bannerImage._id ?? ObjectId();
 
     const savedItem = await UploadHelper.uploadImage({
-        data: bannerImage.url,
+        data: bannerImage,
         folderName: folderName ?? "training-banner-image",
         fileName: `image_${bannerImage._id}_${Date.now()}`,
         uploadType: UploadHelper.uploadType.trainingBannerImage,
@@ -75,6 +75,7 @@ const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
             url: savedItem,
         };
     }
+
     return bannerImage;
 }
 const generateTrainingUID = async ({ subscriberId, session }) => {
@@ -107,7 +108,7 @@ module.exports = {
     uploadTrainingImages,
     generateTrainingUID,
     uploadCertificateTrainingImages,
-    createOrUpdateTraining: async ({ input, session }, context) => {
+    createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
         const trainingFilterConditions = {
@@ -135,12 +136,14 @@ module.exports = {
                 folderName: trainingFilterConditions._id,
             });
         }
-        if (input.bannerImage) {
+        if (bannerImage) {
             trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                bannerImage: input.bannerImage,
+                bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
         }
+
+        console.log(trainingUpdateData.bannerImage);
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
 
@@ -168,9 +171,9 @@ module.exports = {
         }
         if (input.description) trainingUpdateData.description = input.description;
 
-        if (input.coverImage) {
+        if (coverImage) {
             trainingUpdateData.coverImage = await uploadTrainingImages({
-                coverImage: input.coverImage,
+                coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
         }
