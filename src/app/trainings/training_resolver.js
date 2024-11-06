@@ -281,7 +281,10 @@ module.exports.mutations = {
         });
         
 
-        return savedTraining;
+        return {
+            status: 1,
+            message: "Training created successfully",
+        };
     },
     deleteTraining: async ({ id }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
