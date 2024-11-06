@@ -1051,23 +1051,32 @@ module.exports.queries = {
         }
         try {
             const messages = [];
-            const [emailExists, empNoExists] = await Promise.all([
-                User.findOne({ email: input.email }),
-                User.findOne({ civilIdOrPassport: input.civilIdOrPassport }),
-              ]);
-              if (emailExists || empNoExists) {
-                messages.push("This email or employee number already exists.");
+            if (!input.email && !input.civilIdOrPassport) {
+              throw  CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
+            }
+            if (input.email && input.civilIdOrPassport) {
+              throw  CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
+            }
+            if (input.email) {
+              const emailExists = await User.findOne({ email: input.email });
+              if (emailExists) {
+                messages.push("This email already exists.");
               }
-              
+            } else if (input.civilIdOrPassport) {
+              const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
+              if (empNoExists) {
+                messages.push("This Employee Number already exists.");
+              }
+            }
             if (messages.length > 0) {
-                return {
-                    status: false,
-                    message: messages.join(" "),
-                };
+              return {
+                status: false,
+                message: messages.join(" "),
+              };
             }
             return {
-                status: true,
-                message: "Email and Employee No are both available.",
+              status: true,
+              message: "The input value is available.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
