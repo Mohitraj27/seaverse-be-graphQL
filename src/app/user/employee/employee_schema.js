@@ -216,8 +216,8 @@ module.exports = {
             search: String
         }
         input EmailorEmployeeIdInput {
-            email: String!
-            civilIdOrPassport: String!
+            email: String
+            civilIdOrPassport: String
         }
         input ImportUserInput {
             firstName: String!
