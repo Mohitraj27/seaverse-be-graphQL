@@ -143,8 +143,6 @@ module.exports = {
             });
         }
 
-        console.log(trainingUpdateData.bannerImage);
-
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
