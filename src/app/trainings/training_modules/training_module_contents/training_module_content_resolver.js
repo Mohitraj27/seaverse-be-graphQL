@@ -16,6 +16,7 @@ const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
 const PptxGenJS = require('pptxgenjs');
 const pdfParse = require('pdf-parse');
+const { contentType } = require("mime-types");
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
@@ -606,15 +607,11 @@ module.exports.mutations = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
-            const { name, description, questions = [], percentageCriteria } = input;
+            const { title, description, questions = [], percentageCriteria } = input;
 
-            input.contentStatus = (name && description && questions.length > 0)
-                ? Content_status.DRAFT
-                : Content_status.PUBLISHED;
-
-            if (input.contentStatus === Content_status.PUBLISHED) {
-                input.contentType = ContentType.QUIZ;
-            }
+            input.contentStatus = (title && description && questions.length > 0)
+                ? Content_status.PUBLISHED
+                : Content_status.DRAFT;
 
             let totalScore = 0;
             let questionsIdArr = [];
@@ -664,6 +661,7 @@ module.exports.mutations = {
 
             const contentData = {
                 ...input,
+                contentType: ContentType.QUIZ,
                 createdBy: userId,
                 updatedBy: userId,
             };
@@ -944,34 +942,64 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.CONTENT_NOT_FOUND);
             }
 
-            const compareQuestions = (existingQuestions, updatedQuestions) => {
-                if (existingQuestions.length !== updatedQuestions.length) return false;
-                return existingQuestions.every((question, index) => {
-                    const updatedQuestion = updatedQuestions[index];
-                    return (
-                        JSON.stringify(question.question) === JSON.stringify(updatedQuestion.question) &&
-                        question.questionType === updatedQuestion.questionType &&
-                        JSON.stringify(question.choices) === JSON.stringify(updatedQuestion.choices) &&
-                        JSON.stringify(question.answerKey) === JSON.stringify(updatedQuestion.answerKey) &&
-                        question.allowMultipleAnswers === updatedQuestion.allowMultipleAnswers &&
-                        question.points === updatedQuestion.points &&
-                        question.negativePoints === updatedQuestion.negativePoints
-                    );
-                });
-            };
+            const updatedContentStatus = (input.title && input.description && input.questions.length > 0)
+                ? Content_status.PUBLISHED
+                : Content_status.DRAFT;
 
             let questionsChanged = false;
+            let totalScore = 0;
+            let questionsIdArr = [];
 
             if (input.questions && input.questions.length > 0) {
-                questionsChanged = !compareQuestions(existingContent.quiz, input.questions);
-            }
 
+                for (const questionDetails of input.questions) {
+                    const questionId = ObjectId();
+                    const choiceDocs = questionDetails.choices.map(choiceDetail => ({
+                        subscriber: subscriberId,
+                        question: questionId,
+                        choice: choiceDetail.choice.map(item => ({ lang: item.lang, value: item.value })),
+                        createdBy: userId,
+                        updatedBy: userId,
+                    }));
+
+                    const savedChoices = await AnswerChoice.insertMany(choiceDocs);
+                    const choiceIds = savedChoices.map(choice => choice._id);
+
+                    const questionDoc = new Question({
+                        subscriber: subscriberId,
+                        question: questionDetails.question,
+                        questionType: questionDetails.questionType,
+                        choices: choiceIds,
+                        answerKey: questionDetails.answerKey,
+                        allowMultipleAnswers: questionDetails.allowMultipleAnswers,
+                        points: questionDetails.points,
+                        negativePoints: questionDetails.negativePoints,
+                        createdBy: userId,
+                        updatedBy: userId,
+                    });
+
+                    const savedQuestion = await questionDoc.save();
+                    questionsIdArr.push(savedQuestion._id);
+                    totalScore += questionDetails.points;
+                }
+
+                questionsChanged = true;
+
+                if (input.percentageCriteria > totalScore) {
+                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+                } else {
+                    input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
+                }
+            }
 
             const updateData = {
                 title: input.title,
                 description: input.description,
                 duration: input.duration,
-                contentStatus: existingContent.contentStatus,
+                quiz: questionsChanged ? questionsIdArr : existingContent.quiz,
+                contentStatus: updatedContentStatus,
+                totalScore: questionsChanged ? totalScore : existingContent.totalScore,
+                totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
                 updatedBy: userId,
                 updatedAt: new Date(),
                 modifiedDate: new Date(),
@@ -984,7 +1012,6 @@ module.exports.mutations = {
                 const newContent = new TrainingModuleContent({
                     ...existingContent.toObject(),
                     ...updateData,
-                    questions: input.questions,
                     subscriber: subscriberId,
                     createdBy: userId,
                     updatedBy: userId,
@@ -995,6 +1022,7 @@ module.exports.mutations = {
 
                 existingContent.isUpdated = true;
                 existingContent.modifiedDate = new Date();
+                existingContent.updatedAt = new Date();
                 await existingContent.save();
 
                 return {
@@ -1010,16 +1038,19 @@ module.exports.mutations = {
                     }
                 });
 
-                existingContent.updatedBy = userId;
-                await existingContent.save();
-
+                savedContent = await TrainingModuleContent.findOneAndUpdate(
+                    { _id: existingContent._id, subscriber: subscriberId },
+                    { $set: updateData },
+                    { new: true, setDefaultsOnInsert: true, runValidators: true }
+                );
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",
-                    updatedContent: existingContent,
+                    updatedContent: savedContent,
                 };
             }
         } catch (error) {
+            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
