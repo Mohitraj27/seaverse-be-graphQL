@@ -215,6 +215,10 @@ module.exports = {
         input ManagerFilterInput {
             search: String
         }
+        input EmailorEmployeeIdInput {
+            email: String
+            civilIdOrPassport: String
+        }
         input ImportUserInput {
             firstName: String!
             lastName: String!
@@ -250,6 +254,10 @@ module.exports = {
             status: Boolean
             message: String
         }
+        type valdationResponse {
+            status: Boolean
+            message: String
+        }
         type csvimportLogRes {
             id: ID,
             usersCount: Int,
@@ -272,6 +280,7 @@ module.exports = {
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
         sendWelcomeMails(emailInput: emailIDInput): [String]
+        validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!

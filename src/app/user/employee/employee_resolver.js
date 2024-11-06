@@ -1044,6 +1044,45 @@ module.exports.queries = {
 
         return messages;
     },
+    validateEmailorEmployeeId: async ({ input }, context) => {
+        const { role} = AuthUser(context);
+        if (role !== "ADMIN") {
+            throw new CustomError(ErrorName.FORBIDDEN);
+        }
+        try {
+            const messages = [];
+            if (!input.email && !input.civilIdOrPassport) {
+              throw  CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
+            }
+            if (input.email && input.civilIdOrPassport) {
+              throw  CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
+            }
+            if (input.email) {
+              const emailExists = await User.findOne({ email: input.email });
+              if (emailExists) {
+                messages.push("This email already exists.");
+              }
+            } else if (input.civilIdOrPassport) {
+              const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
+              if (empNoExists) {
+                messages.push("This Employee Number already exists.");
+              }
+            }
+            if (messages.length > 0) {
+              return {
+                status: false,
+                message: messages.join(" "),
+              };
+            }
+            return {
+              status: true,
+              message: "The input value is available.",
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    }
+      
 };
 
 const validateDeleteUserRow = row => {
