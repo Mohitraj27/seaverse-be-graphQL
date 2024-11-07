@@ -144,10 +144,15 @@ module.exports = {
             lang: Language!
             value: String!
         }
+        type featuredInCourses {
+            courseCount: Int
+            courseNames: [String]
+        }
     `,
     queries: `
         getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
+        getFeaturedInCourses(id: ID!): featuredInCourses
     `,
     mutations: `
         uploadTrainingModuleContentSorm(input: TrainingModuleContentInput!,scorm: Upload!, thumbnail: Upload): TrainingModuleContent!

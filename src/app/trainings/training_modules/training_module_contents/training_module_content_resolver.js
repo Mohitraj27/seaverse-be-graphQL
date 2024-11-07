@@ -16,7 +16,7 @@ const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
 const PptxGenJS = require('pptxgenjs');
 const pdfParse = require('pdf-parse');
-const { contentType } = require("mime-types");
+const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
@@ -110,6 +110,37 @@ module.exports.queries = {
         }
         return contents;
     },
+    getFeaturedInCourses: async ({ id }, context) => {
+
+        const { subscriberId } = AuthUser(context);
+
+        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const usedCourses = await TrainingContentBridge.find({ trainingContent: id, isDeleted: false })
+            .populate({
+                path: "training",
+                select: "id title"
+            })
+            .lean();
+
+        if (!usedCourses) throw CustomError(ErrorName.NOT_FOUND);
+
+        let courseNames = [];
+        let courseCount = 0;
+
+        for (const course of usedCourses) {
+            if (course.training && course.training.title) {
+                courseCount++;
+                courseNames.push(course.training.title[0].value);
+            }
+        }
+
+        return {
+            courseCount: courseCount,
+            courseNames: courseNames
+        }
+
+    }
 };
 
 module.exports.mutations = {
