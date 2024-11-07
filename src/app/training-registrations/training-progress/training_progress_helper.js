@@ -370,9 +370,8 @@ module.exports = {
                 }
 
                 if (
-                    input.currentTrainingModuleContentStatus === "COMPLETED"
-                    // &&
-                    // currentExistingTrainingProgress.status !== "COMPLETED"
+                    input.currentTrainingModuleContentStatus === "COMPLETED" &&
+                    currentExistingTrainingProgress.status !== "COMPLETED"
                 ) {
                     currentExistingTrainingProgress.trainingModuleContentData = {
                         trainingId: currentExistingTrainingModuleContent.training,
@@ -568,9 +567,11 @@ module.exports = {
                 existingTrainingRegistration.trainingMode = input.trainingMode;
             }
 
+            let currentSavedOverallProgress;
+            let response;
+            
             const result = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedTrainingProgresses = [];
-                let currentSavedOverallProgress;
                 if (currentExistingTrainingProgress) {
                     const currentSavedTrainingProgress = await currentExistingTrainingProgress.save(
                         { session }
@@ -608,7 +609,12 @@ module.exports = {
                             session,
                         }
                     );
-
+                    if (currentOverallTrainingProgress) {
+                        currentSavedOverallProgress = await currentOverallTrainingProgress.save({
+                            session,
+                        });
+                        if (!currentSavedOverallProgress) throw CustomError(ErrorName.FAILED);
+                    }
                     if (!nextSavedTrainingProgress) throw CustomError(ErrorName.FAILED);
 
                     if (nextSavedTrainingProgress) {
@@ -655,23 +661,23 @@ module.exports = {
 
                     if (!savedTrainingCertificate) throw CustomError(ErrorName.FAILED);
                 }
-                let response = {
-                    ...existingTrainingRegistration.toJSON(),
-                    trainingProgresses: savedTrainingProgresses,
-                    scorm: existingTrainingRegistration.scorm,
+                
+                response = {
+                    status :1 ,
+                    message : "updated progress successfully"
                 };
                 return response;
             });
-
+            
             if (!result) throw CustomError(ErrorName.FAILED);
             if (savedTrainingCertificate) {
                 await savedTrainingCertificate
-                    .populate({
-                        path: "user",
-                        select: "firstName lastName email languagePreference",
-                    })
-                    .execPopulate();
-
+                .populate({
+                    path: "user",
+                    select: "firstName lastName email languagePreference",
+                })
+                .execPopulate();
+                
                 sendCourseCompletionMail(savedTrainingCertificate);
             }
 

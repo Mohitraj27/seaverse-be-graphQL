@@ -147,7 +147,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
 })
 
 const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
-    
+
     let remainingUsers = [];
     let invalidEmails = [];
     let unRegEmails = [];
@@ -192,48 +192,48 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
     return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
-    },
-    createTrainingProgressHelper = async (users, trainings, subscriberId,registrationId, learningPlanId) => {
-        let trainingProgressData;
-    
-        const existingProgressRecords = await OverallTrainingProgress.find({
-            training: { $in: trainings.map(training => training._id) },
-            user: { $in: users.map(user => user._id) }
-        });
-    
-        const existingProgressSet = new Set(
-            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
-        );
-    
-        const newProgressEntries = trainings.flatMap(training => 
-            users.map(user => {
-                const progressKey = `${training._id.toString()}-${user._id.toString()}`;
-    
-                if (existingProgressSet.has(progressKey)) {
-                    return null;
-                }
-    
-                return {
-                    learningPlan: learningPlanId ? learningPlanId : null,
-                    training: training._id,
-                    user: user._id,
-                    trainingRegistration: registrationId,
-                    subscriberId: subscriberId.toString(),
-                    status: 'NOT_STARTED',
-                    isEnrolled: true,
-                    progressPercentage: 0.0,
-                    completedModules: 0
-                };
-            })
-        ).filter(entry => entry !== null);
-    
-        if (newProgressEntries.length > 0) {
-            trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
-        }
-    
-        return trainingProgressData;
-    }
+});
+const createTrainingProgressHelper = async (users, trainings, subscriberId, registrationId, learningPlanId) => {
+    let trainingProgressData;
+
+    const existingProgressRecords = await OverallTrainingProgress.find({
+        training: { $in: trainings.map(training => training._id) },
+        user: { $in: users.map(user => user._id) }
+    });
+
+    const existingProgressSet = new Set(
+        existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
     );
+
+    const newProgressEntries = trainings.flatMap(training =>
+        users.map(user => {
+            const progressKey = `${training._id.toString()}-${user._id.toString()}`;
+
+            if (existingProgressSet.has(progressKey)) {
+                return null;
+            }
+
+            return {
+                learningPlan: learningPlanId ? learningPlanId : null,
+                training: training._id,
+                user: user._id,
+                trainingRegistration: registrationId,
+                subscriberId: subscriberId.toString(),
+                status: 'NOT_STARTED',
+                isEnrolled: true,
+                progressPercentage: 0.0,
+                completedModules: 0
+            };
+        })
+    ).filter(entry => entry !== null);
+
+    if (newProgressEntries.length > 0) {
+        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+    }
+
+    return trainingProgressData;
+}
+
 
 const getAutoSyncUsers = (async (groups) => {
 
@@ -430,18 +430,18 @@ module.exports = {
                         }
                         const latestRegistrationId = await TrainingRegistration.find(
                             { training: { $in: existingTrainingIds } },
-                            { _id: 1 } 
+                            { _id: 1 }
                         );
-                        if(latestRegistrationId.length){
-                            registrationId = latestRegistrationId[0].id
-                            console.log(latestRegistrationId[0].id);
+                        if (latestRegistrationId.length) {
+                            registrationId = latestRegistrationId[0].id;
+
                             let trainingProgressData;
                             if (savedTrainingRegistration) {
                                 learningPlanId = input.learningPlan ? input.learningPlan._id : null;
-                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings,subscriberId,registrationId, learningPlanId);
+                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, registrationId, learningPlanId);
                             }
                         }
-                        
+
 
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
 

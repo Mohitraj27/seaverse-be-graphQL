@@ -54,7 +54,7 @@ const trainingProgressSchema = new Schema(
         retryCount: Number,
         status: {
             type: String,
-            default: "notStarted",
+            default: "NOT_STARTED",
             enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
         },
         enroledStatus: {

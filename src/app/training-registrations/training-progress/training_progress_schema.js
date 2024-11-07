@@ -54,10 +54,14 @@ module.exports = {
         type initialTrainingProgress {
             message: String
         }
+        type overallTrainingProgress {
+           status : Int
+           message : String 
+        }
     `,
     mutations: `
         initiateTrainingProgress(input: TrainingProgressInput!): initialTrainingProgress!
-        updateTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
+        updateTrainingProgress(input: TrainingProgressInput!): overallTrainingProgress!
         updateScormTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
     `,
 };
