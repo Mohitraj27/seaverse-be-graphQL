@@ -431,14 +431,7 @@ const getUsersAndCount = async (input) => {
         } else if (input.targetAudience === targetAudienceEnum.GROUP_BASED) {
             if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 let groupIDs = [];
-                // const groupType = condition.groupTypes.map(groupType => groupType);
-                // const groupId = condition.groupIDs.map(groupId => groupId);
-                // const combinedArray = groupType.map((groupType, index) => {
-                //     return { groupType, groupId: groupId[index] };
-                // });
-                console.log("input.groupIDs", input.groupIDs);
                 for (const item of input.groupIDs) {
-                    console.log("item", item);
                     if (!item.groupIDs) {
                         errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
                         continue;
@@ -452,9 +445,7 @@ const getUsersAndCount = async (input) => {
 
                         case 'designation':
                             const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
-                            console.log("getDesignationUsers", getDesignationUsers);
                             groupIDs = getDesignationUsers.map(user => user.user);
-                            console.log("groupIDs", groupIDs);
                             break;
                         case 'role':
                             const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
@@ -664,7 +655,6 @@ const getUsersAndCount = async (input) => {
             count: userData.length > 0 ? userData[0].count : 0
         };
     } catch (error) {
-        console.log("error", error);
         return { userIds: [], count: 0 };
     }
 
