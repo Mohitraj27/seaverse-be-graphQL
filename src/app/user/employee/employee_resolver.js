@@ -2029,9 +2029,10 @@ exportUserToCsv: async ({ input }, context) => {
             { label: "Managing Organization", value: "managingOrganization" },
             { label: "Created At", value: "createdAt" },
             { label: "Updated At", value: "updatedAt" },
-            { label: "Employee", value: "employee" },
+
             { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
-            { label: "Vessel Status", value: "vesselStatus" }
+            { label: "Vessel Status", value: "vesselStatus" },
+            { label: "Current Vessel", value: "currentVessel" }
         ];
         const csv = await parseAsync(users, { fields });
         const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
