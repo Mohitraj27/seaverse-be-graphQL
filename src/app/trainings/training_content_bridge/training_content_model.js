@@ -14,7 +14,7 @@ const trainingContentBridge = new Schema(
         },
         trainingContent: {
             type: ObjectId,
-            ref: "TrainingContent",
+            ref: "TrainingModuleContent",
             required: true
         },
         isDeleted: {
