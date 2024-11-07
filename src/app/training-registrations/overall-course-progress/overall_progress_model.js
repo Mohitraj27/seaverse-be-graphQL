@@ -1,4 +1,5 @@
 const { Schema, ObjectId ,Model} = require("../../../tools");
+const { certificateLayout } = require("../../trainings/certificate_layout/certificateLayout_model");
 
 const overallProgressSchema = new Schema(
     {
@@ -13,6 +14,10 @@ const overallProgressSchema = new Schema(
         training : {
             type : ObjectId,
             ref: "Training"
+        },
+        certificateLayout: {
+            type: ObjectId,
+            ref:"certificateLayout"
         },
         user:{
             type:ObjectId,
@@ -34,8 +39,12 @@ const overallProgressSchema = new Schema(
             type: String,
             enum : ["NOT_STARTED", "IN_PROGRESS","COMPLETED"],
         },
+        isCertificateGenerated:{
+            type: Boolean,
+            default: false,
+        },
         retryCount: Number,
-        progressPercentage : String,
+        progressPercentage : Number,
         isEnrolled : Boolean,
     },
     { timestamps: true }

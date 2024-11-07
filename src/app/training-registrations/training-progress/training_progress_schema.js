@@ -49,6 +49,7 @@ module.exports = {
             additionalData : genericObjectInput
             settings: genericObjectInput
             training : ID
+            completedModules: Int
         }
         type initialTrainingProgress {
             message: String

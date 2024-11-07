@@ -187,7 +187,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
     return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
     },
-    createTrainingProgressHelper = async (users, trainings, subscriberId, savedTrainingRegistrationId, learningPlanId) => {
+    createTrainingProgressHelper = async (users, trainings, subscriberId,registrationId, learningPlanId) => {
         let trainingProgressData;
     
         const existingProgressRecords = await OverallTrainingProgress.find({
@@ -211,11 +211,11 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
                     learningPlan: learningPlanId ? learningPlanId : null,
                     training: training._id,
                     user: user._id,
-                    registrationId: savedTrainingRegistrationId,
+                    trainingRegistration: registrationId,
                     subscriberId: subscriberId.toString(),
                     status: 'NOT_STARTED',
                     isEnrolled: true,
-                    progressPercentage: "0%",
+                    progressPercentage: 0.0,
                     completedModules: 0
                 };
             })
@@ -422,12 +422,20 @@ module.exports = {
                         if (newRegistrations.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
                         }
-
-                        let trainingProgressData;
-                        if (savedTrainingRegistration) {
-                            learningPlanId = input.learningPlan ? input.learningPlan._id : null;
-                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings,subscriberId,savedTrainingRegistration._id, learningPlanId);
+                        const latestRegistrationId = await TrainingRegistration.find(
+                            { training: { $in: existingTrainingIds } },
+                            { _id: 1 } 
+                        );
+                        if(latestRegistrationId.length){
+                            registrationId = latestRegistrationId[0].id
+                            console.log(latestRegistrationId[0].id);
+                            let trainingProgressData;
+                            if (savedTrainingRegistration) {
+                                learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings,subscriberId,registrationId, learningPlanId);
+                            }
                         }
+                        
 
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
 

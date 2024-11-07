@@ -34,6 +34,11 @@ const { EnvSubscriberHelper } = require("../../env_subscriber_helper");
 const { Subscriber } = require("../../saas/subscriber/subscriber_model");
 const ScromHelper = require("../../trainings/scrom_helper");
 const { TrainingModule } = require("../../trainings/training_modules/training_module_model");
+const { OverallTrainingProgress } = require("../overall-course-progress/overall_progress_model");
+const { Training } = require("../../trainings/training_model");
+const {
+    COMPLETED,
+} = require("@rusticisoftware/scormcloud-api-v2-client-javascript/src/rustici-software-cloud-v2/rustici-software-cloud-v2-model/RegistrationCompletion");
 
 const sendCourseCompletionMail = async data => {
     try {
@@ -286,6 +291,7 @@ module.exports = {
             let currentExistingTrainingModuleContent;
             let currentExistingTrainingProgress;
             let quizStatus;
+            let currentOverallTrainingProgress;
             if (input.currentTrainingModuleContentId) {
                 currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
                     input.currentTrainingModuleContentId
@@ -297,7 +303,6 @@ module.exports = {
 
                 currentExistingTrainingProgress = await TrainingProgress.findOne({
                     trainingRegistration: input.trainingRegistrationId,
-                    trainingModuleContent: input.currentTrainingModuleContentId,
                 });
 
                 if (!currentExistingTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
@@ -365,8 +370,9 @@ module.exports = {
                 }
 
                 if (
-                    input.currentTrainingModuleContentStatus === "COMPLETED" &&
-                    currentExistingTrainingProgress.status !== "COMPLETED"
+                    input.currentTrainingModuleContentStatus === "COMPLETED"
+                    // &&
+                    // currentExistingTrainingProgress.status !== "COMPLETED"
                 ) {
                     currentExistingTrainingProgress.trainingModuleContentData = {
                         trainingId: currentExistingTrainingModuleContent.training,
@@ -379,6 +385,60 @@ module.exports = {
                         input.currentTrainingModuleContentStatus;
 
                     currentExistingTrainingProgress.completedAt = CurrentDateTime().utcDateTime;
+
+                    currentOverallTrainingProgress = await OverallTrainingProgress.findOne({
+                        trainingRegistration: input.trainingRegistrationId,
+                        user: userId,
+                    });
+
+                    if (!currentOverallTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
+                    const contentIdExists =
+                        currentOverallTrainingProgress.trainingModuleContentIds.includes(
+                            currentExistingTrainingModuleContent._id
+                        );
+                    const moduleIdExists =
+                        currentOverallTrainingProgress.trainingModuleIds.includes(
+                            input.currentTrainingModuleId
+                        );
+
+                    if (!contentIdExists) {
+                        currentOverallTrainingProgress.trainingModuleContentIds.push(
+                            currentExistingTrainingModuleContent._id
+                        );
+                    }
+
+                    if (!moduleIdExists) {
+                        currentOverallTrainingProgress.trainingModuleIds.push(
+                            input.currentTrainingModuleId
+                        );
+                    }
+                    const currentTrainingData = await Training.findOne({
+                        _id: currentOverallTrainingProgress.training,
+                    });
+                    if (!currentTrainingData) throw CustomError(ErrorName.NOT_FOUND);
+
+                    const numberOfModules = await TrainingModule.countDocuments({
+                        training: currentTrainingData._id,
+                    });
+
+                    if (currentTrainingData.manadatoryModules === 0) {
+                        if (currentOverallTrainingProgress.completedModules === numberOfModules) {
+                            currentOverallTrainingProgress.status = "COMPLETED";
+                            currentOverallTrainingProgress.isComplete = true;
+                        } else {
+                            currentOverallTrainingProgress.status = "IN_PROGRESS";
+                        }
+                    } else {
+                        if (
+                            currentOverallTrainingProgress.completedModules ===
+                            currentTrainingData.manadatoryModules
+                        ) {
+                            currentOverallTrainingProgress.status = "COMPLETED";
+                            currentOverallTrainingProgress.isComplete = true;
+                        } else {
+                            currentOverallTrainingProgress.status = "IN_PROGRESS";
+                        }
+                    }
                 }
 
                 if (input.currentTrainingModuleContentLastAccessedItem) {
@@ -443,24 +503,8 @@ module.exports = {
 
             const existingTrainingCertificate = await TrainingCertificate.findOne({
                 trainingRegistration: input.trainingRegistrationId,
-            })
-                .lean()
-                .select("_id");
-
-            await existingTrainingRegistration
-                .populate([
-                    { path: "training" },
-                    { path: "organization" },
-                    {
-                        path: "employee",
-                        populate: { path: "user" },
-                    },
-                    {
-                        path: "trainer",
-                        populate: { path: "user" },
-                    },
-                ])
-                .execPopulate();
+                user: userId,
+            });
 
             if (existingTrainingRegistration.training?.scorm) {
                 if (existingTrainingRegistration.training.scorm.type == "CLOUD") {
@@ -514,8 +558,11 @@ module.exports = {
                 }
             }
             if (input.trainingRegistrationProgressPercentage != null) {
-                existingTrainingRegistration.trainingProgressPercentage =
+                currentOverallTrainingProgress.progressPercentage =
                     input.trainingRegistrationProgressPercentage;
+            }
+            if (input.completedModules != null) {
+                currentOverallTrainingProgress.completedModules = input.completedModules;
             }
             if (input.trainingMode && !existingTrainingRegistration.trainingMode) {
                 existingTrainingRegistration.trainingMode = input.trainingMode;
@@ -523,12 +570,19 @@ module.exports = {
 
             const result = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedTrainingProgresses = [];
+                let currentSavedOverallProgress;
                 if (currentExistingTrainingProgress) {
                     const currentSavedTrainingProgress = await currentExistingTrainingProgress.save(
                         { session }
                     );
-
                     if (!currentSavedTrainingProgress) throw CustomError(ErrorName.FAILED);
+
+                    if (currentOverallTrainingProgress) {
+                        currentSavedOverallProgress = await currentOverallTrainingProgress.save({
+                            session,
+                        });
+                        if (!currentSavedOverallProgress) throw CustomError(ErrorName.FAILED);
+                    }
 
                     if (currentSavedTrainingProgress) {
                         savedTrainingProgresses.push({
@@ -588,135 +642,15 @@ module.exports = {
                 }
                 if (
                     !existingTrainingCertificate &&
-                    savedTrainingRegistration.status === TrainingRegistrationStatus.COMPLETED &&
-                    quizStatus !== "FAILED"
+                    currentSavedOverallProgress.status === TrainingRegistrationStatus.COMPLETED
                 ) {
-                    const certificateValidity =
-                        savedTrainingRegistration.certificateValidity ??
-                        existingTrainingRegistration.training?.certificateValidity;
-                    const trainingMode = savedTrainingRegistration.trainingMode;
-                    let trainerName = "",
-                        trainerSignature = "",
-                        mdName = "",
-                        mdSignature = "",
-                        approvalInfo = "",
-                        contactInfo = "";
-                    let completedAt;
-                    let generatedAt;
-                    let expiresAt;
-
-                    if (trainingMode === TrainingMode.ONLINE) {
-                        completedAt =
-                            savedTrainingRegistration.completedAt ?? CurrentDateTime()?.utcDateTime;
-                        generatedAt = CurrentDateTime()?.utcDateTime;
-                        expiresAt =
-                            certificateValidity && completedAt
-                                ? ParseDateTime(completedAt)
-                                      ?.utcDateTimeObj.add({ days: certificateValidity })
-                                      .format()
-                                : undefined;
-
-                        ({ trainerName, trainerSignature } =
-                            EnvSubscriberHelper.getEnvCertificateRelatedValues());
-                    } else {
-                        const endDate = ParseDateTime(
-                            savedTrainingRegistration.endDate
-                        )?.utcDateTimeObj?.format();
-
-                        completedAt =
-                            endDate ??
-                            savedTrainingRegistration.completedAt ??
-                            CurrentDateTime()?.utcDateTime;
-                        generatedAt = endDate ?? CurrentDateTime()?.utcDateTime;
-                        expiresAt =
-                            certificateValidity && completedAt
-                                ? ParseDateTime(completedAt)
-                                      ?.utcDateTimeObj?.add({ days: certificateValidity })
-                                      ?.format()
-                                : undefined;
-
-                        trainerName = `${
-                            existingTrainingRegistration.trainer?.user?.firstName ?? ""
-                        } ${existingTrainingRegistration.trainer?.user?.lastName ?? ""}`;
-                        trainerSignature = existingTrainingRegistration.trainer?.signature;
-                    }
-
-                    ({ mdName, mdSignature, approvalInfo, contactInfo } =
-                        EnvSubscriberHelper.getEnvCertificateRelatedValues());
-
-                    const additionalData = input.additionalData || [];
-                    savedTrainingCertificate = await TrainingCertificate.findOneAndUpdate(
-                        { trainingRegistration: input.trainingRegistrationId },
+                    let trainingRegistrationId = input.trainingRegistrationId;
+                    savedTrainingCertificate = await TrainingCertificateHelper.generateCertificate(
                         {
-                            $setOnInsert: {
-                                subscriber: subscriberId,
-                                trainingRegistration: input.trainingRegistrationId,
-                                training: savedTrainingRegistration.training,
-                                organization: savedTrainingRegistration.organization,
-                                branch: savedTrainingRegistration.branch,
-                                user: savedTrainingRegistration.user,
-                                trainer: savedTrainingRegistration.trainer,
-                                supervisor: savedTrainingRegistration.supervisor,
-                                subscriberLogo: existingSubscriberUser?.avatar,
-                                userName: `${existingTrainingRegistration.user?.firstName ?? ""} ${
-                                    existingTrainingRegistration.user?.lastName ?? ""
-                                }`,
-                                userUID: existingTrainingRegistration.user?.UID,
-                                userDesignation: existingTrainingRegistration.user?.designation,
-                                userCivilIdOrPassport:
-                                    existingTrainingRegistration.user?.civilIdOrPassport,
-                                userNo: existingTrainingRegistration.user?.employeeNo,
-                                userRigNumber: existingTrainingRegistration.user?.rigNumber,
-                                userEmail: existingTrainingRegistration.user?.email,
-                                userAvatar: existingTrainingRegistration.user?.avatar,
-                                organizationName: existingTrainingRegistration.organization?.name,
-                                trainerName,
-                                trainerSignature,
-                                trainingTitle: existingTrainingRegistration.training?.title,
-                                trainingDescription:
-                                    existingTrainingRegistration.training?.description,
-                                trainingImages: existingTrainingRegistration.training?.images,
-                                trainingCategories:
-                                    existingTrainingRegistration.training?.trainingCategories,
-                                trainingSubCategories:
-                                    existingTrainingRegistration.training?.trainingSubCategories,
-                                trainingDuration:
-                                    existingTrainingRegistration.trainingDuration ??
-                                    existingTrainingRegistration.training?.duration,
-                                trainingCertificateValidity: certificateValidity,
-                                status: TrainingRegistrationStatus.COMPLETED,
-                                gradeMark: 0,
-                                badge: 0,
-                                certificateNumber:
-                                    await TrainingCertificateHelper.generateTrainingCertificateNumber(
-                                        {
-                                            subscriberId,
-                                            session,
-                                        }
-                                    ),
-                                startDate: savedTrainingRegistration.startDate,
-                                endDate: savedTrainingRegistration.endDate,
-                                startedAt: savedTrainingRegistration.startedAt,
-                                completedAt,
-                                generatedAt,
-                                expiresAt,
-                                trainingMode,
-                                mdName,
-                                mdSignature,
-                                approvalInfo,
-                                contactInfo,
-                                additionalData,
-                                createdBy: userId,
-                                version: "1.0",
-                            },
-                        },
-                        {
-                            upsert: true,
-                            new: true,
-                            setDefaultsOnInsert: true,
-                            runValidators: true,
+                            trainingRegistrationId,
                             session,
-                        }
+                        },
+                        context
                     );
 
                     if (!savedTrainingCertificate) throw CustomError(ErrorName.FAILED);
