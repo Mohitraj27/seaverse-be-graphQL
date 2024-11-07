@@ -390,26 +390,22 @@ const getUsersAndCount = async (input) => {
                                         groupIDs = getSubRoleUsers.map(user => user._id);
                                         break;
                                     case 'vessel':
-                                        groupIDs = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        const vesselUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselUsers.map(user => user._id);
                                         break;
                                     case 'vesselType':
-                                        groupIDs = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        const vesselTypeUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselTypeUsers.map(user => user._id);
                                         break;
 
                                     case 'regStatus':
-                                        if (typeof groupId !== "boolean") {
-                                            errorList.push(errorMessages.INVALID_REG_STATUS);
-                                        } else {
-                                            groupIDs = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        }
+                                        const regStatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = regStatusUsers.map(user => user._id);
                                         break;
 
                                     case 'vesselStatus':
-                                        if (![vesselStatusEnum].includes(item.groupId)) {
-                                            errorList.push(errorMessages.INVALID_VESSEL_STATUS);
-                                        } else {
-                                            groupIDs = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        }
+                                        const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselSttatusUsers.map(user => user._id);
                                         break;
 
                                     default:
@@ -429,6 +425,199 @@ const getUsersAndCount = async (input) => {
                     }));
                     filter[queryOperator] = conditions;
                 }
+            } else if (input.audienceSelection === audienceSelection.MANUAL) {
+                filter._id = { $in: input.userObjectIds };
+            }
+        } else if (input.targetAudience === targetAudienceEnum.GROUP_BASED) {
+            if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+                let groupIDs = [];
+                for (const item of input.groupIDs) {
+                    if (!item.groupIDs) {
+                        errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+                        continue;
+                    }
+
+                    switch (item.groupType) {
+                        case 'custom':
+                            const getCustomUsers = await getCustomGroupUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = getCustomUsers.map(user => user._id);
+                            break;
+
+                        case 'designation':
+                            const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = getDesignationUsers.map(user => user.user);
+                            break;
+                        case 'role':
+                            const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = getRoleUsers.map(user => user._id);
+                            break;
+                        case 'subRole':
+                            const getSubRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = getSubRoleUsers.map(user => user._id);
+                            break;
+                        case 'vessel':
+                            const vesselUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = vesselUsers.map(user => user._id);
+                            break;
+                        case 'vesselType':
+                            const vesselTypeUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = vesselTypeUsers.map(user => user._id);
+                            break;
+
+                        case 'regStatus':
+                            const regStatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = regStatusUsers.map(user => user._id);
+                            break;
+
+                        case 'vesselStatus':
+                            const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = vesselSttatusUsers.map(user => user._id);
+                            break;
+
+                        default:
+                            errorList.push(errorMessages.INVALID_GROUP_TYPE);
+                            continue;
+                    }
+                }
+                filter._id = { $in: groupIDs };
+            } else if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
+                if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                    let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
+                        const fieldMapping = {
+                            DESIGNATION: '_id',
+                            GROUP: '_id',
+                            VESSEL: 'currentVessel',
+                            VESSEL_TYPE: 'currentVessel.typeOfVessel',
+                            EMAIL: 'email',
+                            CURRENT_STATUS: 'vesselStatus'
+                        };
+                        const field = fieldMapping[condition.type_of_Field];
+
+                        let valueData;
+                        if (condition.type_of_Field === "VESSEL") {
+                            const value = condition.valueOfField.map(id => ObjectId(id));
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $in: value },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $nin: value },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
+                        } else if (condition.type_of_Field === "VESSEL_TYPE") {
+                            const typeOfVesselIds = condition.valueOfField.map(id => ObjectId(id));
+                            const vessels = await Vessel.find(
+                                { typeOfVessel: { $in: typeOfVesselIds }, isDeleted: false },
+                                { _id: 1 }
+                            ).exec();
+
+                            const vesselIds = vessels.map(vessel => vessel._id);
+
+                            if (vesselIds.length === 0) {
+                                return {
+                                    userIds: [],
+                                    count: 0
+                                };
+                            }
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    'currentVessel._id': { $in: vesselIds },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel.isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
+                        } else if (condition.type_of_Field === "DESIGNATION") {
+                            const designationIds = condition.valueOfField.map(id => ObjectId(id));
+                            const employees = await Employee.find(
+                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { user: 1 }
+                            ).exec();
+                            const value = employees.map(user => user.user);
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
+
+                        } else if (condition.type_of_Field === "GROUP") {
+                            let groupIDs = [];
+                            const groupType = condition.groupTypes.map(groupType => groupType);
+                            const groupId = condition.groupIDs.map(groupId => groupId);
+                            const combinedArray = groupType.map((groupType, index) => {
+                                return { groupType, groupId: groupId[index] };
+                            });
+
+                            for (const item of combinedArray) {
+
+                                if (!item.groupId) {
+                                    errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+                                    continue;
+                                }
+
+                                switch (item.groupType) {
+                                    case 'custom':
+                                        const getCustomUsers = await getCustomGroupUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = getCustomUsers.map(user => user._id);
+                                        break;
+
+                                    case 'designation':
+                                        const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = getDesignationUsers.map(user => user.user);
+                                        break;
+                                    case 'role':
+                                        const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = getRoleUsers.map(user => user._id);
+                                        break;
+                                    case 'subRole':
+                                        const getSubRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = getSubRoleUsers.map(user => user._id);
+                                        break;
+                                    case 'vessel':
+                                        const vesselUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselUsers.map(user => user._id);
+                                        break;
+                                    case 'vesselType':
+                                        const vesselTypeUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselTypeUsers.map(user => user._id);
+                                        break;
+
+                                    case 'regStatus':
+                                        const regStatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = regStatusUsers.map(user => user._id);
+                                        break;
+
+                                    case 'vesselStatus':
+                                        const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = vesselSttatusUsers.map(user => user._id);
+                                        break;
+
+                                    default:
+                                        errorList.push(errorMessages.INVALID_GROUP_TYPE);
+                                        continue;
+                                }
+                            }
+
+                            valueData = condition.isOrIsNot === 'IS'
+                                ? { [field]: { $in: groupIDs } }
+                                : { [field]: { $nin: groupIDs } };
+                        } else {
+                            const value = condition.valueOfField.map(status => status);
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
+                        }
+                        return valueData;
+                    }));
+                    filter[queryOperator] = conditions;
+                }
+            } else if (input.audienceSelection === audienceSelection.MANUAL) {
+                filter._id = { $in: input.userObjectIds };
             }
         }
 
