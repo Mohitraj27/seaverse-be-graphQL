@@ -640,9 +640,13 @@ module.exports.mutations = {
         try {
             const { title, description, questions = [], percentageCriteria } = input;
 
-            input.contentStatus = (title && description && questions.length > 0)
-                ? Content_status.PUBLISHED
-                : Content_status.DRAFT;
+            if (!input.contentStatus || questions.length === 0) {
+                input.contentStatus = (title && description && questions.length > 0)
+                    ? Content_status.PUBLISHED
+                    : Content_status.DRAFT;
+            } else {
+                input.contentStatus = input.contentStatus;
+            }
 
             let totalScore = 0;
             let questionsIdArr = [];
@@ -973,9 +977,14 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.CONTENT_NOT_FOUND);
             }
 
-            const updatedContentStatus = (input.title && input.description && input.questions.length > 0)
-                ? Content_status.PUBLISHED
-                : Content_status.DRAFT;
+            let updatedContentStatus
+            if (!input.contentStatus || questions.length === 0) {
+                updatedContentStatus = (input.title && input.description && input.questions.length > 0)
+                    ? Content_status.PUBLISHED
+                    : Content_status.DRAFT;
+            } else {
+                input.contentStatus = input.contentStatus;
+            }
 
             let questionsChanged = false;
             let totalScore = 0;
@@ -1028,7 +1037,7 @@ module.exports.mutations = {
                 description: input.description,
                 duration: input.duration,
                 quiz: questionsChanged ? questionsIdArr : existingContent.quiz,
-                contentStatus: updatedContentStatus,
+                contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
                 updatedBy: userId,
