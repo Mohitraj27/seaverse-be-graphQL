@@ -144,9 +144,27 @@ module.exports = {
             remainingEmails: [String]
             status: Boolean
         }
+        enum Status {
+            NOT_STARTED
+            IN_PROGRESS
+            COMPLETED
+        }
+        type userDetails {
+            firstName: String!
+            lastName: String
+            status: Status!
+        }
+        type getTrainingRegsRes {
+            learningPlanName: String
+            users: [userDetails]
+        }
+        input getTrainingRegsInput {
+            training: ID!
+            isEnrolled: Boolean!
+        }
     `,
     queries: `
-        getTrainingRegistrations(pageInput: PageInput, filterInput: TrainingRegistrationFilterInput): TrainingRegistrationList!
+        getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
     `,
