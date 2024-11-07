@@ -35,7 +35,9 @@ module.exports = {
         }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [String!]!  
+            valueOfField: [String!]
+            groupTypes: [String]
+            groupIDs: [String]  
             isOrIsNot: String!
         }
         input GroupTypeInput {
