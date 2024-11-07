@@ -49,8 +49,13 @@ const learningPlanSchema = new Schema(
                     enum: Object.values(typeOfConditionalCustomFieldEnum),
                 },
                 valueOfField: {
-                    type: [String],  
-                    required: true,
+                    type: [String],
+                },
+                groupTypes: {
+                    type: [String],
+                },
+                groupIDs: {
+                    type: [String],
                 },
                 isOrIsNot: {
                     type: String,

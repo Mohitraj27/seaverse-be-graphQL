@@ -56,6 +56,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
                 case groupTypes.regStatus:
                     regStatusIds.push(groupId);
                     break;
+                case groupTypes.unregStatus:
+                    regStatusIds.push(groupId);
+                    break;
                 case groupTypes.vessel:
                     vesselIds.push(groupId);
                     break;
@@ -70,11 +73,16 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             }
         }
 
-        const designationQuery = designationIds.length ? User.find({ designation: { $in: designationIds } }) : Promise.resolve([]);
+        const designationQuery = designationIds.length ? Employee.find({ empDesignation: { $in: designationIds } }) : Promise.resolve([]);
         const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
-        const vesselQuery = vesselIds.length ? User.find({ vessel: { $in: vesselIds } }) : Promise.resolve([]);
+
+        const vesselQuery = vesselIds.length ? UserVessel.find({ vessel: { $in: vesselIds }, isActive: true })
+            .select({ user: 1 })
+            .lean()
+            .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
+
         const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds } })
             .select({ user: 1 })
             .lean()
@@ -131,8 +139,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             ...vesselTypeUsers
         ];
 
-
-
     } catch (error) {
         console.log(error);
     }
@@ -140,7 +146,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
 })
 
 const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
-
+    
     let remainingUsers = [];
     let invalidEmails = [];
     let unRegEmails = [];
@@ -380,7 +386,7 @@ module.exports = {
                         const existingTrainingCourses = await TrainingRegistration.find({ training: { $in: input.trainings } }).session(session);
 
                         const existingTrainingIds = existingTrainingCourses.map(t => t.training.toString());
-                        
+
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
                         const updateFields = { subscriber: subscriberId };
