@@ -219,6 +219,9 @@ module.exports = {
             email: String
             civilIdOrPassport: String
         }
+        input UserObjectIDs {
+            ids: [ID!]!
+        }
         input ImportUserInput {
             firstName: String!
             lastName: String!
@@ -258,6 +261,12 @@ module.exports = {
             status: Boolean
             message: String
         }
+        type exportUserToCsvResponse {
+            status: Boolean
+            message: String
+            decodedCsvData: String  
+            fileName: String
+        }
         type csvimportLogRes {
             id: ID,
             usersCount: Int,
@@ -293,5 +302,6 @@ module.exports = {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
+        exportUserToCsv(input: UserObjectIDs!): exportUserToCsvResponse!
     `,
 };

@@ -39,6 +39,7 @@ const { v4: uuidv4 } = require("uuid");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
+const { parseAsync } = require('json2csv');
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
@@ -1992,4 +1993,57 @@ module.exports.mutations = {
             };
         }
     },
+    
+exportUserToCsv: async ({ input }, context) => {
+    const { role, subscriberId } = AuthUser(context);
+    if (!role || role !== "ADMIN") {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+    try {
+        const userIds = input.ids;
+        const users = await User.find({ _id: { $in: userIds } }).lean();
+        if (!users.length) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
+        const fields = [
+            { label: "User ID", value: "_id" },
+            { label: "UID", value: "UID" },
+            { label: "Subscriber", value: "subscriber" },
+            { label: "First Name", value: "firstName" },
+            { label: "Last Name", value: "lastName" },
+            { label: "Civil ID or Passport", value: "civilIdOrPassport" },
+            { label: "Company Email", value: "companyEmail" },
+            { label: "Email", value: "email" },
+            { label: "Phone", value: "phone" },
+            { label: "Avatar", value: "avatar" },
+            { label: "Role", value: "role" },
+            { label: "Sub Roles", value: "subRoles" },
+            { label: "Language Preference", value: "languagePreference" },
+            { label: "Last Login", value: "lastLoginAt" },
+            { label: "Verified", value: "isVerified" },
+            { label: "Active", value: "isActive" },
+            { label: "Registered", value: "isRegistered" },
+            { label: "Super Admin", value: "superAdmin" },
+            { label: "Profile Completed", value: "isProfileCompleted" },
+            { label: "Organization Manager", value: "isOrganizationManager" },
+            { label: "Managing Organization", value: "managingOrganization" },
+            { label: "Created At", value: "createdAt" },
+            { label: "Updated At", value: "updatedAt" },
+            { label: "Employee", value: "employee" },
+            { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
+            { label: "Vessel Status", value: "vesselStatus" }
+        ];
+        const csv = await parseAsync(users, { fields });
+        const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        return {
+            status: true,
+            message: "CSV export successful",
+            decodedCsvData: cleanedCsvData,
+            fileName: "exported_users.csv"
+        };
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED, `Failed to export CSV: ${error.message}`);
+    }
+}
+
 };
