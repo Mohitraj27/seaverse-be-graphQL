@@ -222,7 +222,7 @@ module.exports = {
             id: ID!
             newStatus : StatusType
         }
-        type trainingCreationRes {
+        type creationRes {
             status: Int
             message: String
         }
@@ -232,9 +232,9 @@ module.exports = {
         getTraining(id: ID!): Training!
     `,
     mutations: `
-        createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): trainingCreationRes!
+        createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!
         deleteTraining(id: ID!): Training!
-        updateTrainingStatus(input: UpdateTrainingStatusInput!): Training!
+        updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
     `,
