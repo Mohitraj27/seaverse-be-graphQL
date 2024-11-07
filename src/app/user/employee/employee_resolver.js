@@ -2029,7 +2029,6 @@ exportUserToCsv: async ({ input }, context) => {
             { label: "Managing Organization", value: "managingOrganization" },
             { label: "Created At", value: "createdAt" },
             { label: "Updated At", value: "updatedAt" },
-
             { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
             { label: "Vessel Status", value: "vesselStatus" },
             { label: "Current Vessel", value: "currentVessel" }
