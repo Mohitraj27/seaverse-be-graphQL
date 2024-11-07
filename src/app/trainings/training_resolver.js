@@ -180,7 +180,7 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createOrUpdateTraining: async ({ input, coverImage, bannerImage }, context) => {
-        
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -279,7 +279,7 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        
+
 
         return {
             status: 1,
@@ -361,7 +361,7 @@ module.exports.mutations = {
                     name: currentTraining.title,
                     reason: "Published to Draft is not allowed directly. Must move to Retired first.",
                 });
-                throw new Error("Invalid status transition: Published to Draft is not allowed.");
+                throw CustomError(ErrorName.FORBIDDEN, "Invalid status transition: Published to Draft is not allowed.");
             } else if (
                 currentStatus === ContentStatus.PUBLISHED &&
                 newStatus === ContentStatus.RETIRED
@@ -382,7 +382,7 @@ module.exports.mutations = {
                     name: currentTraining.title,
                     reason: "Invalid status transition.",
                 });
-                throw new Error("Invalid status transition.");
+                throw CustomError(ErrorName.FORBIDDEN, "Invalid status transition.");
             }
         }
 
@@ -394,7 +394,10 @@ module.exports.mutations = {
 
         if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
 
-        return currentTraining;
+        return {
+            status: 1,
+            message: "Status updated successfully!"
+        };
     },
     approveOrRejectTraining: async ({ id, approvalStatus }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);

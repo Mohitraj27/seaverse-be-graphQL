@@ -1094,5 +1094,48 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+    pushLatestContent: async ({ id }, context) => {
 
+        const { subscriberId } = AuthUser(context);
+
+        if(!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const inputContent = await TrainingModuleContent.findOne({
+            _id: id,
+            subscriber: subscriberId
+        });
+
+        if (!inputContent) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const fetchCurrentContents = await TrainingContentBridge.find({})
+            .populate("trainingContent")
+            .lean();
+        
+        if (!fetchCurrentContents) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const bridgesToUpdate = fetchCurrentContents
+            .filter((content) => content.trainingContent && content.trainingContent.UID === inputContent.UID)
+            .map((content) => content._id);
+
+        let updateContent;
+        if (bridgesToUpdate.length > 0) {
+            updateContent = await TrainingContentBridge.updateMany(
+                { _id: { $in: bridgesToUpdate } },
+                { trainingContent: inputContent._id }
+            );
+        }
+
+        if (!updateContent) {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+        return {
+            status: 1,
+            message: "New content pushed to lessons successfully.",
+        }
+    }
 };
