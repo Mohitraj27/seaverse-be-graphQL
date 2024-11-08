@@ -25,6 +25,11 @@ module.exports = {
             question: ID
             choice: [LocalisedData]
         }
+        type UserData {
+            _id: ID
+            firstName: String
+            lastName: String
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
@@ -55,6 +60,8 @@ module.exports = {
             modifiedDate: String
             isUpdated: Boolean
             isDeleted: Boolean
+            createdBy: UserData
+            updatedBy: UserData
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!

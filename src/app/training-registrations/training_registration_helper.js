@@ -25,6 +25,7 @@ const { BatchHelper } = require("../batches/batch_helper");
 const { sendEmail } = require("../../util/aws_helper");
 const Permission = require("../user/sub-roles/permission.json");
 const LogType = require("../logs/log_type.json");
+const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 
 const fetchUserFromAutoSyncedGroups = (async (groups) => {
@@ -146,7 +147,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
 })
 
 const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
-    
+
     let remainingUsers = [];
     let invalidEmails = [];
     let unRegEmails = [];
@@ -191,13 +192,12 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
     return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
-})
-const createTrainingProgressHelper = (async (users, trainings) => {
-
-
+});
+const createTrainingProgressHelper = async (users, trainings, subscriberId, registrationId, learningPlanId) => {
     let trainingProgressData;
-    const existingProgressRecords = await TrainingProgress.find({
-        training: { $in: trainings },
+
+    const existingProgressRecords = await OverallTrainingProgress.find({
+        training: { $in: trainings.map(training => training._id) },
         user: { $in: users.map(user => user._id) }
     });
 
@@ -205,24 +205,35 @@ const createTrainingProgressHelper = (async (users, trainings) => {
         existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
     );
 
-    const newProgressEntries = trainings.flatMap(trainingId =>
-        users.map(user => ({
-            training: trainingId,
-            user: user._id,
-            status: 'notStarted',
-            enroledStatus: true
-        }))
-    ).filter(entry =>
-        !existingProgressSet.has(`${entry.training}-${entry.user}`)
-    );
+    const newProgressEntries = trainings.flatMap(training =>
+        users.map(user => {
+            const progressKey = `${training._id.toString()}-${user._id.toString()}`;
+
+            if (existingProgressSet.has(progressKey)) {
+                return null;
+            }
+
+            return {
+                learningPlan: learningPlanId ? learningPlanId : null,
+                training: training._id,
+                user: user._id,
+                trainingRegistration: registrationId,
+                subscriberId: subscriberId.toString(),
+                status: 'NOT_STARTED',
+                isEnrolled: true,
+                progressPercentage: 0.0,
+                completedModules: 0
+            };
+        })
+    ).filter(entry => entry !== null);
 
     if (newProgressEntries.length > 0) {
-        trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
+        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
     }
 
     return trainingProgressData;
+}
 
-});
 
 const getAutoSyncUsers = (async (groups) => {
 
@@ -417,14 +428,22 @@ module.exports = {
                         if (newRegistrations.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
                         }
+                        const latestRegistrationId = await TrainingRegistration.find(
+                            { training: { $in: existingTrainingIds } },
+                            { _id: 1 }
+                        );
+                        if (latestRegistrationId.length) {
+                            registrationId = latestRegistrationId[0].id;
 
-                        let trainingProgressData;
-                        if (savedTrainingRegistration) {
-                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, input.trainingPlan);
+                            let trainingProgressData;
+                            if (savedTrainingRegistration) {
+                                learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, registrationId, learningPlanId);
+                            }
                         }
 
+
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-                        if (!trainingProgressData) throw CustomError(ErrorName.FAILED);
 
                         users.forEach(user => {
                             sendEmail({

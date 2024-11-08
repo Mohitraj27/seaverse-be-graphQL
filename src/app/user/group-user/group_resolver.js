@@ -57,57 +57,80 @@ module.exports.queries = {
         }
     },
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
-        if (!groupType || groupType === "") return CustomError(ErrorName.GROUP_TYPE_NOT_FOUND);
-
+        if (!groupType) groupType = "all" ;
+    
         const { subscriberId } = AuthUser(context);
-
+    
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-
+    
         let filterConditions = {
             subscriber: subscriberId,
             isDeleted: { $ne: true },
             groupName: { $ne: null },
         };
-
+    
         if (groupFilter?.search) {
             const searchRegex = new RegExp(groupFilter.search, "i");
             filterConditions.groupName = {
                 $regex: searchRegex,
             };
         }
-
-        if (groupType === "Autosyncedgroups") {
-            const allGroups = await getAutoSyncedGroups(subscriberId);
-            let filteredGroups = allGroups;
-            if (groupFilter?.search) {
-                filteredGroups = allGroups.filter(group =>
-                    filterConditions.groupName.$regex.test(group.groupName)
-                );
-            }
-            const paginatedGroups = filteredGroups.slice(skip, skip + limit);
-            return {
-                status: "Success",
-                totalCount: paginatedGroups.length,
-                groups: paginatedGroups,
-            };
+    
+        let groups = [];
+        let totalCount = 0;
+    
+        switch (groupType) {
+            case "Autosyncedgroups":
+                const allAutosyncedGroups = await getAutoSyncedGroups(subscriberId);
+                let filteredAutosyncedGroups = allAutosyncedGroups;
+                if (groupFilter?.search) {
+                    filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
+                        filterConditions.groupName.$regex.test(group.groupName)
+                    );
+                }
+                const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
+                groups = paginatedAutosyncedGroups;
+                totalCount = filteredAutosyncedGroups.length;
+                break;
+    
+            case "Customgroups":
+                const allCustomGroups = await getCustomGroups();
+                let filteredCustomGroups = allCustomGroups;
+                if (groupFilter?.search) {
+                    filteredCustomGroups = allCustomGroups.filter(group =>
+                        filterConditions.groupName.$regex.test(group.groupName)
+                    );
+                }
+                groups = filteredCustomGroups;
+                totalCount = filteredCustomGroups.length;
+                break;
+    
+            default:
+                const allAutosynced = await getAutoSyncedGroups(subscriberId);
+                const allCustom = await getCustomGroups();
+                
+                const allGroups = [...allAutosynced, ...allCustom];
+    
+                let filteredGroups = allGroups;
+                if (groupFilter?.search) {
+                    filteredGroups = allGroups.filter(group =>
+                        filterConditions.groupName.$regex.test(group.groupName)
+                    );
+                }
+                const paginatedGroups = filteredGroups.slice(skip, skip + limit);
+                groups = paginatedGroups;
+                totalCount = filteredGroups.length;
+                break;
         }
-
-        if (groupType === "Customgroups") {
-            let allGroups = await getCustomGroups();
-            let filteredGroups = allGroups;
-            if (groupFilter?.search) {
-                filteredGroups = allGroups.filter(group =>
-                    filterConditions.groupName.$regex.test(group.groupName)
-                );
-            }
-            return {
-                status: "Success",
-                totalCount: filteredGroups.length,
-                groups: filteredGroups,
-            };
-        }
-    },
+    
+        return {
+            status: "Success",
+            totalCount,
+            groups,
+        };
+    }
+    ,
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
 
