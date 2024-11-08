@@ -85,7 +85,7 @@ module.exports = {
         }
     `,
     queries: `
-        getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType!): GroupList!
+        getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
     `,
