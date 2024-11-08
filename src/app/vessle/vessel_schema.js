@@ -24,6 +24,7 @@ module.exports = {
             name: String!
             typeOfVessel: ID!
             imoNumber: String!
+            isActive: Boolean!
             companyName: String
             ownerName: String
             address: String
