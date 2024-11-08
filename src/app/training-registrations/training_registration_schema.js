@@ -51,6 +51,41 @@ module.exports = {
             scorm:Scorm
             users: [ID]
         }
+        type TrainingModuleResult {
+            _id: ID
+            title: [LocalisedData]
+            description: [LocalisedData]
+            displayPosition: Int
+            isActive: Boolean
+            trainingModuleContents: [TrainingModuleContent]
+        }
+        type TrainingResult {
+            _id: ID
+            title: [LocalisedData]
+            description: [LocalisedData]
+            durationHours: Int
+            coverImage: String
+            bannerImage: String
+            trainingModules: [TrainingModuleResult]
+            isActive: Boolean
+        }
+        type OverallTrainingProgress {
+            _id: ID
+            subscriber: Subscriber
+            learningPlan: LearningPlan
+            training: TrainingResult
+            user: User
+            trainingRegistration: ID
+            trainingModuleContentIds: [ID]
+            trainingModuleIds: [ID]
+            mandatoryModules: Int
+            completedModules: Int
+            isComplete: Boolean
+            status: Status
+            retryCount: Int
+            progressPercentage: String
+            isEnrolled: Boolean
+        }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
             totalCount: Int
@@ -162,11 +197,21 @@ module.exports = {
             training: ID!
             isEnrolled: Boolean!
         }
+        input myCourseFilterInput {
+            search: String
+            status: Status
+        }
+        type myCoursesRes {
+            status: Boolean
+            message: String
+            courses: [OverallTrainingProgress]
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
+        myCourses(filterInput: myCourseFilterInput): myCoursesRes!
     `,
     mutations: `
         """used for assign course to employee"""
