@@ -51,6 +51,23 @@ module.exports = {
             scorm:Scorm
             users: [ID]
         }
+        type OverallTrainingProgress {
+            _id: ID
+            subscriber: Subscriber
+            learningPlan: LearningPlan
+            training: Training
+            user: User
+            trainingRegistration: TrainingRegistration
+            trainingModuleContentIds: [ID]
+            trainingModuleIds: [ID]
+            mandatoryModules: Int
+            completedModules: Int
+            isComplete: Boolean
+            status: Status
+            retryCount: Int
+            progressPercentage: String
+            isEnrolled: Boolean
+        }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
             totalCount: Int
@@ -162,11 +179,25 @@ module.exports = {
             training: ID!
             isEnrolled: Boolean!
         }
+        input MyCourseFilterInput {
+            search: String
+            status: Status
+        }
+        input myCoursesInput {
+            pageInput: PageInput
+            filterInput: MyCourseFilterInput
+        }
+        type myCoursesRes {
+            status: Boolean
+            message: String
+            courses: [OverallTrainingProgress]
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
+        myCourses(filterInput: myCoursesInput): myCoursesRes!
     `,
     mutations: `
         """used for assign course to employee"""

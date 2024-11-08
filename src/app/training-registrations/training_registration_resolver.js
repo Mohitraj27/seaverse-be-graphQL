@@ -187,6 +187,82 @@ module.exports.queries = {
             }
         );
     },
+    myCourses: async ({ filterInput }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        let filterConditions = {
+            subscriber: ObjectId(subscriberId),
+            user: ObjectId(userId),
+        }
+
+        if (filterInput.search) {
+            filterConditions = {
+                ...filterConditions,
+                $or: [
+                    { "training.title": { $regex: filterInput.search, $options: "i" } },
+                ],
+            };
+        }
+
+        if (filterInput.status) {
+            filterConditions = {
+                ...filterConditions,
+                status: filterInput.status,
+            };
+        }
+
+        const courses = await OverallTrainingProgress.aggregate([
+            {
+                $match: filterConditions,
+            },
+            {
+                $lookup: {
+                    from: "trainings",
+                    localField: "training",
+                    foreignField: "_id",
+                    as: "training",
+                },
+            },
+            {
+                $unwind: "$training",
+            },
+            {
+                $lookup: {
+                    from: "trainingregistrations",
+                    localField: "trainingRegistration",
+                    foreignField: "_id",
+                    as: "trainingRegistration",
+                },
+            },
+            {
+                $unwind: "$trainingRegistration",
+            },
+            {
+                $project: {
+                    _id: 1,
+                    training: {
+                        title: 1,
+                        description: 1,
+                        coverImage: 1,
+                        status: 1,
+                        startDate: 1,
+                        endDate: 1,
+                        duration: 1,
+                    },
+                    status: 1,
+                    progressPercentage: 1,
+                    isComplete: 1,
+                    isEnrolled: 1,
+                    trainingRegistration: {
+                        _id: 1,
+                        status: 1,
+                        startDate: 1,
+                        endDate: 1,
+                        duration: 1,
+                    },
+                },
+            },
+        ]);
+    },
 };
 
 module.exports.mutations = {
