@@ -86,7 +86,6 @@ module.exports.queries = {
                 );
             }
             const paginatedGroups = filteredGroups.slice(skip, skip + limit);
-            console.log(paginatedGroups);
             return {
                 status: "Success",
                 totalCount: paginatedGroups.length,
@@ -444,6 +443,7 @@ module.exports.mutations = {
         };
     },
     deleteGroup: async ({ ids }, context) => {
+        
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
