@@ -1,8 +1,8 @@
 module.exports = {
     types: `
         enum TrainingProgressStatus {
-            PENDING
-            ON_GOING
+            NOT_STARTED
+            IN_PROGRESS
             COMPLETED
         }
         extend type TrainingModuleContent {
@@ -44,18 +44,24 @@ module.exports = {
             currentTrainingModuleContentLastAccessedDuration: Float
             currentTrainingModuleContentQuestionAnswers: [QuizAttemptQuestionAnswerInput]
             nextTrainingModuleId: ID
+            currentTrainingModuleId: ID
             nextTrainingModuleContentId: ID
             additionalData : genericObjectInput
             settings: genericObjectInput
             training : ID
+            completedModules: Int
         }
         type initialTrainingProgress {
             message: String
         }
+        type overallTrainingProgress {
+           status : Int
+           message : String 
+        }
     `,
     mutations: `
         initiateTrainingProgress(input: TrainingProgressInput!): initialTrainingProgress!
-        updateTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
+        updateTrainingProgress(input: TrainingProgressInput!): overallTrainingProgress!
         updateScormTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
     `,
 };
