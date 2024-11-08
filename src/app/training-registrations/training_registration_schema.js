@@ -179,13 +179,9 @@ module.exports = {
             training: ID!
             isEnrolled: Boolean!
         }
-        input MyCourseFilterInput {
+        input myCourseFilterInput {
             search: String
             status: Status
-        }
-        input myCoursesInput {
-            pageInput: PageInput
-            filterInput: MyCourseFilterInput
         }
         type myCoursesRes {
             status: Boolean
@@ -197,7 +193,7 @@ module.exports = {
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
-        myCourses(filterInput: myCoursesInput): myCoursesRes!
+        myCourses(filterInput: myCourseFilterInput): myCoursesRes!
     `,
     mutations: `
         """used for assign course to employee"""
