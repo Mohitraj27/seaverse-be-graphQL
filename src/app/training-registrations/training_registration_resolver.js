@@ -237,36 +237,43 @@ module.exports.queries = {
                 {
                     $unwind: "$trainingRegistration",
                 },
-                {
-                    $project: {
-                        _id: 1,
-                        training: {
-                            title: 1,
-                            description: 1,
-                            coverImage: 1,
-                            status: 1,
-                            startDate: 1,
-                            endDate: 1,
-                            duration: 1,
-                        },
-                        status: 1,
-                        progressPercentage: 1,
-                        isComplete: 1,
-                        isEnrolled: 1,
-                        trainingRegistration: {
-                            _id: 1,
-                            status: 1,
-                            startDate: 1,
-                            endDate: 1,
-                            duration: 1,
-                        },
-                    },
-                },
+                // {
+                //     $project: {
+                //         _id: 1,
+                //         training: {
+                //             _id: 1,
+                //             UID: 1,
+                //             title: 1,
+                //             description: 1,
+                //             coverImage: 1,
+                //             status: 1,
+                //             startDate: 1,
+                //             endDate: 1,
+                //             duration: 1,
+                //         },
+                //         trainingModuleContentIds: 1,
+                //         trainingModuleIds: 1,
+                //         mandatoryModules: 1,
+                //         completedModules: 1,
+                //         retryCount: 1,
+                //         status: 1,
+                //         progressPercentage: 1,
+                //         isComplete: 1,
+                //         isEnrolled: 1,
+                //         trainingRegistration: {
+                //             _id: 1,
+                //             status: 1,
+                //             startDate: 1,
+                //             endDate: 1,
+                //             duration: 1,
+                //         },
+                //     },
+                // },
             ]);
 
             return {
                 status: true,
-                message: "Enrolled Courses fetched successfully",
+                message: "My Courses fetched successfully",
                 courses: courses,
             }
         } catch (error) {
