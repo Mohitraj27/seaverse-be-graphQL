@@ -466,6 +466,7 @@ module.exports.mutations = {
         };
     },
     deleteGroup: async ({ ids }, context) => {
+        
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 

@@ -127,6 +127,7 @@ module.exports = {
 
         if (input.title) trainingUpdateData.title = input.title;
         if (input.overview) trainingUpdateData.overview = input.overview;
+        if (input.isCertificate) trainingUpdateData.isCertificate = input.isCertificate;
 
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
