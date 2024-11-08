@@ -5,6 +5,9 @@ const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper } =
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const {  Moment } = require("../../tools");
+const LogHelper = require("../logs/log_helper");
+const LogType = require("../logs/log_type.json");
+
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -20,6 +23,25 @@ module.exports.mutations = {
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
             }
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: LearningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(result),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return result.learningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -49,6 +71,25 @@ module.exports.mutations = {
                 { new: true }
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: LearningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(updatedPlans),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: `Updated ${updatedLearningPlans.nModified} Learning Plans to status ${newStatus}.`,
@@ -79,7 +120,25 @@ module.exports.mutations = {
             learningPlan.updatedBy = userId;
 
             await learningPlan.save();
-
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "DELETE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(learningPlan),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Learning Plan  deleted successfully.'
@@ -109,6 +168,25 @@ module.exports.mutations = {
             learningPlan.isUpdated = true;
     
             await learningPlan.save();
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(learningPlan),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return learningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
