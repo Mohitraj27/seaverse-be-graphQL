@@ -1061,12 +1061,12 @@ module.exports.queries = {
             if (input.email) {
                 const emailExists = await User.findOne({ email: input.email });
                 if (emailExists) {
-                    messages.push("This email already exists.");
+                    messages.push("This email Id already exists in the system with another employee.");
                 }
             } else if (input.civilIdOrPassport) {
                 const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
                 if (empNoExists) {
-                    messages.push("This Employee Number already exists.");
+                    messages.push("Another user already exists with this employee Id");
                 }
             }
             if (messages.length > 0) {
