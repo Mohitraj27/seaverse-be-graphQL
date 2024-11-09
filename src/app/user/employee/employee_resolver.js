@@ -618,6 +618,14 @@ module.exports.queries = {
                 $unwind: "$user",
             },
             {
+                $lookup: {
+                    from: "subroles",
+                    localField: "user.subRoles",
+                    foreignField: "_id",
+                    as: "user.subRoles",
+                }
+            },
+            {
                 $match: {
                     "user.isDeleted": { $ne: true },
                     "user.role": { $in: ["LEARNER"] },
