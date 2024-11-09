@@ -192,6 +192,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
+            groupIDs: [GroupTypeInput!]
+            userObjectIds: [ID]
         }
     `,
     queries: `

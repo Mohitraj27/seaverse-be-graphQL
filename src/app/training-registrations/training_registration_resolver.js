@@ -187,6 +187,55 @@ module.exports.queries = {
             }
         );
     },
+    myCourses: async ({ filterInput = {} }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        try {
+            let filterConditions = {
+                user: ObjectId(userId),
+            }
+
+            if (filterInput?.search) {
+                filterConditions = {
+                    ...filterConditions,
+                    $or: [
+                        { "training.title.value": { $regex: filterInput.search, $options: "i" } },
+                    ],
+                };
+            }
+
+            if (filterInput?.status) {
+                filterConditions = {
+                    ...filterConditions,
+                    status: filterInput.status,
+                };
+            }
+
+            const courses = await OverallTrainingProgress.aggregate([
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                {
+                    $match: filterConditions,
+                },
+                {
+                    $unwind: "$training",
+                },
+            ]);
+
+            return {
+                status: true,
+                message: "My Courses fetched successfully",
+                courses: courses,
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
 };
 
 module.exports.mutations = {

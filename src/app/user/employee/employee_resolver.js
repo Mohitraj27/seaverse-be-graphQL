@@ -1046,44 +1046,44 @@ module.exports.queries = {
         return messages;
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
-        const { role} = AuthUser(context);
+        const { role } = AuthUser(context);
         if (role !== "ADMIN") {
             throw new CustomError(ErrorName.FORBIDDEN);
         }
         try {
             const messages = [];
             if (!input.email && !input.civilIdOrPassport) {
-              throw  CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
             }
             if (input.email && input.civilIdOrPassport) {
-              throw  CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-              const emailExists = await User.findOne({ email: input.email });
-              if (emailExists) {
-                messages.push("This email already exists.");
-              }
+                const emailExists = await User.findOne({ email: input.email });
+                if (emailExists) {
+                    messages.push("This email already exists.");
+                }
             } else if (input.civilIdOrPassport) {
-              const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
-              if (empNoExists) {
-                messages.push("This Employee Number already exists.");
-              }
+                const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
+                if (empNoExists) {
+                    messages.push("This Employee Number already exists.");
+                }
             }
             if (messages.length > 0) {
-              return {
-                status: false,
-                message: messages.join(" "),
-              };
+                return {
+                    status: false,
+                    message: messages.join(" "),
+                };
             }
             return {
-              status: true,
-              message: "The input value is available.",
+                status: true,
+                message: "The input value is available.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     }
-      
+
 };
 
 const validateDeleteUserRow = row => {
@@ -1993,57 +1993,57 @@ module.exports.mutations = {
             };
         }
     },
-    
-exportUserToCsv: async ({ input }, context) => {
-    const { role, subscriberId } = AuthUser(context);
-    if (!role || role !== "ADMIN") {
-        throw CustomError(ErrorName.FORBIDDEN);
-    }
-    try {
-        const userIds = input.ids;
-        const users = await User.find({ _id: { $in: userIds } }).lean();
-        if (!users.length) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
+
+    exportUserToCsv: async ({ input }, context) => {
+        const { role, subscriberId } = AuthUser(context);
+        if (!role || role !== "ADMIN") {
+            throw CustomError(ErrorName.FORBIDDEN);
         }
-        const fields = [
-            { label: "User ID", value: "_id" },
-            { label: "UID", value: "UID" },
-            { label: "Subscriber", value: "subscriber" },
-            { label: "First Name", value: "firstName" },
-            { label: "Last Name", value: "lastName" },
-            { label: "Civil ID or Passport", value: "civilIdOrPassport" },
-            { label: "Company Email", value: "companyEmail" },
-            { label: "Email", value: "email" },
-            { label: "Phone", value: "phone" },
-            { label: "Avatar", value: "avatar" },
-            { label: "Role", value: "role" },
-            { label: "Sub Roles", value: "subRoles" },
-            { label: "Language Preference", value: "languagePreference" },
-            { label: "Last Login", value: "lastLoginAt" },
-            { label: "Verified", value: "isVerified" },
-            { label: "Active", value: "isActive" },
-            { label: "Registered", value: "isRegistered" },
-            { label: "Super Admin", value: "superAdmin" },
-            { label: "Profile Completed", value: "isProfileCompleted" },
-            { label: "Organization Manager", value: "isOrganizationManager" },
-            { label: "Managing Organization", value: "managingOrganization" },
-            { label: "Created At", value: "createdAt" },
-            { label: "Updated At", value: "updatedAt" },
-            { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
-            { label: "Vessel Status", value: "vesselStatus" },
-            { label: "Current Vessel", value: "currentVessel" }
-        ];
-        const csv = await parseAsync(users, { fields });
-        const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-        return {
-            status: true,
-            message: "CSV export successful",
-            decodedCsvData: cleanedCsvData,
-            fileName: "exported_users.csv"
-        };
-    } catch (error) {
-        throw CustomError(ErrorName.FAILED, `Failed to export CSV: ${error.message}`);
+        try {
+            const userIds = input.ids;
+            const users = await User.find({ _id: { $in: userIds } }).lean();
+            if (!users.length) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
+            const fields = [
+                { label: "User ID", value: "_id" },
+                { label: "UID", value: "UID" },
+                { label: "Subscriber", value: "subscriber" },
+                { label: "First Name", value: "firstName" },
+                { label: "Last Name", value: "lastName" },
+                { label: "Civil ID or Passport", value: "civilIdOrPassport" },
+                { label: "Company Email", value: "companyEmail" },
+                { label: "Email", value: "email" },
+                { label: "Phone", value: "phone" },
+                { label: "Avatar", value: "avatar" },
+                { label: "Role", value: "role" },
+                { label: "Sub Roles", value: "subRoles" },
+                { label: "Language Preference", value: "languagePreference" },
+                { label: "Last Login", value: "lastLoginAt" },
+                { label: "Verified", value: "isVerified" },
+                { label: "Active", value: "isActive" },
+                { label: "Registered", value: "isRegistered" },
+                { label: "Super Admin", value: "superAdmin" },
+                { label: "Profile Completed", value: "isProfileCompleted" },
+                { label: "Organization Manager", value: "isOrganizationManager" },
+                { label: "Managing Organization", value: "managingOrganization" },
+                { label: "Created At", value: "createdAt" },
+                { label: "Updated At", value: "updatedAt" },
+                { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
+                { label: "Vessel Status", value: "vesselStatus" },
+                { label: "Current Vessel", value: "currentVessel" }
+            ];
+            const csv = await parseAsync(users, { fields });
+            const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+            return {
+                status: true,
+                message: "CSV export successful",
+                decodedCsvData: cleanedCsvData,
+                fileName: "exported_users.csv"
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, `Failed to export CSV: ${error.message}`);
+        }
     }
-}
 
 };

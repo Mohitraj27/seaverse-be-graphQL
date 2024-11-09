@@ -64,6 +64,34 @@ module.exports.queries = {
                             }
                         ],
                     },
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "createdBy",
+                        foreignField: "_id",
+                        as: "createdBy",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
+                    },
+                },
+                {
+                    $unwind: "$createdBy",
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "updatedBy",
+                        foreignField: "_id",
+                        as: "updatedBy",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
+                    },
+                },
+                {
+                    $unwind: "$updatedBy",
                 }
             ]),
             {
@@ -978,7 +1006,7 @@ module.exports.mutations = {
             }
 
             let updatedContentStatus
-            if (!input.contentStatus || questions.length === 0) {
+            if (!input.contentStatus || input.questions.length === 0) {
                 updatedContentStatus = (input.title && input.description && input.questions.length > 0)
                     ? Content_status.PUBLISHED
                     : Content_status.DRAFT;
@@ -1024,13 +1052,13 @@ module.exports.mutations = {
                 }
 
                 questionsChanged = true;
+            }
 
                 if (input.percentageCriteria > totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
                     input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
                 }
-            }
 
             const updateData = {
                 title: input.title,
@@ -1094,5 +1122,48 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+    pushLatestContent: async ({ id }, context) => {
 
+        const { subscriberId } = AuthUser(context);
+
+        if(!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const inputContent = await TrainingModuleContent.findOne({
+            _id: id,
+            subscriber: subscriberId
+        });
+
+        if (!inputContent) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const fetchCurrentContents = await TrainingContentBridge.find({})
+            .populate("trainingContent")
+            .lean();
+        
+        if (!fetchCurrentContents) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const bridgesToUpdate = fetchCurrentContents
+            .filter((content) => content.trainingContent && content.trainingContent.UID === inputContent.UID)
+            .map((content) => content._id);
+
+        let updateContent;
+        if (bridgesToUpdate.length > 0) {
+            updateContent = await TrainingContentBridge.updateMany(
+                { _id: { $in: bridgesToUpdate } },
+                { trainingContent: inputContent._id }
+            );
+        }
+
+        if (!updateContent) {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+        return {
+            status: 1,
+            message: "New content pushed to lessons successfully.",
+        }
+    }
 };
