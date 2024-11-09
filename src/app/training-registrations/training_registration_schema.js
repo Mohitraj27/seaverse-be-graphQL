@@ -51,29 +51,11 @@ module.exports = {
             scorm:Scorm
             users: [ID]
         }
-        type TrainingModuleResult {
-            _id: ID
-            title: [LocalisedData]
-            description: [LocalisedData]
-            displayPosition: Int
-            isActive: Boolean
-            trainingModuleContents: [TrainingModuleContent]
-        }
-        type TrainingResult {
-            _id: ID
-            title: [LocalisedData]
-            description: [LocalisedData]
-            durationHours: Int
-            coverImage: String
-            bannerImage: String
-            trainingModules: [TrainingModuleResult]
-            isActive: Boolean
-        }
         type OverallTrainingProgress {
             _id: ID
             subscriber: Subscriber
             learningPlan: LearningPlan
-            training: TrainingResult
+            training: Training
             user: User
             trainingRegistration: ID
             trainingModuleContentIds: [ID]
