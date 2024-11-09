@@ -60,8 +60,10 @@ module.exports = {
             modifiedDate: String
             isUpdated: Boolean
             isDeleted: Boolean
+            isPublished: Boolean
             createdBy: UserData
             updatedBy: UserData
+            featuredInCourses: Int
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!

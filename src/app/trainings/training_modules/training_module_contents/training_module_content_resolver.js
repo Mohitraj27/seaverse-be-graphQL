@@ -40,6 +40,17 @@ module.exports.queries = {
         }
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
+
+        const contentUsageCounts = await TrainingContentBridge.aggregate([
+            { $match: { isDeleted: false } },
+            { $group: { _id: "$trainingContent", featuredInCourses: { $sum: 1 } } }
+        ]);
+
+        const usageCountsById = contentUsageCounts.reduce((acc, item) => {
+            acc[item._id.toString()] = item.featuredInCourses;
+            return acc;
+        }, {});
+
         const contents = TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
@@ -92,6 +103,31 @@ module.exports.queries = {
                 },
                 {
                     $unwind: "$updatedBy",
+                },
+                {
+                    $lookup: {
+                        from: "trainingcontentbridges",
+                        localField: "_id",
+                        foreignField: "trainingContent",
+                        as: "courseUsage"
+                    }
+                },
+                {
+                    $addFields: {
+                        featuredInCourses: {
+                            $let: {
+                                vars: {
+                                    usage: { $literal: usageCountsById }
+                                },
+                                in: {
+                                    $ifNull: [
+                                        { $getField: { input: "$$usage", field: { $toString: "$_id" } } },
+                                        0
+                                    ]
+                                }
+                            }
+                        }
+                    }
                 }
             ]),
             {
@@ -657,7 +693,6 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
@@ -760,6 +795,8 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
         }
 
+        const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
+
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
@@ -817,6 +854,7 @@ module.exports.mutations = {
             duration: input.duration,
             displayPosition: input.displayPosition,
             isActive: input.isActive,
+            createdBy: existingContent.createdBy,
             updatedBy: userId,
             updatedAt: new Date(),
             videos: existingContent.videos,
@@ -826,7 +864,7 @@ module.exports.mutations = {
             scorm: existingContent.scorm,
             thumbnail: existingContent.thumbnail,
             version: existingContent.version ? existingContent.version : 1,
-            UID: existingContent.UID
+            UID: existingContent.UID,
         };
         let isUpdated = false;
         let isMediaUpdated = false;
@@ -853,9 +891,6 @@ module.exports.mutations = {
                 updateData.thumbnail = null;
                 isUpdated = true;
             } else if (thumbnail) {
-                if (existingContent?.thumbnail) {
-                    validateMatchingFileExtension(existingContent.thumbnail, thumbnailFile);
-                }
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
@@ -868,9 +903,6 @@ module.exports.mutations = {
             }
 
             if (video) {
-                if (existingContent.videos?.[0]?.url) {
-                    validateMatchingFileExtension(existingContent.videos[0].url, videoFile);
-                }
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content-${existingContent._id}`,
@@ -887,9 +919,6 @@ module.exports.mutations = {
             }
 
             if (audio) {
-                if (existingContent.audios?.[0]?.url) {
-                    validateMatchingFileExtension(existingContent.audios[0].url, audioFile);
-                }
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
                     folderName: `audio-content-${existingContent._id}`,
@@ -906,9 +935,6 @@ module.exports.mutations = {
             }
 
             if (image) {
-                if (existingContent.images?.[0]?.url) {
-                    validateMatchingFileExtension(existingContent.images[0].url, imageFile);
-                }
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
                     folderName: `image-content-${existingContent._id}`,
@@ -925,9 +951,6 @@ module.exports.mutations = {
             }
 
             if (file) {
-                if (existingContent.files?.[0]?.url) {
-                    validateMatchingFileExtension(existingContent.files[0].url, fileFile);
-                }
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
                     folderName: `file-content-${existingContent._id}`,
@@ -961,6 +984,7 @@ module.exports.mutations = {
             if (isMediaUpdated) {
                 updateData.version = updateData.version + 1;
                 updateData.modifiedDate = new Date();
+                updateData.isPublished = usedInCourses.length > 0 ? true : false;
 
                 const savedContentData = new TrainingModuleContent({
                     ...updateData,
@@ -1004,6 +1028,8 @@ module.exports.mutations = {
             if (!existingContent) {
                 throw CustomError(ErrorName.CONTENT_NOT_FOUND);
             }
+
+            const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
             let updatedContentStatus
             if (!input.contentStatus || input.questions.length === 0) {
@@ -1068,6 +1094,7 @@ module.exports.mutations = {
                 contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
+                createdBy: existingContent.createdBy,
                 updatedBy: userId,
                 updatedAt: new Date(),
                 modifiedDate: new Date(),
@@ -1076,6 +1103,7 @@ module.exports.mutations = {
             if (questionsChanged) {
                 updateData.version = existingContent.version + 1;
                 updateData.isUpdated = false;
+                updateData.isPublished = usedInCourses.length > 0 ? true : false;
 
                 const newContent = new TrainingModuleContent({
                     ...existingContent.toObject(),
@@ -1118,7 +1146,6 @@ module.exports.mutations = {
                 };
             }
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
