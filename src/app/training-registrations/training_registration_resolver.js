@@ -220,14 +220,6 @@ module.exports.queries = {
                     },
                 },
                 {
-                    $lookup: {
-                        from: "trainingmodules",
-                        localField: "trainingRegistration",
-                        foreignField: "_id",
-                        as: "trainingRegistration",
-                    },
-                }
-                {
                     $match: filterConditions,
                 },
                 {
