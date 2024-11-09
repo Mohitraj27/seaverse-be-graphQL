@@ -161,7 +161,7 @@ module.exports = {
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
-            audienceSelection: AudienceSelectionEnum
+            audienceSelection: [String!]
             lastModified: lastModifiedEnum
         }
         input LearningPlanInput {

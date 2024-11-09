@@ -30,6 +30,11 @@ module.exports = {
             firstName: String
             lastName: String
         }
+        type UserData {
+            _id: ID
+            firstName: String
+            lastName: String
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
