@@ -1,0 +1,10 @@
+{
+    "AUDIO": "AUDIO",
+    "VIDEO": "VIDEO",
+    "TEXT": "TEXT",
+    "QUIZ": "QUIZ",
+    "PPT": "PPT",
+    "PDF": "PDF",
+    "IMAGE":"IMAGE",
+    "SCORM": "SCORM"
+}

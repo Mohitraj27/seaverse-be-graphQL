@@ -31,442 +31,74 @@ const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
+const { create } = require("lodash");
+const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 module.exports.queries = {
-    getTrainingRegistrations: async ({ pageInput, filterInput }, context) => {
-        const {
-            role,
-            userPermissions,
-            subscriberId,
-            employeeId,
-            isOrganizationManager,
-            managingOrganization,
-        } = AuthUser(context);
+    getTrainingRegistrations: async ({ input }, context) => {
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+        const { subscriberId } = AuthUser(context);
+        if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
-        let filterConditions = { subscriber: subscriberId };
+        let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
 
-        if (filterInput) {
-            if (filterInput.dateFrom || filterInput.dateTo) {
-                filterConditions.startDate = {};
-
-                if (filterInput.dateFrom)
-                    filterConditions.startDate.$gte = Moment(filterInput.dateFrom)
-                        .startOf("day")
-                        .toDate();
-
-                if (filterInput.dateTo)
-                    filterConditions.startDate.$lte = Moment(filterInput.dateTo)
-                        .endOf("day")
-                        .toDate();
-            }
-
-            if (filterInput.batch) filterConditions.batch = filterInput.batch;
-            if (filterInput.trainer) filterConditions.trainer = filterInput.trainer;
-            if (filterInput.employee) filterConditions.employee = filterInput.employee;
-            if (filterInput.training) filterConditions.training = filterInput.training;
-            if (filterInput.organization) filterConditions.organization = filterInput.organization;
-            if (filterInput.status) filterConditions.status = filterInput.status;
-        }
-
-        const fetchResult = async (pipeline, populations) => {
-            if ((!filterInput || !Object.keys(filterInput).length) && populations) {
-                return {
-                    trainingRegistrations: await TrainingRegistration.find(filterConditions)
-                        .lean()
-                        .sort({ createdAt: "descending" })
-                        .skip(skip)
-                        .limit(limit)
-                        .populate(populations),
-                    totalCount: await TrainingRegistration.countDocuments(filterConditions),
-                };
-            }
-
-            return TrainingRegistration.aggregatePaginate(
-                TrainingRegistration.aggregate(pipeline),
-                {
-                    offset: skip,
-                    limit,
-                    sort: { createdAt: "descending" },
-                    customLabels: {
-                        docs: "trainingRegistrations",
-                        totalDocs: "totalCount",
-                        offset: "skip",
-                    },
-                    pagination: limit !== 0,
-                    allowDiskUse: true,
+        const results = await OverallTrainingProgress.aggregate([
+            {
+                $match: filterConditions
+            },
+            {
+                $lookup: {
+                    from: 'learningplans',
+                    localField: 'learningPlan',
+                    foreignField: '_id',
+                    as: 'learningPlanInfo'
                 }
-            );
-        };
-
-        if (context.platform === Role.EMPLOYEE && role === Role.EMPLOYEE) {
-            filterConditions.employee = employeeId;
-
-            const populations = [
-                {
-                    path: "training",
-                    select: "title description images isActive trainingModules",
-                    populate: {
-                        path: "trainingModules",
-                        select: "trainingModuleContents",
-                        populate: { path: "trainingModuleContents", select: "title" },
+            },
+            {
+                $unwind: {
+                    path: '$learningPlanInfo',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'userInfo'
+                }
+            },
+            {
+                $unwind: '$userInfo'
+            },
+            {
+                $group: {
+                    _id: {
+                        learningPlanId: "$learningPlan",
+                        learningPlanName: { $ifNull: ["$learningPlanInfo.title", "NIL"] }
                     },
-                },
-                { path: "trainingProgresses", select: "trainingModuleContent status" },
-            ];
-
-            const pipeline = [
-                {
-                    $match: filterConditions,
-                },
-                {
-                    $lookup: {
-                        from: "trainings",
-                        localField: "training",
-                        foreignField: "_id",
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: "trainingmodules",
-                                    localField: "_id",
-                                    foreignField: "training",
-                                    pipeline: [
-                                        {
-                                            $lookup: {
-                                                from: "trainingmodulecontents",
-                                                localField: "_id",
-                                                foreignField: "trainingModule",
-                                                pipeline: [
-                                                    {
-                                                        $project: {
-                                                            title: true,
-                                                        },
-                                                    },
-                                                ],
-                                                as: "trainingModuleContents",
-                                            },
-                                        },
-                                        {
-                                            $project: {
-                                                trainingModuleContents: true,
-                                            },
-                                        },
-                                    ],
-                                    as: "trainingModules",
-                                },
-                            },
-                            {
-                                $project: {
-                                    title: true,
-                                    description: true,
-                                    images: true,
-                                    isActive: true,
-                                    trainingModules: true,
-                                },
-                            },
-                        ],
-                        as: "training",
-                    },
-                },
-                {
-                    $set: {
-                        training: {
-                            $first: "$training",
-                        },
-                    },
-                },
-                ...(filterInput?.search
-                    ? [
-                        {
-                            $match: {
-                                $or: [
-                                    {
-                                        "training.title.value": {
-                                            $regex: ".*" + filterInput.search + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                ],
-                            },
-                        },
-                    ]
-                    : []),
-                {
-                    $lookup: {
-                        from: "trainingprogresses",
-                        localField: "_id",
-                        foreignField: "trainingRegistration",
-                        pipeline: [
-                            {
-                                $project: {
-                                    trainingModuleContent: true,
-                                    status: true,
-                                },
-                            },
-                        ],
-                        as: "trainingProgresses",
-                    },
-                },
-            ];
-
-            return await fetchResult(pipeline, populations);
-        } else if (context.platform === Role.ADMIN) {
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: [
-                        Permission.GET_TRAINING_REGISTRATIONS,
-                        Permission.GET_REGISTRATION_REPORTS,
-                    ],
-                    requiredAll: false,
-                })
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
+                    users: {
+                        $push: {
+                            firstName: "$userInfo.firstName",
+                            lastName: "$userInfo.lastName",
+                            status: "$status"
+                        }
+                    }
+                }
+            },
+            {
+                $sort: { '_id.learningPlanName': 1 }
             }
+        ]);
 
-            if (isOrganizationManager) {
-                filterConditions.organization = managingOrganization;
-            }
-            const populations = [
-                {
-                    path: "training",
-                    select: "title images trainingCategories",
-                },
-                { path: "invoice" },
-                {
-                    path: "trainer",
-                    select: "user",
-                    populate: { path: "user", select: "firstName lastName avatar" },
-                },
-                { path: "employee", select: "user", populate: "user" },
-                { path: "organization", select: "name" },
-                { path: "trainingCertificate" },
-            ];
+        const formattedResults = results.map(group => ({
+            learningPlanName: group._id.learningPlanName,
+            users: group.users
+        }));
 
-            const pipeline = [
-                {
-                    $match: filterConditions,
-                },
-                {
-                    $lookup: {
-                        from: "trainings",
-                        localField: "training",
-                        foreignField: "_id",
-                        pipeline: [
-                            {
-                                $project: {
-                                    title: true,
-                                    images: true,
-                                    trainingCategories: true,
-                                },
-                            },
-                        ],
-                        as: "training",
-                    },
-                },
-                {
-                    $set: {
-                        training: {
-                            $first: "$training",
-                        },
-                    },
-                },
-                ...(filterInput?.trainingCategory
-                    ? [
-                        {
-                            $match: {
-                                "training.trainingCategories": filterInput.trainingCategory,
-                            },
-                        },
-                    ]
-                    : []),
-                {
-                    $lookup: {
-                        from: "trainingregistrationinvoices",
-                        localField: "invoice",
-                        foreignField: "_id",
-                        as: "invoice",
-                    },
-                },
-                {
-                    $set: {
-                        invoice: {
-                            $first: "$invoice",
-                        },
-                    },
-                },
-                ...(filterInput?.invoiceStatus
-                    ? [
-                        {
-                            $match: {
-                                "invoice.status": filterInput.invoiceStatus,
-                            },
-                        },
-                    ]
-                    : []),
-                {
-                    $lookup: {
-                        from: "employees",
-                        localField: "trainer",
-                        foreignField: "_id",
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: "users",
-                                    localField: "user",
-                                    foreignField: "_id",
-                                    pipeline: [
-                                        {
-                                            $project: {
-                                                firstName: true,
-                                                lastName: true,
-                                                avatar: true,
-                                            },
-                                        },
-                                    ],
-                                    as: "user",
-                                },
-                            },
-                            {
-                                $project: {
-                                    user: true,
-                                },
-                            },
-                            {
-                                $set: {
-                                    user: {
-                                        $first: "$user",
-                                    },
-                                },
-                            },
-                        ],
-                        as: "trainer",
-                    },
-                },
-                {
-                    $set: {
-                        trainer: {
-                            $first: "$trainer",
-                        },
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "employees",
-                        localField: "employee",
-                        foreignField: "_id",
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: "users",
-                                    localField: "user",
-                                    foreignField: "_id",
-                                    as: "user",
-                                },
-                            },
-                            {
-                                $project: {
-                                    user: true,
-                                },
-                            },
-                            {
-                                $set: {
-                                    user: {
-                                        $first: "$user",
-                                    },
-                                },
-                            },
-                        ],
-                        as: "employee",
-                    },
-                },
-                {
-                    $set: {
-                        employee: {
-                            $first: "$employee",
-                        },
-                    },
-                },
-                ...(filterInput?.search
-                    ? [
-                        {
-                            $match: {
-                                $or: [
-                                    {
-                                        "employee.user.firstName": {
-                                            $regex: ".*" + filterInput.search + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "employee.user.lastName": {
-                                            $regex: ".*" + filterInput.search + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "employee.user.civilIdOrPassport": {
-                                            $regex: ".*" + filterInput.search + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "training.title.value": {
-                                            $regex: ".*" + filterInput.search + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                ],
-                            },
-                        },
-                    ]
-                    : []),
-                {
-                    $lookup: {
-                        from: "organizations",
-                        localField: "organization",
-                        foreignField: "_id",
-                        pipeline: [
-                            {
-                                $project: {
-                                    name: true,
-                                },
-                            },
-                        ],
-                        as: "organization",
-                    },
-                },
-                {
-                    $set: {
-                        organization: {
-                            $first: "$organization",
-                        },
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "trainingcertificates",
-                        localField: "_id",
-                        foreignField: "trainingRegistration",
-                        as: "trainingCertificate",
-                    },
-                },
-                {
-                    $set: {
-                        trainingCertificate: {
-                            $first: "$trainingCertificate",
-                        },
-                    },
-                },
-            ];
+        if (!formattedResults) throw CustomError(ErrorName.FAILED);
 
-            return await fetchResult(pipeline, populations);
-        }
-
-        throw CustomError(ErrorName.FORBIDDEN);
+        return formattedResults;
     },
     getTrainingRegistration: async ({ id }, context) => {
         const { role, subscriberId, employeeId } = AuthUser(context);
@@ -555,290 +187,60 @@ module.exports.queries = {
             }
         );
     },
+    myCourses: async ({ filterInput = {} }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        try {
+            let filterConditions = {
+                user: ObjectId(userId),
+            }
+
+            if (filterInput?.search) {
+                filterConditions = {
+                    ...filterConditions,
+                    $or: [
+                        { "training.title.value": { $regex: filterInput.search, $options: "i" } },
+                    ],
+                };
+            }
+
+            if (filterInput?.status) {
+                filterConditions = {
+                    ...filterConditions,
+                    status: filterInput.status,
+                };
+            }
+
+            const courses = await OverallTrainingProgress.aggregate([
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                {
+                    $match: filterConditions,
+                },
+                {
+                    $unwind: "$training",
+                },
+            ]);
+
+            return {
+                status: true,
+                message: "My Courses fetched successfully",
+                courses: courses,
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
 };
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
-
-        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
-            AuthUser(context);
-
-        if (
-            !SubRoleHelper.hasPermission({
-                currentRole: role,
-                currentPermissions: userPermissions,
-                requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
-                requiredAll: false,
-                restrictOrganizationManager: isOrganizationManager,
-            })
-        ) {
-            throw CustomError(ErrorName.FORBIDDEN);
-        }
-
-        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
-        try {
-
-            if (!input.groups && !input.users) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
-            }
-
-            let existingTrainings = [];
-            if (input.trainings && input.trainings.length > 0) {
-                existingTrainings = await TrainingRegistration.find({ training: { $in: input.trainings } });
-            }
-
-            if (input.type === "ENROLL") {
-
-                let autoSyncUsers, customGroups;
-                let customGroupUsers = [];
-                let allUsersFetched = [];
-
-                if (input.groups) {
-
-                    autoSyncUsers = await TrainingRegistrationHelper.getAutoSyncUsers(input.groups);
-
-                    customGroups = input.groups.filter(group => group.groupType === 'custom');
-
-                    if (customGroups && customGroups.length > 0) {
-                        customGroupUsers = await TrainingRegistrationHelper.getCustomGroupUsers(customGroups);
-                    }
-
-                    allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
-
-                }
-
-                const userIds = [];
-                const emails = [];
-
-                for (const user of input.users) {
-                    if (ObjectId.isValid(user)) {
-                        userIds.push(user);
-                    } else {
-                        emails.push(user);
-                    }
-                }
-
-                const criteria = [];
-                if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                if (emails.length) criteria.push({ email: { $in: emails } });
-
-                const inputUsers = await User.find({ $or: criteria });
-
-                allUsersFetched = [...allUsersFetched, ...inputUsers];
-
-                const users = Array.from(
-                    new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
-                );
-
-                if (input.learningPlan) {
-
-                    if (users.length > 0) {
-    
-                        const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTrainings);
-    
-                        if (verifiedUsers.unRegEmails.length > 0) {
-                            throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
-                        }
-    
-                        if (verifiedUsers.invalidEmails.length > 0) {
-                            throw CustomError(ErrorName.INVALID_EMAIL);
-                        }
-    
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
-                            throw CustomError(ErrorName.ALREADY_EXIST);
-                        }
-    
-                    }
-
-                }
-                
-                let userObjectIds = [];
-                if (users.length > 0) {
-                    userObjectIds = users.map(user => user._id);
-                }
-
-                const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
-                    async session => {
-
-                        const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
-
-                        const existingTrainingCourses = await TrainingRegistration.find({ training: { $in: input.trainings } }).session(session);
-
-                        const existingTrainingIds = existingTrainingCourses.map(t => t.training.toString());
-                        const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
-
-
-                        const updateFields = { subscriber: subscriberId };
-                        if (userObjectIds && userObjectIds.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, users: { $each: userObjectIds } };
-                        }
-                        if (input.groups && input.groups.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, groups: { $each: input.groups } };
-                        }
-
-                        let savedTrainingRegistration;
-
-                        if (existingTrainingIds.length > 0) {
-                            savedTrainingRegistration = await TrainingRegistration.updateMany(
-                                { training: { $in: existingTrainingIds } },
-                                updateFields,
-                                { session }
-                            );
-                        }
-
-                        const newRegistrations = newTrainingIds.map(trainingId => ({
-                            ...updateFields,
-                            training: trainingId,
-                            users: userObjectIds || [],
-                            groups: input.groups || []
-                        }));
-
-                        if (newRegistrations.length > 0) {
-                            savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
-                        }
-
-                        let trainingProgressData;
-                        if (savedTrainingRegistration) {
-                            trainingProgressData = await TrainingRegistrationHelper.createTrainingProgressHelper(users, input.trainings, input.trainingPlan);
-                        }
-
-                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-                        if (!trainingProgressData) throw CustomError(ErrorName.FAILED);
-
-                        users.forEach(user => {
-                            sendEmail({
-                                receiverEmail: user.email,
-                                subject: "Course Enrollment",
-                                htmlContent:
-                                    `<div div style="width: 600px; margin: 0 auto; text-align: center" >
-                                        <p>Hello ${user.firstName}</p>
-                                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">You are assigned to a new course</div>
-                                    </div > `
-                            })
-                        })
-
-                        return savedTrainingRegistration;
-                    }
-                );
-
-                EmployeeHelper.sendEnrollmentNotification([
-                    {
-                        subscriber: subscriberId,
-                        trainingRegistration: savedTrainingRegistration,
-                        createdBy: userInfo,
-                    },
-                ]);
-
-                LogHelper.logActivity({
-                    subscriber: subscriberId,
-                    logType: LogType.TRAINING_REGISTRATION_LOG,
-                    operation: "CREATE",
-                    ipInfo: context.ipInfo,
-                    affected: [
-                        {
-                            targetRef: "TrainingRegistration",
-                            target: savedTrainingRegistration._id,
-                        },
-                    ],
-                    additionalInfo: [
-                        {
-                            infoType: "TRAINING_REGISTRATION_INFO",
-                            infoData: JSON.stringify(input),
-                        },
-                    ],
-                    createdBy: userInfo,
-                });
-
-                return {
-                    message: "Course enrollment successful!",
-                };
-
-            }
-
-            if (input.type === "UNENROLL") {
-
-                if (!input.users) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
-                }
-
-                const userIds = [];
-                const emails = [];
-
-                for (const user of input.users) {
-                    if (ObjectId.isValid(user)) {
-                        userIds.push(user);
-                    } else {
-                        emails.push(user);
-                    }
-                }
-
-                const criteria = [];
-                if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                if (emails.length) criteria.push({ email: { $in: emails } });
-
-                const inputUsers = await User.find({ $or: criteria });
-
-                let userObjectIds = [];
-                if (inputUsers.length > 0) {
-                    userObjectIds = inputUsers.map(user => user._id);
-
-                    const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(inputUsers, existingTrainings);
-
-                    if (verifiedUsers.unRegEmails.length > 0) {
-                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
-                    }
-
-                    if (verifiedUsers.invalidEmails.length > 0) {
-                        throw CustomError(ErrorName.INVALID_EMAIL);
-                    }
-
-                    if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
-                        throw CustomError(ErrorName.EMPLOYEE_NOT_ENROLLED, "Selected employee is not enrolled before!");
-                    }
-                }
-
-                const unenrollTrainingRegistration = await DbTransactionHelper.performDbTransaction(
-                    async session => {
-
-                        if (!existingTrainings) {
-                            throw CustomError(ErrorName.NOT_FOUND, "Pass the training ID");
-                        }
-
-                        const userObjectIdStrings = userObjectIds.map(id => id.toString());
-                        const updatedUsersInTraining = existingTrainings[0].users.filter(
-                            userId => !userObjectIdStrings.includes(userId.toString())
-                        );
-
-                        existingTrainings[0].users = updatedUsersInTraining;
-                        const updateTrainingRegistration = await existingTrainings[0].save({ session });
-
-                        if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
-                        const operations = userObjectIds.map(userId => ({
-                            updateOne: {
-                                filter: { user: userId, training: input.training },
-                                update: { $set: { enroledStatus: false } },
-                                upsert: true
-                            }
-                        }));
-
-                        const unenrollUsers = await TrainingProgress.bulkWrite(operations, { session });
-
-                        return updateTrainingRegistration;
-                    }
-                );
-
-                return {
-                    message: "Course unenrollment successful!",
-                }
-
-            }
-
-        } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
-        }
-
+        return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
     verifyRegistrationEmails: async ({ input }, context) => {
 

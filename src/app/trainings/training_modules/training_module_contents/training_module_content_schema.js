@@ -25,6 +25,11 @@ module.exports = {
             question: ID
             choice: [LocalisedData]
         }
+        type UserData {
+            _id: ID
+            firstName: String
+            lastName: String
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
@@ -55,6 +60,8 @@ module.exports = {
             modifiedDate: String
             isUpdated: Boolean
             isDeleted: Boolean
+            createdBy: UserData
+            updatedBy: UserData
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
@@ -144,10 +151,15 @@ module.exports = {
             lang: Language!
             value: String!
         }
+        type featuredInCourses {
+            courseCount: Int
+            courseNames: [String]
+        }
     `,
     queries: `
         getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
+        getFeaturedInCourses(id: ID!): featuredInCourses
     `,
     mutations: `
         uploadTrainingModuleContentSorm(input: TrainingModuleContentInput!,scorm: Upload!, thumbnail: Upload): TrainingModuleContent!
@@ -161,5 +173,6 @@ module.exports = {
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
+        pushLatestContent(id: ID!): creationRes!
          `,
 };

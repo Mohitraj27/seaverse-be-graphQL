@@ -1,5 +1,5 @@
 const { ObjectId, Validator } = require("../../tools");
-const { AuthUser, Role, CustomError, ErrorName, SendEmail } = require("../../util");
+const { AuthUser, Role, CustomError, ErrorName, SendEmail, DbTransactionHelper } = require("../../util");
 
 const { TrainingRegistration } = require("./training_registration_model");
 const { Employee } = require("../user/employee/employee_model");
@@ -16,6 +16,16 @@ const { Vessel } = require("../vessle/vessel_model");
 const { GroupMember } = require("../user/group-user/group_member_model");
 const { Group } = require("../user/group-user/group_model");
 const { TrainingProgress } = require("./training-progress/training_progress_model");
+
+const TrainingRegistrationHelper = require("../training-registrations/training_registration_helper");
+const EmployeeHelper = require("./../user/employee/employee_helper");
+const LogHelper = require("../logs/log_helper");
+const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
+const { BatchHelper } = require("../batches/batch_helper");
+const { sendEmail } = require("../../util/aws_helper");
+const Permission = require("../user/sub-roles/permission.json");
+const LogType = require("../logs/log_type.json");
+const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 
 const fetchUserFromAutoSyncedGroups = (async (groups) => {
@@ -47,6 +57,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
                 case groupTypes.regStatus:
                     regStatusIds.push(groupId);
                     break;
+                case groupTypes.unregStatus:
+                    regStatusIds.push(groupId);
+                    break;
                 case groupTypes.vessel:
                     vesselIds.push(groupId);
                     break;
@@ -61,11 +74,16 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             }
         }
 
-        const designationQuery = designationIds.length ? User.find({ designation: { $in: designationIds } }) : Promise.resolve([]);
+        const designationQuery = designationIds.length ? Employee.find({ empDesignation: { $in: designationIds } }) : Promise.resolve([]);
         const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
-        const vesselQuery = vesselIds.length ? User.find({ vessel: { $in: vesselIds } }) : Promise.resolve([]);
+
+        const vesselQuery = vesselIds.length ? UserVessel.find({ vessel: { $in: vesselIds }, isActive: true })
+            .select({ user: 1 })
+            .lean()
+            .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
+
         const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds } })
             .select({ user: 1 })
             .lean()
@@ -122,15 +140,445 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             ...vesselTypeUsers
         ];
 
-
-
     } catch (error) {
         console.log(error);
     }
 
 })
 
+const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
+
+    let remainingUsers = [];
+    let invalidEmails = [];
+    let unRegEmails = [];
+    let alreadyEnrolledEmails = [];
+    let notEnrolledEmails = [];
+
+    for (let user of inputUsers) {
+
+        if (!Validator.isEmail(user.email)) {
+            invalidEmails.push(user.email)
+        } else if (!user.isRegistered) {
+            unRegEmails.push(user.email)
+        } else {
+            remainingUsers.push(user);
+        }
+
+    }
+
+    const userObjectIds = remainingUsers.map(user => user._id);
+    const userObjectIdStrings = userObjectIds.map(id => id.toString());
+
+    let alreadyEnrolledUserIds = [];
+    let notEnrolledUserIds = [];
+
+    existingTrainings.forEach(training => {
+        alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
+        notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
+    });
+
+    alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+    notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+    if (alreadyEnrolledUserIds.length > 0) {
+        const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+        alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
+    }
+
+    if (notEnrolledUserIds.length > 0) {
+        const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+        notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+    }
+
+    return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
+
+});
+const createTrainingProgressHelper = async (users, trainings, subscriberId, registrationId, learningPlanId) => {
+    let trainingProgressData;
+
+    const existingProgressRecords = await OverallTrainingProgress.find({
+        training: { $in: trainings.map(training => training._id) },
+        user: { $in: users.map(user => user._id) }
+    });
+
+    const existingProgressSet = new Set(
+        existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
+    );
+
+    const newProgressEntries = trainings.flatMap(training =>
+        users.map(user => {
+            const progressKey = `${training._id.toString()}-${user._id.toString()}`;
+
+            if (existingProgressSet.has(progressKey)) {
+                return null;
+            }
+
+            return {
+                learningPlan: learningPlanId ? learningPlanId : null,
+                training: training._id,
+                user: user._id,
+                trainingRegistration: registrationId,
+                subscriberId: subscriberId.toString(),
+                status: 'NOT_STARTED',
+                isEnrolled: true,
+                progressPercentage: 0.0,
+                completedModules: 0
+            };
+        })
+    ).filter(entry => entry !== null);
+
+    if (newProgressEntries.length > 0) {
+        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+    }
+
+    return trainingProgressData;
+}
+
+
+const getAutoSyncUsers = (async (groups) => {
+
+    if (groups.length <= 0) {
+        return [];
+    }
+
+    const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groups);
+    if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+        return autoSyncedUsers;
+    } else {
+        return [];
+    }
+});
+
+const getCustomGroupUsers = (async (groups) => {
+
+    if (groups.length <= 0) {
+        return [];
+    }
+
+    const users = [];
+    const groupIds = groups.map(group => group.groupId);
+
+    const getGroups = await GroupMember.find({ group: { $in: groupIds } });
+
+    if (getGroups.length > 0) {
+
+        users.push(...getGroups.map(group => group.member).filter(member => member != null));
+
+        const groupOfGroups = getGroups.filter(group => group.groupType != null && group.groupData != null);
+
+        if (groupOfGroups && groupOfGroups.length > 0) {
+
+            const formattedGroups = groupOfGroups.map(group => ({
+                groupType: group.groupType,
+                groupId: group.groupData
+            }));
+
+            const membersInGroupGroups = await fetchUserFromAutoSyncedGroups(formattedGroups);
+
+            users.push(...membersInGroupGroups);
+            return [...users];
+        } else {
+            return [];
+        }
+    }
+
+});
+
 module.exports = {
+    enrolUserVerificationHelper,
+    createTrainingProgressHelper,
+    getAutoSyncUsers,
+    getCustomGroupUsers,
+    createTrainingRegistration: async (input, context) => {
+
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        try {
+
+            if (!input.groups && !input.users) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+            }
+
+            let existingTrainings = [];
+            if (input.trainings && input.trainings.length > 0) {
+                existingTrainings = await TrainingRegistration.find({ training: { $in: input.trainings } });
+            }
+
+            if (input.type === "ENROLL") {
+
+                let autoSyncUsers, customGroups;
+                let customGroupUsers = [];
+                let allUsersFetched = [];
+
+                if (input.groups) {
+
+                    autoSyncUsers = await getAutoSyncUsers(input.groups);
+
+                    customGroups = input.groups.filter(group => group.groupType === 'custom');
+
+                    if (customGroups && customGroups.length > 0) {
+                        customGroupUsers = await getCustomGroupUsers(customGroups);
+                    }
+
+                    allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
+
+                }
+
+                const userIds = [];
+                const emails = [];
+
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
+                }
+
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
+
+                const inputUsers = await User.find({ $or: criteria });
+
+                allUsersFetched = [...allUsersFetched, ...inputUsers];
+
+                const users = Array.from(
+                    new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
+                );
+
+                if (input.learningPlan) {
+
+                    if (users.length > 0) {
+
+                        const verifiedUsers = await enrolUserVerificationHelper(users, existingTrainings);
+
+                        if (verifiedUsers.unRegEmails.length > 0) {
+                            throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                        }
+
+                        if (verifiedUsers.invalidEmails.length > 0) {
+                            throw CustomError(ErrorName.INVALID_EMAIL);
+                        }
+
+                        if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                            throw CustomError(ErrorName.ALREADY_EXIST);
+                        }
+
+                    }
+
+                }
+
+                let userObjectIds = [];
+                if (users.length > 0) {
+                    userObjectIds = users.map(user => user._id);
+                }
+
+                const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
+                    async session => {
+
+                        const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
+
+                        const existingTrainingCourses = await TrainingRegistration.find({ training: { $in: input.trainings } }).session(session);
+
+                        const existingTrainingIds = existingTrainingCourses.map(t => t.training.toString());
+
+                        const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
+
+                        const updateFields = { subscriber: subscriberId };
+                        if (userObjectIds && userObjectIds.length > 0) {
+                            updateFields.$addToSet = { ...updateFields.$addToSet, users: { $each: userObjectIds } };
+                        }
+                        if (input.groups && input.groups.length > 0) {
+                            updateFields.$addToSet = { ...updateFields.$addToSet, groups: { $each: input.groups } };
+                        }
+
+                        let savedTrainingRegistration;
+
+                        if (existingTrainingIds.length > 0) {
+                            savedTrainingRegistration = await TrainingRegistration.updateMany(
+                                { training: { $in: existingTrainingIds } },
+                                updateFields,
+                                { session }
+                            );
+                        }
+
+                        const newRegistrations = newTrainingIds.map(trainingId => ({
+                            ...updateFields,
+                            training: trainingId,
+                            users: userObjectIds || [],
+                            groups: input.groups || []
+                        }));
+
+                        if (newRegistrations.length > 0) {
+                            savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
+                        }
+                        const latestRegistrationId = await TrainingRegistration.find(
+                            { training: { $in: existingTrainingIds } },
+                            { _id: 1 }
+                        );
+                        if (latestRegistrationId.length) {
+                            registrationId = latestRegistrationId[0].id;
+
+                            let trainingProgressData;
+                            if (savedTrainingRegistration) {
+                                learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, registrationId, learningPlanId);
+                            }
+                        }
+
+
+                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+                        users.forEach(user => {
+                            sendEmail({
+                                receiverEmail: user.email,
+                                subject: "Course Enrollment",
+                                htmlContent:
+                                    `<div div style="width: 600px; margin: 0 auto; text-align: center" >
+                                        <p>Hello ${user.firstName}</p>
+                                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">You are assigned to a new course</div>
+                                    </div > `
+                            })
+                        })
+
+                        return savedTrainingRegistration;
+                    }
+                );
+
+                EmployeeHelper.sendEnrollmentNotification([
+                    {
+                        subscriber: subscriberId,
+                        trainingRegistration: savedTrainingRegistration,
+                        createdBy: userInfo,
+                    },
+                ]);
+
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.TRAINING_REGISTRATION_LOG,
+                    operation: "CREATE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "TrainingRegistration",
+                            target: savedTrainingRegistration._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "TRAINING_REGISTRATION_INFO",
+                            infoData: JSON.stringify(input),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
+
+                return {
+                    message: "Course enrollment successful!",
+                };
+
+            }
+
+            if (input.type === "UNENROLL") {
+
+                if (!input.users) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+                }
+
+                const userIds = [];
+                const emails = [];
+
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
+                }
+
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
+
+                const inputUsers = await User.find({ $or: criteria });
+
+                let userObjectIds = [];
+                if (inputUsers.length > 0) {
+                    userObjectIds = inputUsers.map(user => user._id);
+
+                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingTrainings);
+
+                    if (verifiedUsers.unRegEmails.length > 0) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                    }
+
+                    if (verifiedUsers.invalidEmails.length > 0) {
+                        throw CustomError(ErrorName.INVALID_EMAIL);
+                    }
+
+                    if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_ENROLLED, "Selected employee is not enrolled before!");
+                    }
+                }
+
+                const unenrollTrainingRegistration = await DbTransactionHelper.performDbTransaction(
+                    async session => {
+
+                        if (!existingTrainings) {
+                            throw CustomError(ErrorName.NOT_FOUND, "Pass the training ID");
+                        }
+
+                        const userObjectIdStrings = userObjectIds.map(id => id.toString());
+                        const updatedUsersInTraining = existingTrainings[0].users.filter(
+                            userId => !userObjectIdStrings.includes(userId.toString())
+                        );
+
+                        existingTrainings[0].users = updatedUsersInTraining;
+                        const updateTrainingRegistration = await existingTrainings[0].save({ session });
+
+                        if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+                        const operations = userObjectIds.map(userId => ({
+                            updateOne: {
+                                filter: { user: userId, training: input.training },
+                                update: { $set: { enroledStatus: false } },
+                                upsert: true
+                            }
+                        }));
+
+                        const unenrollUsers = await TrainingProgress.bulkWrite(operations, { session });
+
+                        return updateTrainingRegistration;
+                    }
+                );
+
+                return {
+                    message: "Course unenrollment successful!",
+                }
+
+            }
+
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+
+    },
     sendNotificationOnCRUD: async notificationData => {
         try {
             const employeeName = notificationData.trainingRegistration.employee?.user?.firstName;
@@ -188,130 +636,5 @@ module.exports = {
                 e?.message
             );
         }
-    },
-    enrolUserVerificationHelper: async (inputUsers, existingTrainings) => {
-
-        let remainingUsers = [];
-        let invalidEmails = [];
-        let unRegEmails = [];
-        let alreadyEnrolledEmails = [];
-        let notEnrolledEmails = [];
-
-        for (let user of inputUsers) {
-
-            if (!Validator.isEmail(user.email)) {
-                invalidEmails.push(user.email)
-            } else if (!user.isRegistered) {
-                unRegEmails.push(user.email)
-            } else {
-                remainingUsers.push(user);
-            }
-
-        }
-
-        const userObjectIds = remainingUsers.map(user => user._id);
-        const userObjectIdStrings = userObjectIds.map(id => id.toString());
-
-        let alreadyEnrolledUserIds = [];
-        let notEnrolledUserIds = [];
-
-        existingTrainings.forEach(training => {
-            alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
-            notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
-        });
-
-        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
-        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
-
-        if (alreadyEnrolledUserIds.length > 0) {
-            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
-            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
-        }
-
-        if (notEnrolledUserIds.length > 0) {
-            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
-            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
-        }
-
-        return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
-
-    },
-    createTrainingProgressHelper: async (users, trainings) => {
-
-        
-        let trainingProgressData;
-        const existingProgressRecords = await TrainingProgress.find({
-            training: { $in: trainings },
-            user: { $in: users.map(user => user._id) }
-        });
-        
-        const existingProgressSet = new Set(
-            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
-        );
-        
-        const newProgressEntries = trainings.flatMap(trainingId =>
-            users.map(user => ({
-                training: trainingId,
-                user: user._id,
-                status: 'notStarted',
-                enroledStatus: true
-            }))
-        ).filter(entry =>
-            !existingProgressSet.has(`${entry.training}-${entry.user}`)
-        );
-        
-        if (newProgressEntries.length > 0) {
-            trainingProgressData = await TrainingProgress.insertMany(newProgressEntries);
-        }
-
-        return trainingProgressData;
-
-    },
-    getAutoSyncUsers: async (groups) => {
-
-        if (groups.length <= 0) {
-            return [];
-        }
-
-        const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groups);
-        if (autoSyncedUsers && autoSyncedUsers.length > 0) {
-            return autoSyncedUsers;
-        } else {
-            return [];
-        }
-    },
-    getCustomGroupUsers: async (groups) => {
-
-        if (groups.length <= 0) {
-            return [];
-        }
-
-        const users = [];
-        const groupIds = groups.map(group => group.groupId);
-
-        const getGroups = await GroupMember.find({ group: { $in: groupIds } });
-
-        if (getGroups.length > 0) {
-
-            users.push(...getGroups.map(group => group.member).filter(member => member != null));
-
-            const groupOfGroups = getGroups.filter(group => group.groupType != null && group.groupData != null);
-
-            if (groupOfGroups && groupOfGroups.length > 0) {
-
-                const formattedGroups = groupOfGroups.map(group => ({
-                    groupType: group.groupType,
-                    groupId: group.groupData
-                }));
-
-                const membersInGroupGroups = await fetchUserFromAutoSyncedGroups(formattedGroups);
-
-                users.push(...membersInGroupGroups);
-                return [...users];
-            } else {
-                return [];
-            }
-        }
-
     }
 };

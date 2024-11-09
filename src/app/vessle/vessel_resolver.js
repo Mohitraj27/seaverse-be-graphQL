@@ -97,7 +97,7 @@ module.exports.mutations = {
     createVessel: async ({ input }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            const { name, typeOfVessel, imoNumber, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -109,6 +109,7 @@ module.exports.mutations = {
                 name: name,
                 typeOfVessel: typeOfVessel,
                 imoNumber: imoNumber,
+                isActive: isActive,
                 companyName: companyName,
                 ownerName: ownerName,
                 address: address,
@@ -132,7 +133,7 @@ module.exports.mutations = {
     updateVessel: async ({ id, input }, context) => {
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            const { name, typeOfVessel, imoNumber, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
 
             const vessel = await Vessel.findOne({ _id: id });
             if (!vessel) {
@@ -147,6 +148,7 @@ module.exports.mutations = {
             vessel.name = name;
             vessel.typeOfVessel = typeOfVessel;
             vessel.imoNumber = imoNumber;
+            vessel.isActive = isActive;
             vessel.companyName = companyName;
             vessel.ownerName = ownerName;
             vessel.address = address;

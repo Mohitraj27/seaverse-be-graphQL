@@ -24,6 +24,7 @@ module.exports = {
             name: String!
             typeOfVessel: ID!
             imoNumber: String!
+            isActive: Boolean!
             companyName: String
             ownerName: String
             address: String
@@ -61,7 +62,7 @@ module.exports = {
     `,
     mutations: `
         createVessel(input: VesselInput!): CreateOrUpdateVesselResponse
-        updateVessel(ids: ID!, input: VesselInput!): CreateOrUpdateVesselResponse
+        updateVessel(id: ID!, input: VesselInput!): CreateOrUpdateVesselResponse
         deleteVessel(ids: [ID!]): DeleteVesselResponse!
         activateDeactivateVessel(ids: [ID!]): ActivateDeactivateVesselResponse!
         `,

@@ -3,6 +3,7 @@ const targetAudienceEnum = require("./enumFields/targetAudienceEnum.json");
 const audienceSelectionEnum = require("./enumFields/audienceSelectionEnum.json");
 const ConditionTypeEnum = require("./enumFields/conditionTypeEnum.json");
 const typeOfConditionalCustomFieldEnum = require("./enumFields/typeOfConditionalCustomField.json");
+const groupTypeEnums = require("../../util/group_types.json");
 module.exports = {
     types: `
         enum LearningPlanStatus {
@@ -20,10 +21,28 @@ module.exports = {
         enum TypeOfConditionalCustomFieldEnum {
             ${Object.keys(typeOfConditionalCustomFieldEnum).join(" ")}
         }
+        enum GroupTypeEnum {
+            ${Object.keys(groupTypeEnums).join(" ")}
+        }
+         enum lastModifiedEnum {
+            TODAY
+            YESTERDAY
+            LAST_7_DAYS
+            LAST_30_DAYS
+            LAST_3_MONTHS
+            LAST_6_MONTHS
+            LAST_YEAR
+        }
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
-            valueOfField: [String!]!  
+            valueOfField: [String!]
+            groupTypes: [String]
+            groupIDs: [String]  
             isOrIsNot: String!
+        }
+        input GroupTypeInput {
+            groupType: GroupTypeEnum!
+            groupIDs: [String!]!
         }
         type ConditionalCustomField {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
@@ -111,9 +130,10 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomField]
+            assignedLearnerIDs: [ID]
             isDeleted: Boolean
-            createdBy: ID
-            updatedBy: ID
+            createdBy: User
+            updatedBy: User
             createdAt: String
             updatedAt: String
         }
@@ -141,12 +161,14 @@ module.exports = {
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
+            audienceSelection: AudienceSelectionEnum
+            lastModified: lastModifiedEnum
         }
         input LearningPlanInput {
             title: String
             targetAudience: TargetAudienceEnum
             selectCourses: [ID!]
-            groupIDs: [ID!]
+            groupIDs: [GroupTypeInput!] 
             userObjectIds: [ID]
             status: LearningPlanStatus
             audienceSelection: AudienceSelectionEnum!
@@ -157,7 +179,7 @@ module.exports = {
             title: String
             targetAudience: TargetAudienceEnum
             selectCourses: [ID!]
-            groupIDs: [ID!]
+            groupIDs: [GroupTypeInput!]
             userObjectIds: [ID]
             status: LearningPlanStatus
             audienceSelection: AudienceSelectionEnum
@@ -170,6 +192,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
+            groupIDs: [GroupTypeInput!]
+            userObjectIds: [ID]
         }
     `,
     queries: `

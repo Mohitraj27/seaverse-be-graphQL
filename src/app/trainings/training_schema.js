@@ -53,7 +53,7 @@ module.exports = {
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents:[TrainingModuleContent]
+            trainingModuleContents:[String]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
@@ -147,7 +147,6 @@ module.exports = {
             feedback: FeedbackContentFeedbackInput
             feedbackContent: ID
             
-            images: [MultiMediaInfoInput]
             price: Float
             """in days"""
             durationHours: Int
@@ -167,7 +166,6 @@ module.exports = {
             attemptType: AttemptType
             setLimitAttempt: Int
             certifications: [MultiMediaInfoInput]
-            bannerImage: [MultiMediaInfoInput]
             disableFurtherAttemptsOnPass: Boolean
             lockModulesBetweenAttempts: Boolean
             setTimeLimitForModule: Boolean
@@ -221,8 +219,12 @@ module.exports = {
         }
          
         input UpdateTrainingStatusInput {
-            id: ID!,  
+            id: ID!
             newStatus : StatusType
+        }
+        type creationRes {
+            status: Int
+            message: String
         }
     `,
     queries: `
@@ -230,9 +232,9 @@ module.exports = {
         getTraining(id: ID!): Training!
     `,
     mutations: `
-        createOrUpdateTraining(input: TrainingInput!): Training!
+        createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!
         deleteTraining(id: ID!): Training!
-        updateTrainingStatus(input: UpdateTrainingStatusInput!): Training!
+        updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
     `,

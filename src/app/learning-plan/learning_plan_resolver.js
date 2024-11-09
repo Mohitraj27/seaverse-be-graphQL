@@ -4,6 +4,10 @@ const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } 
 const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
+const {  Moment } = require("../../tools");
+const LogHelper = require("../logs/log_helper");
+const LogType = require("../logs/log_type.json");
+
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -19,6 +23,25 @@ module.exports.mutations = {
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
             }
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: LearningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(result),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return result.learningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -48,6 +71,25 @@ module.exports.mutations = {
                 { new: true }
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: LearningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(updatedPlans),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: `Updated ${updatedLearningPlans.nModified} Learning Plans to status ${newStatus}.`,
@@ -71,11 +113,32 @@ module.exports.mutations = {
             if(learningPlan.isDeleted) {
                 throw  CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
             }
+            if (learningPlan.status !== LearningPlanStatus.INACTIVE) {
+                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, 'Only Learning Plans with status INACTIVE can be deleted.');
+            }
             learningPlan.isDeleted = true;
             learningPlan.updatedBy = userId;
 
             await learningPlan.save();
-
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "DELETE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(learningPlan),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Learning Plan  deleted successfully.'
@@ -100,20 +163,30 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            if (input.title) learningPlan.title = input.title;
-            if (input.targetAudience) learningPlan.targetAudience = input.targetAudience;
-            if (input.status) learningPlan.status = input.status;
-            if (input.audienceSelection) learningPlan.audienceSelection = input.audienceSelection;
-            if (input.conditionType) learningPlan.conditionType = input.conditionType;
-            if (input.conditionalCustomFields) learningPlan.conditionalCustomFields = input.conditionalCustomFields;
-            if (input.groupIDs) learningPlan.groupIDs = input.groupIDs;
-            if (input.userObjectIds) learningPlan.userObjectIds = input.userObjectIds;
-            if (input.selectCourses) learningPlan.selectCourses = input.selectCourses;
-    
             learningPlan.updatedBy = userId;
             learningPlan.updatedAt = new Date();
+            learningPlan.isUpdated = true;
     
             await learningPlan.save();
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.LEARNING_PLAN_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "LEARNING_PLAN_INFO",
+                        infoData: JSON.stringify(learningPlan),
+                    },
+                ],
+                createdBy: userInfo,
+            });
             return learningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -141,10 +214,80 @@ module.exports.queries = {
             if (filterInput?.status) {
                 queryConditions.status = filterInput.status;
             }
+            if (filterInput?.audienceSelection) {
+                queryConditions.audienceSelection = filterInput.audienceSelection;
+            }
+            let startDate, endDate;
+            if (filterInput?.lastModified) {
+            delete queryConditions.lastModified
+            const today = Moment();
+            switch (filterInput.lastModified) {
+                case "TODAY":
+                    startDate = today.startOf("day").toDate();
+                    endDate = today.endOf("day").toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, "day").startOf("day").toDate();
+                    endDate = today.subtract(1, "day").endOf("day").toDate();
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, "year").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                default:
+                    break;
+            }
+
+            if (startDate && endDate) {
+                queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+            }
+        }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
 
                 { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "users", 
+                        localField: "createdBy",
+                        foreignField: "_id",
+                        as: "createdByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "updatedBy",
+                        foreignField: "_id",
+                        as: "updatedByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
+                    }
+                },
                 {
                     $lookup: {
                         from: "trainings",
@@ -248,6 +391,33 @@ module.exports.queries = {
                         }
                     }
                 },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        targetAudience: 1,
+                        groupIDs: 1,
+                        userObjectIds: 1,
+                        status: 1,
+                        audienceSelection: 1,
+                        conditionType: 1,
+                        isDeleted: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        selectCourses: 1,
+                        assignedLearnerIDs: 1,
+                        "createdBy._id": "$createdByDetails._id",
+                        "createdBy.firstName": "$createdByDetails.firstName",
+                        "createdBy.lastName": "$createdByDetails.lastName",
+                        "createdBy.email": "$createdByDetails.email",
+                        "createdBy.role": "$createdByDetails.role",
+                        "updatedBy._id": "$updatedByDetails._id",
+                        "updatedBy.firstName": "$updatedByDetails.firstName",
+                        "updatedBy.lastName": "$updatedByDetails.lastName",
+                        "updatedBy.email": "$updatedByDetails.email",
+                        "updatedBy.role": "$updatedByDetails.role"
+                    }
+                }
             ]);
             return {
                 learningPlans: learningPlans,

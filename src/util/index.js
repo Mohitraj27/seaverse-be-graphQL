@@ -209,6 +209,7 @@ module.exports = {
     Role,
     groupTypes: require("./group_types"),
     courseStatus: require("./course_status"),
+    contentTypes: require("./content_type.json"),
     VesselStatus,
     Language: require("./language"),
     EmailTemplate: require("./email_template"),

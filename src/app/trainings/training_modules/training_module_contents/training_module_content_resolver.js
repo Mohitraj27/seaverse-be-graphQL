@@ -16,6 +16,7 @@ const AwsHelper = require("../../../../util/aws_helper");
 const ScromHelper = require("../../scrom_helper")
 const PptxGenJS = require('pptxgenjs');
 const pdfParse = require('pdf-parse');
+const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
@@ -63,6 +64,34 @@ module.exports.queries = {
                             }
                         ],
                     },
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "createdBy",
+                        foreignField: "_id",
+                        as: "createdBy",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
+                    },
+                },
+                {
+                    $unwind: "$createdBy",
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "updatedBy",
+                        foreignField: "_id",
+                        as: "updatedBy",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
+                    },
+                },
+                {
+                    $unwind: "$updatedBy",
                 }
             ]),
             {
@@ -109,6 +138,37 @@ module.exports.queries = {
         }
         return contents;
     },
+    getFeaturedInCourses: async ({ id }, context) => {
+
+        const { subscriberId } = AuthUser(context);
+
+        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const usedCourses = await TrainingContentBridge.find({ trainingContent: id, isDeleted: false })
+            .populate({
+                path: "training",
+                select: "id title"
+            })
+            .lean();
+
+        if (!usedCourses) throw CustomError(ErrorName.NOT_FOUND);
+
+        let courseNames = [];
+        let courseCount = 0;
+
+        for (const course of usedCourses) {
+            if (course.training && course.training.title) {
+                courseCount++;
+                courseNames.push(course.training.title[0].value);
+            }
+        }
+
+        return {
+            courseCount: courseCount,
+            courseNames: courseNames
+        }
+
+    }
 };
 
 module.exports.mutations = {
@@ -606,14 +666,14 @@ module.exports.mutations = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
-            const { name, description, questions = [], percentageCriteria } = input;
+            const { title, description, questions = [], percentageCriteria } = input;
 
-            input.contentStatus = (name && description && questions.length > 0)
-                ? Content_status.DRAFT
-                : Content_status.PUBLISHED;
-
-            if (input.contentStatus === Content_status.PUBLISHED) {
-                input.contentType = ContentType.QUIZ;
+            if (!input.contentStatus || questions.length === 0) {
+                input.contentStatus = (title && description && questions.length > 0)
+                    ? Content_status.PUBLISHED
+                    : Content_status.DRAFT;
+            } else {
+                input.contentStatus = input.contentStatus;
             }
 
             let totalScore = 0;
@@ -664,6 +724,7 @@ module.exports.mutations = {
 
             const contentData = {
                 ...input,
+                contentType: ContentType.QUIZ,
                 createdBy: userId,
                 updatedBy: userId,
             };
@@ -692,8 +753,7 @@ module.exports.mutations = {
         const existingContent = await TrainingModuleContent.findOne({
             _id: input._id ?? undefined,
             subscriber: subscriberId,
-            UID: input.UID ?? undefined,
-            isUpdated: false
+            UID: input.UID ?? undefined
         });
 
         if (!existingContent) {
@@ -945,34 +1005,69 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.CONTENT_NOT_FOUND);
             }
 
-            const compareQuestions = (existingQuestions, updatedQuestions) => {
-                if (existingQuestions.length !== updatedQuestions.length) return false;
-                return existingQuestions.every((question, index) => {
-                    const updatedQuestion = updatedQuestions[index];
-                    return (
-                        JSON.stringify(question.question) === JSON.stringify(updatedQuestion.question) &&
-                        question.questionType === updatedQuestion.questionType &&
-                        JSON.stringify(question.choices) === JSON.stringify(updatedQuestion.choices) &&
-                        JSON.stringify(question.answerKey) === JSON.stringify(updatedQuestion.answerKey) &&
-                        question.allowMultipleAnswers === updatedQuestion.allowMultipleAnswers &&
-                        question.points === updatedQuestion.points &&
-                        question.negativePoints === updatedQuestion.negativePoints
-                    );
-                });
-            };
-
-            let questionsChanged = false;
-
-            if (input.questions && input.questions.length > 0) {
-                questionsChanged = !compareQuestions(existingContent.quiz, input.questions);
+            let updatedContentStatus
+            if (!input.contentStatus || questions.length === 0) {
+                updatedContentStatus = (input.title && input.description && input.questions.length > 0)
+                    ? Content_status.PUBLISHED
+                    : Content_status.DRAFT;
+            } else {
+                input.contentStatus = input.contentStatus;
             }
 
+            let questionsChanged = false;
+            let totalScore = 0;
+            let questionsIdArr = [];
+
+            if (input.questions && input.questions.length > 0) {
+
+                for (const questionDetails of input.questions) {
+                    const questionId = ObjectId();
+                    const choiceDocs = questionDetails.choices.map(choiceDetail => ({
+                        subscriber: subscriberId,
+                        question: questionId,
+                        choice: choiceDetail.choice.map(item => ({ lang: item.lang, value: item.value })),
+                        createdBy: userId,
+                        updatedBy: userId,
+                    }));
+
+                    const savedChoices = await AnswerChoice.insertMany(choiceDocs);
+                    const choiceIds = savedChoices.map(choice => choice._id);
+
+                    const questionDoc = new Question({
+                        subscriber: subscriberId,
+                        question: questionDetails.question,
+                        questionType: questionDetails.questionType,
+                        choices: choiceIds,
+                        answerKey: questionDetails.answerKey,
+                        allowMultipleAnswers: questionDetails.allowMultipleAnswers,
+                        points: questionDetails.points,
+                        negativePoints: questionDetails.negativePoints,
+                        createdBy: userId,
+                        updatedBy: userId,
+                    });
+
+                    const savedQuestion = await questionDoc.save();
+                    questionsIdArr.push(savedQuestion._id);
+                    totalScore += questionDetails.points;
+                }
+
+                questionsChanged = true;
+
+                if (input.percentageCriteria > totalScore) {
+                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+                } else {
+                    input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
+                }
+            }
 
             const updateData = {
                 title: input.title,
                 description: input.description,
                 duration: input.duration,
-                contentStatus: existingContent.contentStatus,
+                quiz: questionsChanged ? questionsIdArr : existingContent.quiz,
+                contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
+                totalScore: questionsChanged ? totalScore : existingContent.totalScore,
+                totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
                 updatedBy: userId,
                 updatedAt: new Date(),
                 modifiedDate: new Date(),
@@ -985,7 +1080,6 @@ module.exports.mutations = {
                 const newContent = new TrainingModuleContent({
                     ...existingContent.toObject(),
                     ...updateData,
-                    questions: input.questions,
                     subscriber: subscriberId,
                     createdBy: userId,
                     updatedBy: userId,
@@ -996,6 +1090,7 @@ module.exports.mutations = {
 
                 existingContent.isUpdated = true;
                 existingContent.modifiedDate = new Date();
+                existingContent.updatedAt = new Date();
                 await existingContent.save();
 
                 return {
@@ -1011,18 +1106,64 @@ module.exports.mutations = {
                     }
                 });
 
-                existingContent.updatedBy = userId;
-                await existingContent.save();
-
+                savedContent = await TrainingModuleContent.findOneAndUpdate(
+                    { _id: existingContent._id, subscriber: subscriberId },
+                    { $set: updateData },
+                    { new: true, setDefaultsOnInsert: true, runValidators: true }
+                );
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",
-                    updatedContent: existingContent,
+                    updatedContent: savedContent,
                 };
             }
         } catch (error) {
+            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+    pushLatestContent: async ({ id }, context) => {
 
+        const { subscriberId } = AuthUser(context);
+
+        if(!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const inputContent = await TrainingModuleContent.findOne({
+            _id: id,
+            subscriber: subscriberId
+        });
+
+        if (!inputContent) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const fetchCurrentContents = await TrainingContentBridge.find({})
+            .populate("trainingContent")
+            .lean();
+        
+        if (!fetchCurrentContents) {
+            throw CustomError(ErrorName.NOT_FOUND);
+        }
+
+        const bridgesToUpdate = fetchCurrentContents
+            .filter((content) => content.trainingContent && content.trainingContent.UID === inputContent.UID)
+            .map((content) => content._id);
+
+        let updateContent;
+        if (bridgesToUpdate.length > 0) {
+            updateContent = await TrainingContentBridge.updateMany(
+                { _id: { $in: bridgesToUpdate } },
+                { trainingContent: inputContent._id }
+            );
+        }
+
+        if (!updateContent) {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+        return {
+            status: 1,
+            message: "New content pushed to lessons successfully.",
+        }
+    }
 };
