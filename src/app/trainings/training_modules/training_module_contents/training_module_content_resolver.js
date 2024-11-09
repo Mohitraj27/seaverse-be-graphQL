@@ -1006,7 +1006,7 @@ module.exports.mutations = {
             }
 
             let updatedContentStatus
-            if (!input.contentStatus || questions.length === 0) {
+            if (!input.contentStatus || input.questions.length === 0) {
                 updatedContentStatus = (input.title && input.description && input.questions.length > 0)
                     ? Content_status.PUBLISHED
                     : Content_status.DRAFT;
@@ -1052,13 +1052,13 @@ module.exports.mutations = {
                 }
 
                 questionsChanged = true;
+            }
 
                 if (input.percentageCriteria > totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
                     input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
                 }
-            }
 
             const updateData = {
                 title: input.title,
