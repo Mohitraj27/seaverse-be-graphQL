@@ -191,7 +191,6 @@ module.exports.queries = {
         const { userId, subscriberId } = AuthUser(context);
         try {
             let filterConditions = {
-                subscriber: ObjectId(subscriberId),
                 user: ObjectId(userId),
             }
 
@@ -199,7 +198,7 @@ module.exports.queries = {
                 filterConditions = {
                     ...filterConditions,
                     $or: [
-                        { "training.title": { $regex: filterInput.search, $options: "i" } },
+                        { "training.title.value": { $regex: filterInput.search, $options: "i" } },
                     ],
                 };
             }
@@ -213,9 +212,6 @@ module.exports.queries = {
 
             const courses = await OverallTrainingProgress.aggregate([
                 {
-                    $match: filterConditions,
-                },
-                {
                     $lookup: {
                         from: "trainings",
                         localField: "training",
@@ -224,51 +220,19 @@ module.exports.queries = {
                     },
                 },
                 {
-                    $unwind: "$training",
-                },
-                {
                     $lookup: {
-                        from: "trainingregistrations",
+                        from: "trainingmodules",
                         localField: "trainingRegistration",
                         foreignField: "_id",
                         as: "trainingRegistration",
                     },
+                }
+                {
+                    $match: filterConditions,
                 },
                 {
-                    $unwind: "$trainingRegistration",
+                    $unwind: "$training",
                 },
-                // {
-                //     $project: {
-                //         _id: 1,
-                //         training: {
-                //             _id: 1,
-                //             UID: 1,
-                //             title: 1,
-                //             description: 1,
-                //             coverImage: 1,
-                //             status: 1,
-                //             startDate: 1,
-                //             endDate: 1,
-                //             duration: 1,
-                //         },
-                //         trainingModuleContentIds: 1,
-                //         trainingModuleIds: 1,
-                //         mandatoryModules: 1,
-                //         completedModules: 1,
-                //         retryCount: 1,
-                //         status: 1,
-                //         progressPercentage: 1,
-                //         isComplete: 1,
-                //         isEnrolled: 1,
-                //         trainingRegistration: {
-                //             _id: 1,
-                //             status: 1,
-                //             startDate: 1,
-                //             endDate: 1,
-                //             duration: 1,
-                //         },
-                //     },
-                // },
             ]);
 
             return {
@@ -277,295 +241,294 @@ module.exports.queries = {
                 courses: courses,
             }
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
 };
 
-    module.exports.mutations = {
-        createTrainingRegistration: async ({ input }, context) => {
-            return TrainingRegistrationHelper.createTrainingRegistration(input, context);
-        },
-        verifyRegistrationEmails: async ({ input }, context) => {
+module.exports.mutations = {
+    createTrainingRegistration: async ({ input }, context) => {
+        return TrainingRegistrationHelper.createTrainingRegistration(input, context);
+    },
+    verifyRegistrationEmails: async ({ input }, context) => {
 
-            const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
-                AuthUser(context);
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
 
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
-                    requiredAll: false,
-                    restrictOrganizationManager: isOrganizationManager,
-                })
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        try {
+
+
+            if (!input.users) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
-            if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+            let existingTraining = null;
+            if (input.training) {
+                existingTraining = await TrainingRegistration.findOne({ training: input.training });
+            }
 
-            try {
+            const inputUsers = await User.find({ email: { $in: input.users } });
 
+            const users = Array.from(
+                new Map(inputUsers.map(user => [user._id.toString(), user])).values()
+            );
 
-                if (!input.users) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+            const unregEmails = [];
+            const invalidEmails = [];
+            const alreadyEnrolledEmails = [];
+            const notEnrolledEmails = [];
+
+            if (users.length > 0) {
+
+                const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTraining);
+
+                if (verifiedUsers.unRegEmails.length > 0) {
+                    unregEmails.push(...verifiedUsers.unRegEmails);
                 }
 
-                let existingTraining = null;
-                if (input.training) {
-                    existingTraining = await TrainingRegistration.findOne({ training: input.training });
+                if (verifiedUsers.invalidEmails.length > 0) {
+                    invalidEmails.push(...verifiedUsers.invalidEmails);
                 }
 
-                const inputUsers = await User.find({ email: { $in: input.users } });
+                if (input.type === "ENROLL") {
 
-                const users = Array.from(
-                    new Map(inputUsers.map(user => [user._id.toString(), user])).values()
-                );
-
-                const unregEmails = [];
-                const invalidEmails = [];
-                const alreadyEnrolledEmails = [];
-                const notEnrolledEmails = [];
-
-                if (users.length > 0) {
-
-                    const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTraining);
-
-                    if (verifiedUsers.unRegEmails.length > 0) {
-                        unregEmails.push(...verifiedUsers.unRegEmails);
-                    }
-
-                    if (verifiedUsers.invalidEmails.length > 0) {
-                        invalidEmails.push(...verifiedUsers.invalidEmails);
-                    }
-
-                    if (input.type === "ENROLL") {
-
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
-                            alreadyEnrolledEmails.push(...verifiedUsers.alreadyEnrolledEmails);
-                        }
-
-                    }
-
-                    if (input.type === "UNENROLL") {
-
-                        if (verifiedUsers.notEnrolledEmails.length > 0) {
-                            notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
-                        }
-
-                    }
-
-                    if (input.type === "ENROLL") {
-                        errorEmails = [...unregEmails, ...invalidEmails, ...alreadyEnrolledEmails];
-                    }
-
-                    if (input.type === "UNENROLL") {
-                        errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
-                    }
-
-                    const remainingEmails = errorEmails.filter(email => !input.users.includes(email));
-
-                    let status = false;
-                    if (remainingEmails.length === input.users.length) {
-                        status = true;
-                    } else {
-                        status = false;
-                    }
-
-                    return {
-                        unregEmails,
-                        invalidEmails,
-                        alreadyEnrolledEmails,
-                        notEnrolledEmails,
-                        remainingEmails,
-                        status
+                    if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                        alreadyEnrolledEmails.push(...verifiedUsers.alreadyEnrolledEmails);
                     }
 
                 }
 
-            } catch (error) {
-                throw CustomError(ErrorName.FAILED, error.message);
-            }
+                if (input.type === "UNENROLL") {
 
-        },
-        updateTrainingRegistration: async ({ id, input }, context) => {
-            const { role, userId, userPermissions, isOrganizationManager } = AuthUser(context);
+                    if (verifiedUsers.notEnrolledEmails.length > 0) {
+                        notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
+                    }
 
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: [
-                        Permission.UPDATE_TRAINING_REGISTRATION,
-                        Permission.ENABLE_DISABLE_TRAINING_REGISTRATION,
-                    ],
-                    requiredAll: false,
-                    restrictOrganizationManager: isOrganizationManager,
-                })
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
-            }
-            if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
-
-            const existingRegistration = await TrainingRegistration.findById(id);
-            if (input.training) existingRegistration.training = input.training;
-            if (input.organization) existingRegistration.organization = input.organization;
-            if (input.branch) existingRegistration.branch = input.branch;
-            if (input.supervisor) existingRegistration.supervisor = input.supervisor;
-
-            if (input.status && input.status !== TrainingRegistrationStatus.COMPLETED) {
-                existingRegistration.status = input.status;
-            }
-
-            if (input.trainingDuration) existingRegistration.trainingDuration = input.trainingDuration;
-
-            if (input.certificateValidity)
-                existingRegistration.certificateValidity = input.certificateValidity;
-
-            if (input.startDate) {
-                existingRegistration.startDate = input.startDate;
-
-                if (existingRegistration.trainingDuration) {
-                    existingRegistration.endDate = ParseDateTime(existingRegistration.startDate)
-                        ?.utcDateTimeObj.add({ days: existingRegistration.trainingDuration - 1 })
-                        .format("YYYY-MM-DD");
                 }
+
+                if (input.type === "ENROLL") {
+                    errorEmails = [...unregEmails, ...invalidEmails, ...alreadyEnrolledEmails];
+                }
+
+                if (input.type === "UNENROLL") {
+                    errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
+                }
+
+                const remainingEmails = errorEmails.filter(email => !input.users.includes(email));
+
+                let status = false;
+                if (remainingEmails.length === input.users.length) {
+                    status = true;
+                } else {
+                    status = false;
+                }
+
+                return {
+                    unregEmails,
+                    invalidEmails,
+                    alreadyEnrolledEmails,
+                    notEnrolledEmails,
+                    remainingEmails,
+                    status
+                }
+
             }
 
-            if (input.endDate) existingRegistration.endDate = input.endDate;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
 
-            if (typeof input.isActive === "boolean") existingRegistration.isActive;
-            if (typeof input.isRegistered === "boolean") existingRegistration.isRegistered;
-            existingRegistration.updatedBy = userId;
+    },
+    updateTrainingRegistration: async ({ id, input }, context) => {
+        const { role, userId, userPermissions, isOrganizationManager } = AuthUser(context);
 
-            const updatedRegistration = await existingRegistration.save();
-            if (!updatedRegistration) throw CustomError(ErrorName.FAILED);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.UPDATE_TRAINING_REGISTRATION,
+                    Permission.ENABLE_DISABLE_TRAINING_REGISTRATION,
+                ],
+                requiredAll: false,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
 
-            if (input.status === TrainingRegistrationStatus.COMPLETED) {
-                const savedTrainingRegistration = await TrainingProgressHelper.updateTrainingProgress(
-                    {
-                        input: {
-                            trainingRegistrationId: updatedRegistration._id,
-                            trainingRegistrationStatus: TrainingRegistrationStatus.COMPLETED,
-                        },
-                        existingTrainingRegistration: existingRegistration,
+        const existingRegistration = await TrainingRegistration.findById(id);
+        if (input.training) existingRegistration.training = input.training;
+        if (input.organization) existingRegistration.organization = input.organization;
+        if (input.branch) existingRegistration.branch = input.branch;
+        if (input.supervisor) existingRegistration.supervisor = input.supervisor;
+
+        if (input.status && input.status !== TrainingRegistrationStatus.COMPLETED) {
+            existingRegistration.status = input.status;
+        }
+
+        if (input.trainingDuration) existingRegistration.trainingDuration = input.trainingDuration;
+
+        if (input.certificateValidity)
+            existingRegistration.certificateValidity = input.certificateValidity;
+
+        if (input.startDate) {
+            existingRegistration.startDate = input.startDate;
+
+            if (existingRegistration.trainingDuration) {
+                existingRegistration.endDate = ParseDateTime(existingRegistration.startDate)
+                    ?.utcDateTimeObj.add({ days: existingRegistration.trainingDuration - 1 })
+                    .format("YYYY-MM-DD");
+            }
+        }
+
+        if (input.endDate) existingRegistration.endDate = input.endDate;
+
+        if (typeof input.isActive === "boolean") existingRegistration.isActive;
+        if (typeof input.isRegistered === "boolean") existingRegistration.isRegistered;
+        existingRegistration.updatedBy = userId;
+
+        const updatedRegistration = await existingRegistration.save();
+        if (!updatedRegistration) throw CustomError(ErrorName.FAILED);
+
+        if (input.status === TrainingRegistrationStatus.COMPLETED) {
+            const savedTrainingRegistration = await TrainingProgressHelper.updateTrainingProgress(
+                {
+                    input: {
+                        trainingRegistrationId: updatedRegistration._id,
+                        trainingRegistrationStatus: TrainingRegistrationStatus.COMPLETED,
                     },
-                    context
-                );
-
-                updatedRegistration.status = savedTrainingRegistration.status;
-            }
-
-            return updatedRegistration;
-        },
-        deleteTrainingRegistration: async ({ id }, context) => {
-            const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
-                AuthUser(context);
-
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: Permission.DELETE_TRAINING_REGISTRATION,
-                    restrictOrganizationManager: isOrganizationManager,
-                })
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
-            }
-
-            if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
-
-            const deletedTrainingRegistration = await TrainingRegistration.findOneAndDelete(
-                { _id: id, subscriber: subscriberId },
-                { lean: true }
-            )
-                .populate({ path: "employee", populate: "user" })
-                .populate("trainingProgresses");
-
-            if (!deletedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
-            await TrainingProgress.deleteMany(
-                { subscriber: subscriberId, trainingRegistration: id },
-                { lean: true }
+                    existingTrainingRegistration: existingRegistration,
+                },
+                context
             );
 
-            const deletedTrainingCertificate = await TrainingCertificate.findOneAndDelete(
-                { subscriber: subscriberId, trainingRegistration: id },
-                { lean: true }
-            );
+            updatedRegistration.status = savedTrainingRegistration.status;
+        }
 
-            TrainingRegistrationHelper.sendNotificationOnCRUD({
-                subscriber: subscriberId,
-                trainingRegistration: deletedTrainingRegistration,
-                action: "DELETED",
-                createdBy: userInfo,
-            });
+        return updatedRegistration;
+    },
+    deleteTrainingRegistration: async ({ id }, context) => {
+        const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
 
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: Permission.DELETE_TRAINING_REGISTRATION,
+                restrictOrganizationManager: isOrganizationManager,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        if (!ObjectId.isValid(id)) throw CustomError(ErrorName.INVALID);
+
+        const deletedTrainingRegistration = await TrainingRegistration.findOneAndDelete(
+            { _id: id, subscriber: subscriberId },
+            { lean: true }
+        )
+            .populate({ path: "employee", populate: "user" })
+            .populate("trainingProgresses");
+
+        if (!deletedTrainingRegistration) throw CustomError(ErrorName.FAILED);
+
+        await TrainingProgress.deleteMany(
+            { subscriber: subscriberId, trainingRegistration: id },
+            { lean: true }
+        );
+
+        const deletedTrainingCertificate = await TrainingCertificate.findOneAndDelete(
+            { subscriber: subscriberId, trainingRegistration: id },
+            { lean: true }
+        );
+
+        TrainingRegistrationHelper.sendNotificationOnCRUD({
+            subscriber: subscriberId,
+            trainingRegistration: deletedTrainingRegistration,
+            action: "DELETED",
+            createdBy: userInfo,
+        });
+
+        LogHelper.logActivity({
+            subscriber: subscriberId,
+            logType: LogType.TRAINING_REGISTRATION_LOG,
+            operation: "DELETE",
+            ipInfo: context.ipInfo,
+            affected: [
+                {
+                    targetRef: "TrainingRegistration",
+                    target: deletedTrainingRegistration._id,
+                },
+            ],
+            additionalInfo: [
+                {
+                    infoType: "TRAINING_REGISTRATION_INFO",
+                    infoData: JSON.stringify(deletedTrainingRegistration),
+                },
+            ],
+            createdBy: userInfo,
+        });
+
+        if (deletedTrainingCertificate) {
             LogHelper.logActivity({
                 subscriber: subscriberId,
-                logType: LogType.TRAINING_REGISTRATION_LOG,
+                logType: LogType.TRAINING_REGISTRATION_CERTIFICATE_LOG,
                 operation: "DELETE",
                 ipInfo: context.ipInfo,
                 affected: [
                     {
-                        targetRef: "TrainingRegistration",
-                        target: deletedTrainingRegistration._id,
+                        targetRef: "TrainingCertificate",
+                        target: deletedTrainingCertificate._id,
                     },
                 ],
                 additionalInfo: [
                     {
-                        infoType: "TRAINING_REGISTRATION_INFO",
-                        infoData: JSON.stringify(deletedTrainingRegistration),
+                        infoType: "TRAINING_REGISTRATION_CERTIFICATE_INFO",
+                        infoData: JSON.stringify(deletedTrainingCertificate),
                     },
                 ],
                 createdBy: userInfo,
             });
+        }
 
-            if (deletedTrainingCertificate) {
-                LogHelper.logActivity({
-                    subscriber: subscriberId,
-                    logType: LogType.TRAINING_REGISTRATION_CERTIFICATE_LOG,
-                    operation: "DELETE",
-                    ipInfo: context.ipInfo,
-                    affected: [
-                        {
-                            targetRef: "TrainingCertificate",
-                            target: deletedTrainingCertificate._id,
-                        },
-                    ],
-                    additionalInfo: [
-                        {
-                            infoType: "TRAINING_REGISTRATION_CERTIFICATE_INFO",
-                            infoData: JSON.stringify(deletedTrainingCertificate),
-                        },
-                    ],
-                    createdBy: userInfo,
-                });
-            }
+        return deletedTrainingRegistration;
+    },
+    updateTrainingRegistrationFeedback: async ({ id, input }, context) => {
+        const { subscriberId, employeeId } = AuthUser(context);
 
-            return deletedTrainingRegistration;
-        },
-        updateTrainingRegistrationFeedback: async ({ id, input }, context) => {
-            const { subscriberId, employeeId } = AuthUser(context);
+        if (!Object.keys(input).length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            if (!Object.keys(input).length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        const savedTrainingRegistration = await TrainingRegistration.findOneAndUpdate(
+            {
+                _id: id,
+                subscriber: subscriberId,
+                employee: employeeId,
+                feedback: null,
+            },
+            {
+                feedback: input,
+            },
+            { upsert: false, new: true, lean: true }
+        ).select("feedback");
 
-            const savedTrainingRegistration = await TrainingRegistration.findOneAndUpdate(
-                {
-                    _id: id,
-                    subscriber: subscriberId,
-                    employee: employeeId,
-                    feedback: null,
-                },
-                {
-                    feedback: input,
-                },
-                { upsert: false, new: true, lean: true }
-            ).select("feedback");
-
-            if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-            return savedTrainingRegistration;
-        },
-    };
+        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
+        return savedTrainingRegistration;
+    },
+};
