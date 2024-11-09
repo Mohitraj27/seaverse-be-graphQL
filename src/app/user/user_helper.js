@@ -183,6 +183,8 @@ module.exports = {
                 existingUser.languagePreference = input.languagePreference;
 
             if (input.isRegistered != null) existingUser.isRegistered = input.isRegistered;
+            if (input.currentVessel) existingUser.currentVessel = input.currentVessel;
+            if (input.vesselStatus) existingUser.vesselStatus = input.vesselStatus;
 
             if (input.isProfileCompleted != null)
                 existingUser.isProfileCompleted = input.isProfileCompleted;
