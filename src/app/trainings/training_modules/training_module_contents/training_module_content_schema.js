@@ -62,6 +62,7 @@ module.exports = {
             isDeleted: Boolean
             createdBy: UserData
             updatedBy: UserData
+            featuredInCourses: Int
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
