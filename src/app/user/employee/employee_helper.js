@@ -583,6 +583,7 @@ module.exports = {
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
             employeeUpdateData.empDesignation = existingDesignation._id
+            employeeUpdateData.designation = existingDesignation.name
         }
 
         if (input.nationality) employeeUpdateData.nationality = input.nationality;
