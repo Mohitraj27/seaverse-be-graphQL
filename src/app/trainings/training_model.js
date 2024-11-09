@@ -123,7 +123,6 @@ const trainingSchema = new Schema(
             url: String,
         },
         certificateValidity: Number,
-        courseId: { type: String, unique: true },
         skills: { type: [String] },
         course_validity: { type: Date, default: null },
         isOrdered: { type: Boolean, default: false },

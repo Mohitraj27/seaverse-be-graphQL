@@ -1,42 +1,53 @@
-const { Schema, ObjectId, Model } = require("../../../tools");
+const { Schema, ObjectId ,Model} = require("../../../tools");
+const { certificateLayout } = require("../../trainings/certificate_layout/certificateLayout_model");
+
 const overallProgressSchema = new Schema(
     {
-        subscriber: {
+        subscriber:{
             type: ObjectId,
             ref: "Subscriber"
         },
-        learningPlan: {
+        learningPlan:{
             type: ObjectId,
-            ref: "LearninPlan"
+            ref :  "LearninPlan"
         },
-        training: {
-            type: ObjectId,
+        training : {
+            type : ObjectId,
             ref: "Training"
         },
-        user: {
+        certificateLayout: {
             type: ObjectId,
-            ref: "User"
+            ref:"certificateLayout"
+        },
+        user:{
+            type:ObjectId,
+            ref : "User"
         },
         trainingRegistration: {
-            type: ObjectId,
-            ref: "TrainingRegistration",
+            type : ObjectId,
+            ref : "TrainingRegistration",
         },
-        trainingModuleContentIds: [ObjectId],
-        trainingModuleIds: [ObjectId],
-        mandatoryModules: Number,
-        completedModules: Number,
-        isComplete: {
+        trainingModuleContentIds:[ObjectId],
+        trainingModuleIds:[ObjectId],
+        mandatoryModules : Number,
+        completedModules : Number,
+        isComplete : {
+            type : Boolean, 
+            default :false,
+        },
+        status:{
+            type: String,
+            enum : ["NOT_STARTED", "IN_PROGRESS","COMPLETED"],
+        },
+        isCertificateGenerated:{
             type: Boolean,
             default: false,
         },
-        status: {
-            type: String,
-            enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
-        },
         retryCount: Number,
-        progressPercentage: String,
-        isEnrolled: Boolean,
+        progressPercentage : Number,
+        isEnrolled : Boolean,
     },
     { timestamps: true }
 )
+
 module.exports.OverallTrainingProgress = Model("OverallTrainingProgress", overallProgressSchema);

@@ -30,6 +30,11 @@ module.exports = {
             firstName: String
             lastName: String
         }
+        type UserData {
+            _id: ID
+            firstName: String
+            lastName: String
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
@@ -60,8 +65,10 @@ module.exports = {
             modifiedDate: String
             isUpdated: Boolean
             isDeleted: Boolean
+            isPublished: Boolean
             createdBy: UserData
             updatedBy: UserData
+            featuredInCourses: Int
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!

@@ -149,6 +149,10 @@ const trainingModuleContentSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        isPublished: {
+            type: Boolean,
+            default: false,
+        },
         isDeleted: {
             type: Boolean,
             default: false,
