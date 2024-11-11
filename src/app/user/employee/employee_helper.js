@@ -223,6 +223,33 @@ const sendEnrollmentNotification = async notificationsData => {
     }
 };
 
+const sendNotificationOnBulkImport = async notificationData => {
+    try {
+        const employeeName = notificationData.createdBy?.firstName;
+
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `Employee ${notificationData.action}` }],
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            createdBy: notificationData.createdBy?.firstName,
+            employee: notificationData.uploadedBy?.firstName,
+            description: notificationData.description ?? '',
+            isError: notificationData.isError
+        };
+
+        notification.message = {
+            lang: "en",
+            value: `${employeeName}, ${notificationData.isError ? `Failed to ${notificationData.action}` : `${notificationData.action} is successful`}, ${notificationData.description}`,
+        };
+
+        await NotificationHelper.createNotification(notification);
+    } catch (e) {
+        console.log("employee_helper.sendNotificationOnBulkImport:exception:", e?.message);
+    }
+};
+
 const sendNotificationOnCRUD = async notificationData => {
     try {
         const employeeName = notificationData.employee.user?.firstName;
@@ -723,17 +750,6 @@ module.exports = {
 
                 const insertedUsers = await User.find({ email: { $in: userList.map(u => u.email) } }).session(session);
 
-                // const managerEmailsNotInserted = managerEmails.filter(email =>
-                //     !insertedUsers.some(user => user.email === email)
-                // );
-
-                // let additionalManagers = [];
-                // if (managerEmailsNotInserted.length > 0) {
-                //     additionalManagers = await User.find({
-                //         email: { $in: managerEmailsNotInserted }
-                //     }).select('_id email firstName').session(session).lean();;
-                // }
-
                 const allManagers = [
                     ...insertedUsers.filter(user => {
                         const originalUser = userList.find(u => u.email === user.email);
@@ -1052,6 +1068,8 @@ module.exports = {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
 
+        const adminUser = await User.findById(userId);
+
         const existingUsers = await User.find({
             $or: [
                 { civilIdOrPassport: { $in: empIdsArray } },
@@ -1165,6 +1183,14 @@ module.exports = {
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+            sendNotificationOnBulkImport({
+                subscriber: subscriberId,
+                action: "BULK IMPORT",
+                createdBy: adminUser,
+                uploadedBy: adminUser,
+                isError: true,
+                description: `${errors[0]}`,
+            })
 
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
@@ -1281,6 +1307,15 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+                sendNotificationOnBulkImport({
+                    subscriber: subscriberId,
+                    action: "BULK IMPORT",
+                    createdBy: adminUser,
+                    uploadedBy: adminUser,
+                    isError: true,
+                    description: `No new data created/updated`,
+                })
+
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `No new data created/updated`
@@ -1298,6 +1333,15 @@ module.exports = {
         })
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+        sendNotificationOnBulkImport({
+            subscriber: subscriberId,
+            action: "BULK IMPORT",
+            createdBy: adminUser,
+            uploadedBy: adminUser,
+            isError: false,
+            description: `New data(s) created/updated`,
+        })
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
