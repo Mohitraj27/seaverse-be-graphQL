@@ -1291,8 +1291,8 @@ const manageRole = async ({ input }, context) => {
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
             updateUserRole = await User.updateMany(
-                { _id: { $in: input.users }, superAdmin: false, role: "ADMIN" },
-                { $set: { role: "EMPLOYEE" } }
+                { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
+                { $set: { subRoles: [] } }
             );
         }
     } else if (input.change === "Delete") {
