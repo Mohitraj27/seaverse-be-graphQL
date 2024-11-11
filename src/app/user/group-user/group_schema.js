@@ -11,6 +11,8 @@ module.exports = {
             members: [MemberDetails]
             createdAt: String
             updatedAt: String
+            createdBy : ID
+            updatedBy : ID
         }
         input GroupInput {
             _id: ID
