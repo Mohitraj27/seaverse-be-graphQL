@@ -128,6 +128,10 @@ const createLearningPlanHelper = async (input) => {
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
         if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED); }
         if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
+        ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
+            errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED);
+        }
         if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
             errorList.push(errorMessages.INVALID_CONDITION_FOR_ALL_EMPLOYEES);
         }
