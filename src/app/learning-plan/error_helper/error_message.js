@@ -21,4 +21,7 @@ module.exports = {
     INVALID_ROLE_ID: "Invalid Role Provided.",
     INVALID_REG_STATUS: "Invalid regStatus must be true or false.",
     INVALID_VESSEL_STATUS: "VesselStatus  must be ASSIGNED or ONBOARDED or ONSHORE.",
+    GROUP_IDS_GROUP_TYPE_REQUIRED_FOR_GROUP_BASED: "Group ObjectIds and group type are required when type of field is GROUP_BASED.",
+    VALUE_OF_FIELD_NOT_REQUIRED_FOR_GROUP_BASED: "Value of field is not required when type of field is GROUP_BASED.",
+    INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED: "Invalid conditional custom fields provided for GROUP_BASED audience selection.",
 };

@@ -24,7 +24,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
     for (const field of conditionalCustomFields) {
-        const { type_of_Field, valueOfField, isOrIsNot } = field;
+        const { type_of_Field, valueOfField, isOrIsNot,  groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
             const validStatus = ["ASSIGNED", "ON_LEAVE", "OFFBOARD", "ONBOARD"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
@@ -32,16 +32,60 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
             }
         }
-        const validFieldCount = await getValidObjectIds(type_of_Field, valueOfField);
-        if (validFieldCount.length !== valueOfField.length) {
-            errors.push(`Invalid ObjectId(s) provided for type ${type_of_Field}.`);
-        }
         if (isOrIsNot !== 'IS' && isOrIsNot !== 'IS_NOT') {
             errors.push(`Invalid isOrIsNot value for type ${type_of_Field}.`);
         }
+        if (type_of_Field === typeOfConditionalCustomFieldEnum.GROUP) {
+            let group = Array.isArray(field.groupIDs) ? field.groupIDs[0] : field.groupIDs;
+            if (!group || !group.groupType || !group.groupIDs) {
+                errors.push(errorMessages.GROUP_IDS_GROUP_TYPE_REQUIRED_FOR_GROUP_BASED)
+            }
 
+            if (Array.isArray(valueOfField) && valueOfField.length > 0) {
+                errors.push(errorMessages.VALUE_OF_FIELD_NOT_REQUIRED_FOR_GROUP_BASED);
+            }
+           switch (group.groupType) {
+                case 'custom':
+                    group.groupIDs = await getCustomGroupUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                    break;
+                case 'designation':
+                case 'subRole':
+                case 'vessel':
+                case 'vesselType':
+                    group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                    break;
+                case 'role':
+                    if (![roles].includes(group.groupIDs)) {
+                        errors.push(errorMessages.INVALID_ROLE_ID);
+                    } else {
+                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                    }
+                    break;
+                case 'regStatus':
+                    if (group.groupIDs !== "true" && group.groupIDs !== "false") {
+                        errors.push(errorMessages.INVALID_REG_STATUS);
+                    } else {
+                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                    }
+                    break;
+                case 'vesselStatus':
+                    if (![vesselStatusEnum].includes(group.groupIDs)) {
+                        errors.push(errorMessages.INVALID_VESSEL_STATUS);
+                    } else {
+                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                    }
+                    break;
+                default:
+                    errors.push(errorMessages.INVALID_GROUP_TYPE);
+            }
+        }
+        else {
+            const validFieldCount = await getValidObjectIds(type_of_Field, valueOfField);
+            if (validFieldCount.length !== valueOfField.length) {
+                errors.push(`Invalid ObjectId(s) provided for type ${type_of_Field}.`);
+            }
+        }
     }
-
     return errors;
 };
 
@@ -84,6 +128,10 @@ const createLearningPlanHelper = async (input) => {
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
         if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED); }
         if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
+        ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
+            errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED);
+        }
         if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
             errorList.push(errorMessages.INVALID_CONDITION_FOR_ALL_EMPLOYEES);
         }
@@ -295,7 +343,7 @@ const getUsersAndCount = async (input) => {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
                         const fieldMapping = {
                             DESIGNATION: '_id',
-                            GROUP: '_id',
+                            GROUP: 'employee.group',
                             VESSEL: 'currentVessel',
                             VESSEL_TYPE: 'currentVessel.typeOfVessel',
                             EMAIL: 'email',
