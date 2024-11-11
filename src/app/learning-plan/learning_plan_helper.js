@@ -699,8 +699,7 @@ const getUsersAndCount = async (input) => {
         ]);
 
         return {
-            userIds: userData[0].userIds,
-            // userIds: userData.length > 0 ? userData[0].userIds : null,
+            userIds: userData.length > 0 ? userData[0].userIds : null,
             count: userData.length > 0 ? userData[0].count : 0
         };
     } catch (error) {
