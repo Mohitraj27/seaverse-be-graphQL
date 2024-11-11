@@ -37,6 +37,8 @@ module.exports = {
                     },
                     groupName: 1,
                     createdAt: 1,
+                    createdBy:1,
+                    updatedBy : 1,
                     groupAdmin: 1,
                     isManagerDefault: 1,
                     groupType: 1,
