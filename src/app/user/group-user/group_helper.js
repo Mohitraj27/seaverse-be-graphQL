@@ -53,7 +53,6 @@ module.exports = {
                 $sort: { createdAt: -1 },
             },
         ]);
-        console.log(allGroups);
         return allGroups;
     },
     getAutoSyncedGroups: async subscriberId => {
