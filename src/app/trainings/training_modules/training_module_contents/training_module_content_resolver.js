@@ -693,7 +693,7 @@ module.exports.mutations = {
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
             return savedContent;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
@@ -778,115 +778,114 @@ module.exports.mutations = {
 
             return savedContent;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-
-        const existingContent = await TrainingModuleContent.findOne({
-            _id: input._id ?? undefined,
-            subscriber: subscriberId,
-            UID: input.UID ?? undefined
-        });
-
-        if (!existingContent) {
-            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
-        }
-
-        const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
-
-        const scormFile = scorm ? await scorm : null;
-        const thumbnailFile = thumbnail ? await thumbnail : null;
-        const imageFile = image ? await image : null;
-        const videoFile = video ? await video : null;
-        const audioFile = audio ? await audio : null;
-        const fileFile = file ? await file : null;
-
-        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
-
-        const validateFileFormat = async (mediaFile) => {
-            const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-            return allowedFileFormats.includes(fileExtension);
-        };
-
-        if (scormFile && !validateFileFormat(scormFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
-        }
-
-        if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
-        }
-
-        if (imageFile && !validateFileFormat(imageFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
-        }
-
-        if (videoFile && !validateFileFormat(videoFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
-        }
-
-        if (audioFile && !validateFileFormat(audioFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
-        }
-
-        if (fileFile && !validateFileFormat(fileFile)) {
-            throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-        }
-
-        if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
-            input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
-        }
-
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
-        }
-
-        let updateData = {
-            title: input.title,
-            description: input.description,
-            contentType: input.contentType,
-            contentStatus: input.contentStatus,
-            duration: input.duration,
-            displayPosition: input.displayPosition,
-            isActive: input.isActive,
-            createdBy: existingContent.createdBy,
-            updatedBy: userId,
-            updatedAt: new Date(),
-            videos: existingContent.videos,
-            audios: existingContent.audios,
-            images: existingContent.images,
-            files: existingContent.files,
-            scorm: existingContent.scorm,
-            thumbnail: existingContent.thumbnail,
-            version: existingContent.version ? existingContent.version : 1,
-            UID: existingContent.UID,
-        };
-        let isUpdated = false;
-        let isMediaUpdated = false;
-
-        const fieldsToCheck = [
-            "title",
-            "description",
-            "contentType",
-            "contentStatus",
-            "duration",
-            "displayPosition",
-            "isActive"
-        ];
-
-        for (const field of fieldsToCheck) {
-            if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                isUpdated = true;
-                break;
-            }
-        }
-
         try {
+            const existingContent = await TrainingModuleContent.findOne({
+                _id: input._id ?? undefined,
+                subscriber: subscriberId,
+                UID: input.UID ?? undefined
+            });
+
+            if (!existingContent) {
+                throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+            }
+
+            const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
+
+            const scormFile = scorm ? await scorm : null;
+            const thumbnailFile = thumbnail ? await thumbnail : null;
+            const imageFile = image ? await image : null;
+            const videoFile = video ? await video : null;
+            const audioFile = audio ? await audio : null;
+            const fileFile = file ? await file : null;
+
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
+
+            const validateFileFormat = async (mediaFile) => {
+                const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+                return allowedFileFormats.includes(fileExtension);
+            };
+
+            if (scormFile && !validateFileFormat(scormFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
+            }
+
+            if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
+            }
+
+            if (imageFile && !validateFileFormat(imageFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
+            }
+
+            if (videoFile && !validateFileFormat(videoFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+            }
+
+            if (audioFile && !validateFileFormat(audioFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
+            }
+
+            if (fileFile && !validateFileFormat(fileFile)) {
+                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+            }
+
+            if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+                input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
+            }
+
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+            }
+
+            let updateData = {
+                title: input.title,
+                description: input.description,
+                contentType: input.contentType,
+                contentStatus: input.contentStatus,
+                duration: input.duration,
+                displayPosition: input.displayPosition,
+                isActive: input.isActive,
+                createdBy: existingContent.createdBy,
+                updatedBy: userId,
+                updatedAt: new Date(),
+                videos: existingContent.videos,
+                audios: existingContent.audios,
+                images: existingContent.images,
+                files: existingContent.files,
+                scorm: existingContent.scorm,
+                thumbnail: existingContent.thumbnail,
+                version: existingContent.version ? existingContent.version : 1,
+                UID: existingContent.UID,
+            };
+            let isUpdated = false;
+            let isMediaUpdated = false;
+
+            const fieldsToCheck = [
+                "title",
+                "description",
+                "contentType",
+                "contentStatus",
+                "duration",
+                "displayPosition",
+                "isActive"
+            ];
+
+            for (const field of fieldsToCheck) {
+                if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
+                    isUpdated = true;
+                    break;
+                }
+            }
+
             if (thumbnail === null) {
                 updateData.thumbnail = null;
                 isUpdated = true;
@@ -1010,7 +1009,7 @@ module.exports.mutations = {
                 isUpdated,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
@@ -1078,13 +1077,13 @@ module.exports.mutations = {
                 }
 
                 questionsChanged = true;
-            }
 
-                if (input.percentageCriteria > existingContent.totalScore) {
+                if (input.percentageCriteria > totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
                     input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
                 }
+            }
 
             const updateData = {
                 title: input.title,
@@ -1146,14 +1145,14 @@ module.exports.mutations = {
                 };
             }
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
     pushLatestContent: async ({ id }, context) => {
 
         const { subscriberId } = AuthUser(context);
 
-        if(!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
         const inputContent = await TrainingModuleContent.findOne({
             _id: id,
@@ -1167,7 +1166,7 @@ module.exports.mutations = {
         const fetchCurrentContents = await TrainingContentBridge.find({})
             .populate("trainingContent")
             .lean();
-        
+
         if (!fetchCurrentContents) {
             throw CustomError(ErrorName.NOT_FOUND);
         }
