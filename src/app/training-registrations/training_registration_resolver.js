@@ -284,7 +284,14 @@ module.exports.mutations = {
             const alreadyEnrolledEmails = [];
             const notEnrolledEmails = [];
 
+
             if (users.length > 0) {
+
+                for (let email of input.users) {
+                    if (!Validator.isEmail(email)) {
+                        invalidEmails.push(email);
+                    }
+                }
 
                 const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTraining);
 
@@ -320,7 +327,7 @@ module.exports.mutations = {
                     errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
                 }
 
-                const remainingEmails = errorEmails.filter(email => !input.users.includes(email));
+                const remainingEmails = input.users.filter(email => !errorEmails.includes(email));
 
                 let status = false;
                 if (remainingEmails.length === input.users.length) {
