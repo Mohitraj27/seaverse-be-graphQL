@@ -1062,19 +1062,17 @@ module.exports.queries = {
             const messages = [];
             if (!input.email && !input.civilIdOrPassport) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
-                throw CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
             }
             if (input.email && input.civilIdOrPassport) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
-                throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-                  const emailExists = await User.findOne({ email: input.email });
+                  const emailExists = await User.findOne({ email: { $regex: input.email, $options: "i" } });
                   if (emailExists) {
                         messages.push("This email Id already exists in the system with another employee.");
                   }
             } else if (input.civilIdOrPassport) {
-                const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
+                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: input.civilIdOrPassport, $options: "i" } });
                 if (empNoExists) {
                     messages.push("Another user already exists with this employee Id");
                 }
