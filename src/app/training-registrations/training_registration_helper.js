@@ -242,6 +242,7 @@ const getAutoSyncUsers = (async (groups) => {
     }
 
     const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groups);
+    console.log(autoSyncedUsers);
     if (autoSyncedUsers && autoSyncedUsers.length > 0) {
         return autoSyncedUsers;
     } else {
@@ -277,10 +278,11 @@ const getCustomGroupUsers = (async (groups) => {
 
             users.push(...membersInGroupGroups);
             return [...users];
-        } else {
-            return [];
         }
+
+        return users;
     }
+    return [];
 
 });
 

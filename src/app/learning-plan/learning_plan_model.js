@@ -51,12 +51,21 @@ const learningPlanSchema = new Schema(
                 valueOfField: {
                     type: [String],
                 },
-                groupTypes: {
-                    type: [String],
-                },
-                groupIDs: {
-                    type: [String],
-                },
+                groupIDs:[{
+                    groupType: {
+                        type: String,
+                        required: function(){
+                            return this.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP;
+                        }
+                    },
+                    groupIDs: {
+                        type: Schema.Types.Mixed,
+                        required: function(){
+                            return this.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP;
+                        }
+                    }
+                }
+                ],
                 isOrIsNot: {
                     type: String,
                     required: true,
