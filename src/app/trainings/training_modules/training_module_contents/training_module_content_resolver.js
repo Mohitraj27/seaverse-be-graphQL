@@ -1032,7 +1032,7 @@ module.exports.mutations = {
             const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
             let updatedContentStatus
-            if (!input.contentStatus || input.questions.length === 0) {
+            if (!input.contentStatus) {
                 updatedContentStatus = (input.title && input.description && input.questions.length > 0)
                     ? Content_status.PUBLISHED
                     : Content_status.DRAFT;
@@ -1080,7 +1080,7 @@ module.exports.mutations = {
                 questionsChanged = true;
             }
 
-                if (input.percentageCriteria > totalScore) {
+                if (input.percentageCriteria > existingContent.totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
                     input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
@@ -1187,6 +1187,11 @@ module.exports.mutations = {
         if (!updateContent) {
             throw CustomError(ErrorName.FAILED);
         }
+
+        await TrainingModuleContent.findOneAndUpdate(
+            { _id: id, subscriber: subscriberId },
+            { $set: { isPublished: false } }
+        );
 
         return {
             status: 1,
