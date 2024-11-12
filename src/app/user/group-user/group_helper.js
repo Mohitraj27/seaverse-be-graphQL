@@ -12,47 +12,11 @@ const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../
 
 module.exports = {
     getCustomGroups: async () => {
-        const allGroups = await Group.aggregate([
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "members",
-                    foreignField: "_id",
-                    as: "members",
-                },
-            },
-            {
-                $project: {
-                    members: {
-                        $filter: {
-                            input: "$members",
-                            as: "member",
-                            cond: {
-                                $and: [
-                                    { $ne: ["$$member.firstName", null] },
-                                    { $ne: ["$$member.email", null] },
-                                ],
-                            },
-                        },
-                    },
-                    groupName: 1,
-                    createdAt: 1,
-                    createdBy:1,
-                    updatedBy : 1,
-                    groupAdmin: 1,
-                    isManagerDefault: 1,
-                    groupType: 1,
-                    memberCount: 1,
-                    description: 1,
-                    members: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
-                },
-            },
-            {
-                $sort: { createdAt: -1 },
-            },
-        ]);
+        const allGroups = await Group.find({})
+            .populate('createdBy', 'firstName lastName')
+            .populate('updatedBy', 'firstName lastName')
+            .lean();
+    
         return allGroups;
     },
     getAutoSyncedGroups: async subscriberId => {
