@@ -149,6 +149,7 @@ module.exports.queries = {
                 totalCount: 0,
             };
         }
+
         return contents;
     },
     getTrainingModuleContent: async ({ id }, context) => {
