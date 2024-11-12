@@ -725,7 +725,7 @@ const getLearningPlanAverageProgress = async (learningPlanId) => {
 
     return averageProgress;
   } catch (error) {
-    throw CustomError(ErrorName.FAILED, `Failed to get learning plan progress: ${error.message}`);
+    throw Error(error.message);
   }
 };
 
