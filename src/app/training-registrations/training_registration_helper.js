@@ -279,10 +279,11 @@ const getCustomGroupUsers = (async (groups) => {
 
             users.push(...membersInGroupGroups);
             return [...users];
-        } else {
-            return [];
         }
+
+        return users;
     }
+    return [];
 
 });
 
@@ -468,6 +469,8 @@ module.exports = {
                         subscriber: subscriberId,
                         trainingRegistration: savedTrainingRegistration,
                         createdBy: userInfo,
+                        userIds : userIds,
+                        action: "enroll"
                     },
                 ]);
 
@@ -569,6 +572,16 @@ module.exports = {
                         return updateTrainingRegistration;
                     }
                 );
+
+                EmployeeHelper.sendEnrollmentNotification([
+                    {
+                        subscriber: subscriberId,
+                        trainingRegistration: unenrollTrainingRegistration,
+                        createdBy: userInfo,
+                        userIds : userIds,
+                        action: "unenroll"
+                    },
+                ]);
 
                 return {
                     message: "Course unenrollment successful!",

@@ -214,7 +214,7 @@ module.exports.queries = {
             if (filterInput?.status) {
                 queryConditions.status = filterInput.status;
             }
-            if (filterInput.audienceSelection) {
+            if (filterInput?.audienceSelection) {
                 queryConditions.audienceSelection = {
                     $in: Array.isArray(filterInput.audienceSelection)
                         ? filterInput.audienceSelection
