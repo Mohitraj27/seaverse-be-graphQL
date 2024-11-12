@@ -181,7 +181,7 @@ const sendEnrollmentNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAdmin: true,
-                notifiers: notificationData.userIds?notificationData.userIds:[],
+                notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
                     {
@@ -228,7 +228,41 @@ const sendEnrollmentNotification = async notificationsData => {
         await NotificationHelper.createNotification(notifications);
     }
 };
+const sendNotificationOnBULK = async notificationData => {
 
+    try {
+
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `${notificationData.action}` }],
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            createdBy: notificationData.adminUser?._id,
+            employee: notificationData.adminUser?._id,
+            description: notificationData.description,
+            isError: notificationData.isError,
+            notificationType: notificationData.notificationType
+        };
+
+        notification.message = {
+            lang: "en",
+            value: notificationData.description,
+        };
+
+        const createdNotification = await Notification.create(notification);
+
+        process.send({
+            type: 'NOTIFICATION',
+            event: NotificationEvent.ON_NOTIFICATION,
+            data: { onNotification: createdNotification }
+        });
+
+    } catch (error) {
+        console.log("employee_helper.sendNotificationOnBULK:exception:", error?.message);
+    }
+
+}
 const sendNotificationOnCRUD = async notificationData => {
     try {
         const employeeName = notificationData.employee.user?.firstName;
@@ -1162,13 +1196,14 @@ module.exports = {
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-            sendNotificationOnBulkImport({
+            sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "BULK IMPORT",
-                createdBy: adminUser,
-                uploadedBy: adminUser,
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
                 isError: true,
                 description: `${errors[0]}`,
+                notificationType: 'FAILED'
             })
 
             throw CustomError(
@@ -1236,9 +1271,6 @@ module.exports = {
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                    // invitationList.push({
-                    //     userData: user
-                    // });
                     return {
                         updateOne: {
                             filter: { user: user },
@@ -1286,13 +1318,14 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-                sendNotificationOnBulkImport({
+                sendNotificationOnBULK({
                     subscriber: subscriberId,
                     action: "BULK IMPORT",
-                    createdBy: adminUser,
-                    uploadedBy: adminUser,
+                    createdBy: adminUser?._id,
+                    uploadedBy: adminUser?._id,
                     isError: true,
-                    description: `No new data created/updated`,
+                    description: `${errors[0]}`,
+                    notificationType: 'FAILED'
                 })
 
                 throw CustomError(
@@ -1313,40 +1346,14 @@ module.exports = {
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        const employeeName = adminUser?.firstName;
-
-        const notification = {
+        await sendNotificationOnBULK({
             subscriber: subscriberId,
-            title: [{ lang: "en", value: `Employee BULK IMPORT` }],
-            notifyAdmin: true,
-            notifiers: [],
-            employeeNotifiers: [],
+            action: "BULK IMPORT",
             createdBy: adminUser?._id,
-            employee: adminUser?._id,
+            uploadedBy: adminUser?._id,
+            notificationType: 'SUCCESS',
             description: `New data(s) created/updated`,
-            isError: false,
-            adminMessage: [{ lang: "en", value: `${employeeName}, Success: New data(s) created/updated` }],
-        };
-
-        notification.message = {
-            lang: "en",
-            value: `${employeeName}, Success: New data(s) created/updated`,
-        };
-
-        const createdNotification = await Notification.create(notification);
-
-        // if (notifications) {
-        //     for (const notification of notifications) {
-        //         await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, {
-        //             onNotification: notification,
-        //         });
-        //     }
-        // }
-        process.send({
-            type: 'NOTIFICATION',
-            event: NotificationEvent.ON_NOTIFICATION,
-            data: { onNotification: createdNotification }
-        });
+        })
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {

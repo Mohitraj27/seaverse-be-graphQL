@@ -1501,9 +1501,6 @@ module.exports.mutations = {
             
             child.on("message", async message => {
                 if (message.type === 'NOTIFICATION') {
-                    console.log('message is');
-                    console.log(message);
-                    
                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
                 }
                 console.log("Message from child process:", message);
