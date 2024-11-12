@@ -279,10 +279,11 @@ const getCustomGroupUsers = (async (groups) => {
 
             users.push(...membersInGroupGroups);
             return [...users];
-        } else {
-            return [];
         }
+
+        return users;
     }
+    return [];
 
 });
 
