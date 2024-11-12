@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper, ObjectId } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -44,6 +44,8 @@ const { parse } = require("json2csv");
 const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
+const { Notification } = require("../../notifications/notification_model");
+const NotificationEvent = require("../../notifications/notification_event.json");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -179,7 +181,7 @@ const sendEnrollmentNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAdmin: true,
-                notifiers: notificationData.userIds?notificationData.userIds:[],
+                notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
                     {
@@ -226,7 +228,42 @@ const sendEnrollmentNotification = async notificationsData => {
         await NotificationHelper.createNotification(notifications);
     }
 };
+const sendNotificationOnBULK = async notificationData => {
 
+    try {
+
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `${notificationData.action}` }],
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            createdBy: notificationData.adminUser?._id,
+            employee: notificationData.adminUser?._id,
+            description: notificationData.description,
+            isError: notificationData.isError,
+            notificationType: notificationData.notificationType,
+            status: notificationData.status
+        };
+
+        notification.message = {
+            lang: "en",
+            value: notificationData.description,
+        };
+
+        const createdNotification = await Notification.create(notification);
+
+        process.send({
+            type: 'NOTIFICATION',
+            event: NotificationEvent.ON_NOTIFICATION,
+            data: { onNotification: createdNotification }
+        });
+
+    } catch (error) {
+        console.log("employee_helper.sendNotificationOnBULK:exception:", error?.message);
+    }
+
+}
 const sendNotificationOnCRUD = async notificationData => {
     try {
         const employeeName = notificationData.employee.user?.firstName;
@@ -727,17 +764,6 @@ module.exports = {
 
                 const insertedUsers = await User.find({ email: { $in: userList.map(u => u.email) } }).session(session);
 
-                // const managerEmailsNotInserted = managerEmails.filter(email =>
-                //     !insertedUsers.some(user => user.email === email)
-                // );
-
-                // let additionalManagers = [];
-                // if (managerEmailsNotInserted.length > 0) {
-                //     additionalManagers = await User.find({
-                //         email: { $in: managerEmailsNotInserted }
-                //     }).select('_id email firstName').session(session).lean();;
-                // }
-
                 const allManagers = [
                     ...insertedUsers.filter(user => {
                         const originalUser = userList.find(u => u.email === user.email);
@@ -1056,6 +1082,8 @@ module.exports = {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
 
+        const adminUser = await User.findById(userId);
+
         const existingUsers = await User.find({
             $or: [
                 { civilIdOrPassport: { $in: empIdsArray } },
@@ -1164,11 +1192,21 @@ module.exports = {
                 fileName: newFileName,
                 filePath: saveCSV,
                 importStatus: "FAILED",
-                description: `${errors[0]}`
+                description: `${errors[0]}`,
             })
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+            sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "BULK IMPORT",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: true,
+                description: `${errors[0]}`,
+                notificationType: 'BULK_IMPORT',
+                status: "FAILED"
+            })
 
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
@@ -1235,9 +1273,6 @@ module.exports = {
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-                    // invitationList.push({
-                    //     userData: user
-                    // });
                     return {
                         updateOne: {
                             filter: { user: user },
@@ -1285,6 +1320,17 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
+                sendNotificationOnBULK({
+                    subscriber: subscriberId,
+                    action: "BULK IMPORT",
+                    createdBy: adminUser?._id,
+                    uploadedBy: adminUser?._id,
+                    isError: true,
+                    description: `${errors[0]}`,
+                    notificationType: 'BULK_IMPORT',
+                    status: 'FAILED'
+                })
+
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `No new data created/updated`
@@ -1302,6 +1348,16 @@ module.exports = {
         })
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+        await sendNotificationOnBULK({
+            subscriber: subscriberId,
+            action: "BULK IMPORT",
+            createdBy: adminUser?._id,
+            uploadedBy: adminUser?._id,
+            description: `New data(s) created/updated`,
+            notificationType: 'BULK_IMPORT',
+            status: 'FAILED'
+        })
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
