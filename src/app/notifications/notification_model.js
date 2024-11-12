@@ -14,6 +14,7 @@ const notificationSchema = new Schema(
         },
         title: [LocalisedDataSchema],
         message: [LocalisedDataSchema],
+        userMessage: [LocalisedDataSchema],
         notificationType: {
             type: String,
             uppercase: true,
@@ -66,6 +67,7 @@ const notificationSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        isError:Boolean,
         autoDeleteAt: {
             type: Date,
             default: function () {

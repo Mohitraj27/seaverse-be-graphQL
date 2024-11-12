@@ -10,6 +10,7 @@ const {
     Role,
     EmailTemplate,
     ParseDateTime,
+    OverallProgressStatus,
 } = require("../../../util");
 
 const {
@@ -291,7 +292,11 @@ module.exports = {
             let currentExistingTrainingModuleContent;
             let currentExistingTrainingProgress;
             let quizStatus;
-            let currentOverallTrainingProgress;
+            let currentOverallTrainingProgress= await OverallTrainingProgress.findOne({
+                trainingRegistration: input.trainingRegistrationId,
+                user: userId,
+            });
+            if(!currentOverallTrainingProgress||currentOverallTrainingProgress==undefined)throw CustomError(ErrorName.NOT_FOUND);
             if (input.currentTrainingModuleContentId) {
                 currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
                     input.currentTrainingModuleContentId
@@ -306,6 +311,28 @@ module.exports = {
                 });
 
                 if (!currentExistingTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
+                if (input.trainingRegistrationProgressPercentage != null) {
+                    currentOverallTrainingProgress.progressPercentage =
+                        input.trainingRegistrationProgressPercentage;
+                }
+                if (input.completedModules != null) {
+                    currentOverallTrainingProgress.completedModules = input.completedModules;
+                }
+                if (!currentOverallTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
+                const contentIdExists =
+                    currentOverallTrainingProgress.trainingModuleContentIds.includes(
+                        currentExistingTrainingModuleContent._id
+                    );
+                const moduleIdExists =
+                    currentOverallTrainingProgress.trainingModuleIds.includes(
+                        input.currentTrainingModuleId
+                    );
+
+                if (!contentIdExists) {
+                    currentOverallTrainingProgress.trainingModuleContentIds.push(
+                        currentExistingTrainingModuleContent._id
+                    );
+                }
 
                 currentExistingTrainingProgress.updatedBy = userId;
 
@@ -370,8 +397,8 @@ module.exports = {
                 }
 
                 if (
-                    input.currentTrainingModuleContentStatus === "COMPLETED" &&
-                    currentExistingTrainingProgress.status !== "COMPLETED"
+                    input.currentTrainingModuleContentStatus === OverallProgressStatus.COMPLETED &&
+                    OverallTrainingProgress.status !== OverallProgressStatus.COMPLETED
                 ) {
                     currentExistingTrainingProgress.trainingModuleContentData = {
                         trainingId: currentExistingTrainingModuleContent.training,
@@ -385,32 +412,6 @@ module.exports = {
 
                     currentExistingTrainingProgress.completedAt = CurrentDateTime().utcDateTime;
 
-                    currentOverallTrainingProgress = await OverallTrainingProgress.findOne({
-                        trainingRegistration: input.trainingRegistrationId,
-                        user: userId,
-                    });
-
-                    if (!currentOverallTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
-                    const contentIdExists =
-                        currentOverallTrainingProgress.trainingModuleContentIds.includes(
-                            currentExistingTrainingModuleContent._id
-                        );
-                    const moduleIdExists =
-                        currentOverallTrainingProgress.trainingModuleIds.includes(
-                            input.currentTrainingModuleId
-                        );
-
-                    if (!contentIdExists) {
-                        currentOverallTrainingProgress.trainingModuleContentIds.push(
-                            currentExistingTrainingModuleContent._id
-                        );
-                    }
-
-                    if (!moduleIdExists) {
-                        currentOverallTrainingProgress.trainingModuleIds.push(
-                            input.currentTrainingModuleId
-                        );
-                    }
                     const currentTrainingData = await Training.findOne({
                         _id: currentOverallTrainingProgress.training,
                     });
@@ -422,20 +423,22 @@ module.exports = {
 
                     if (currentTrainingData.manadatoryModules === 0) {
                         if (currentOverallTrainingProgress.completedModules === numberOfModules) {
-                            currentOverallTrainingProgress.status = "COMPLETED";
+                            currentOverallTrainingProgress.status = OverallProgressStatus.COMPLETED;
                             currentOverallTrainingProgress.isComplete = true;
+                            currentOverallTrainingProgress.isCertificateGenerated = true;
                         } else {
-                            currentOverallTrainingProgress.status = "IN_PROGRESS";
+                            currentOverallTrainingProgress.status = OverallProgressStatus.IN_PROGRESS;
                         }
                     } else {
                         if (
                             currentOverallTrainingProgress.completedModules ===
                             currentTrainingData.manadatoryModules
                         ) {
-                            currentOverallTrainingProgress.status = "COMPLETED";
+                            currentOverallTrainingProgress.status = OverallProgressStatus.COMPLETED;
                             currentOverallTrainingProgress.isComplete = true;
+                            currentOverallTrainingProgress.isCertificateGenerated = true;
                         } else {
-                            currentOverallTrainingProgress.status = "IN_PROGRESS";
+                            currentOverallTrainingProgress.status = OverallProgressStatus.IN_PROGRESS;
                         }
                     }
                 }
@@ -453,7 +456,6 @@ module.exports = {
 
             let nextExistingTrainingModuleContent;
             let nextTrainingProgressUpdateData;
-
             if (input.nextTrainingModuleContentId) {
                 nextExistingTrainingModuleContent = await TrainingModuleContent.findById(
                     input.nextTrainingModuleContentId
@@ -466,7 +468,9 @@ module.exports = {
                 const quizContent =
                     nextExistingTrainingModuleContent?.quizContent?.quiz ??
                     nextExistingTrainingModuleContent?.quiz;
-
+                if(currentOverallTrainingProgress.status === OverallProgressStatus.NOT_STARTED){
+                    notificationTrainingRegistrationStatus = OverallProgressStatus.IN_PROGRESS
+                }
                 nextTrainingProgressUpdateData = {
                     subscriber: subscriberId,
                     user: userId,
@@ -482,12 +486,11 @@ module.exports = {
                     retryCount: (retryCountNumber = nextExistingTrainingModuleContent.retryCount
                         ? nextExistingTrainingModuleContent.retryCount + 1
                         : 0),
-                    status: "IN_PROGRESS",
+                    status: OverallProgressStatus.IN_PROGRESS,
                     startedAt: CurrentDateTime().utcDateTime,
                     createdBy: userId,
                 };
             }
-
             existingTrainingRegistration ??= await TrainingRegistration.findOne({
                 _id: input.trainingRegistrationId,
                 subscriber: subscriberId,
@@ -556,20 +559,13 @@ module.exports = {
                     }
                 }
             }
-            if (input.trainingRegistrationProgressPercentage != null) {
-                currentOverallTrainingProgress.progressPercentage =
-                    input.trainingRegistrationProgressPercentage;
-            }
-            if (input.completedModules != null) {
-                currentOverallTrainingProgress.completedModules = input.completedModules;
-            }
+
             if (input.trainingMode && !existingTrainingRegistration.trainingMode) {
                 existingTrainingRegistration.trainingMode = input.trainingMode;
             }
 
             let currentSavedOverallProgress;
             let response;
-            
             const result = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedTrainingProgresses = [];
                 if (currentExistingTrainingProgress) {

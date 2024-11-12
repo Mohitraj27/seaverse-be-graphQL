@@ -20,6 +20,7 @@ const mongoose = require("mongoose");
 const { getCustomGroupUsers, getAutoSyncUsers } = require("../training-registrations/training_registration_helper");
 const roles = require("../../util/role.json");
 const vesselStatusEnum = require("../../util/vessel_status.json");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -708,4 +709,26 @@ const getUsersAndCount = async (input) => {
 
 };
 
-module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper };
+const getLearningPlanAverageProgress = async (learningPlanId) => {
+  try {
+    const progressRecords = await OverallTrainingProgress.find({ learningPlan: learningPlanId })
+      .select('progressPercentage')
+      .lean();
+
+    if (progressRecords.length === 0) {
+      return 0;
+    }
+
+    const totalProgress = progressRecords.reduce((sum, record) => sum + (record.progressPercentage || 0), 0);
+
+    const averageProgress = totalProgress / progressRecords.length;
+
+    return averageProgress;
+  } catch (error) {
+    throw Error(error.message);
+  }
+};
+
+  
+
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper,getLearningPlanAverageProgress };
