@@ -75,13 +75,13 @@ module.exports.queries = {
             });
         };
 
-        if (context.platform === Role.ADMIN && role === Role.ADMIN) {
+        if (role === Role.ADMIN) {
             filterConditions.notifyAdmin = true;
 
             const pipeline = [{ $match: filterConditions }];
 
             return fetchResult(pipeline);
-        } else if (context.platform === Role.ADMIN && role === Role.EMPLOYEE) {
+        } else if (role === Role.EMPLOYEE) {
             filterConditions.$or = [
                 { notifiers: { $elemMatch: { $eq: userId } } },
                 { employeeNotifiers: { $elemMatch: { $eq: employeeId } } },
@@ -104,7 +104,7 @@ module.exports.queries = {
             const pipeline = [{ $match: filterConditions }];
 
             return fetchResult(pipeline);
-        } else if (context.platform === Role.EMPLOYEE && role === Role.EMPLOYEE) {
+        } else if (role === Role.EMPLOYEE) {
             filterConditions.$or = [
                 { notifiers: { $elemMatch: { $eq: userId } } },
                 { employeeNotifiers: { $elemMatch: { $eq: employeeId } } },

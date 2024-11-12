@@ -44,7 +44,7 @@ module.exports = {
             unRegStatus
         }
         input listGroupType {
-            groupType: groupTypes!
+            groupType: String!
             group: String!
         }
         input createGroupInput {
