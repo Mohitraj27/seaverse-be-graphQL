@@ -93,6 +93,25 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
+
+    validateImoNumber: async ({ imoNumber }, context) => {
+        try {
+            const { subscriberId } = AuthUser(context);
+
+            const vessel = await Vessel.findOne({ 
+                imoNumber: { $regex: imoNumber, $options: "i" }, subscriber: subscriberId });
+            if (vessel) {
+                throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
+            }
+
+            return {
+                status: true,
+                message: 'IMO number is valid'
+            };
+        } catch (error) {
+            throw Error(error.message);
+        }
+    },
 };
 
 module.exports.mutations = {
