@@ -334,12 +334,6 @@ module.exports = {
                     );
                 }
 
-                if (!moduleIdExists) {
-                    currentOverallTrainingProgress.trainingModuleIds.push(
-                        input.currentTrainingModuleId
-                    );
-                }
-
                 currentExistingTrainingProgress.updatedBy = userId;
 
                 if (input.currentTrainingModuleContentQuestionAnswers) {
@@ -418,19 +412,6 @@ module.exports = {
 
                     currentExistingTrainingProgress.completedAt = CurrentDateTime().utcDateTime;
 
-
-
-                    if (!moduleIdExists) {
-                        currentOverallTrainingProgress.trainingModuleIds.push(
-                            input.currentTrainingModuleId
-                        );
-                    }
-                    
-                    if (!moduleIdExists) {
-                        currentOverallTrainingProgress.trainingModuleIds.push(
-                            input.currentTrainingModuleId
-                        );
-                    }
                     const currentTrainingData = await Training.findOne({
                         _id: currentOverallTrainingProgress.training,
                     });
