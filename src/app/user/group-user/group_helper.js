@@ -19,10 +19,10 @@ module.exports = {
             .lean();
 
         allGroups.forEach(group => {
-            group.members = group.members.map(member => ({
+            group.members = group.members?.map(member => ({
                 ...member,
                 fullName: `${member.firstName} ${member.lastName}`
-            }));
+            })) || [];
         });
 
         return allGroups;
