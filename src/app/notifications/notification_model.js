@@ -12,7 +12,7 @@ const notificationSchema = new Schema(
             ref: "Organization",
         },
         title: [LocalisedDataSchema],
-        adminMessage: [LocalisedDataSchema],
+        message: [LocalisedDataSchema],
         userMessage: [LocalisedDataSchema],
         notificationType: {
             type: String,

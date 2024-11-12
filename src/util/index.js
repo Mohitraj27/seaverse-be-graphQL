@@ -213,4 +213,5 @@ module.exports = {
     VesselStatus,
     Language: require("./language"),
     EmailTemplate: require("./email_template"),
+    OverallProgressStatus : require("./overall_course_progress_status.json"),
 };
