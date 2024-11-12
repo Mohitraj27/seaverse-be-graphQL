@@ -55,10 +55,15 @@ module.exports = {
             success: Boolean!
             message: String
         }
+        type valdateImoNumberResponse {
+            status: Boolean
+            message: String
+        }
     `,
     queries: `
         getVessels(pageInput: PageInput, filterInput: VesselFilterInput): VesselList!
         getVesselById(id: ID!): Vessel!
+        validateImoNumber(imoNumber: String!): valdateImoNumberResponse!
     `,
     mutations: `
         createVessel(input: VesselInput!): CreateOrUpdateVesselResponse
