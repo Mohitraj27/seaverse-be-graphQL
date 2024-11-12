@@ -154,7 +154,6 @@ const sendCourseInvitationMail = async ({ userData, trainingRegistrationId }) =>
 const sendEnrollmentNotification = async notificationsData => {
     if (notificationsData?.length) {
         const notifications = [];
-        console.log(`TRAINING_NEW_${notificationsData[0].action}`);
 
         const training = await Training.findById(notificationsData[0].trainingRegistration.training)
             .select("title")
