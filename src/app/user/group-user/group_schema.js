@@ -11,8 +11,13 @@ module.exports = {
             members: [MemberDetails]
             createdAt: String
             updatedAt: String
-            createdBy : ID
-            updatedBy : ID
+            createdBy : userInfo
+            updatedBy : userInfo
+        }
+        type userInfo{
+            _id : ID
+            firstName : String
+            lastName : String
         }
         input GroupInput {
             _id: ID
