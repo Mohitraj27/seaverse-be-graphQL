@@ -15,10 +15,19 @@ module.exports = {
         const allGroups = await Group.find({})
             .populate('createdBy', 'firstName lastName')
             .populate('updatedBy', 'firstName lastName')
+            .populate('members', 'firstName lastName email')
             .lean();
-    
+
+        allGroups.forEach(group => {
+            group.members = group.members.map(member => ({
+                ...member,
+                fullName: `${member.firstName} ${member.lastName}`
+            }));
+        });
+
         return allGroups;
     },
+    
     getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
 
