@@ -43,6 +43,7 @@ const { Vessel } = require("../../vessle/vessel_model");
 const { parse } = require("json2csv");
 const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
+const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -1082,6 +1083,8 @@ module.exports = {
         );
 
         let errors = [];
+        let updatedEmpIds = [];
+        const vesselAssociations = [];
 
         for (const user of users) {
 
@@ -1099,19 +1102,24 @@ module.exports = {
                 } else {
 
                     updates.push({
-                        updateOne: {
+                        updateMany: {
                             filter: { civilIdOrPassport: user.civilIdOrPassport },
                             update: {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email,
-                                    vesselStatus: user.vesselStatus,
-                                    currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
                                 },
                             },
-                            upsert: true,
                         },
+                    });
+
+                    updatedEmpIds.push(user.civilIdOrPassport);
+
+                    vesselAssociations.push({
+                        civilIdOrPassport: user.civilIdOrPassport,
+                        imoNumber: user.imoNumber,
+                        vesselStatus: user.vesselStatus,
                     });
 
                 }
@@ -1130,9 +1138,13 @@ module.exports = {
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email,
-                        vesselStatus: user.vesselStatus,
-                        currentVessel: ObjectId(vesselMap.get(user.imoNumber).id),
                         password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
+                    });
+
+                    vesselAssociations.push({
+                        civilIdOrPassport: user.civilIdOrPassport,
+                        imoNumber: user.imoNumber,
+                        vesselStatus: user.vesselStatus,
                     });
 
                 }
@@ -1173,10 +1185,8 @@ module.exports = {
 
             insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
 
-            bulkUpdateUsers = await User.bulkWrite(updates, { session: session });
-            const upIds = bulkUpdateUsers.result.upserted;
-            const updatedIds = upIds.map(item => item._id);
-            updatedUsers = await User.find({ _id: { $in: updatedIds } }).session(session);
+            const bulkUpdateUsers = await User.bulkWrite(updates, { session });
+            updatedUsers = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
 
             const designationMap = new Map(
                 existingDesignations.map(designation => [
@@ -1190,29 +1200,34 @@ module.exports = {
 
             if (allUpdatedUsers.length > 0) {
 
-                const userVesselsInsert = allUpdatedUsers.map(user => {
+                const userVesselsInsert = [];
+                for (const vesselData of vesselAssociations) {
 
-                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                    const originalUserData = await User.find({ civilIdOrPassport: vesselData.civilIdOrPassport });
 
-                    return {
-                        updateOne: {
-                            filter: { user: user },
-                            update: {
-                                $set: {
-                                    user: user,
-                                    vessel: vesselMap.get(originalUserData.imoNumber).id,
-                                    isActive: true,
+                    if (originalUserData.length > 0) {
+                        originalUserData.forEach(user => {
+                            userVesselsInsert.push({
+                                updateOne: {
+                                    filter: { user: user._id },
+                                    update: {
+                                        $set: {
+                                            user: user._id,
+                                            vessel: vesselMap.get(vesselData.imoNumber).id,
+                                            vesselStatus: vesselData.vesselStatus,
+                                            isActive: true,
+                                        }
+                                    },
+                                    upsert: true
                                 }
-                            },
-                            upsert: true
-                        }
-                    };
+                            });
+                        });
+                    }
+                }
 
-                })
-
-
-                await UserVessel.bulkWrite(userVesselsInsert, { session });
-
+                if (userVesselsInsert.length > 0) {
+                    await UserVessel.bulkWrite(userVesselsInsert, { session });
+                }
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
