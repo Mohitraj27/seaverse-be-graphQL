@@ -1,6 +1,5 @@
 const { Schema, Model, ObjectId, AggregatePaginate, Moment } = require("../../tools");
 const { LocalisedDataSchema } = require("../../util/localised_data_schema");
-
 const notificationSchema = new Schema(
     {
         subscriber: {
@@ -37,7 +36,7 @@ const notificationSchema = new Schema(
         ],
         affected: [
             {
-                targetRef: String, 
+                targetRef: String,
                 target: {
                     type: ObjectId,
                     refPath: "affected.targetRef",
@@ -68,6 +67,10 @@ const notificationSchema = new Schema(
             default: false,
         },
         isError:Boolean,
+        status: {
+            type: String,
+            default: null
+        },
         autoDeleteAt: {
             type: Date,
             default: function () {
@@ -78,11 +81,7 @@ const notificationSchema = new Schema(
     },
     { timestamps: true }
 );
-
 notificationSchema.index({ subscriber: 1, notificationType: "text" });
-
 notificationSchema.index({ createdAt: -1 });
-
 notificationSchema.plugin(AggregatePaginate);
-
 module.exports.Notification = Model("Notification", notificationSchema);

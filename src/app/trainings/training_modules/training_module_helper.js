@@ -9,6 +9,7 @@ module.exports = {
         const { userId, subscriberId } = AuthUser(context);
 
         const trainingModuleContentUpdateData = [];
+        const trainingId = input.training?._id;
         const trainingModuleBulkOperations = input.trainingModules.map((module) => {
 
             const trainingModuleFilterConditions = {
@@ -23,6 +24,7 @@ module.exports = {
             if (module.description) trainingModuleUpdateData.description = module.description;
             if (typeof module.isActive === "boolean") trainingModuleUpdateData.isActive = module.isActive;
             if (module.trainingModuleContents) trainingModuleContentUpdateData.push(...module.trainingModuleContents);
+            if (trainingId) trainingModuleUpdateData.training = trainingId;
 
             return {
                 updateOne: {
@@ -37,7 +39,6 @@ module.exports = {
                 },
             };
 
-            
         });
 
         const updatedModules = await TrainingModule.bulkWrite(trainingModuleBulkOperations, {

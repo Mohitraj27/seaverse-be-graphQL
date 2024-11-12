@@ -1,4 +1,4 @@
-const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment, PubSubHelper } = require("../../../tools");
 const {
     SendEmail,
     EmailTemplate,
@@ -40,6 +40,7 @@ const { SubRole } = require("../sub-roles/sub_role_model");
 const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
 const { parseAsync } = require('json2csv');
+const NotificationEvent = require("../../notifications/notification_event.json");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
@@ -1497,8 +1498,11 @@ module.exports.mutations = {
                 newFileName,
                 saveCSV,
             });
-
-            child.on("message", message => {
+            
+            child.on("message", async message => {
+                if (message.type === 'NOTIFICATION') {
+                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+                }
                 console.log("Message from child process:", message);
             });
 
