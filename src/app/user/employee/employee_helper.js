@@ -154,6 +154,7 @@ const sendCourseInvitationMail = async ({ userData, trainingRegistrationId }) =>
 const sendEnrollmentNotification = async notificationsData => {
     if (notificationsData?.length) {
         const notifications = [];
+        console.log(`TRAINING_NEW_${notificationsData[0].action}`);
 
         const training = await Training.findById(notificationsData[0].trainingRegistration.training)
             .select("title")
@@ -164,19 +165,23 @@ const sendEnrollmentNotification = async notificationsData => {
         for (const notificationData of notificationsData) {
             const notification = {
                 subscriber: notificationData.subscriber,
-                title: [{ lang: "en", value: "Employee enrollment" }],
+                title: [{ lang: "en", value: `Learner ${notificationData.action}` }],
                 message: [
                     {
                         lang: "en",
-                        value: `Employee "${notificationData.trainingRegistration.employee?.user?.firstName}" enrolled to course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                        value: `${notificationData.userIds.length} users are ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
                     },
                 ],
-                notificationType: NotificationType.TRAINING_NEW_ENROLLMENT,
+                userMessage: [
+                    {
+                        lang: "en",
+                        value: `You have been ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                    },
+                ],
+                notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAdmin: true,
-                notifiers: [],
-                employeeNotifiers: notificationData.trainingRegistration.trainer
-                    ? [notificationData.trainingRegistration.trainer]
-                    : [],
+                notifiers: notificationData.userIds?notificationData.userIds:[],
+                employeeNotifiers: [],
                 affected: [
                     {
                         targetRef: "TrainingRegistration",
