@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper, ObjectId } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -44,6 +44,8 @@ const { parse } = require("json2csv");
 const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
+const { Notification } = require("../../notifications/notification_model");
+const NotificationEvent = require("../../notifications/notification_event.json");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -220,33 +222,6 @@ const sendEnrollmentNotification = async notificationsData => {
         }
 
         await NotificationHelper.createNotification(notifications);
-    }
-};
-
-const sendNotificationOnBulkImport = async notificationData => {
-    try {
-        const employeeName = notificationData.createdBy?.firstName;
-
-        const notification = {
-            subscriber: notificationData.subscriber,
-            title: [{ lang: "en", value: `Employee ${notificationData.action}` }],
-            notifyAdmin: true,
-            notifiers: [],
-            employeeNotifiers: [],
-            createdBy: notificationData.createdBy?.firstName,
-            employee: notificationData.uploadedBy?.firstName,
-            description: notificationData.description ?? '',
-            isError: notificationData.isError
-        };
-
-        notification.message = {
-            lang: "en",
-            value: `${employeeName}, ${notificationData.isError ? `Failed to ${notificationData.action}` : `${notificationData.action} is successful`}, ${notificationData.description}`,
-        };
-
-        await NotificationHelper.createNotification(notification);
-    } catch (e) {
-        console.log("employee_helper.sendNotificationOnBulkImport:exception:", e?.message);
     }
 };
 
@@ -1334,14 +1309,40 @@ module.exports = {
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        sendNotificationOnBulkImport({
+        const employeeName = adminUser?.firstName;
+
+        const notification = {
             subscriber: subscriberId,
-            action: "BULK IMPORT",
-            createdBy: adminUser,
-            uploadedBy: adminUser,
-            isError: false,
+            title: [{ lang: "en", value: `Employee BULK IMPORT` }],
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            createdBy: adminUser?._id,
+            employee: adminUser?._id,
             description: `New data(s) created/updated`,
-        })
+            isError: false,
+            adminMessage: [{ lang: "en", value: `${employeeName}, Success: New data(s) created/updated` }],
+        };
+
+        notification.message = {
+            lang: "en",
+            value: `${employeeName}, Success: New data(s) created/updated`,
+        };
+
+        const createdNotification = await Notification.create(notification);
+
+        // if (notifications) {
+        //     for (const notification of notifications) {
+        //         await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, {
+        //             onNotification: notification,
+        //         });
+        //     }
+        // }
+        process.send({
+            type: 'NOTIFICATION',
+            event: NotificationEvent.ON_NOTIFICATION,
+            data: { onNotification: createdNotification }
+        });
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
