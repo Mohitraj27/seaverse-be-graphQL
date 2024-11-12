@@ -242,7 +242,8 @@ const sendNotificationOnBULK = async notificationData => {
             employee: notificationData.adminUser?._id,
             description: notificationData.description,
             isError: notificationData.isError,
-            notificationType: notificationData.notificationType
+            notificationType: notificationData.notificationType,
+            status: notificationData.status
         };
 
         notification.message = {
@@ -1191,7 +1192,7 @@ module.exports = {
                 fileName: newFileName,
                 filePath: saveCSV,
                 importStatus: "FAILED",
-                description: `${errors[0]}`
+                description: `${errors[0]}`,
             })
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
@@ -1203,7 +1204,8 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: true,
                 description: `${errors[0]}`,
-                notificationType: 'FAILED'
+                notificationType: 'BULK_IMPORT',
+                status: "FAILED"
             })
 
             throw CustomError(
@@ -1325,7 +1327,8 @@ module.exports = {
                     uploadedBy: adminUser?._id,
                     isError: true,
                     description: `${errors[0]}`,
-                    notificationType: 'FAILED'
+                    notificationType: 'BULK_IMPORT',
+                    status: 'FAILED'
                 })
 
                 throw CustomError(
@@ -1351,8 +1354,9 @@ module.exports = {
             action: "BULK IMPORT",
             createdBy: adminUser?._id,
             uploadedBy: adminUser?._id,
-            notificationType: 'SUCCESS',
             description: `New data(s) created/updated`,
+            notificationType: 'BULK_IMPORT',
+            status: 'FAILED'
         })
 
     },

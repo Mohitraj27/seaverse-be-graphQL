@@ -67,6 +67,10 @@ const notificationSchema = new Schema(
             default: false,
         },
         isError:Boolean,
+        status: {
+            type: String,
+            default: null
+        },
         autoDeleteAt: {
             type: Date,
             default: function () {
