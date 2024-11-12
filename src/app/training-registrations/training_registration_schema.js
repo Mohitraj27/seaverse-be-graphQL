@@ -188,12 +188,34 @@ module.exports = {
             message: String
             courses: [OverallTrainingProgress]
         }
+        type reportData {
+            _id : ID
+            name : String
+            isRegistered : Boolean
+            EmployeeId : String
+            designation : String
+            vesselName : String
+            lastSeen : String
+            coursesCount : Int 
+            averageProgressPercentage : Int
+        }
+        type learnerReportResponse {
+            message : String
+            filePath : String
+            employeesData : [reportData]
+        }
+        input learnerReportInput {
+            filterInput : myCourseFilterInput
+            pageInput : PageInput
+            saveToLocal : Boolean
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
         myCourses(filterInput: myCourseFilterInput): myCoursesRes!
+        getTrainingRegistrationReports(input :learnerReportInput ):learnerReportResponse
     `,
     mutations: `
         """used for assign course to employee"""
