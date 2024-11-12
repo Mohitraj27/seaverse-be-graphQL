@@ -279,10 +279,9 @@ module.exports.mutations = {
         if (input.description) groupUpdateData.description = input.description;
         if (input.groupType) groupUpdateData.groupType = input.groupType;
         if (input.description) groupUpdateData.description = input.description;
-        if (input.members.length === 0) {
+        if (input.members && input.members.length === 0) {
             groupUpdateData.members = input.members;
             groupUpdateData.memberCount = input.members.length;
-
         }
 
         let getDesignationIds = [];
