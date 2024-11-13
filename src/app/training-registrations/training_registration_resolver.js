@@ -409,8 +409,7 @@ module.exports.queries = {
             }));
     
             let s3PresignedUrl = "";
-            let message = "";
-            let excelFilePath = "";
+
             if (input?.export) {
                 const workbook = XLSX.utils.book_new();
                 const worksheet = XLSX.utils.json_to_sheet(data);
@@ -419,8 +418,8 @@ module.exports.queries = {
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: "learner_Report_exports",
-                    fileName: `learners_Report-${Date.now()}`,
-                    uploadType: UploadHelper.uploadType.exportExcel,
+                    fileName: `learners_Report-${Date.now()}.xlsx`,
+                    uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
                 });
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
