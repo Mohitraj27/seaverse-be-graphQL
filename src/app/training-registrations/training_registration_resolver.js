@@ -35,9 +35,7 @@ const { sendEmail } = require("../../util/aws_helper");
 const { create } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
-const fs = require('fs');
 const path = require('path');
-const Export = require("../user/exportUser/exportUser_model");
 const aws_helper = require("../../util/aws_helper");
 
 module.exports.queries = {

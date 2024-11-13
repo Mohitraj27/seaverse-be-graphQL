@@ -41,6 +41,7 @@ const uploadType = {
     certificateLogo : "certificateLogo",
     exportExcel: "exportExcel",
     exportLearnersReportAsExcel :"exportLearnersReportAsExcel",
+    exportLearnersCoursesReportAsExcel :"exportLearnersCoursesReportAsExcel",
 };
 
 
@@ -75,7 +76,8 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.bulkCSV) return `${rootFolder}/import-logs/${folder}/csv-files/${filename}`;
     else if (type === uploadType.certificateLogo) return `${rootFolder}/certificate-layout/${folder}/${filename}`;
     else if (type === uploadType.exportExcel) return `${rootFolder}/export-users/${folder}/${filename}`;
-    else if (type === uploadType.exportLearnersReportAsExcel) return `${rootFolder}/export-learners-reports/${folder}/${filename}`;
+    else if (type === uploadType.exportLearnersReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
+    else if (type === uploadType.exportLearnersCoursesReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;
