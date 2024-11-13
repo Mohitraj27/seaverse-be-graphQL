@@ -19,7 +19,7 @@ const pdfParse = require('pdf-parse');
 const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 
 module.exports.queries = {
-    getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
+    getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
         const { subscriberId } = AuthUser(context);
         const filterConditions = {
             subscriber: subscriberId,
@@ -128,7 +128,15 @@ module.exports.queries = {
                             }
                         }
                     }
-                }
+                },
+                ...(useStatus
+                    ? [{
+                        $match: {
+                            featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
+                        }
+                    }]
+                    : []
+                )
             ]),
             {
                 offset: skip,
@@ -1090,7 +1098,7 @@ module.exports.mutations = {
                 title: input.title,
                 description: input.description,
                 duration: input.duration,
-                quiz: existingContent.contentStatus === Content_status.DRAFT ? questionsIdArr : questionsChanged ? questionsIdArr : existingContent.quiz,
+                quiz: input.questions ? questionsIdArr : existingContent.quiz,
                 contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
