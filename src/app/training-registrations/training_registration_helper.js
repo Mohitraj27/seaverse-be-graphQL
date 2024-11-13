@@ -172,10 +172,12 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
     let alreadyEnrolledUserIds = [];
     let notEnrolledUserIds = [];
 
-    existingTrainings.forEach(training => {
-        alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
-        notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
-    });
+    if (existingTrainings) {
+        existingTrainings.forEach(training => {
+            alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
+            notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
+        });
+    }
 
     alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
     notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
