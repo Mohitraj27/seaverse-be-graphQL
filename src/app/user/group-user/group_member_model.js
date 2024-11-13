@@ -21,6 +21,9 @@ const groupMemberSchema = new Schema({
     groupType: {
         type: String,
     },
+    groupName: {
+        type: String
+    },
     isExclude: {
         type: Boolean,
         default: false,

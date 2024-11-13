@@ -46,6 +46,7 @@ module.exports = {
         input listGroupType {
             groupType: String!
             group: String!
+            groupName: String
         }
         input groupsInGroup {
             groupType: String!
@@ -81,11 +82,9 @@ module.exports = {
         }
         type MemberDetails {
             _id: ID
-            firstName: String
-            lastName: String
-            email: String
             groupType: String
             groupData: String
+            groupName: String
             member: singleMemberDetails
         }
         type getGroupsOfUserResponse {
