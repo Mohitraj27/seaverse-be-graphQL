@@ -11,6 +11,13 @@ module.exports = {
             members: [MemberDetails]
             createdAt: String
             updatedAt: String
+            createdBy : userInfo
+            updatedBy : userInfo
+        }
+        type userInfo{
+            _id : ID
+            firstName : String
+            lastName : String
         }
         input GroupInput {
             _id: ID
@@ -37,7 +44,7 @@ module.exports = {
             unRegStatus
         }
         input listGroupType {
-            groupType: groupTypes!
+            groupType: String!
             group: String!
         }
         input createGroupInput {

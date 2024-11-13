@@ -1,4 +1,4 @@
-const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment, PubSubHelper } = require("../../../tools");
 const {
     SendEmail,
     EmailTemplate,
@@ -44,6 +44,8 @@ const xlsx = require('xlsx');
 const path = require('path');
 const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
+const NotificationEvent = require("../../notifications/notification_event.json");
+
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
@@ -1500,8 +1502,11 @@ module.exports.mutations = {
                 newFileName,
                 saveCSV,
             });
-
-            child.on("message", message => {
+            
+            child.on("message", async message => {
+                if (message.type === 'NOTIFICATION') {
+                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+                }
                 console.log("Message from child process:", message);
             });
 

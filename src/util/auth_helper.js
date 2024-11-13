@@ -43,7 +43,7 @@ const simplify = role => resolver => {
 module.exports = {
     requiresSaasAdmin: requiresRole(Role.SAAS_ADMIN),
     requiresAdmin: requiresRole([Role.SAAS_ADMIN, Role.ADMIN]),
-    requiresEmployee: requiresRole([Role.SAAS_ADMIN, Role.ADMIN, Role.EMPLOYEE, Role.AUTHOR]),
+    requiresEmployee: requiresRole([Role.SAAS_ADMIN, Role.ADMIN, Role.LEARNER, Role.AUTHOR]),
     requiresAuthor: requiresRole([Role.AUTHOR]),
     requiresLogin: requiresRole(null),
     simplify: simplify(null),

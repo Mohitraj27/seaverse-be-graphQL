@@ -7,6 +7,7 @@ const NotificationEvent = require("./notification_event.json");
 module.exports = {
     createNotification: async input => {
         try {
+            
             const notifications = await Notification.insertMany(
                 input instanceof Array ? input : [input],
                 { lean: true }

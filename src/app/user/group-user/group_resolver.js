@@ -57,29 +57,29 @@ module.exports.queries = {
         }
     },
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
-        if (!groupType) groupType = "all" ;
-    
+        if (!groupType) groupType = "all";
+
         const { subscriberId } = AuthUser(context);
-    
+
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-    
+
         let filterConditions = {
             subscriber: subscriberId,
             isDeleted: { $ne: true },
             groupName: { $ne: null },
         };
-    
+
         if (groupFilter?.search) {
             const searchRegex = new RegExp(groupFilter.search, "i");
             filterConditions.groupName = {
                 $regex: searchRegex,
             };
         }
-    
+
         let groups = [];
         let totalCount = 0;
-    
+
         switch (groupType) {
             case "Autosyncedgroups":
                 const allAutosyncedGroups = await getAutoSyncedGroups(subscriberId);
@@ -93,7 +93,7 @@ module.exports.queries = {
                 groups = paginatedAutosyncedGroups;
                 totalCount = filteredAutosyncedGroups.length;
                 break;
-    
+
             case "Customgroups":
                 const allCustomGroups = await getCustomGroups();
                 let filteredCustomGroups = allCustomGroups;
@@ -105,13 +105,13 @@ module.exports.queries = {
                 groups = filteredCustomGroups;
                 totalCount = filteredCustomGroups.length;
                 break;
-    
+
             default:
                 const allAutosynced = await getAutoSyncedGroups(subscriberId);
                 const allCustom = await getCustomGroups();
-                
+
                 const allGroups = [...allAutosynced, ...allCustom];
-    
+
                 let filteredGroups = allGroups;
                 if (groupFilter?.search) {
                     filteredGroups = allGroups.filter(group =>
@@ -123,7 +123,7 @@ module.exports.queries = {
                 totalCount = filteredGroups.length;
                 break;
         }
-    
+
         return {
             status: "Success",
             totalCount,
@@ -279,6 +279,10 @@ module.exports.mutations = {
         if (input.description) groupUpdateData.description = input.description;
         if (input.groupType) groupUpdateData.groupType = input.groupType;
         if (input.description) groupUpdateData.description = input.description;
+        if (input.members && input.members.length === 0) {
+            groupUpdateData.members = input.members;
+            groupUpdateData.memberCount = input.members.length;
+        }
 
         let getDesignationIds = [];
         let roleIds = [];
@@ -466,7 +470,7 @@ module.exports.mutations = {
         };
     },
     deleteGroup: async ({ ids }, context) => {
-        
+
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
