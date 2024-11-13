@@ -82,9 +82,6 @@ module.exports = {
         }
         type MemberDetails {
             _id: ID
-            firstName: String
-            lastName: String
-            email: String
             groupType: String
             groupData: String
             groupName: String
