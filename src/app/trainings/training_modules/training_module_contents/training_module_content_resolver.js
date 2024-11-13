@@ -51,7 +51,7 @@ module.exports.queries = {
             return acc;
         }, {});
 
-        const contents = TrainingModuleContent.aggregatePaginate(
+        const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
                 {
@@ -111,32 +111,7 @@ module.exports.queries = {
                         foreignField: "trainingContent",
                         as: "courseUsage"
                     }
-                },
-                {
-                    $addFields: {
-                        featuredInCourses: {
-                            $let: {
-                                vars: {
-                                    usage: { $literal: usageCountsById }
-                                },
-                                in: {
-                                    $ifNull: [
-                                        { $getField: { input: "$$usage", field: { $toString: "$_id" } } },
-                                        0
-                                    ]
-                                }
-                            }
-                        }
-                    }
-                },
-                ...(useStatus
-                    ? [{
-                        $match: {
-                            featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
-                        }
-                    }]
-                    : []
-                )
+                }
             ]),
             {
                 offset: skip,
@@ -1091,7 +1066,7 @@ module.exports.mutations = {
             if (input.percentageCriteria > score) {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
-                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100); 
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
             }
 
             const updateData = {
