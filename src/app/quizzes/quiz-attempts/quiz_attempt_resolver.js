@@ -8,6 +8,10 @@ const { Employee } = require("../../user/employee/employee_model");
 const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 
 const Permission = require("../../user/sub-roles/permission.json");
+const {
+    TrainingModuleContent,
+} = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
+const { QuizEvaluation } = require("./quiz_evaluation_model");
 
 module.exports.queries = {
     getQuizAttempts: async ({ pageInput, filterInput }, context) => {
@@ -314,6 +318,23 @@ module.exports.queries = {
 
         throw CustomError(ErrorName.FORBIDDEN);
     },
+    getQuizEvaluation: async ({ id, contentId, userId }, context) => {
+        try {
+            if (!id || !contentId || !userId) throw CustomError(ErrorName.BAD_REQUEST);
+            const { role } = AuthUser(context);
+            if (role !== Role.ADMIN || role === Role.LEARNER)
+                throw CustomError(ErrorName.FORBIDDEN);
+            const quizEvaluation = await QuizEvaluation.findOne({
+                _id: id,
+                contentId,
+                userId,
+            }).lean();
+            if (!quizEvaluation) throw CustomError(ErrorName.NOT_FOUND);
+            return quizEvaluation;
+        } catch (error) {
+            throw new Error(error.message);
+        }
+    },
 };
 
 module.exports.mutations = {
@@ -386,5 +407,107 @@ module.exports.mutations = {
 
         if (!savedQuizAttempt) throw CustomError(ErrorName.NOT_FOUND);
         return savedQuizAttempt;
+    },
+    QuizEvaluation: async ({ contentId, questionAnswers }, context) => {
+        try {
+            console.log(questionAnswers, "qa");
+            const { role, userId } = AuthUser(context);
+
+            if (role !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
+
+            const filteredQuestionAnswers =
+                questionAnswers?.filter(el => {
+                    if (Array.isArray(el?.answer)) {
+                        return el.answer.some(ans => ans && ans.trim() !== "");
+                    }
+                    return (
+                        el?.answer &&
+                        el.answer !== "" &&
+                        el.answer !== null &&
+                        el.answer !== undefined
+                    );
+                }) || [];
+
+            const trainingModuleContent = await TrainingModuleContent.findById(contentId)
+                .populate({
+                    path: "quiz",
+                    model: "Question",
+                })
+                .lean();
+
+            if (!trainingModuleContent) throw CustomError(ErrorName.NOT_FOUND);
+
+            let totalScore = 0;
+            let acquiredScore = 0;
+            const attemptedNumber = filteredQuestionAnswers.length;
+            let skippedQuestions = 0;
+
+            const questionResults = trainingModuleContent.quiz.map(question => {
+                const userAnswer = filteredQuestionAnswers.find(
+                    ans => ans.questionId.toString() === question._id.toString()
+                );
+
+                totalScore += question.points;
+
+                if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
+                    skippedQuestions += 1;
+
+                    return {
+                        questionId: question._id,
+                        question: question.question,
+                        givenAnswer: null,
+                        correctAnswer: question.answerKey,
+                        isCorrectAnswer: false,
+                        points: question.points,
+                        negativePoints: question.negativePoints,
+                        isSkipped: true,
+                    };
+                }
+
+                const isCorrectAnswer =
+                    question.answerKey.every(correctAnswer =>
+                        userAnswer.answer.includes(correctAnswer)
+                    ) && userAnswer.answer.length === question.answerKey.length;
+
+                if (isCorrectAnswer) {
+                    acquiredScore += question.points;
+                } else {
+                    acquiredScore -= question.negativePoints;
+                }
+
+                return {
+                    questionId: question._id,
+                    question: question.question,
+                    givenAnswer: userAnswer.answer,
+                    correctAnswer: question.answerKey,
+                    isCorrectAnswer,
+                    points: question.points,
+                    negativePoints: question.negativePoints,
+                    isSkipped: false,
+                };
+            });
+
+            const scorePercentage = totalScore
+                ? Math.max((acquiredScore / totalScore) * 100, 0)
+                : 0;
+
+            const quizEvaluation = new QuizEvaluation({
+                contentId,
+                userId,
+                attended: attemptedNumber,
+                totalQuestions: trainingModuleContent.quiz.length,
+                totalPoints: totalScore,
+                acquiredMarks: acquiredScore,
+                percentage: scorePercentage,
+                skippedQuestions,
+                attendedQuestions: questionResults,
+            });
+
+            await quizEvaluation.save();
+
+            return quizEvaluation;
+        } catch (error) {
+            throw new Error(error.message);
+        }
     },
 };
