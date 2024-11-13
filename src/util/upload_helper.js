@@ -2,8 +2,9 @@ const { PathHelper, MimeHelper } = require("../tools");
 
 const { CustomError, ErrorName } = require("./error_helper");
 const AwsHelper = require("./aws_helper");
-
+const streamifier = require('streamifier');
 const fileType = {
+    excel: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     videos: ["video/mp4"],
     audios: ["audio/mpeg"],
     images: ["image/png", "image/jpeg", "image/bmp", "image/jpg"],
@@ -37,7 +38,8 @@ const uploadType = {
     trainingCertificateImage: "trainingCertificateImage",
     trainingBannerImage: "trainingBannerImage",
     bulkCSV: "bulkCSV",
-    certificateLogo : "certificateLogo"
+    certificateLogo : "certificateLogo",
+    exportExcel: "exportExcel",
 };
 
 
@@ -71,6 +73,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.trainingBannerImage) return `${rootFolder}/trainings/${folder}/training-banner-images/${filename}`;
     else if (type === uploadType.bulkCSV) return `${rootFolder}/import-logs/${folder}/csv-files/${filename}`;
     else if (type === uploadType.certificateLogo) return `${rootFolder}/certificate-layout/${folder}/${filename}`;
+    else if (type === uploadType.exportExcel) return `${rootFolder}/export-users/${folder}/${filename}`;
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;
@@ -114,6 +117,32 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
         }
 
         throw CustomError(ErrorName.UNSUPPORTED_FILE);
+    } else if (fileData instanceof require('stream').Readable) {
+        let extension = PathHelper.extname(fileName);
+        if (!extension) {
+            const ext = MimeHelper.extension("application/octet-stream"); 
+            if (ext) extension = `.${ext}`;
+        }
+        fileName = `${fileName}${extension}`;
+
+        const filePath = getPathFromType({
+            type: uploadType,
+            folder: folderName,
+            filename: fileName,
+        });
+
+        if (filePath) {
+            const s3Path = await AwsHelper.uploadFile({
+                fileData: fileData, 
+                filePath: filePath,
+                originalFileName: fileName,
+                mimeType: "application/octet-stream", 
+            });
+
+            fileData.destroy(); 
+            if (s3Path) return s3Path;
+        }
+        throw CustomError(ErrorName.UPLOAD_FAILED);
     }
 
     throw CustomError(ErrorName.INVALID_FILE);
@@ -207,5 +236,21 @@ module.exports = {
 
             if (filePath) return filePath;
         } else if (typeof data === "string") return data;
-    }
+    },
+    uploadExcel: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data) || Buffer.isBuffer(data)) {
+            const stream = streamifier.createReadStream(data);
+            const filePath = await uploadFile({
+                fileData: stream, 
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.excel, 
+            });
+            if (filePath) return filePath;
+        } else if (typeof data === "string") {
+            return data;
+        }
+    },
+    
 };
