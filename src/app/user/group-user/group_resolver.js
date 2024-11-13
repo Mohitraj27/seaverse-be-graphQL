@@ -96,6 +96,7 @@ module.exports.queries = {
 
             case "Customgroups":
                 const allCustomGroups = await getCustomGroups();
+                
                 let filteredCustomGroups = allCustomGroups;
                 if (groupFilter?.search) {
                     filteredCustomGroups = allCustomGroups.filter(group =>
@@ -129,8 +130,53 @@ module.exports.queries = {
             totalCount,
             groups,
         };
-    }
-    ,
+    },
+    getSingleGroup: async ({ groupId }, context) => {
+
+        const { subscriberId } = AuthUser(context);
+
+        try {
+
+            const group = await Group.aggregate([
+                { $match: { _id: groupId } },
+                {
+                    $lookup: {
+                        from: 'groupmembers',
+                        localField: '_id',
+                        foreignField: 'group',
+                        as: 'members',
+                        pipeline: [
+                            { $match: { isDeleted: false } },
+                            {
+                                $lookup: {
+                                    from: 'users',
+                                    localField: 'member',
+                                    foreignField: '_id',
+                                    as: 'memberDetails'
+                                }
+                            },
+                            {
+                                $unwind: {
+                                    path: '$memberDetails',
+                                    preserveNullAndEmptyArrays: true
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]);
+
+            if (!group) {
+                throw new CustomError(ErrorName.NOT_FOUND, "Group not found");
+            }
+
+            return group[0];
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+
+    },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
 
@@ -279,10 +325,9 @@ module.exports.mutations = {
         if (input.description) groupUpdateData.description = input.description;
         if (input.groupType) groupUpdateData.groupType = input.groupType;
         if (input.description) groupUpdateData.description = input.description;
-        if (input.members.length === 0) {
+        if (input.members && input.members.length === 0) {
             groupUpdateData.members = input.members;
             groupUpdateData.memberCount = input.members.length;
-
         }
 
         let getDesignationIds = [];
