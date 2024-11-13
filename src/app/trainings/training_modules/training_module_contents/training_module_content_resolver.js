@@ -1078,29 +1078,35 @@ module.exports.mutations = {
                 }
 
                 questionsChanged = true;
-
-                if (input.percentageCriteria > totalScore) {
-                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
-                } else {
-                    input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
-                }
+            }
+            const score = questionsChanged ? totalScore : existingContent.totalScore;
+            if (input.percentageCriteria > score) {
+                throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+            } else {
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100); 
             }
 
             const updateData = {
                 title: input.title,
                 description: input.description,
                 duration: input.duration,
-                quiz: questionsChanged ? questionsIdArr : existingContent.quiz,
+                quiz: existingContent.contentStatus === Content_status.DRAFT ? questionsIdArr : questionsChanged ? questionsIdArr : existingContent.quiz,
                 contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
+                percentageCriteria: input.percentageCriteria,
+                randomiseQuestionOrder: input.randomiseQuestionOrder,
+                randomiseAnswerOptionOrder: input.randomiseAnswerOptionOrder,
+                showCorrectAnswersToLearnerAfterQuiz: input.showCorrectAnswersToLearnerAfterQuiz,
+                onlyLearnerPassTheQuiz: input.onlyLearnerPassTheQuiz,
+                evenLearnerFailTheQuiz: input.evenLearnerFailTheQuiz,
                 createdBy: existingContent.createdBy,
                 updatedBy: userId,
                 updatedAt: new Date(),
                 modifiedDate: new Date(),
             };
 
-            if (questionsChanged) {
+            if (questionsChanged && existingContent.contentStatus !== Content_status.DRAFT) {
                 updateData.version = existingContent.version + 1;
                 updateData.isUpdated = false;
                 updateData.isPublished = usedInCourses.length > 0 ? true : false;
