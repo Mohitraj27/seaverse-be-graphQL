@@ -264,8 +264,7 @@ module.exports = {
         type exportUserToCsvResponse {
             status: Boolean
             message: String
-            decodedCsvData: String  
-            fileName: String
+            filePath: String
         }
         type csvimportLogRes {
             id: ID,

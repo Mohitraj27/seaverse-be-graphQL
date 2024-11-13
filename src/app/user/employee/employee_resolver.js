@@ -40,6 +40,10 @@ const { SubRole } = require("../sub-roles/sub_role_model");
 const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
 const { parseAsync } = require('json2csv');
+const xlsx = require('xlsx');
+const path = require('path');
+const Export = require('../exportUser/exportUser_model');
+const AwsHelper = require("../../../util/aws_helper");
 const NotificationEvent = require("../../notifications/notification_event.json");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
@@ -2008,55 +2012,77 @@ module.exports.mutations = {
     },
 
     exportUserToCsv: async ({ input }, context) => {
-        const { role, subscriberId } = AuthUser(context);
-        if (!role || role !== "ADMIN") {
-            throw CustomError(ErrorName.FORBIDDEN);
+    const { role , userId, subscriberId} = AuthUser(context);
+    if (!role || role !== "ADMIN") {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+    try {
+        const userIds = input.ids;
+        const users = await User.find({ _id: { $in: userIds } }).lean();
+        if (!users.length) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
         }
-        try {
-            const userIds = input.ids;
-            const users = await User.find({ _id: { $in: userIds } }).lean();
-            if (!users.length) {
-                throw CustomError(ErrorName.USER_NOT_FOUND);
-            }
-            const fields = [
-                { label: "User ID", value: "_id" },
-                { label: "UID", value: "UID" },
-                { label: "Subscriber", value: "subscriber" },
-                { label: "First Name", value: "firstName" },
-                { label: "Last Name", value: "lastName" },
-                { label: "Civil ID or Passport", value: "civilIdOrPassport" },
-                { label: "Company Email", value: "companyEmail" },
-                { label: "Email", value: "email" },
-                { label: "Phone", value: "phone" },
-                { label: "Avatar", value: "avatar" },
-                { label: "Role", value: "role" },
-                { label: "Sub Roles", value: "subRoles" },
-                { label: "Language Preference", value: "languagePreference" },
-                { label: "Last Login", value: "lastLoginAt" },
-                { label: "Verified", value: "isVerified" },
-                { label: "Active", value: "isActive" },
-                { label: "Registered", value: "isRegistered" },
-                { label: "Super Admin", value: "superAdmin" },
-                { label: "Profile Completed", value: "isProfileCompleted" },
-                { label: "Organization Manager", value: "isOrganizationManager" },
-                { label: "Managing Organization", value: "managingOrganization" },
-                { label: "Created At", value: "createdAt" },
-                { label: "Updated At", value: "updatedAt" },
-                { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
-                { label: "Vessel Status", value: "vesselStatus" },
-                { label: "Current Vessel", value: "currentVessel" }
-            ];
-            const csv = await parseAsync(users, { fields });
-            const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
+        const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
+        const vesselMap = vessels.reduce((acc, vessel) => {
+            acc[vessel._id.toString()] = vessel.name; 
+            return acc;
+        }, {});
+        const userObjectIds = users.map(user => user._id);
+        const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
+        const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
+        const designations = empDesignationIds.length > 0 ? await Designation.find({ _id: { $in: empDesignationIds } }).lean() : [];
+        const designationMap = designations.reduce((acc, designation) => {
+            acc[designation._id.toString()] = designation.name; 
+            return acc;
+        }, {});
+        const data = users.map(user => {
+            const employee = employees.find(emp => emp.user.toString() === user._id.toString());
+            const empDesignation = employee && employee.empDesignation ? designationMap[employee.empDesignation.toString()] : " ";
+            return {
+                "First Name": user.firstName,
+                "Last Name": user.lastName,
+                "Employee ID": user.civilIdOrPassport,
+                "Email": user.email,
+                "Last Login": user.lastLoginAt,
+                "Created At": user.createdAt,
+                "Vessel Status": user.vesselStatus,
+                "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
+                "Employee Designation": empDesignation  
+            };
+        });
+        const workbook = xlsx.utils.book_new();
+        const worksheet = xlsx.utils.json_to_sheet(data);
+        xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+        const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const excelFilePath = await UploadHelper.uploadExcel({
+            data: excelBuffer, 
+            folderName: "exports",
+            fileName: `exported_users_${Date.now()}.xlsx`,
+            uploadType: UploadHelper.uploadType.exportExcel,  
+        });
+        if (excelFilePath) {
+            const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+            const exportEntry = new Export({
+                filePath: s3PresignedUrl,
+                subscriberId: subscriberId,  
+                createdBy: userId,
+                updatedBy: userId,
+                type_of_export: 'USER_EXPORT'
+            });
+            await exportEntry.save();
             return {
                 status: true,
-                message: "CSV export successful",
-                decodedCsvData: cleanedCsvData,
-                fileName: "exported_users.csv"
+                message: "User Export successful",
+                filePath: s3PresignedUrl, 
+                fileName: path.basename(excelFilePath)
             };
-        } catch (error) {
-            throw CustomError(ErrorName.FAILED, `Failed to export CSV: ${error.message}`);
+        } else {
+            throw CustomError(ErrorName.UPLOAD_FAILED);
         }
-    }
+    } catch (error) {
+        throw new Error(error.message);
+    } 
+}
 
 };
