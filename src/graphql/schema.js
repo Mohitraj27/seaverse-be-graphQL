@@ -54,6 +54,7 @@ const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
 const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question');
 const { LearningPlanSchema } = require("../app/learning-plan");
 const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
+const {  ContentZipSchema } = require("../app/trainings/compress_to_zip");
 
 const schemas = [
     AppDataSchema,
@@ -103,6 +104,7 @@ const schemas = [
     LearningPlanSchema,
 
     CertificateLayoutSchema,
+    ContentZipSchema
 ];
 
 const types = [];
