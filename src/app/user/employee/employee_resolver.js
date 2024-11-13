@@ -41,7 +41,9 @@ const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
 const { parseAsync } = require('json2csv');
 const xlsx = require('xlsx');
-const path = require('path'); 
+const path = require('path');
+const Export = require('../exportUser/exportUser_model');
+const AwsHelper = require("../../../util/aws_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
@@ -2007,7 +2009,7 @@ module.exports.mutations = {
     },
 
     exportUserToCsv: async ({ input }, context) => {
-    const { role } = AuthUser(context);
+    const { role , userId, subscriberId} = AuthUser(context);
     if (!role || role !== "ADMIN") {
         throw CustomError(ErrorName.FORBIDDEN);
     }
@@ -2037,7 +2039,7 @@ module.exports.mutations = {
             return {
                 "First Name": user.firstName,
                 "Last Name": user.lastName,
-                "Civil ID or Passport": user.civilIdOrPassport,
+                "Employee ID": user.civilIdOrPassport,
                 "Email": user.email,
                 "Last Login": user.lastLoginAt,
                 "Created At": user.createdAt,
@@ -2048,20 +2050,33 @@ module.exports.mutations = {
         });
         const workbook = xlsx.utils.book_new();
         const worksheet = xlsx.utils.json_to_sheet(data);
-
         xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
-
-        filePath = path.join(__dirname, "exported_users.xlsx");
-
-        xlsx.writeFile(workbook, filePath);
-
-        return {
-            status: true,
-            message: "Excel export successful",
-            filePath: filePath,
-            fileName: path.basename(filePath)
-        };
-
+        const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const excelFilePath = await UploadHelper.uploadExcel({
+            data: excelBuffer, 
+            folderName: "exports",
+            fileName: `exported_users_${Date.now()}.xlsx`,
+            uploadType: UploadHelper.uploadType.exportExcel,  
+        });
+        if (excelFilePath) {
+            const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+            const exportEntry = new Export({
+                filePath: s3PresignedUrl,
+                subscriberId: subscriberId,  
+                createdBy: userId,
+                updatedBy: userId,
+                type_of_export: 'USER_EXPORT'
+            });
+            await exportEntry.save();
+            return {
+                status: true,
+                message: "User Export successful",
+                filePath: s3PresignedUrl, 
+                fileName: path.basename(excelFilePath)
+            };
+        } else {
+            throw CustomError(ErrorName.UPLOAD_FAILED);
+        }
     } catch (error) {
         throw new Error(error.message);
     } 
