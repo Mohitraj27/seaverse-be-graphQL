@@ -46,6 +46,7 @@ module.exports = {
         input listGroupType {
             groupType: String!
             group: String!
+            groupName: String
         }
         input groupsInGroup {
             groupType: String!
@@ -86,6 +87,7 @@ module.exports = {
             email: String
             groupType: String
             groupData: String
+            groupName: String
             member: singleMemberDetails
         }
         type getGroupsOfUserResponse {

@@ -96,7 +96,7 @@ module.exports.queries = {
 
             case "Customgroups":
                 const allCustomGroups = await getCustomGroups();
-                
+
                 let filteredCustomGroups = allCustomGroups;
                 if (groupFilter?.search) {
                     filteredCustomGroups = allCustomGroups.filter(group =>
@@ -271,11 +271,13 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
     try {
+        
         const group = groupData.map(data => ({
             subscriber: subscriberId,
             group: groupId,
             groupType,
-            groupData: data,
+            groupData: data.id,
+            groupName: data.groupName,
         }));
 
         const result = await GroupMember.insertMany(group, { ordered: false });
@@ -345,28 +347,28 @@ module.exports.mutations = {
 
                 switch (typeOfGroup) {
                     case "designation":
-                        getDesignationIds.push(list.group);
+                        getDesignationIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "role":
-                        roleIds.push(list.group);
+                        roleIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vessel":
-                        vesselIds.push(list.group);
+                        vesselIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vesselType":
-                        vesselTypeIds.push(list.group);
+                        vesselTypeIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vesselStatus":
-                        vesselStatusIds.push(list.group);
+                        vesselStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "subRole":
-                        subRoleIds.push(list.group);
+                        subRoleIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "regStatus":
-                        regStatusIds.push(list.group);
+                        regStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "unRegStatus":
-                        unRegStatusIds.push(list.group);
+                        unRegStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     default:
                         console.log(`Unknown group type: ${typeOfGroup}`);
