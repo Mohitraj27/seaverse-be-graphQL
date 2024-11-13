@@ -33,6 +33,9 @@ const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
 const { create } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
@@ -236,6 +239,171 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    getTrainingRegistrationReports: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+    
+        try {
+            const matchStage = [];
+    
+            if (input.filterInput) {
+                if (input.filterInput.name) {
+                    matchStage.push({
+                        $match: {
+                            $or: [
+                                { firstName: { $regex: input.filterInput.name, $options: 'i' } },
+                                { lastName: { $regex: input.filterInput.name, $options: 'i' } },
+                            ],
+                        },
+                    });
+                }
+    
+                if (input.filterInput.isRegistered !== undefined) {
+                    matchStage.push({ $match: { isRegistered: input.filterInput.isRegistered } });
+                }
+            }
+    
+            const skip = input.pageInput?.pageSize * (input.pageInput?.pageNumber - 1) || 0;
+            const limit = input.pageInput?.pageSize || 0;
+    
+            const employeesData = await Employee.aggregate([
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'user',
+                        foreignField: '_id',
+                        as: 'userInfo',
+                    },
+                },
+                {
+                    $unwind: {
+                        path: '$userInfo',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'empDesignation',
+                        foreignField: '_id',
+                        as: 'employeeDesignation',
+                    },
+                },
+                {
+                    $unwind: {
+                        path: '$employeeDesignation',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'trainingregistrations',
+                        localField: 'user',
+                        foreignField: 'user',
+                        as: 'trainingInfo',
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'uservessels',
+                        localField: 'user',
+                        foreignField: 'user',
+                        as: 'vesselInfo',
+                    },
+                },
+                {
+                    $unwind: {
+                        path: '$vesselInfo',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'vessels',
+                        localField: 'vesselInfo.vessel',
+                        foreignField: '_id',
+                        as: 'vesselDetails',
+                    },
+                },
+                {
+                    $unwind: {
+                        path: '$vesselDetails',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'overalltrainingprogresses',
+                        localField: 'user',
+                        foreignField: 'user',
+                        as: 'trainingProgresses',
+                    },
+                },
+                {
+                    $addFields: {
+                        coursesCount: { $size: '$trainingProgresses' },
+                        averageProgressPercentage: {
+                            $cond: {
+                                if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
+                                then: {
+                                    $avg: '$trainingProgresses.progressPercentage',
+                                },
+                                else: 0,
+                            },
+                        },
+                    },
+                },
+                ...(input.pageInput ? [{ $skip: skip }, { $limit: limit }] : []),
+                {
+                    $project: {
+                        name: {
+                            $concat: [
+                                { $ifNull: ['$userInfo.firstName', ''] },
+                                ' ',
+                                { $ifNull: ['$userInfo.lastName', ''] },
+                            ],
+                        },
+                        isRegistered: '$userInfo.isRegistered',
+                        EmployeeId: '$civilIdOrPassport',
+                        designation: '$employeeDesignation.name',
+                        vesselName: '$vesselDetails.name',
+                        lastSeen: '$userInfo.lastLoginAt',
+                        coursesCount: 1,
+                        averageProgressPercentage: 1,
+                    },
+                },
+            ]);
+            const data = employeesData.map(item => ({
+                Name: item.name,
+                EmployeeId: item.EmployeeId,
+                Designation: item.designation,
+                VesselName: item.vesselName,
+                IsRegistered: item.isRegistered ? 'Yes' : 'No',
+                LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
+                CoursesCount: item.coursesCount,
+                AverageProgressPercentage: item.averageProgressPercentage,
+            }));
+            let filePath = "";
+            let message = ""
+
+            if (input.saveToLocal) {
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Learner Report');
+                filePath = path.join(__dirname, 'Reports.xlsx');
+                XLSX.writeFile(wb, filePath);
+                message = 'File created successfully'
+            }
+
+            return {
+                message,
+                filePath,
+                employeesData
+            };
+        } catch (err) {
+            throw Error(err.message);
+        }
+    },      
 };
 
 module.exports.mutations = {
