@@ -226,10 +226,13 @@ module.exports.queries = {
                     $match: filterConditions,
                 },
                 {
-                    $unwind: "$training",
+                    $unwind: {
+                        path: "$training",
+                        preserveNullAndEmptyArrays: true,
+                    },
                 },
             ]);
-
+            
             return {
                 status: true,
                 message: "My Courses fetched successfully",
