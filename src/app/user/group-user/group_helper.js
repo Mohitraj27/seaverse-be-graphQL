@@ -45,17 +45,29 @@ module.exports = {
                     from: 'users',
                     localField: 'createdBy',
                     foreignField: '_id',
-                    as: 'createdBy'
+                    as: 'createdBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
                 }
+            },
+            {
+                $unwind: "$createdBy",
             },
             {
                 $lookup: {
                     from: 'users',
                     localField: 'updatedBy',
                     foreignField: '_id',
-                    as: 'updatedBy'
+                    as: 'updatedBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
                 }
-            }
+            },
+            {
+                $unwind: "$updatedBy",
+            },
         ]);
 
         return allGroups;

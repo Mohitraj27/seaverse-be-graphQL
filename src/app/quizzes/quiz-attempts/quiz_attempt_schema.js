@@ -41,12 +41,61 @@ module.exports = {
             dateFrom: String
             dateTo: String
         }
+
+
+
+type QuizEvaluation {
+    _id: ID!
+    contentId: ID!
+    userId: ID!
+    attemptedNumber: Int!   
+    totalQuestions: Int!
+    totalPoints: Int!
+    acquiredMarks: Int!
+    percentage: Float!
+    skippedQuestions: Int!
+}
+
+input QuestionAnswerInput {
+    questionId: ID!
+    answer: [String!]!
+}
+
+type QuizEvaluationResult {
+    _id: ID!
+    contentId: ID!
+    userId: ID!
+    attended: Int!
+    totalQuestions: Int!
+    totalPoints: Int!
+    acquiredMarks: Int!
+    percentage: Float!
+    skippedQuestions: Int!
+    attendedQuestions: [QuestionResult!]!
+    createdAt: String!
+    updatedAt: String!
+    
+}
+
+type QuestionResult {
+    givenAnswer: [String]
+    correctAnswer: [String]
+    _id: ID!
+    questionId: ID!
+    question: [LocalisedData!]!
+    isCorrectAnswer: Boolean!
+    points: Int!
+    negativePoints: Int!
+    isSkipped: Boolean!
+}
+
     `,
     queries: `
         getQuizAttempts(pageInput: PageInput, filterInput: QuizAttemptFilterInput): QuizAttemptList!
         getQuizAttempt(id: ID!): QuizAttempt!
+        getQuizEvaluation(id: ID!, contentId: ID!, userId: ID!): QuizEvaluationResult
     `,
     mutations: `
         addQuizAttempt(id: ID!, questionAnswers: [QuizAttemptQuestionAnswerInput!]!): QuizAttempt!
-    `,
+        QuizEvaluation(contentId: ID!, questionAnswers: [QuestionAnswerInput!]!): QuizEvaluation      `,
 };
