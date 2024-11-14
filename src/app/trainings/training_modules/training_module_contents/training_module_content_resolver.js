@@ -46,7 +46,7 @@ module.exports.queries = {
             { $group: { _id: "$trainingContent", featuredInCourses: { $sum: 1 } } }
         ]);
 
-        const contents = TrainingModuleContent.aggregatePaginate(
+        const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
                 {
