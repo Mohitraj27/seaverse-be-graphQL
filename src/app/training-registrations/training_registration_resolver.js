@@ -7,6 +7,7 @@ const {
     DbTransactionHelper,
     ParseDateTime,
     courseStatus,
+    UploadHelper,
 } = require("../../util");
 
 const { TrainingRegistration } = require("./training_registration_model");
@@ -34,8 +35,8 @@ const { sendEmail } = require("../../util/aws_helper");
 const { create } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
-const fs = require('fs');
 const path = require('path');
+const aws_helper = require("../../util/aws_helper");
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
@@ -242,32 +243,52 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getTrainingRegistrationReports: async ({ input }, context) => {
+    getTrainingRegistrationReports: async ({input}, context) => {
         const { userId, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     
         try {
             const matchStage = [];
     
-            if (input.filterInput) {
-                if (input.filterInput.name) {
+            if (input && Object.keys(input).length > 0) {
+                const filterInput = input.filterInput || {};
+                if (filterInput.name) {
                     matchStage.push({
                         $match: {
                             $or: [
-                                { firstName: { $regex: input.filterInput.name, $options: 'i' } },
-                                { lastName: { $regex: input.filterInput.name, $options: 'i' } },
+                                { firstName: { $regex: filterInput.name, $options: 'i' } },
+                                { lastName: { $regex: filterInput.name, $options: 'i' } },
                             ],
                         },
                     });
                 }
     
-                if (input.filterInput.isRegistered !== undefined) {
-                    matchStage.push({ $match: { isRegistered: input.filterInput.isRegistered } });
+                if (filterInput.isRegistered !== undefined) {
+                    matchStage.push({ $match: { 'userInfo.isRegistered': filterInput.isRegistered } });
+                }
+    
+                if (filterInput.isDeleted !== undefined) {
+                    matchStage.push({ $match: { 'userInfo.isDeleted': filterInput.isDeleted  } });
+                }
+    
+                if (filterInput.vesselName) {
+                    matchStage.push({
+                        $match: {
+                            'vesselDetails.name': {
+                                $regex: filterInput.vesselName,
+                                $options: 'i',
+                            },
+                        },
+                    });
+                }
+    
+                const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+                const limit = input.pageInput?.pageSize || 0;
+    
+                if (limit > 0) {
+                    matchStage.push({ $skip: skip }, { $limit: limit });
                 }
             }
-    
-            const skip = input.pageInput?.pageSize * (input.pageInput?.pageNumber - 1) || 0;
-            const limit = input.pageInput?.pageSize || 0;
     
             const employeesData = await Employee.aggregate([
                 {
@@ -342,21 +363,19 @@ module.exports.queries = {
                         as: 'trainingProgresses',
                     },
                 },
+                ...matchStage,
                 {
                     $addFields: {
                         coursesCount: { $size: '$trainingProgresses' },
                         averageProgressPercentage: {
                             $cond: {
                                 if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                                then: {
-                                    $avg: '$trainingProgresses.progressPercentage',
-                                },
+                                then: { $avg: '$trainingProgresses.progressPercentage' },
                                 else: 0,
                             },
                         },
                     },
                 },
-                ...(input.pageInput ? [{ $skip: skip }, { $limit: limit }] : []),
                 {
                     $project: {
                         name: {
@@ -367,6 +386,7 @@ module.exports.queries = {
                             ],
                         },
                         isRegistered: '$userInfo.isRegistered',
+                        isDeleted: '$userInfo.isDeleted',
                         EmployeeId: '$civilIdOrPassport',
                         designation: '$employeeDesignation.name',
                         vesselName: '$vesselDetails.name',
@@ -376,37 +396,49 @@ module.exports.queries = {
                     },
                 },
             ]);
+    
             const data = employeesData.map(item => ({
                 Name: item.name,
                 EmployeeId: item.EmployeeId,
                 Designation: item.designation,
                 VesselName: item.vesselName,
                 IsRegistered: item.isRegistered ? 'Yes' : 'No',
+                IsDeleted: item.isDeleted ? 'Yes' : 'No',
                 LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
                 CoursesCount: item.coursesCount,
                 AverageProgressPercentage: item.averageProgressPercentage,
             }));
-            let filePath = "";
-            let message = ""
+    
+            let s3PresignedUrl = "";
 
-            if (input.saveToLocal) {
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Learner Report');
-                filePath = path.join(__dirname, 'Reports.xlsx');
-                XLSX.writeFile(wb, filePath);
-                message = 'File created successfully'
+            if (input?.export) {
+                const workbook = XLSX.utils.book_new();
+                const worksheet = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.book_append_sheet(workbook, worksheet, `Learners Report-${Date.now()}`);
+                const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                const excelFilePath = await UploadHelper.uploadExcel({
+                    data: excelBuffer,
+                    folderName: "All_learners_Report_exports",
+                    fileName: `All_learners_Report-${Date.now()}.xlsx`,
+                    uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
+                });
+                if (excelFilePath) {
+                    s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                }
+                return {
+                    filePath:s3PresignedUrl,
+                    fileName : path.basename(excelFilePath),
+                    employeesData
+                };
             }
-
             return {
-                message,
-                filePath,
                 employeesData
             };
         } catch (err) {
             throw Error(err.message);
         }
-    },      
+    },
+          
 };
 
 module.exports.mutations = {

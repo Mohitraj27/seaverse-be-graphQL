@@ -251,6 +251,36 @@ module.exports.queries = {
             };
         }
     },
+    getUsersAndAutoSyncedGroups: async ({search}, context) => {
+        const { subscriberId } = AuthUser(context);
+
+        const users = await User.aggregate([
+            { $match: { subscriber: subscriberId, isDeleted: false } },
+            ...(search
+                ? [
+                    {
+                        $match: {firstName: { $regex: search, $options: 'i' } },
+                    },
+                ]
+                : []),
+        ]);
+
+        const autoSyncedGroups = await getAutoSyncedGroups(subscriberId);
+        let filteredAutoSyncedGroups = autoSyncedGroups;
+
+        if (search) {
+            const regex = new RegExp(search, 'i');
+            filteredAutoSyncedGroups = autoSyncedGroups.filter(group =>
+                group.groupName && regex.test(group.groupName)
+            );
+        }
+
+        return {
+            users: users,
+            autoSyncedGroups: filteredAutoSyncedGroups,
+        };
+
+    },
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
@@ -271,7 +301,7 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
     try {
-        
+
         const group = groupData.map(data => ({
             subscriber: subscriberId,
             group: groupId,
