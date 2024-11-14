@@ -28,7 +28,7 @@ const LogType = require("../logs/log_type.json");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 
 
-const fetchUserFromAutoSyncedGroups = (async (groups) => {
+const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
         const users = [];
@@ -74,7 +74,10 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
             }
         }
 
-        const designationQuery = designationIds.length ? Employee.find({ empDesignation: { $in: designationIds } }) : Promise.resolve([]);
+        const designationQuery = designationIds.length ? Employee.find({ empDesignation: { $in: designationIds } })
+            .select({ user: 1 })
+            .lean()
+            .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
         const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
@@ -103,11 +106,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
         }
 
         const [
-            designationUsers,
+            designationUsersIds,
             roleUsers,
             subRoleUsers,
             regStatusUsers,
-            vesselUsers,
+            vesselUsersIds,
             vesselStatusUserIds,
             vesselTypeUserIds
         ] = await Promise.all([
@@ -128,6 +131,55 @@ const fetchUserFromAutoSyncedGroups = (async (groups) => {
         let vesselTypeUsers = [];
         if (vesselTypeUserIds.length) {
             vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds } });
+        }
+
+        let vesselUsers = [];
+        if (vesselUsersIds.length) {
+            vesselUsers = await User.find({ _id: { $in: vesselUsersIds } });
+        }
+
+        let designationUsers = [];
+        if (designationUsersIds.length) {
+            designationUsers = await User.find({ _id: { $in: designationUsersIds } });
+        }
+        
+
+        if (fromGetGroups) {
+
+            let result = [];
+
+            for (let group of groups) {
+                const { groupType, groupId } = group;
+
+                switch (groupType) {
+                    case groupTypes.designation:
+                        result.push({ groupId, groupType, member: designationUsers });
+                        break;
+                    case groupTypes.role:
+                        result.push({ groupId, groupType, member: roleUsers });
+                        break;
+                    case groupTypes.subRole:
+                        result.push({ groupId, groupType, member: subRoleUsers });
+                        break;
+                    case groupTypes.regStatus:
+                        result.push({ groupId, groupType, member: regStatusUsers });
+                        break;
+                    case groupTypes.vessel:
+                        result.push({ groupId, groupType, member: vesselUsers });
+                        break;
+                    case groupTypes.vesselStatus:
+                        result.push({ groupId, groupType, member: vesselStatusUsers });
+                        break;
+                    case groupTypes.vesselType:
+                        result.push({ groupId, groupType, member: vesselTypeUsers });
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            return result;
+
         }
 
         return [
@@ -292,6 +344,7 @@ module.exports = {
     createTrainingProgressHelper,
     getAutoSyncUsers,
     getCustomGroupUsers,
+    fetchUserFromAutoSyncedGroups,
     createTrainingRegistration: async (input, context) => {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -469,7 +522,7 @@ module.exports = {
                         subscriber: subscriberId,
                         trainingRegistration: savedTrainingRegistration,
                         createdBy: userInfo,
-                        userIds : userIds,
+                        userIds: userIds,
                         action: "enroll"
                     },
                 ]);
@@ -578,7 +631,7 @@ module.exports = {
                         subscriber: subscriberId,
                         trainingRegistration: unenrollTrainingRegistration,
                         createdBy: userInfo,
-                        userIds : userIds,
+                        userIds: userIds,
                         action: "unenroll"
                     },
                 ]);

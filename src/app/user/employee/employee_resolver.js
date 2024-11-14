@@ -716,7 +716,7 @@ module.exports.queries = {
                 ? [
                     {
                         $match: {
-                            "currentVessel.typeOfVessel": {
+                            "currentVessel.typeOfVessel._id": {
                                 $in: filterInput.vesselType.map(id => ObjectId(id)),
                             },
                         },
@@ -1422,7 +1422,7 @@ module.exports.mutations = {
 
             if (!input.file) throw CustomError(ErrorName.BULK_USER_FILE_UPLOAD);
             const { createReadStream, filename } = await input.file;
-            if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE);
+            if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE, "Failed to upload the CSV file. Please check the format and try again.");
 
             const newFileName = `csv_${Date.now()}`;
 
@@ -1493,7 +1493,6 @@ module.exports.mutations = {
                 if (message.type === 'NOTIFICATION') {
                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
                 }
-                console.log("Message from child process:", message);
             });
 
             child.on("error", error => {
