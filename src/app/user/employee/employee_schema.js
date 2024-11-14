@@ -200,7 +200,7 @@ module.exports = {
             organization: ID
             subRole: ID,
             regType: Int
-            role: RoleEnum
+            role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
