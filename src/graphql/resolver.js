@@ -53,6 +53,7 @@ const { UserVesselResolver } = require('../app/user/user-vessel-bridge');
 const { QuestionResolver } = require('../app/trainings/training_modules/training_module_contents/question');
 const { LearningPlanResolver } = require("../app/learning-plan");
 const { CertificateLayoutResolver } = require("../app/trainings/certificate_layout");
+const { OverallTrainingProgressResolver } = require("../app/training-registrations/overall-course-progress");
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -137,6 +138,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
         ...AuthHelper.requiresAdmin(VesselResolver.queries),
         ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
+        ...AuthHelper.requiresAdmin(OverallTrainingProgressResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -176,6 +178,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(QuestionResolver.mutations),
         ...AuthHelper.requiresAdmin(LearningPlanResolver.mutations),
         ...AuthHelper.requiresAdmin(CertificateLayoutResolver.mutations),
+        ...AuthHelper.requiresAdmin(OverallTrainingProgressResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

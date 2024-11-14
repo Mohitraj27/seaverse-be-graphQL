@@ -283,7 +283,7 @@ module.exports = {
             input.trainingRegistrationId
         );
         if (!trainingRegistration) {
-            throw new CustomError(ErrorName.NOT_FOUND, "Training Registration not found");
+            throw CustomError(ErrorName.NOT_FOUND, "Training Registration not found");
         }
 
         const findAndUpdateTrainingProgress = async filterConditions => {
@@ -426,6 +426,7 @@ module.exports = {
                             currentOverallTrainingProgress.status = OverallProgressStatus.COMPLETED;
                             currentOverallTrainingProgress.isComplete = true;
                             currentOverallTrainingProgress.isCertificateGenerated = true;
+                            currentOverallTrainingProgress.completionDate = CurrentDateTime().utcDateTime;
                         } else {
                             currentOverallTrainingProgress.status = OverallProgressStatus.IN_PROGRESS;
                         }
@@ -437,6 +438,7 @@ module.exports = {
                             currentOverallTrainingProgress.status = OverallProgressStatus.COMPLETED;
                             currentOverallTrainingProgress.isComplete = true;
                             currentOverallTrainingProgress.isCertificateGenerated = true;
+                            currentOverallTrainingProgress.completionDate = CurrentDateTime().utcDateTime;
                         } else {
                             currentOverallTrainingProgress.status = OverallProgressStatus.IN_PROGRESS;
                         }
