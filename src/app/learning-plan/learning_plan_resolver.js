@@ -1,7 +1,7 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper } = require("./learning_plan_helper");
+const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper ,getLearningPlanAverageProgress } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const {  Moment } = require("../../tools");
@@ -214,7 +214,7 @@ module.exports.queries = {
             if (filterInput?.status) {
                 queryConditions.status = filterInput.status;
             }
-            if (filterInput.audienceSelection) {
+            if (filterInput?.audienceSelection) {
                 queryConditions.audienceSelection = {
                     $in: Array.isArray(filterInput.audienceSelection)
                         ? filterInput.audienceSelection
@@ -423,6 +423,10 @@ module.exports.queries = {
                     }
                 }
             ]);
+            for (const learningPlan of learningPlans) {
+                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
+                learningPlan.overallProgress = overallProgress; 
+            }
             return {
                 learningPlans: learningPlans,
                 totalCount: totalCount,

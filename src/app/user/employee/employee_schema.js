@@ -200,7 +200,7 @@ module.exports = {
             organization: ID
             subRole: ID,
             regType: Int
-            role: RoleEnum
+            role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
@@ -264,8 +264,7 @@ module.exports = {
         type exportUserToCsvResponse {
             status: Boolean
             message: String
-            decodedCsvData: String  
-            fileName: String
+            filePath: String
         }
         type csvimportLogRes {
             id: ID,

@@ -1,4 +1,4 @@
-const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment, PubSubHelper } = require("../../../tools");
 const {
     SendEmail,
     EmailTemplate,
@@ -40,6 +40,11 @@ const { SubRole } = require("../sub-roles/sub_role_model");
 const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
 const { parseAsync } = require('json2csv');
+const xlsx = require('xlsx');
+const path = require('path');
+const Export = require('../exportUser/exportUser_model');
+const AwsHelper = require("../../../util/aws_helper");
+const NotificationEvent = require("../../notifications/notification_event.json");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
@@ -567,31 +572,31 @@ module.exports.queries = {
             {
                 $match: filterConditions,
             },
-            {
-                $lookup: {
-                    from: "groups",
-                    localField: "groupDetails._id",
-                    foreignField: "members",
-                    as: "groupDetails",
-                    pipeline: [
-                        {
-                            $match: { groupName: { $exists: true, $ne: null } }
-                        },
-                        {
-                            $project: {
-                                _id: 1,
-                                groupName: 1,
-                            }
-                        }
-                    ]
-                }
-            },
-            {
-                $unwind: {
-                    path: "$groupDetails",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
+            // {
+            //     $lookup: {
+            //         from: "groups",
+            //         localField: "groupDetails._id",
+            //         foreignField: "members",
+            //         as: "groupDetails",
+            //         pipeline: [
+            //             {
+            //                 $match: { groupName: { $exists: true, $ne: null } }
+            //             },
+            //             {
+            //                 $project: {
+            //                     _id: 1,
+            //                     groupName: 1,
+            //                 }
+            //             }
+            //         ]
+            //     }
+            // },
+            // {
+            //     $unwind: {
+            //         path: "$groupDetails",
+            //         preserveNullAndEmptyArrays: true
+            //     }
+            // },
             {
                 $lookup: {
                     from: "designations",
@@ -786,12 +791,21 @@ module.exports.queries = {
                     },
                 ]
                 : []),
-            ...(filterInput?.role
+            ...(filterInput?.role?.length > 0
                 ? [
                     {
-                        $match: {
-                            "user.role": filterInput.role,
-                        },
+                        $match:
+                            filterInput.role.includes("LEARNER") &&
+                                filterInput.role.includes("ADMIN")
+                                ? {}
+                                : filterInput.role.includes("LEARNER")
+                                    ? {
+                                        "user.role": "LEARNER",
+                                        "user.subRoles.name": { $ne: "ADMIN" },
+                                    }
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
                     },
                 ]
                 : []),
@@ -1067,12 +1081,12 @@ module.exports.queries = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-                  const emailExists = await User.findOne({ email: { $regex: input.email, $options: "i" } });
-                  if (emailExists) {
-                        messages.push("This email Id already exists in the system with another employee.");
-                  }
+                const emailExists = await User.findOne({ email: input.email });
+                if (emailExists) {
+                    messages.push("This email Id already exists in the system with another employee.");
+                }
             } else if (input.civilIdOrPassport) {
-                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: input.civilIdOrPassport, $options: "i" } });
+                const empNoExists = await User.findOne({ civilIdOrPassport: input.civilIdOrPassport });
                 if (empNoExists) {
                     messages.push("Another user already exists with this employee Id");
                 }
@@ -1084,8 +1098,8 @@ module.exports.queries = {
                 };
             }
             return {
-                  status: true,
-                  message: "The input value is available.",
+                status: true,
+                message: "The input value is available.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -1498,7 +1512,10 @@ module.exports.mutations = {
                 saveCSV,
             });
 
-            child.on("message", message => {
+            child.on("message", async message => {
+                if (message.type === 'NOTIFICATION') {
+                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+                }
                 console.log("Message from child process:", message);
             });
 
@@ -2004,7 +2021,7 @@ module.exports.mutations = {
     },
 
     exportUserToCsv: async ({ input }, context) => {
-        const { role, subscriberId } = AuthUser(context);
+        const { role, userId, subscriberId } = AuthUser(context);
         if (!role || role !== "ADMIN") {
             throw CustomError(ErrorName.FORBIDDEN);
         }
@@ -2014,44 +2031,66 @@ module.exports.mutations = {
             if (!users.length) {
                 throw CustomError(ErrorName.USER_NOT_FOUND);
             }
-            const fields = [
-                { label: "User ID", value: "_id" },
-                { label: "UID", value: "UID" },
-                { label: "Subscriber", value: "subscriber" },
-                { label: "First Name", value: "firstName" },
-                { label: "Last Name", value: "lastName" },
-                { label: "Civil ID or Passport", value: "civilIdOrPassport" },
-                { label: "Company Email", value: "companyEmail" },
-                { label: "Email", value: "email" },
-                { label: "Phone", value: "phone" },
-                { label: "Avatar", value: "avatar" },
-                { label: "Role", value: "role" },
-                { label: "Sub Roles", value: "subRoles" },
-                { label: "Language Preference", value: "languagePreference" },
-                { label: "Last Login", value: "lastLoginAt" },
-                { label: "Verified", value: "isVerified" },
-                { label: "Active", value: "isActive" },
-                { label: "Registered", value: "isRegistered" },
-                { label: "Super Admin", value: "superAdmin" },
-                { label: "Profile Completed", value: "isProfileCompleted" },
-                { label: "Organization Manager", value: "isOrganizationManager" },
-                { label: "Managing Organization", value: "managingOrganization" },
-                { label: "Created At", value: "createdAt" },
-                { label: "Updated At", value: "updatedAt" },
-                { label: "Reset Password Dialog", value: "isResetPasswordDialog" },
-                { label: "Vessel Status", value: "vesselStatus" },
-                { label: "Current Vessel", value: "currentVessel" }
-            ];
-            const csv = await parseAsync(users, { fields });
-            const cleanedCsvData = csv.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-            return {
-                status: true,
-                message: "CSV export successful",
-                decodedCsvData: cleanedCsvData,
-                fileName: "exported_users.csv"
-            };
+            const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
+            const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
+            const vesselMap = vessels.reduce((acc, vessel) => {
+                acc[vessel._id.toString()] = vessel.name;
+                return acc;
+            }, {});
+            const userObjectIds = users.map(user => user._id);
+            const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
+            const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
+            const designations = empDesignationIds.length > 0 ? await Designation.find({ _id: { $in: empDesignationIds } }).lean() : [];
+            const designationMap = designations.reduce((acc, designation) => {
+                acc[designation._id.toString()] = designation.name;
+                return acc;
+            }, {});
+            const data = users.map(user => {
+                const employee = employees.find(emp => emp.user.toString() === user._id.toString());
+                const empDesignation = employee && employee.empDesignation ? designationMap[employee.empDesignation.toString()] : " ";
+                return {
+                    "First Name": user.firstName,
+                    "Last Name": user.lastName,
+                    "Employee ID": user.civilIdOrPassport,
+                    "Email": user.email,
+                    "Last Login": user.lastLoginAt,
+                    "Created At": user.createdAt,
+                    "Vessel Status": user.vesselStatus,
+                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
+                    "Employee Designation": empDesignation
+                };
+            });
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(data);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_users_${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+            if (excelFilePath) {
+                const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const exportEntry = new Export({
+                    filePath: s3PresignedUrl,
+                    subscriberId: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    type_of_export: 'USER_EXPORT'
+                });
+                await exportEntry.save();
+                return {
+                    status: true,
+                    message: "User Export successful",
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath)
+                };
+            } else {
+                throw CustomError(ErrorName.UPLOAD_FAILED);
+            }
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `Failed to export CSV: ${error.message}`);
+            throw new Error(error.message);
         }
     }
 

@@ -153,13 +153,17 @@ module.exports = {
             lang: Language!
             value: String!
         }
+        enum useStatusInput {
+            IN_USE
+            NOT_IN_USE
+        }
         type featuredInCourses {
             courseCount: Int
             courseNames: [String]
         }
     `,
     queries: `
-        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType): TrainingModuleContentList
+        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType, useStatus: useStatusInput): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
         getFeaturedInCourses(id: ID!): featuredInCourses
     `,

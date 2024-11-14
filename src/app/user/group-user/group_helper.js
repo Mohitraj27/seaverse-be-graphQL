@@ -12,48 +12,67 @@ const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../
 
 module.exports = {
     getCustomGroups: async () => {
+
         const allGroups = await Group.aggregate([
+            { $match: {} },
             {
                 $lookup: {
-                    from: "users",
-                    localField: "members",
-                    foreignField: "_id",
-                    as: "members",
-                },
-            },
-            {
-                $project: {
-                    members: {
-                        $filter: {
-                            input: "$members",
-                            as: "member",
-                            cond: {
-                                $and: [
-                                    { $ne: ["$$member.firstName", null] },
-                                    { $ne: ["$$member.email", null] },
-                                ],
-                            },
+                    from: 'groupmembers',
+                    localField: '_id',
+                    foreignField: 'group',
+                    as: 'members',
+                    pipeline: [
+                        { $match: { isDeleted: false } },
+                        {
+                            $lookup: {
+                                from: 'users',
+                                localField: 'member',
+                                foreignField: '_id',
+                                as: 'member'
+                            }
                         },
-                    },
-                    groupName: 1,
-                    createdAt: 1,
-                    groupAdmin: 1,
-                    isManagerDefault: 1,
-                    groupType: 1,
-                    memberCount: 1,
-                    description: 1,
-                    members: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
-                },
+                        {
+                            $unwind: {
+                                path: '$member',
+                                preserveNullAndEmptyArrays: true
+                            }
+                        }
+                    ]
+                }
             },
             {
-                $sort: { createdAt: -1 },
+                $lookup: {
+                    from: 'users',
+                    localField: 'createdBy',
+                    foreignField: '_id',
+                    as: 'createdBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
+                }
+            },
+            {
+                $unwind: "$createdBy",
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'updatedBy',
+                    foreignField: '_id',
+                    as: 'updatedBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
+                }
+            },
+            {
+                $unwind: "$updatedBy",
             },
         ]);
-        console.log(allGroups);
+
         return allGroups;
     },
+
     getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
 
@@ -132,17 +151,50 @@ module.exports = {
                 $match: {
                     subscriber: subscriberId,
                     isDeleted: { $ne: true },
-                    role: { $ne: null },
                     firstName: { $ne: null },
                     email: { $ne: null },
                 },
             },
             {
+                $lookup: {
+                    from: "subroles",
+                    localField: "subRoles",
+                    foreignField: "_id",
+                    as: "subroleDetails",
+                },
+            },
+            {
+                $project: {
+                    effectiveRole: {
+                        $cond: {
+                            if: {
+                                $in: [
+                                    "ADMIN",
+                                    {
+                                        $map: {
+                                            input: "$subroleDetails",
+                                            as: "subrole",
+                                            in: "$$subrole.name",
+                                        },
+                                    },
+                                ],
+                            },
+                            then: "ADMIN",
+                            else: "$role",
+                        },
+                    },
+                    firstName: 1,
+                    lastName: 1,
+                    email: 1,
+                    _id: 1,
+                },
+            },
+            {
                 $group: {
-                    _id: "$role",
-                    groupName: { $first: "$role" },
+                    _id: "$effectiveRole",
+                    groupName: { $first: "$effectiveRole" },
                     members: {
-                        $push: {
+                        $addToSet: {
                             _id: "$_id",
                             firstName: "$firstName",
                             lastName: "$lastName",
@@ -497,20 +549,12 @@ module.exports = {
             empDesignationGroups ||
             roleGroups ||
             vesselGroups ||
-            subRoleGroups ||
-            registeredUserGroups ||
-            unregisteredUserGroups ||
-            vesselStatusGroups ||
             vesselTypeGroups
         ) {
             allGroups = [
                 ...empDesignationGroups,
                 ...roleGroups,
-                ...subRoleGroups,
                 ...vesselGroups,
-                ...registeredUserGroups,
-                ...unregisteredUserGroups,
-                ...vesselStatusGroups,
                 ...vesselTypeGroups,
             ];
         }

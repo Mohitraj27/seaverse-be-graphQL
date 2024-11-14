@@ -36,8 +36,7 @@ module.exports = {
         input ConditionalCustomFieldInput {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]
-            groupTypes: [String]
-            groupIDs: [String]  
+            groupIDs: [GroupTypeInput!] 
             isOrIsNot: String!
         }
         input GroupTypeInput {
@@ -136,6 +135,7 @@ module.exports = {
             updatedBy: User
             createdAt: String
             updatedAt: String
+            overallProgress: Float
         }
         type DeleteLearningPlanResponse {
             success: Boolean!

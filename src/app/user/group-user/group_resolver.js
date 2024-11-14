@@ -57,29 +57,29 @@ module.exports.queries = {
         }
     },
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
-        if (!groupType) groupType = "all" ;
-    
+        if (!groupType) groupType = "all";
+
         const { subscriberId } = AuthUser(context);
-    
+
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-    
+
         let filterConditions = {
             subscriber: subscriberId,
             isDeleted: { $ne: true },
             groupName: { $ne: null },
         };
-    
+
         if (groupFilter?.search) {
             const searchRegex = new RegExp(groupFilter.search, "i");
             filterConditions.groupName = {
                 $regex: searchRegex,
             };
         }
-    
+
         let groups = [];
         let totalCount = 0;
-    
+
         switch (groupType) {
             case "Autosyncedgroups":
                 const allAutosyncedGroups = await getAutoSyncedGroups(subscriberId);
@@ -93,9 +93,10 @@ module.exports.queries = {
                 groups = paginatedAutosyncedGroups;
                 totalCount = filteredAutosyncedGroups.length;
                 break;
-    
+
             case "Customgroups":
                 const allCustomGroups = await getCustomGroups();
+
                 let filteredCustomGroups = allCustomGroups;
                 if (groupFilter?.search) {
                     filteredCustomGroups = allCustomGroups.filter(group =>
@@ -105,13 +106,13 @@ module.exports.queries = {
                 groups = filteredCustomGroups;
                 totalCount = filteredCustomGroups.length;
                 break;
-    
+
             default:
                 const allAutosynced = await getAutoSyncedGroups(subscriberId);
                 const allCustom = await getCustomGroups();
-                
+
                 const allGroups = [...allAutosynced, ...allCustom];
-    
+
                 let filteredGroups = allGroups;
                 if (groupFilter?.search) {
                     filteredGroups = allGroups.filter(group =>
@@ -123,14 +124,59 @@ module.exports.queries = {
                 totalCount = filteredGroups.length;
                 break;
         }
-    
+
         return {
             status: "Success",
             totalCount,
             groups,
         };
-    }
-    ,
+    },
+    getSingleGroup: async ({ groupId }, context) => {
+
+        const { subscriberId } = AuthUser(context);
+
+        try {
+
+            const group = await Group.aggregate([
+                { $match: { _id: groupId } },
+                {
+                    $lookup: {
+                        from: 'groupmembers',
+                        localField: '_id',
+                        foreignField: 'group',
+                        as: 'members',
+                        pipeline: [
+                            { $match: { isDeleted: false } },
+                            {
+                                $lookup: {
+                                    from: 'users',
+                                    localField: 'member',
+                                    foreignField: '_id',
+                                    as: 'memberDetails'
+                                }
+                            },
+                            {
+                                $unwind: {
+                                    path: '$memberDetails',
+                                    preserveNullAndEmptyArrays: true
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]);
+
+            if (!group) {
+                throw new CustomError(ErrorName.NOT_FOUND, "Group not found");
+            }
+
+            return group[0];
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+
+    },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
 
@@ -225,11 +271,13 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
 
 const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
     try {
+        
         const group = groupData.map(data => ({
             subscriber: subscriberId,
             group: groupId,
             groupType,
-            groupData: data,
+            groupData: data.id,
+            groupName: data.groupName,
         }));
 
         const result = await GroupMember.insertMany(group, { ordered: false });
@@ -279,6 +327,10 @@ module.exports.mutations = {
         if (input.description) groupUpdateData.description = input.description;
         if (input.groupType) groupUpdateData.groupType = input.groupType;
         if (input.description) groupUpdateData.description = input.description;
+        if (input.members && input.members.length === 0) {
+            groupUpdateData.members = input.members;
+            groupUpdateData.memberCount = input.members.length;
+        }
 
         let getDesignationIds = [];
         let roleIds = [];
@@ -295,28 +347,28 @@ module.exports.mutations = {
 
                 switch (typeOfGroup) {
                     case "designation":
-                        getDesignationIds.push(list.group);
+                        getDesignationIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "role":
-                        roleIds.push(list.group);
+                        roleIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vessel":
-                        vesselIds.push(list.group);
+                        vesselIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vesselType":
-                        vesselTypeIds.push(list.group);
+                        vesselTypeIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "vesselStatus":
-                        vesselStatusIds.push(list.group);
+                        vesselStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "subRole":
-                        subRoleIds.push(list.group);
+                        subRoleIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "regStatus":
-                        regStatusIds.push(list.group);
+                        regStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     case "unRegStatus":
-                        unRegStatusIds.push(list.group);
+                        unRegStatusIds.push({ id: list.group, groupName: list.groupName });
                         break;
                     default:
                         console.log(`Unknown group type: ${typeOfGroup}`);
@@ -466,7 +518,7 @@ module.exports.mutations = {
         };
     },
     deleteGroup: async ({ ids }, context) => {
-        
+
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
