@@ -180,6 +180,27 @@ module.exports.queries = {
                 : []),
         ]);
     },
+    fetchSampleFile: async () => {
+
+
+        try {
+
+            const signedUrl = await AwsHelper.fetchFile("public/sample_doc.csv");
+            return {
+                success: true,
+                message: "File fetched successfully",
+                url: signedUrl,
+            };
+        } catch (error) {
+            console.error("Error fetching file:", error);
+            return {
+                success: false,
+                message: "Failed to fetch file",
+                url: null,
+            };
+        }
+    },
+
     getManagerList: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
@@ -1505,6 +1526,7 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
+
     createEmployee: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);

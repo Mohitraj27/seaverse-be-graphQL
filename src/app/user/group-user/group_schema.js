@@ -46,6 +46,7 @@ module.exports = {
         input listGroupType {
             groupType: String!
             group: String!
+            groupName: String!
         }
         input groupsInGroup {
             groupType: String!
@@ -64,6 +65,10 @@ module.exports = {
             status : String
             groups: [Group]
             totalCount: Int
+        }
+        type UserAndAutoSyncedGroupRes {
+            users: [User]
+            autoSyncedGroups: [Group]
         }
         type GroupResponse {
             message: String
@@ -84,6 +89,7 @@ module.exports = {
             firstName: String
             lastName: String
             email: String
+            isRegistered: Boolean
             groupType: String
             groupData: String
             groupName: String
@@ -103,6 +109,8 @@ module.exports = {
             _id: ID
             firstName: String
             lastName: String
+            email: String
+            isRegistered: Boolean
         }
         type groupMembersDetails {
             _id: ID
@@ -121,6 +129,7 @@ module.exports = {
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
         getSingleGroup(groupId: ID!): singleGroupRes
+        getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!
     `,
     mutations: `
         createOrUpdateGroup(input: createGroupInput!): GroupResponse!

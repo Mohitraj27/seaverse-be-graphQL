@@ -277,7 +277,14 @@ module.exports = {
         }
         input emailIDInput{
             email: [String]!
-        }    
+        }  
+
+     
+type FetchFileResponse {
+    success: Boolean!
+    message: String
+    url: String
+}
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -289,6 +296,7 @@ module.exports = {
         getCSVImportLogs: [csvimportLogRes!]
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
+         fetchSampleFile: FetchFileResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!

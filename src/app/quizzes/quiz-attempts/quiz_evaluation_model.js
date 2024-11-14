@@ -50,6 +50,11 @@ const quizEvaluationSchema = new Schema(
             type: Number,
             required: true,
         },
+        isPassed: {
+            type: Boolean,
+            required: true,
+            default: false,
+        },
         createdBy: {
             type: ObjectId,
             ref: "User",
