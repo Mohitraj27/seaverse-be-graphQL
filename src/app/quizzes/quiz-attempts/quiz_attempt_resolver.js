@@ -441,6 +441,7 @@ module.exports.mutations = {
             let acquiredScore = 0;
             const attemptedNumber = filteredQuestionAnswers.length;
             let skippedQuestions = 0;
+            let isPassed = false;
 
             const questionResults = trainingModuleContent.quiz.map(question => {
                 const userAnswer = filteredQuestionAnswers.find(
@@ -488,9 +489,10 @@ module.exports.mutations = {
             });
 
             const scorePercentage = totalScore
-                ? Math.max((acquiredScore / totalScore) * 100, 0)
+                ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
                 : 0;
 
+            isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
             const quizEvaluation = new QuizEvaluation({
                 contentId,
                 userId,
@@ -500,6 +502,7 @@ module.exports.mutations = {
                 acquiredMarks: acquiredScore,
                 percentage: scorePercentage,
                 skippedQuestions,
+                isPassed,
                 attendedQuestions: questionResults,
             });
 

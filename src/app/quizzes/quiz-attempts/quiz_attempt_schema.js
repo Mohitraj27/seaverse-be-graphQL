@@ -87,6 +87,7 @@ type QuestionResult {
     points: Int!
     negativePoints: Int!
     isSkipped: Boolean!
+    isPassed: Boolean!
 }
 
     `,
