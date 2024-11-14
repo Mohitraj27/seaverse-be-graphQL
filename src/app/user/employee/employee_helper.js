@@ -1362,7 +1362,7 @@ module.exports = {
             uploadedBy: adminUser?._id,
             description: `New data(s) created/updated`,
             notificationType: 'BULK_IMPORT',
-            status: 'FAILED'
+            status: 'SUCCESS'
         })
 
     },
