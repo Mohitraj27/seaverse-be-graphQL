@@ -46,11 +46,6 @@ module.exports.queries = {
             { $group: { _id: "$trainingContent", featuredInCourses: { $sum: 1 } } }
         ]);
 
-        const usageCountsById = contentUsageCounts.reduce((acc, item) => {
-            acc[item._id.toString()] = item.featuredInCourses;
-            return acc;
-        }, {});
-
         const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
@@ -115,20 +110,11 @@ module.exports.queries = {
                 {
                     $addFields: {
                         featuredInCourses: {
-                            $reduce: {
-                                input: "$courseUsage",
-                                initialValue: 0,
-                                in: {
-                                    $add: [
-                                        "$$value",
-                                        {
-                                            $cond: {
-                                                if: { $in: ["$$this.trainingContent", Object.keys(usageCountsById)] },
-                                                then: usageCountsById["$$this.trainingContent"],
-                                                else: 0
-                                            }
-                                        }
-                                    ]
+                            $size: {
+                                $filter: {
+                                    input: contentUsageCounts,
+                                    as: "count",
+                                    cond: { $eq: ["$$count._id", "$_id"] }
                                 }
                             }
                         }
@@ -1096,6 +1082,7 @@ module.exports.mutations = {
             if (input.percentageCriteria > score) {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
                 input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
             }
 
