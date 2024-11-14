@@ -198,16 +198,23 @@ module.exports = {
             lastSeen : String
             coursesCount : Int 
             averageProgressPercentage : Int
+            isDeleted : Boolean
         }
         type learnerReportResponse {
-            message : String
             filePath : String
+            fileName : String
             employeesData : [reportData]
         }
         input learnerReportInput {
-            filterInput : myCourseFilterInput
-            pageInput : PageInput
-            saveToLocal : Boolean
+            pageInput: PageInput
+            export : Boolean
+            filterInput : learnerReportFilter
+        }
+        input learnerReportFilter {
+            isRegistered : Boolean
+            isDeleted : Boolean
+            vesselName : String
+            name : String
         }
     `,
     queries: `

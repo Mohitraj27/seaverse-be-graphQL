@@ -572,31 +572,6 @@ module.exports.queries = {
             {
                 $match: filterConditions,
             },
-            // {
-            //     $lookup: {
-            //         from: "groups",
-            //         localField: "groupDetails._id",
-            //         foreignField: "members",
-            //         as: "groupDetails",
-            //         pipeline: [
-            //             {
-            //                 $match: { groupName: { $exists: true, $ne: null } }
-            //             },
-            //             {
-            //                 $project: {
-            //                     _id: 1,
-            //                     groupName: 1,
-            //                 }
-            //             }
-            //         ]
-            //     }
-            // },
-            // {
-            //     $unwind: {
-            //         path: "$groupDetails",
-            //         preserveNullAndEmptyArrays: true
-            //     }
-            // },
             {
                 $lookup: {
                     from: "designations",

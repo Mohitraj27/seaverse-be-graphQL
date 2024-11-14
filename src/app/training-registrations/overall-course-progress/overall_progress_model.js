@@ -43,6 +43,7 @@ const overallProgressSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        completionDate : Date,
         retryCount: Number,
         progressPercentage : Number,
         isEnrolled : Boolean,
