@@ -46,11 +46,6 @@ module.exports.queries = {
             { $group: { _id: "$trainingContent", featuredInCourses: { $sum: 1 } } }
         ]);
 
-        const usageCountsById = contentUsageCounts.reduce((acc, item) => {
-            acc[item._id.toString()] = item.featuredInCourses;
-            return acc;
-        }, {});
-
         const contents = TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
@@ -115,15 +110,11 @@ module.exports.queries = {
                 {
                     $addFields: {
                         featuredInCourses: {
-                            $let: {
-                                vars: {
-                                    usage: { $literal: usageCountsById }
-                                },
-                                in: {
-                                    $ifNull: [
-                                        { $getField: { input: "$$usage", field: { $toString: "$_id" } } },
-                                        0
-                                    ]
+                            $size: {
+                                $filter: {
+                                    input: contentUsageCounts,
+                                    as: "count",
+                                    cond: { $eq: ["$$count._id", "$_id"] }
                                 }
                             }
                         }
