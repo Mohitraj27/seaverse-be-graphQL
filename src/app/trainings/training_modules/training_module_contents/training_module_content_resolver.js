@@ -1083,7 +1083,6 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
                 input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
-                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
             }
 
             const updateData = {
