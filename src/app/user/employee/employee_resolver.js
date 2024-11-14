@@ -180,6 +180,27 @@ module.exports.queries = {
                 : []),
         ]);
     },
+    fetchSampleFile: async () => {
+
+
+        try {
+
+            const signedUrl = await AwsHelper.fetchFile("public/sample_doc.csv");
+            return {
+                success: true,
+                message: "File fetched successfully",
+                url: signedUrl,
+            };
+        } catch (error) {
+            console.error("Error fetching file:", error);
+            return {
+                success: false,
+                message: "Failed to fetch file",
+                url: null,
+            };
+        }
+    },
+
     getManagerList: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
@@ -954,30 +975,10 @@ module.exports.queries = {
                 });
 
                 return result;
-            } else if (importLogs.length === 0) {
-                const sampleLog = [
-                    {
-                        id: 1,
-                        usersCount: 3,
-                        fileName: "csv_1729176933541",
-                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
-                        importStatus: "FAILED",
-                        description: "Error in row 1!",
-                        createdAt: "2024 - 10 - 17T14: 55: 33.728+00:00",
-                    },
-                    {
-                        id: 2,
-                        usersCount: 3,
-                        fileName: "csv_1729176933531",
-                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
-                        importStatus: "SUCCESS",
-                        description: "The users are created successfully!",
-                        createdAt: "2024 - 10 - 17T14: 55: 33.728+00:00",
-                    },
-                ];
-
-                return sampleLog;
             }
+
+            return [];
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error}`);
         }
@@ -1468,8 +1469,9 @@ module.exports.mutations = {
                 saveCSV
             );
 
-            if (errors.length > 0) {
-                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
+            const nonEmptyArray = errors.find(arr => arr.length > 0);
+            if (nonEmptyArray) {
+                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
             }
 
             const empIdsArray = Array.from(empIds);
@@ -1502,9 +1504,10 @@ module.exports.mutations = {
                 status: "The bulk import is being processed in the background. You can continue working.",
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
+
     createEmployee: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);

@@ -27,7 +27,10 @@ const ImportLog = new Schema(
             type: String
         },
         filePath: {
-            type: String,
+            url: {
+                type: String,
+                required: true,
+            }
         }
     },
     { timestamps: true }
