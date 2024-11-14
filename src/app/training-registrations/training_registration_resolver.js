@@ -418,8 +418,8 @@ module.exports.queries = {
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
-                    folderName: "learner_Report_exports",
-                    fileName: `learners_Report-${Date.now()}.xlsx`,
+                    folderName: "All_learners_Report_exports",
+                    fileName: `All_learners_Report-${Date.now()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
                 });
                 if (excelFilePath) {
