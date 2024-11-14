@@ -151,17 +151,50 @@ module.exports = {
                 $match: {
                     subscriber: subscriberId,
                     isDeleted: { $ne: true },
-                    role: { $ne: null },
                     firstName: { $ne: null },
                     email: { $ne: null },
                 },
             },
             {
+                $lookup: {
+                    from: "subroles",
+                    localField: "subRoles",
+                    foreignField: "_id",
+                    as: "subroleDetails",
+                },
+            },
+            {
+                $project: {
+                    effectiveRole: {
+                        $cond: {
+                            if: {
+                                $in: [
+                                    "ADMIN",
+                                    {
+                                        $map: {
+                                            input: "$subroleDetails",
+                                            as: "subrole",
+                                            in: "$$subrole.name",
+                                        },
+                                    },
+                                ],
+                            },
+                            then: "ADMIN",
+                            else: "$role",
+                        },
+                    },
+                    firstName: 1,
+                    lastName: 1,
+                    email: 1,
+                    _id: 1,
+                },
+            },
+            {
                 $group: {
-                    _id: "$role",
-                    groupName: { $first: "$role" },
+                    _id: "$effectiveRole",
+                    groupName: { $first: "$effectiveRole" },
                     members: {
-                        $push: {
+                        $addToSet: {
                             _id: "$_id",
                             firstName: "$firstName",
                             lastName: "$lastName",
@@ -516,20 +549,12 @@ module.exports = {
             empDesignationGroups ||
             roleGroups ||
             vesselGroups ||
-            subRoleGroups ||
-            registeredUserGroups ||
-            unregisteredUserGroups ||
-            vesselStatusGroups ||
             vesselTypeGroups
         ) {
             allGroups = [
                 ...empDesignationGroups,
                 ...roleGroups,
-                ...subRoleGroups,
                 ...vesselGroups,
-                ...registeredUserGroups,
-                ...unregisteredUserGroups,
-                ...vesselStatusGroups,
                 ...vesselTypeGroups,
             ];
         }
