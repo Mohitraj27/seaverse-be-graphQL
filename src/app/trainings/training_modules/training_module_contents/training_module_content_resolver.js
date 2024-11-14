@@ -111,7 +111,37 @@ module.exports.queries = {
                         foreignField: "trainingContent",
                         as: "courseUsage"
                     }
-                }
+                },
+                {
+                    $addFields: {
+                        featuredInCourses: {
+                            $reduce: {
+                                input: "$courseUsage",
+                                initialValue: 0,
+                                in: {
+                                    $add: [
+                                        "$$value",
+                                        {
+                                            $cond: {
+                                                if: { $in: ["$$this.trainingContent", Object.keys(usageCountsById)] },
+                                                then: usageCountsById["$$this.trainingContent"],
+                                                else: 0
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                ...(useStatus
+                    ? [{
+                        $match: {
+                            featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
+                        }
+                    }]
+                    : []
+                )
             ]),
             {
                 offset: skip,

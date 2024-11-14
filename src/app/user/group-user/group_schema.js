@@ -93,7 +93,7 @@ module.exports = {
             groupType: String
             groupData: String
             groupName: String
-            member: singleMemberDetails
+            member: [singleMemberDetails]
         }
         type getGroupsOfUserResponse {
             designation: String

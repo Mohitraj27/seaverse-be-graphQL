@@ -9,11 +9,33 @@ const { Group, DeletedGroup } = require("./group_model");
 const { GroupMember } = require("./group_member_model");
 const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../../util");
+const { getAutoSyncUsers, getCustomGroupUsers, fetchUserFromAutoSyncedGroups } = require("../../training-registrations/training_registration_helper");
+
+
+const restructureGroupDataArray = groupDataArray => {
+    return groupDataArray.map(groupData => {
+        if (groupData.groupType === "MEMBER") {
+            const memberDetails = groupData.members.map(member => member.member);
+            groupData.members = [
+                {
+                    _id: groupData.members[0]._id,
+                    firstName: null,
+                    lastName: null,
+                    email: null,
+                    groupType: null,
+                    groupData: null,
+                    member: memberDetails
+                }
+            ];
+        }
+        return groupData;
+    });
+}
 
 module.exports = {
     getCustomGroups: async () => {
 
-        const allGroups = await Group.aggregate([
+        let allGroups = await Group.aggregate([
             { $match: {} },
             {
                 $lookup: {
@@ -73,9 +95,37 @@ module.exports = {
             },
         ]);
 
-        return allGroups;
-    },
 
+        const groupArray = allGroups
+            .filter(group => group.groupType === "GROUP")
+            .flatMap(group =>
+                group.members.map(member => ({
+                    groupType: member.groupType,
+                    groupId: member.groupData,
+                }))
+            );
+
+        let fromGetGroups = true;
+        const membersData = await fetchUserFromAutoSyncedGroups(groupArray, fromGetGroups);
+
+        allGroups.forEach(group => {
+            if (group.groupType === "GROUP") {
+                group.members.forEach(member => {
+                    const membersInfo = membersData.find(
+                        m => m.groupType === member.groupType && m.groupId === member.groupData
+                    );
+                    if (membersInfo) {
+                        member.member = membersInfo.member;
+                    }
+                });
+            }
+        });
+
+        allGroups = restructureGroupDataArray(allGroups);
+        console.log(allGroups);
+        return allGroups;
+
+    },
     getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
 
@@ -547,6 +597,7 @@ module.exports = {
                 },
             },
         ]);
+
 
         let allGroups = [];
         if (

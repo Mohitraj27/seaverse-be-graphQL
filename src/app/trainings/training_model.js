@@ -111,6 +111,7 @@ const trainingSchema = new Schema(
         },
         isCertificate: {
             type: Boolean,
+            default: false,
         },
         price: Number,
         durationHours: { type: Number },
