@@ -19,7 +19,7 @@ const pdfParse = require('pdf-parse');
 const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 
 module.exports.queries = {
-    getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType }, context) => {
+    getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
         const { subscriberId } = AuthUser(context);
         const filterConditions = {
             subscriber: subscriberId,
@@ -128,7 +128,15 @@ module.exports.queries = {
                             }
                         }
                     }
-                }
+                },
+                ...(useStatus
+                    ? [{
+                        $match: {
+                            featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
+                        }
+                    }]
+                    : []
+                )
             ]),
             {
                 offset: skip,
@@ -1078,29 +1086,35 @@ module.exports.mutations = {
                 }
 
                 questionsChanged = true;
-
-                if (input.percentageCriteria > totalScore) {
-                    throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
-                } else {
-                    input.percentageCriteria = Math.round((input.percentageCriteria / totalScore) * 100);
-                }
+            }
+            const score = questionsChanged ? totalScore : existingContent.totalScore;
+            if (input.percentageCriteria > score) {
+                throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
+            } else {
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100); 
             }
 
             const updateData = {
                 title: input.title,
                 description: input.description,
                 duration: input.duration,
-                quiz: questionsChanged ? questionsIdArr : existingContent.quiz,
+                quiz: input.questions ? questionsIdArr : existingContent.quiz,
                 contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
+                percentageCriteria: input.percentageCriteria,
+                randomiseQuestionOrder: input.randomiseQuestionOrder,
+                randomiseAnswerOptionOrder: input.randomiseAnswerOptionOrder,
+                showCorrectAnswersToLearnerAfterQuiz: input.showCorrectAnswersToLearnerAfterQuiz,
+                onlyLearnerPassTheQuiz: input.onlyLearnerPassTheQuiz,
+                evenLearnerFailTheQuiz: input.evenLearnerFailTheQuiz,
                 createdBy: existingContent.createdBy,
                 updatedBy: userId,
                 updatedAt: new Date(),
                 modifiedDate: new Date(),
             };
 
-            if (questionsChanged) {
+            if (questionsChanged && existingContent.contentStatus !== Content_status.DRAFT) {
                 updateData.version = existingContent.version + 1;
                 updateData.isUpdated = false;
                 updateData.isPublished = usedInCourses.length > 0 ? true : false;

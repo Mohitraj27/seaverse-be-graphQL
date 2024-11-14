@@ -12,22 +12,67 @@ const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../
 
 module.exports = {
     getCustomGroups: async () => {
-        const allGroups = await Group.find({})
-            .populate('createdBy', 'firstName lastName')
-            .populate('updatedBy', 'firstName lastName')
-            .populate('members', 'firstName lastName email')
-            .lean();
 
-        allGroups.forEach(group => {
-            group.members = group.members?.map(member => ({
-                ...member,
-                fullName: `${member.firstName} ${member.lastName}`
-            })) || [];
-        });
+        const allGroups = await Group.aggregate([
+            { $match: {} },
+            {
+                $lookup: {
+                    from: 'groupmembers',
+                    localField: '_id',
+                    foreignField: 'group',
+                    as: 'members',
+                    pipeline: [
+                        { $match: { isDeleted: false } },
+                        {
+                            $lookup: {
+                                from: 'users',
+                                localField: 'member',
+                                foreignField: '_id',
+                                as: 'member'
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: '$member',
+                                preserveNullAndEmptyArrays: true
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'createdBy',
+                    foreignField: '_id',
+                    as: 'createdBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
+                }
+            },
+            {
+                $unwind: "$createdBy",
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'updatedBy',
+                    foreignField: '_id',
+                    as: 'updatedBy',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                    ]
+                }
+            },
+            {
+                $unwind: "$updatedBy",
+            },
+        ]);
 
         return allGroups;
     },
-    
+
     getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
 

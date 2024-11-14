@@ -99,7 +99,7 @@ module.exports.queries = {
             const { subscriberId } = AuthUser(context);
 
             const vessel = await Vessel.findOne({ 
-                imoNumber: { $regex: imoNumber, $options: "i" }, subscriber: subscriberId });
+                imoNumber: imoNumber, subscriber: subscriberId });
             if (vessel) {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
             }
@@ -124,8 +124,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
-
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -192,7 +191,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
             if (existingImoNumber) {
