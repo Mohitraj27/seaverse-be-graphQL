@@ -28,7 +28,10 @@ module.exports = {
                                 from: 'users',
                                 localField: 'member',
                                 foreignField: '_id',
-                                as: 'member'
+                                as: 'member',
+                                pipeline: [
+                                    { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, isRegistered: 1 } }
+                                ]
                             }
                         },
                         {
@@ -122,6 +125,7 @@ module.exports = {
                             firstName: "$userDetails.firstName",
                             lastName: "$userDetails.lastName",
                             email: "$userDetails.email",
+                            isRegistered: "$userDetails.isRegistered",
                         },
                     },
                 },
