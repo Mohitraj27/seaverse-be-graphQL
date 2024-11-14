@@ -270,7 +270,7 @@ module.exports = {
             id: ID,
             usersCount: Int,
             fileName: String,
-            filePath: String,
+            filePath: MultiMediaInfo,
             importStatus: String,
             description: String,
             createdAt: String
