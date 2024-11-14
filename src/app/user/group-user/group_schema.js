@@ -89,6 +89,7 @@ module.exports = {
             firstName: String
             lastName: String
             email: String
+            isRegistered: Boolean
             groupType: String
             groupData: String
             groupName: String
@@ -108,6 +109,8 @@ module.exports = {
             _id: ID
             firstName: String
             lastName: String
+            email: String
+            isRegistered: Boolean
         }
         type groupMembersDetails {
             _id: ID
