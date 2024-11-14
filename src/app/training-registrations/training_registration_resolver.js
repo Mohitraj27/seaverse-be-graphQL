@@ -223,17 +223,143 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
+                { $match: filterConditions },
+                { $unwind: { path: "$training", preserveNullAndEmptyArrays: true } },
                 {
-                    $match: filterConditions,
+                    $lookup: {
+                        from: "trainingmodules",
+                        let: { trainingId: "$training._id" },
+                        pipeline: [
+                            { $match: { $expr: { $eq: ["$training", "$$trainingId"] } } },
+                        ],
+                        as: "trainingModules",
+                    },
+                },
+                { $addFields: { moduleCount: { $size: "$trainingModules" } } },
+                {
+                    $lookup: {
+                        from: "trainingprogresses",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingModuleContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                            {
+                                $project: {
+                                    durationsInSeconds: {
+                                        $map: {
+                                            input: "$trainingModuleContentDetails",
+                                            as: "content",
+                                            in: {
+                                                $let: {
+                                                    vars: {
+                                                        parts: { $split: ["$$content.duration", ":"] },
+                                                    },
+                                                    in: {
+                                                        $add: [
+                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 0] } }, 3600] },
+                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 1] } }, 60] },
+                                                            { $toInt: { $arrayElemAt: ["$$parts", 2] } },
+                                                        ],
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            {
+                                $addFields: {
+                                    duration: { $sum: "$durationsInSeconds" },
+                                },
+                            },
+                        ],
+                        as: "trainingProgresses",
+                    },
                 },
                 {
-                    $unwind: {
-                        path: "$training",
-                        preserveNullAndEmptyArrays: true,
+                    $lookup: {
+                        from: "trainingcontentbridges",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                            {
+                                $project: {
+                                    durationsInSeconds: {
+                                        $map: {
+                                            input: "$trainingModuleContentDetails",
+                                            as: "content",
+                                            in: {
+                                                $let: {
+                                                    vars: {
+                                                        parts: { $split: ["$$content.duration", ":"] },
+                                                    },
+                                                    in: {
+                                                        $add: [
+                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 0] } }, 3600] },
+                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 1] } }, 60] },
+                                                            { $toInt: { $arrayElemAt: ["$$parts", 2] } },
+                                                        ],
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            {
+                                $addFields: {
+                                    duration: { $sum: "$durationsInSeconds" },
+                                },
+                            },
+                        ],
+                        as: "trainingContentsFallback",
+                    },
+                },
+                {
+                    $addFields: {
+                        totalDuration: {
+                            $cond: {
+                                if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
+                                then: { $sum: "$trainingProgresses.duration" },
+                                else: { $sum: "$trainingContentsFallback.duration" },
+                            },
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        training: 1,
+                        moduleCount: 1,
+                        totalDuration: 1,
                     },
                 },
             ]);
-            
+
+            console.log(courses);
+
             return {
                 status: true,
                 message: "My Courses fetched successfully",
@@ -246,7 +372,7 @@ module.exports.queries = {
     getTrainingRegistrationReports: async ({input}, context) => {
         const { userId, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-    
+
         try {
             const matchStage = [];
     
