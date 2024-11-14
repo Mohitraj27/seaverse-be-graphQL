@@ -546,16 +546,22 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
     }
 
     if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
-
     if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
-    if (!designationNames.includes(row["Designation"])) errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
-
+    else {
+        const designation = row["Designation"].toLowerCase();
+        if (!designationNames.some(name => name.toLowerCase() === designation)) {
+            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+        }
+    }
     if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
     else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-
     if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
-    else if (!vesselStatus.includes(row["Status"])) errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
-
+    else {
+        const status = row["Status"].toLowerCase();
+        if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
+            errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
+        }
+    }
     return errors;
 }
 
@@ -1190,7 +1196,7 @@ module.exports = {
                 subscriber: subscriberId,
                 uploadedBy: userId,
                 fileName: newFileName,
-                filePath: saveCSV,
+                filePath: { url: saveCSV },
                 importStatus: "FAILED",
                 description: `${errors[0]}`,
             })
@@ -1313,7 +1319,7 @@ module.exports = {
                     subscriber: subscriberId,
                     uploadedBy: userId,
                     fileName: newFileName,
-                    filePath: saveCSV,
+                    filePath: { url: saveCSV },
                     importStatus: "FAILED",
                     description: `No new data created/updated`
                 })
@@ -1342,7 +1348,7 @@ module.exports = {
             subscriber: subscriberId,
             uploadedBy: userId,
             fileName: newFileName,
-            filePath: saveCSV,
+            filePath: { url: saveCSV },
             importStatus: "SUCCESS",
             description: `New data(s) created/updated`
         })
@@ -1373,9 +1379,10 @@ module.exports = {
             let isEmptyFile = true;
 
             parser.on("data", async (row) => {
+                rowIndex++;
                 isEmptyFile = false;
 
-                validationErrors = await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex);
+                validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex))
 
                 if (validationErrors.length > 0) {
 
@@ -1383,20 +1390,18 @@ module.exports = {
                         subscriber: subscriberId,
                         uploadedBy: userId,
                         fileName: newFileName,
-                        filePath: saveCSV,
+                        filePath: { url: saveCSV },
                         importStatus: "FAILED",
                         description: `${validationErrors[0]}`
                     })
 
                     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
+                    return validationErrors;
 
                 } else {
                     const formatedData = mapCSVRowToUser(row);
                     users.push(formatedData);
                 }
-
-                rowIndex++;
 
             });
 
