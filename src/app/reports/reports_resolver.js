@@ -1,9 +1,14 @@
 const { Moment } = require("../../tools");
-const { CustomError, ErrorName, AuthUser, Role } = require("../../util");
-
+const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../util");
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 const { Training } = require("../trainings/training_model");
 const { Employee } = require("../user/employee/employee_model");
+const Permission = require("../user/sub-roles/permission.json");
+const aws_helper = require("../../util/aws_helper");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model")
 
 const {
     TrainingRegistrationInvoice,
@@ -11,9 +16,338 @@ const {
 
 const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
 
-const Permission = require("../user/sub-roles/permission.json");
+const getMainLearnersReport = async ({ input }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+    try {
+        const matchStage = [];
+
+        if (input && Object.keys(input).length > 0) {
+            const filterInput = input.filterInput || {};
+            if (filterInput.name) {
+                matchStage.push({
+                    $match: {
+                        $or: [
+                            { firstName: { $regex: filterInput.name, $options: 'i' } },
+                            { lastName: { $regex: filterInput.name, $options: 'i' } },
+                        ],
+                    },
+                });
+            }
+
+            if (filterInput.isRegistered !== undefined) {
+                matchStage.push({ $match: { 'userInfo.isRegistered': filterInput.isRegistered } });
+            }
+
+            if (filterInput.isDeleted !== undefined) {
+                matchStage.push({ $match: { 'userInfo.isDeleted': filterInput.isDeleted } });
+            }
+
+            if (filterInput.vesselName) {
+                matchStage.push({
+                    $match: {
+                        'vesselDetails.name': {
+                            $regex: filterInput.vesselName,
+                            $options: 'i',
+                        },
+                    },
+                });
+            }
+
+            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+            const limit = input.pageInput?.pageSize || 0;
+
+            if (limit > 0) {
+                matchStage.push({ $skip: skip }, { $limit: limit });
+            }
+        }
+
+        const employeesData = await Employee.aggregate([
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'userInfo',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$userInfo',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'designations',
+                    localField: 'empDesignation',
+                    foreignField: '_id',
+                    as: 'employeeDesignation',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$employeeDesignation',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'trainingregistrations',
+                    localField: 'user',
+                    foreignField: 'user',
+                    as: 'trainingInfo',
+                },
+            },
+            {
+                $lookup: {
+                    from: 'uservessels',
+                    localField: 'user',
+                    foreignField: 'user',
+                    as: 'vesselInfo',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$vesselInfo',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'vessels',
+                    localField: 'vesselInfo.vessel',
+                    foreignField: '_id',
+                    as: 'vesselDetails',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$vesselDetails',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'overalltrainingprogresses',
+                    localField: 'user',
+                    foreignField: 'user',
+                    as: 'trainingProgresses',
+                },
+            },
+            ...matchStage,
+            {
+                $addFields: {
+                    coursesCount: { $size: '$trainingProgresses' },
+                    averageProgressPercentage: {
+                        $cond: {
+                            if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
+                            then: { $avg: '$trainingProgresses.progressPercentage' },
+                            else: 0,
+                        },
+                    },
+                },
+            },
+            {
+                $project: {
+                    name: {
+                        $concat: [
+                            { $ifNull: ['$userInfo.firstName', ''] },
+                            ' ',
+                            { $ifNull: ['$userInfo.lastName', ''] },
+                        ],
+                    },
+                    isRegistered: '$userInfo.isRegistered',
+                    isDeleted: '$userInfo.isDeleted',
+                    EmployeeId: '$civilIdOrPassport',
+                    designation: '$employeeDesignation.name',
+                    vesselName: '$vesselDetails.name',
+                    lastSeen: '$userInfo.lastLoginAt',
+                    coursesCount: 1,
+                    averageProgressPercentage: 1,
+                },
+            },
+        ]);
+
+        const data = employeesData.map(item => ({
+            Name: item.name,
+            EmployeeId: item.EmployeeId,
+            Designation: item.designation,
+            VesselName: item.vesselName,
+            IsRegistered: item.isRegistered ? 'Yes' : 'No',
+            IsDeleted: item.isDeleted ? 'Yes' : 'No',
+            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
+            CoursesCount: item.coursesCount,
+            AverageProgressPercentage: item.averageProgressPercentage,
+        }));
+
+        let s3PresignedUrl = "";
+
+        if (input?.export) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Learners Report-${Date.now()}`);
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "All_learners_Report_exports",
+                fileName: `All_learners_Report-${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
+            });
+            if (excelFilePath) {
+                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            }
+            return {
+                filePath: s3PresignedUrl,
+                fileName: path.basename(excelFilePath),
+                employeesData
+            };
+        }
+        return {
+            employeesData
+        };
+    } catch (err) {
+        throw Error(err.message);
+    }
+};
+
+const getSingleLearnerReport = async ({ input }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+    try {
+        const matchStage = [];
+
+        if (input && Object.keys(input).length > 0) {
+            const filterInput = input.filter || {};
+            if (filterInput.name) {
+                matchStage.push({
+                    $match: {
+                        $or: [
+                            { firstName: { $regex: filterInput.name, $options: 'i' } },
+                            { lastName: { $regex: filterInput.name, $options: 'i' } },
+                        ],
+                    },
+                });
+            }
+
+            if (filterInput.courseStatus !== undefined) {
+                matchStage.push({ $match: { status: filterInput.courseStatus } });
+            }
+
+            if (filterInput.dateRange) {
+                const { startDate, endDate } = filterInput.dateRange;
+
+                if (!startDate && !endDate) {
+                    throw Error("Both startDate and endDate cannot be missing when dateRange is provided.");
+                }
+
+                const dateFilter = {};
+
+                if (startDate) {
+                    dateFilter['$gte'] = new Date(startDate);
+                }
+
+                if (endDate) {
+                    dateFilter['$lte'] = new Date(endDate);
+                }
+
+                matchStage.push({
+                    $match: {
+                        createdAt: dateFilter,
+                    },
+                });
+            }
+
+            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+            const limit = input.pageInput?.pageSize || 0;
+
+            if (limit > 0) {
+                matchStage.push({ $skip: skip }, { $limit: limit });
+            }
+        }
+
+        const learnerData = await OverallTrainingProgress.aggregate([
+            {
+                $lookup: {
+                    from: 'trainings',
+                    localField: 'training',
+                    foreignField: '_id',
+                    as: 'trainingInfo',
+                },
+            },
+            { $match: { user: input.learnerId } },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'userInfo',
+                },
+            },
+            ...matchStage,
+            {
+                $project: {
+                    courseName: { $arrayElemAt: ["$trainingInfo.title.value", 0] },
+                    duration: "$trainingInfo.durationHours",
+                    createdAt: 1,
+                    completionDate: 1,
+                    status: 1,
+                    updatedAt: 1,
+                    firstName: { $arrayElemAt: ["$userInfo.firstName", 0] },
+                    lastName: { $arrayElemAt: ["$userInfo.lastName", 0] },
+                },
+            },
+        ]);
+
+        const learnerName = learnerData.length > 0 ? `${learnerData[0].firstName} ${learnerData[0].lastName}` : 'Unknown Learner';
+
+        const data = learnerData.map(item => ({
+            courseName: item.courseName[0],
+            status: item.status,
+            Enrollment_Date: item.createdAt,
+            Completion_Date: item.completionDate ? item.completionDate : "Not Applicable",
+            Duration: item.duration[0] ? item.duration[0] : "Not Present",
+            LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
+        }));
+
+        let s3PresignedUrl = "";
+
+        if (input?.export) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `L-CoursesReport-${Date.now()}`);
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: `${learnerName}'s_Courses_Report_exports`,
+                fileName: `learners_Report-${learnerName}-${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
+            });
+            if (excelFilePath) {
+                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            }
+            return {
+                filePath: s3PresignedUrl,
+                fileName: path.basename(excelFilePath),
+                learnerData,
+            };
+        }
+
+        return {
+            filePath: "",
+            fileName: "",
+            learnerData,
+        };
+    } catch (err) {
+        throw Error(err.message);
+    }
+};
 
 module.exports.queries = {
+    getMainLearnersReport,
+    getSingleLearnerReport,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 
@@ -183,52 +517,52 @@ module.exports.queries = {
                 },
                 ...(filterInput?.organization
                     ? [
-                          {
-                              $match: {
-                                  "organization._id": filterInput.organization,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "organization._id": filterInput.organization,
+                            },
+                        },
+                    ]
                     : []),
                 ...(filterInput?.training
                     ? [
-                          {
-                              $match: {
-                                  "training._id": filterInput.training,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "training._id": filterInput.training,
+                            },
+                        },
+                    ]
                     : []),
                 ...(filterInput?.employee
                     ? [
-                          {
-                              $match: {
-                                  "employee._id": filterInput.employee,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "employee._id": filterInput.employee,
+                            },
+                        },
+                    ]
                     : []),
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "organization.name.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "organization.name.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
             ];
 
@@ -297,12 +631,12 @@ module.exports.queries = {
                         pipeline: [
                             ...(filterInput?.trainingCategory
                                 ? [
-                                      {
-                                          $match: {
-                                              trainingCategories: filterInput.trainingCategory,
-                                          },
-                                      },
-                                  ]
+                                    {
+                                        $match: {
+                                            trainingCategories: filterInput.trainingCategory,
+                                        },
+                                    },
+                                ]
                                 : []),
                             {
                                 $project: {
@@ -370,31 +704,31 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "employee.user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "employee.user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
 
                 {
@@ -635,12 +969,12 @@ module.exports.queries = {
                 },
                 ...(filterInput?.trainingCategory
                     ? [
-                          {
-                              $match: {
-                                  "training.trainingCategories": filterInput.trainingCategory,
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                "training.trainingCategories": filterInput.trainingCategory,
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -690,31 +1024,31 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "employee.user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "training.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "employee.user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "training.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
 
                 {
@@ -795,25 +1129,25 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $set: {
