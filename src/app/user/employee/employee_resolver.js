@@ -11,6 +11,20 @@ const {
     VesselStatus,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_ENDPOINT,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_PORT == 465,
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -1604,10 +1618,12 @@ module.exports.mutations = {
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
 
-            const result = await sendEmail({
-                receiverEmail: savedUser.email,
+            const mailOptions = {
+                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                to: savedUser.email,
                 subject: "Welcome",
-                htmlContent: `<!DOCTYPE html>
+                text: "",
+                html: `<!DOCTYPE html>
             <html lang="en">
                 <head>
                     <meta charset="UTF-8" />
@@ -1626,7 +1642,9 @@ module.exports.mutations = {
                     </div>
                 </body>
             </html>`,
-            });
+            };
+
+            const response = await transporter.sendMail(mailOptions);
 
             return savedEmployees;
         });
