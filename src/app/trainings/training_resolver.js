@@ -137,11 +137,7 @@ module.exports.queries = {
                 allowDiskUse: true,
             }
         );
-
-        console.log(result);
-
         return result;
-
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -169,8 +165,8 @@ module.exports.queries = {
         })
             .populate({
                 path: 'trainingContent',
-                model: 'TrainingModuleContent',  
-                select: '_id UID contentType duration contentStatus title description', 
+                model: 'TrainingModuleContent',
+                select: '_id UID contentType duration contentStatus title description',
             });
 
         const moduleContentsMap = {};
