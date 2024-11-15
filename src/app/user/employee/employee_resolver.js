@@ -716,7 +716,7 @@ module.exports.queries = {
                 ? [
                     {
                         $match: {
-                            "currentVessel.typeOfVessel": {
+                            "currentVessel.typeOfVessel._id": {
                                 $in: filterInput.vesselType.map(id => ObjectId(id)),
                             },
                         },
