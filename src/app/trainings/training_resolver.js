@@ -144,7 +144,6 @@ module.exports.queries = {
 
     },
     getTraining: async ({ id }, context) => {
-
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
         const training = await Training.findOne({
@@ -163,19 +162,32 @@ module.exports.queries = {
                 },
             });
 
-        const moduleBridgeIDs = training.trainingModules.flatMap(module => module.trainingModuleContents);
+        const moduleBridgeIDs = training.trainingModules.map(module => module._id);
 
         const latestContents = await TrainingContentBridge.find({
-            _id: { $in: moduleBridgeIDs },
+            trainingModule: { $in: moduleBridgeIDs },
         })
+            .populate({
+                path: 'trainingContent',
+                model: 'TrainingModuleContent',  
+                select: '_id UID contentType duration contentStatus title description', 
+            });
+
+        const moduleContentsMap = {};
+        latestContents.forEach(content => {
+            if (!moduleContentsMap[content.trainingModule]) {
+                moduleContentsMap[content.trainingModule] = [];
+            }
+            moduleContentsMap[content.trainingModule].push(content.trainingContent);
+        });
 
         training.trainingModules.forEach(module => {
-            module.trainingModuleContents = latestContents;
+            module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
 
         return training;
-
     },
+
 };
 
 module.exports.mutations = {

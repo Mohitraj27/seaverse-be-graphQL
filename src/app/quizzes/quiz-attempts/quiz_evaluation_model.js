@@ -25,6 +25,16 @@ const quizEvaluationSchema = new Schema(
             ref: "User",
             required: true,
         },
+        trainingModuleId: {
+         type: ObjectId,
+         ref: "TrainingModule",
+         required: true,
+        },
+        trainingId: {
+            type: ObjectId,
+            ref: "Training",
+            required: true,
+        },
         totalQuestions: {
             type: Number,
             required: true,
