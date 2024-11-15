@@ -67,7 +67,6 @@ module.exports = {
             retryCount: Int
             progressPercentage: String
             isEnrolled: Boolean
-            isCertificate: Boolean
             moduleCount: Int
             totalDuration: Int
         }
