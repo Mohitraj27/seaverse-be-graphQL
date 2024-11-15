@@ -71,11 +71,69 @@ module.exports = {
             organization: ID
             search: String
         }
+
+        type learnerMainReportData {
+            _id : ID
+            name : String
+            isRegistered : Boolean
+            EmployeeId : String
+            designation : String
+            vesselName : String
+            lastSeen : String
+            coursesCount : Int 
+            averageProgressPercentage : Int
+            isDeleted : Boolean
+        }
+        type learnerMainReportResponse {
+            filePath : String
+            fileName : String
+            employeesData : [learnerMainReportData]
+        }
+        input learnerMainReportInput {
+            pageInput: PageInput
+            export : Boolean
+            filterInput : learnerMainReportFilter
+        }
+        input learnerMainReportFilter {
+            isRegistered : Boolean
+            isDeleted : Boolean
+            vesselName : String
+            name : String
+        } 
+        input singleLearnerReportInput {
+            learnerId : ID
+            pageInput: PageInput
+            filter : singleLearnerReportFilter
+            export : Boolean
+        }
+        input singleLearnerReportFilter{
+            courseStatus:String
+            dateRange : filterDateRange
+        }
+        input filterDateRange {
+            startDate: String
+            endDate : String
+        }
+        type singleLearnersReport {
+            courseName : [String]
+            duration : [Int]
+            createdAt : String
+            completionDate : String
+            status : String
+            updatedAt : String
+        }
+        type singleLearnersReportOutput {
+            filePath : String
+            fileName : String
+            learnerData : [singleLearnersReport]
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
         getQuizReports(pageInput: PageInput, filterInput: QuizReportFilterInput): QuizReportsList!
         getFeedbackReports(pageInput: PageInput, filterInput: FeedbackReportFilterInput): FeedbackReportsList!
         getTrainingMatrixReports(pageInput: PageInput, filterInput: TrainingMatrixReportFilterInput): TrainingMatrixReportsList!
+        getMainLearnersReport(input :learnerMainReportInput ):learnerMainReportResponse
+        getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
     `,
 };

@@ -54,7 +54,6 @@ const { QuestionResolver } = require('../app/trainings/training_modules/training
 const { LearningPlanResolver } = require("../app/learning-plan");
 const { CertificateLayoutResolver } = require("../app/trainings/certificate_layout");
 const { ContentZipResolver } = require("../app/trainings/compress_to_zip");
-const { OverallTrainingProgressResolver } = require("../app/training-registrations/overall-course-progress");
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -139,7 +138,6 @@ module.exports = {
         ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
         ...AuthHelper.requiresAdmin(VesselResolver.queries),
         ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
-        ...AuthHelper.requiresAdmin(OverallTrainingProgressResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -180,7 +178,6 @@ module.exports = {
         ...AuthHelper.requiresAdmin(LearningPlanResolver.mutations),
         ...AuthHelper.requiresAdmin(CertificateLayoutResolver.mutations),
         ...AuthHelper.requiresLogin(ContentZipResolver.mutations),
-        ...AuthHelper.requiresAdmin(OverallTrainingProgressResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
