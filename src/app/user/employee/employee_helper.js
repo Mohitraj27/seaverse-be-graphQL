@@ -46,6 +46,7 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
+const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -525,7 +526,7 @@ const deleteUsers = async (users, errors) => {
 
 }
 
-async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
+const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -544,8 +545,6 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
     } else {
         empIds.add(row["EmployeeID"]);
     }
-
-    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
     if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
     else {
         const designation = row["Designation"].toLowerCase();
@@ -555,6 +554,7 @@ async function validateUserRow(row, { empIds, emails, designationNames, imoNumbe
     }
     if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
     else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+
     if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
     else {
         const status = row["Status"].toLowerCase();
@@ -595,6 +595,140 @@ function mapCSVRowToUser(row) {
 
     return result;
 }
+
+const sendBulkEmails = async (passwordEmailList) => {
+
+    for (const data of passwordEmailList) {
+
+        try {
+
+            const htmlContent = `
+        <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to SeaVerse</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 0;
+                background-color: #F4F4F4;
+            }
+            .email-container {
+                max-width: 600px;
+                margin: 20px auto;
+                background: #FFFFFF;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .header {
+                background-color: #0056B3;
+                color: #FFFFFF;
+                text-align: center;
+                padding: 20px;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 24px;
+            }
+            .content {
+                padding: 20px;
+            }
+            .content p {
+                margin: 0 0 15px;
+            }
+            .cta-button {
+                display: inline-block;
+                background-color: #0056B3;
+                color: #FFFFFF;
+                text-decoration: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-size: 16px;
+                margin: 20px 0;
+                display: block;
+                text-align: center;
+            }
+            .footer {
+                text-align: center;
+                padding: 10px;
+                background: #F4F4F4;
+                font-size: 12px;
+                color: #555;
+            }
+            ul {
+                padding-left: 20px;
+            }
+            ul li {
+                margin-bottom: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <h1>Welcome to SeaVerse!</h1>
+            </div>
+            <div class="content">
+                <p>Dear <strong>${data.userName}</strong>,</p>
+                <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
+                <p>To get started, log in with these details:</p>
+                <p><strong>Email:</strong> ${data.email}</p>
+                <p><strong>Temporary Password:</strong> ${data.password}</p>
+                <p><em>Please set a new password upon your first login for security.</em></p>
+                <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>
+                <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
+                <ul>
+                    <li>
+                        // <a href="https://play.google.com/store/games?hl=en&pli=1" target="_blank">
+                        //     <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play Store" class="store-icon">
+                        // </a>
+                        <a href="https://play.google.com/store/games?hl=en&pli=1">
+                            <img src="cid:playstore" alt="Google Play Store" style="width: 120px; height: auto;">
+                        </a>
+                    </li>
+                    <li>
+                        // <a href="https://www.apple.com/in/app-store/" target="_blank">
+                        //     <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Download_on_the_App_Store_Badge.svg" alt="App Store" class="store-icon">
+                        // </a>
+                        <a href="https://www.apple.com/in/app-store/">
+                            <img src="cid:appstore" alt="App Store" style="width: 120px; height: auto;">
+                        </a>
+                    </li>
+                </ul>
+                <p>Explore courses, track your progress, and unlock new skills today! For any assistance, feel free to reach out to our support team at <strong>[support email/phone]</strong>.</p>
+            </div>
+            <div class="footer">
+                <p>Happy sailing and learning,</p>
+                <p>The SeaVerse Team</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+
+            // const sentEmail = await sendNodeEmail({
+            //     email: data.email,
+            //     subject: 'Welcome to SeaVerse!',
+            //     htmlContent
+            // });
+
+            if (!sentEmail) {
+                console.error(`Failed to send email to ${data.email}`);
+            }
+
+        } catch (error) {
+            console.error(`Error sending email to ${data.email}:`, error);
+        }
+
+    }
+
+};
 
 module.exports = {
     deleteUsers,
@@ -1123,6 +1257,7 @@ module.exports = {
         let errors = [];
         let updatedEmpIds = [];
         const vesselAssociations = [];
+        let passwordEmailList = [];
 
         for (const user of users) {
 
@@ -1171,12 +1306,14 @@ module.exports = {
 
                 } else {
 
+                    let password = generateRandomString(16);
+
                     inserts.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email,
-                        password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
+                        password: await CryptoHelper.hash(password, 10)
                     });
 
                     vesselAssociations.push({
@@ -1184,6 +1321,8 @@ module.exports = {
                         imoNumber: user.imoNumber,
                         vesselStatus: user.vesselStatus,
                     });
+
+                    passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
 
                 }
             }
@@ -1227,6 +1366,8 @@ module.exports = {
         let insertedUsers;
         let updatedUsers;
 
+        let endUsers = [];
+
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
@@ -1262,7 +1403,7 @@ module.exports = {
                                         $set: {
                                             user: user._id,
                                             vessel: vesselMap.get(vesselData.imoNumber).id,
-                                            vesselStatus: vesselData.vesselStatus,
+                                            vesselStatus: vesselData.vesselStatus.toUpperCase(),
                                             isActive: true,
                                         }
                                     },
@@ -1279,6 +1420,7 @@ module.exports = {
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
                     return {
                         updateOne: {
                             filter: { user: user },
@@ -1286,7 +1428,7 @@ module.exports = {
                                 $set: {
                                     user: user,
                                     subscriber: subscriberId,
-                                    empDesignation: designationMap.get(originalUserData.designation).id,
+                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase()).id,
                                     bulkId: bulkId,
                                     regType: 2
                                 }
@@ -1342,6 +1484,14 @@ module.exports = {
                     `No new data created/updated`
                 );
             }
+
+
+            if (passwordEmailList.length > 0) {
+
+                await sendBulkEmails(passwordEmailList);
+
+            }
+
         });
 
         const createImportLog = await ImportLog.create({
@@ -1363,58 +1513,70 @@ module.exports = {
             description: `New data(s) created/updated`,
             notificationType: 'BULK_IMPORT',
             status: 'SUCCESS'
-        })
+        });
+
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
-        await new Promise((resolve, reject) => {
-            const stream = createReadStream();
-            const parser = csvParse({ columns: true, trim: true });
-            stream.pipe(parser);
+        try {
 
-            let rowIndex = 0;
-            let isEmptyFile = true;
+            await new Promise((resolve, reject) => {
+                const stream = createReadStream();
+                const parser = csvParse({ columns: true, trim: true });
+                stream.pipe(parser);
 
-            parser.on("data", async (row) => {
-                rowIndex++;
-                isEmptyFile = false;
+                let rowIndex = 0;
+                let isEmptyFile = true;
 
-                validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex))
+                parser.on("data", async (row) => {
 
-                if (validationErrors.length > 0) {
+                    rowIndex++;
 
-                    const createImportLog = await ImportLog.create({
-                        subscriber: subscriberId,
-                        uploadedBy: userId,
-                        fileName: newFileName,
-                        filePath: { url: saveCSV },
-                        importStatus: "FAILED",
-                        description: `${validationErrors[0]}`
-                    })
+                    isEmptyFile = false;
 
-                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-                    return validationErrors;
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
-                } else {
-                    const formatedData = mapCSVRowToUser(row);
-                    users.push(formatedData);
-                }
+                    const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
+                    if (hasNonEmptyArray) {
+
+                        const createImportLog = await ImportLog.create({
+                            subscriber: subscriberId,
+                            uploadedBy: userId,
+                            fileName: newFileName,
+                            filePath: { url: saveCSV },
+                            importStatus: "FAILED",
+                            description: `${validationErrors[0]}`
+                        })
+
+                        if (!createImportLog) throw CustomError(ErrorName.FAILED);
+                        return validationErrors;
+
+                    } else {
+                        const formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
+                    }
+
+
+                });
+
+                parser.on("end", async () => {
+                    if (rowIndex === 0) {
+                        validationErrors.push("The CSV file is empty.");
+                    }
+                    resolve()
+                });
+                parser.on("error", reject);
 
             });
 
-            parser.on("end", async () => {
-                if (rowIndex === 0) {
-                    validationErrors.push("The CSV file is empty.");
-                }
-                resolve()
-            });
-            parser.on("error", reject);
+            return validationErrors;
 
-        });
+        } catch (error) {
+            throw Error(error.message);
+        }
 
-        return validationErrors;
     }
 };
