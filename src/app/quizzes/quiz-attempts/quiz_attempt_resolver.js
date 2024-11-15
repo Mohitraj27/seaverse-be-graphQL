@@ -118,19 +118,19 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "quizContent.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "quizContent.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
             ];
 
@@ -230,37 +230,37 @@ module.exports.queries = {
                 },
                 ...(filterInput?.search
                     ? [
-                          {
-                              $match: {
-                                  $or: [
-                                      {
-                                          "employee.user.firstName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.lastName": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "employee.user.civilIdOrPassport": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "quizContent.title.value": {
-                                              $regex: ".*" + filterInput.search + ".*",
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              },
-                          },
-                      ]
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        "employee.user.firstName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.lastName": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "employee.user.civilIdOrPassport": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "quizContent.title.value": {
+                                            $regex: ".*" + filterInput.search + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
                     : []),
                 {
                     $lookup: {
@@ -408,9 +408,9 @@ module.exports.mutations = {
         if (!savedQuizAttempt) throw CustomError(ErrorName.NOT_FOUND);
         return savedQuizAttempt;
     },
-    QuizEvaluation: async ({ contentId, questionAnswers }, context) => {
+    quizEvaluation: async ({ contentId, trainingModuleId, trainingId, questionAnswers }, context) => {
         try {
-            console.log(questionAnswers, "qa");
+            
             const { role, userId } = AuthUser(context);
 
             if (role !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
@@ -495,6 +495,8 @@ module.exports.mutations = {
             isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
             const quizEvaluation = new QuizEvaluation({
                 contentId,
+                trainingModuleId,
+                trainingId,   
                 userId,
                 attended: attemptedNumber,
                 totalQuestions: trainingModuleContent.quiz.length,
