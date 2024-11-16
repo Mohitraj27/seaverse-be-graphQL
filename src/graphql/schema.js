@@ -55,6 +55,8 @@ const { QuestionSchema } = require('../app/trainings/training_modules/training_m
 const { LearningPlanSchema } = require("../app/learning-plan");
 const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
 const {  ContentZipSchema } = require("../app/trainings/compress_to_zip");
+const { CompanySchema } = require("../app/vessle/company");
+const { OwnerSchema } = require("../app/vessle/owner");
 
 const schemas = [
     AppDataSchema,
@@ -103,7 +105,9 @@ const schemas = [
     QuestionSchema,
     LearningPlanSchema,
     CertificateLayoutSchema,
-    ContentZipSchema
+    ContentZipSchema,
+    CompanySchema,
+    OwnerSchema
 ];
 
 const types = [];

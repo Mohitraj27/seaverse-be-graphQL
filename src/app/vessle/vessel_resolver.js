@@ -25,19 +25,65 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput?.isActive ? true : false;
             }
 
-            if (filterInput?.vesselType) {
+            if (filterInput?.vesselName) {
                 filterConditions = {
                     ...filterConditions,
-                    typeOfVessel: ObjectId(filterInput.vesselType),
+                    name: { $regex: ".*" + filterInput.vesselName + ".*", $options: "i"},
+                };
+            }
+
+            if (filterInput?.vesselNameAndImoNumber) {
+                filterConditions = {
+                    ...filterConditions,
+                    $or: [
+                        {
+                            name: { $regex: ".*" + filterInput.vesselNameAndImoNumber + ".*", $options: "i"},
+                        },
+                        {
+                            imoNumber: { $regex: ".*" + filterInput.vesselNameAndImoNumber + ".*", $options: "i"},
+                        },
+                    ],
+                };
+            }
+
+            if (filterInput?.companyName) {
+                filterConditions = {
+                    ...filterConditions,
+                    companyName: { $regex: ".*" + filterInput.companyName + ".*", $options: "i"},
+                };
+            }
+
+            if (filterInput?.ownerName) {
+                filterConditions = {
+                    ...filterConditions,
+                    ownerName: { $regex: ".*" + filterInput.ownerName + ".*", $options: "i"},
                 };
             }
 
             if (filterInput?.search) {
                 filterConditions = {
                     ...filterConditions,
-                    $and: [
+                    $or: [
                         {
                             "name": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "imoNumber": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "companyName": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "ownerName": {
                                 $regex: ".*" + filterInput.search + ".*",
                                 $options: "i",
                             },
@@ -59,6 +105,13 @@ module.exports.queries = {
                         },
                     },
                     { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                    {
+                        $match: filterInput?.vesselType
+                            ? {
+                                  "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
+                              }
+                            : {},
+                    },
                 ]),
                 {
                     offset: skip,
