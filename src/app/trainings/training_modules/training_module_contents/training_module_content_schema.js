@@ -163,7 +163,7 @@ module.exports = {
         }
     `,
     queries: `
-        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType, useStatus: useStatusInput): TrainingModuleContentList
+        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: [TrainingModuleContentType], useStatus: useStatusInput): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
         getFeaturedInCourses(id: ID!): featuredInCourses
     `,
