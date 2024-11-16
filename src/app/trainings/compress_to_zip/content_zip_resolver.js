@@ -51,7 +51,6 @@ module.exports.mutations = {
 
             }
 
-            console.log(getContent);
             const zip = await AwsHelper.fetchFile(getContent);
 
             return {
