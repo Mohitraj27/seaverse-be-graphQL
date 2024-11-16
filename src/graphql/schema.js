@@ -55,7 +55,6 @@ const { QuestionSchema } = require('../app/trainings/training_modules/training_m
 const { LearningPlanSchema } = require("../app/learning-plan");
 const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
 const {  ContentZipSchema } = require("../app/trainings/compress_to_zip");
-const { OverallTrainingProgressSchema } = require("../app/training-registrations/overall-course-progress");
 const { CompanySchema } = require("../app/vessle/company");
 const { OwnerSchema } = require("../app/vessle/owner");
 
@@ -105,7 +104,6 @@ const schemas = [
     UserVesselSchema,
     QuestionSchema,
     LearningPlanSchema,
-    OverallTrainingProgressSchema,
     CertificateLayoutSchema,
     ContentZipSchema,
     CompanySchema,
