@@ -708,11 +708,6 @@ module.exports.queries = {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            {
-                $match: {
-                    "currentVessel.isActive": { $ne: false },
-                },
-            },
             ...(filterInput?.vesselName?.length > 0
                 ? [
                     {
