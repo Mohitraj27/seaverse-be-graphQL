@@ -1,7 +1,7 @@
 const { Group, DeletedGroup } = require("./group_model");
 const { GroupMember } = require("./group_member_model");
 const { ObjectId } = require("../../../tools");
-const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../../util");
+const { CustomError, ErrorName, AuthUser, Role, UploadHelper, DbTransactionHelper } = require("../../../util");
 const LogHelper = require("../../logs/log_helper");
 const Permission = require("../../user/sub-roles/permission.json");
 const LogType = require("../../logs/log_type.json");
@@ -283,7 +283,7 @@ module.exports.queries = {
     },
 };
 
-const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
+const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => {
     try {
         const groupMembers = users.map(user => ({
             subscriber: subscriberId,
@@ -291,7 +291,10 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users) => {
             member: user._id,
         }));
 
-        const result = await GroupMember.insertMany(groupMembers, { ordered: false });
+        const result = await GroupMember.insertMany(groupMembers, {
+            ordered: false,
+            session
+        });
         return result.length;
     } catch (error) {
         console.error(error);
@@ -310,7 +313,7 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => 
             groupName: data.groupName,
         }));
 
-        const result = await GroupMember.insertMany(group, { ordered: false });
+        const result = await GroupMember.insertMany(group, { ordered: false, session });
         return result.length;
     } catch (error) {
         console.error(error);
@@ -336,188 +339,165 @@ module.exports.mutations = {
             isDeleted: false,
         };
 
-        const existingGroup = await Group.findOne({
-            groupName: { $regex: `^${input.groupName}$`, $options: "i" },
-            subscriber: subscriberId,
-        })
-            .lean()
-            .select("_id");
+        const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
+            let existingGroupMembers;
 
-        if (
-            existingGroup &&
-            existingGroup?._id?.toString() !== groupFilterConditions._id?.toString()
-        ) {
-            throw CustomError(ErrorName.ALREADY_EXIST, "Group name already exist");
-        }
+            const existingGroup = await Group.findOne({
+                groupName: { $regex: `^${input.groupName}$`, $options: "i" },
+                subscriber: subscriberId,
+            })
+                .lean()
+                .select("_id");
 
-        const groupUpdateData = {};
+            if (existingGroup && existingGroup?._id?.toString() !== groupFilterConditions._id?.toString()) {
+                throw CustomError(ErrorName.ALREADY_EXIST, "Group name already exists");
+            }
 
-        if (input.groupName) groupUpdateData.groupName = input.groupName;
-        if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
-        if (input.description) groupUpdateData.description = input.description;
-        if (input.groupType) groupUpdateData.groupType = input.groupType;
-        if (input.description) groupUpdateData.description = input.description;
-        if (input.members && input.members.length === 0) {
-            groupUpdateData.members = input.members;
-            groupUpdateData.memberCount = input.members.length;
-        }
+            if (existingGroup && input._id) {
+                let existingGroups = await GroupMember.find({ group: input._id }).select("member");
+                existingGroupMembers = existingGroups.map(groupMember => groupMember.member) || [];
+            }
 
-        let getDesignationIds = [];
-        let roleIds = [];
-        let vesselIds = [];
-        let vesselTypeIds = [];
-        let vesselStatusIds = [];
-        let subRoleIds = [];
-        let regStatusIds = [];
-        let unRegStatusIds = [];
+            const groupUpdateData = {};
 
-        if (input.groupType === "GROUP") {
-            for (list of input.list) {
-                let typeOfGroup = list.groupType;
+            if (input.groupName) groupUpdateData.groupName = input.groupName;
+            if (input.groupAdmin) groupUpdateData.groupAdmin = input.groupAdmin;
+            if (input.description) groupUpdateData.description = input.description;
+            if (input.groupType) groupUpdateData.groupType = input.groupType;
+            if (input.members && input.members.length === 0) {
+                groupUpdateData.members = input.members;
+                groupUpdateData.memberCount = input.members.length;
+            }
 
-                switch (typeOfGroup) {
-                    case "designation":
-                        getDesignationIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "role":
-                        roleIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "vessel":
-                        vesselIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "vesselType":
-                        vesselTypeIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "vesselStatus":
-                        vesselStatusIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "subRole":
-                        subRoleIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "regStatus":
-                        regStatusIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    case "unRegStatus":
-                        unRegStatusIds.push({ id: list.group, groupName: list.groupName });
-                        break;
-                    default:
-                        console.log(`Unknown group type: ${typeOfGroup}`);
+            let getDesignationIds = [];
+            let roleIds = [];
+            let vesselIds = [];
+            let vesselTypeIds = [];
+            let vesselStatusIds = [];
+            let subRoleIds = [];
+            let regStatusIds = [];
+            let unRegStatusIds = [];
+
+            if (input.groupType === "GROUP") {
+                for (let list of input.list) {
+                    let typeOfGroup = list.groupType;
+
+                    switch (typeOfGroup) {
+                        case "designation":
+                            getDesignationIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "role":
+                            roleIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "vessel":
+                            vesselIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "vesselType":
+                            vesselTypeIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "vesselStatus":
+                            vesselStatusIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "subRole":
+                            subRoleIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "regStatus":
+                            regStatusIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        case "unRegStatus":
+                            unRegStatusIds.push({ id: list.group, groupName: list.groupName });
+                            break;
+                        default:
+                            console.log(`Unknown group type: ${typeOfGroup}`);
+                    }
                 }
             }
-        }
 
-        const savedGroupName = await Group.findOneAndUpdate(
-            groupFilterConditions,
-            {
-                ...groupFilterConditions,
-                ...groupUpdateData,
-                $setOnInsert: {
-                    createdBy: userId,
+            const savedGroupName = await Group.findOneAndUpdate(
+                groupFilterConditions,
+                {
+                    ...groupFilterConditions,
+                    ...groupUpdateData,
+                    $setOnInsert: {
+                        createdBy: userId,
+                    },
+                    updatedBy: userId,
                 },
-                updatedBy: userId,
-            },
-            {
-                upsert: true,
-                new: true,
-                setDefaultsOnInsert: true,
-                runValidators: true,
-                lean: true,
-            }
-        );
+                {
+                    upsert: true,
+                    new: true,
+                    setDefaultsOnInsert: true,
+                    runValidators: true,
+                    lean: true,
+                    session,
+                }
+            );
 
-        if (savedGroupName) {
-            const groupMemberFilterConditions = {
-                group: savedGroupName._id,
-                isDeleted: false,
-            };
+            if (!savedGroupName) throw CustomError(ErrorName.FAILED);
 
-            const groupMemberData = {
-                group: savedGroupName._id,
-                member: savedGroupName.groupAdmin,
-            };
-
-            if (savedGroupName && input.members && input.members.length > 0) {
-                const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
-                await Group.updateOne(
-                    { _id: savedGroupName._id },
-                    {
-                        $set: {
-                            members: input.members,
-                            memberCount: memberCount,
-                        },
+            if (input.members && input.members.length > 0) {
+                const uniqueInputMembers = [...new Set(input.members)];
+                const existingMemberIds = existingGroupMembers?.map(member => member.toString());
+                const newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
+                if (newMembers.length > 0) {
+                    const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
+                    if (memberCount > 0) {
+                        await Group.updateOne(
+                            { _id: savedGroupName._id },
+                            {
+                                $addToSet: {
+                                    members: { $each: newMembers },
+                                },
+                                $inc: {
+                                    memberCount: memberCount,
+                                },
+                                $set: {
+                                    updatedAt: new Date(),
+                                    updatedBy: subscriberId,
+                                },
+                            },
+                            { session }
+                        );
                     }
-                );
-                savedGroupName.members = input.members;
+                }
             }
 
-            if (savedGroupName && input.groupType === "GROUP") {
+            if (input.groupType === "GROUP") {
                 if (getDesignationIds.length > 0) {
-                    await bulkInsertGroups(
-                        subscriberId,
-                        savedGroupName._id,
-                        "designation",
-                        getDesignationIds
-                    );
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "designation", getDesignationIds, session);
                 }
 
                 if (regStatusIds.length > 0) {
-                    await bulkInsertGroups(
-                        subscriberId,
-                        savedGroupName._id,
-                        "registered",
-                        regStatusIds
-                    );
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "registered", regStatusIds, session);
                 }
 
                 if (unRegStatusIds.length > 0) {
-                    await bulkInsertGroups(
-                        subscriberId,
-                        savedGroupName._id,
-                        "unregistered",
-                        unRegStatusIds
-                    );
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "unregistered", unRegStatusIds, session);
                 }
 
                 if (subRoleIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "subRole", subRoleIds);
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "subRole", subRoleIds, session);
                 }
 
                 if (vesselIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "vessel", vesselIds);
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "vessel", vesselIds, session);
                 }
 
                 if (vesselTypeIds.length > 0) {
-                    await bulkInsertGroups(
-                        subscriberId,
-                        savedGroupName._id,
-                        "vesselType",
-                        vesselTypeIds
-                    );
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselType", vesselTypeIds, session);
                 }
 
                 if (vesselStatusIds.length > 0) {
-                    await bulkInsertGroups(
-                        subscriberId,
-                        savedGroupName._id,
-                        "vesselStatus",
-                        vesselStatusIds
-                    );
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselStatus", vesselStatusIds, session);
                 }
 
                 if (roleIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "role", roleIds);
+                    await bulkInsertGroups(subscriberId, savedGroupName._id, "role", roleIds, session);
                 }
             }
 
-            const updatedGroup = await Group.findById(savedGroupName._id);
-
-            return {
-                message: input._id ? "Group updated successfully" : "Group created successfully",
-                group: {
-                    ...updatedGroup,
-                },
-            };
-        }
+            return savedGroupName;
+        });
 
         LogHelper.logActivity({
             subscriber: subscriberId,
@@ -527,7 +507,7 @@ module.exports.mutations = {
             affected: [
                 {
                     targetRef: "Group",
-                    target: savedGroupName._id,
+                    target: savedGroup._id,
                 },
             ],
             additionalInfo: [
@@ -542,7 +522,7 @@ module.exports.mutations = {
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
             group: {
-                ...updatedGroup,
+                ...savedGroup,
                 members: input.members,
             },
         };
