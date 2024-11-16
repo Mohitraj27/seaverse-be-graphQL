@@ -31,7 +31,11 @@ module.exports = {
         }
         input VesselFilterInput {
             search: String
-            vesselType: ID
+            vesselType: String
+            vesselName: String
+            vesselNameAndImoNumber: String
+            companyName: String
+            ownerName: String
             isActive: Boolean
         }
 
