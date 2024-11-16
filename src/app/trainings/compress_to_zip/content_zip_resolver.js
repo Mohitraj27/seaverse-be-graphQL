@@ -2,6 +2,7 @@ const { CustomError, ErrorName, AuthUser } = require("../../../util");
 const { Training } = require('../../trainings/training_model');
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model')
+const AwsHelper = require("../../../util/aws_helper");
 
 module.exports.queries = {
 
@@ -28,9 +29,13 @@ module.exports.mutations = {
                 .populate('trainingModuleContent')
                 .select('trainingModuleContent').lean();
 
-            if (!trainingModuleContents) throw CustomError(ErrorName.NOT_FOUND, "Content not found");
+            let url = 'public/sample_course_download.zip';
+            const zip = await AwsHelper.fetchFile(url);
 
-            console.log(trainingModuleContents);
+            return {
+                status: "01",
+                zipUrl: zip
+            }
 
         } catch (error) {
             throw Error(error.message);

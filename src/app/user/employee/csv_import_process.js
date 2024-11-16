@@ -12,7 +12,6 @@ process.on('message', async (data) => {
 
         await closeDb();
 
-
         process.send({ message: 'Background task completed successfully' });
         process.exit(0);
 
