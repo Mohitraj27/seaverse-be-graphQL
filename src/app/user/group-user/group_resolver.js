@@ -437,17 +437,30 @@ module.exports.mutations = {
             };
 
             if (savedGroupName && input.members && input.members.length > 0) {
-                const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, input.members)
-                await Group.updateOne(
-                    { _id: savedGroupName._id },
-                    {
-                        $set: {
-                            members: input.members,
-                            memberCount: memberCount,
-                        },
+                const uniqueInputMembers = [...new Set(input.members)];
+                const existingMemberIds = savedGroupName.members.map(member => member.toString());
+                const newMembers = uniqueInputMembers.filter(member => !existingMemberIds.includes(member.toString()));
+                if (newMembers.length > 0) {
+                    const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers);
+                    if (memberCount > 0) {
+                        const updatedGroup = await Group.updateOne(
+                            { _id: savedGroupName._id },
+                            {
+                                $addToSet: {
+                                    members: { $each: newMembers },
+                                },
+                                $inc: {
+                                    memberCount: memberCount,
+                                },
+                                $set: {
+                                    updatedAt: new Date(),
+                                    updatedBy: subscriberId,
+                                },
+                            }
+                        );
+                        savedGroupName.members = [...new Set([...savedGroupName.members, ...newMembers])];
                     }
-                );
-                savedGroupName.members = input.members;
+                }
             }
 
             if (savedGroupName && input.groupType === "GROUP") {
