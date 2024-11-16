@@ -50,7 +50,6 @@ const userSchema = new Schema(
         avatar: String,
         password: {
             type: String,
-            required: true,
         },
         role: {
             type: String,

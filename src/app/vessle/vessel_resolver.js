@@ -25,19 +25,85 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput?.isActive ? true : false;
             }
 
-            if (filterInput?.vesselType) {
+            if (filterInput?.vesselName && filterInput?.vesselName.length > 0) {
                 filterConditions = {
                     ...filterConditions,
-                    typeOfVessel: ObjectId(filterInput.vesselType),
+                    name: {
+                        $in: filterInput.vesselName.map(
+                            name => new RegExp(".*" + name + ".*", "i")
+                        ),
+                    },
+                };
+            }
+
+            if (filterInput?.vesselNameAndImoNumber && filterInput?.vesselNameAndImoNumber.length > 0) {
+                filterConditions = {
+                    ...filterConditions,
+                    $or: [
+                        {
+                            name: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    name => new RegExp(".*" + name + ".*", "i")
+                                ),
+                            },
+                        },
+                        {
+                            imoNumber: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    imoNumber => new RegExp(".*" + imoNumber + ".*", "i")
+                                ),
+                            },
+                        },
+                    ],
+                };
+            }
+
+            if (filterInput?.companyName && filterInput?.companyName.length > 0) {
+                filterConditions = {
+                    ...filterConditions,
+                    companyName: {
+                        $in: filterInput.companyName.map(
+                            companyName => new RegExp(".*" + companyName + ".*", "i")
+                        ),
+                    },
+                };
+            }
+
+            if (filterInput?.ownerName) {
+                filterConditions = {
+                    ...filterConditions,
+                    ownerName: {
+                        $in: filterInput.ownerName.map(
+                            ownerName => new RegExp(".*" + ownerName + ".*", "i")
+                        ),
+                    },
                 };
             }
 
             if (filterInput?.search) {
                 filterConditions = {
                     ...filterConditions,
-                    $and: [
+                    $or: [
                         {
                             "name": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "imoNumber": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "companyName": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "ownerName": {
                                 $regex: ".*" + filterInput.search + ".*",
                                 $options: "i",
                             },
@@ -59,6 +125,24 @@ module.exports.queries = {
                         },
                     },
                     { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                    {
+                        $match: filterInput?.vesselType && filterInput.vesselType.length > 0
+                            ? {
+                                "typeOfVessel.name": {
+                                    $in: filterInput.vesselType.map(
+                                        vesselType => new RegExp(".*" + vesselType + ".*", "i")
+                                    )
+                                },
+                            }
+                            : {},
+                    },
+                    // {
+                    //     $match: filterInput?.vesselType
+                    //         ? {
+                    //             "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
+                    //         }
+                    //         : {},
+                    // },
                 ]),
                 {
                     offset: skip,
