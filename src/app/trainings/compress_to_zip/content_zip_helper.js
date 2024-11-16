@@ -19,7 +19,7 @@ const fileDownloader = async (contentMap) => {
 
         try {
             const response = await axios.get(updatedUrl, { responseType: 'stream' });
-            const fileName = updatedUrl.split('/').pop();
+            const fileName = fileUrl.split('/').pop();
 
             archive.append(response.data, { name: fileName });
 
@@ -33,12 +33,13 @@ const fileDownloader = async (contentMap) => {
 
     await archive.finalize();
 
-    let saveZipName = `zip_${Date.now()}.zip`
+    let saveZipName = `zip_${Date.now()}.zip`;
+
     const filePath = await uploadZip({
         data: zipStream,
         folderName: 'trainingContents',
         fileName: saveZipName,
-        uploadType: 'application/zip',
+        uploadType: uploadType.lessonZip,
     });
 
     return filePath;
@@ -57,14 +58,10 @@ const fetchFiles = (contents) => {
             case contentTypes.IMAGE:
                 fileUrlMap.set(content._id, trainingContent.audio[0]?.url);
                 break;
-            case contentTypes.QUIZ:
-                // fileUrlMap.set(content._id, content.files[0]?.url);
-                break;
             default:
                 fileUrlMap.set(content._id, trainingContent.files[0]?.url);
                 break;
         }
-
     }
 
     return fileUrlMap;
@@ -75,13 +72,7 @@ const getTheContent = async (contents, tableType) => {
     let zipUrl = null;
     let fetchedData;
 
-    if (tableType === 'contentCollection') {
-        fetchedData = fetchFiles(contents);
-    }
-
-    if (tableType === 'progressCollection') {
-
-    }
+    fetchedData = fetchFiles(contents);
 
     if (fetchedData.size > 0) {
         zipUrl = await fileDownloader(fetchedData);

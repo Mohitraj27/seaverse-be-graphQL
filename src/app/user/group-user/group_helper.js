@@ -36,7 +36,6 @@ module.exports = {
     getCustomGroups: async () => {
 
         let allGroups = await Group.aggregate([
-            { $match: {} },
             {
                 $lookup: {
                     from: 'groupmembers',
@@ -94,7 +93,6 @@ module.exports = {
                 $unwind: "$updatedBy",
             },
         ]);
-
 
         const groupArray = allGroups
             .filter(group => group.groupType === "GROUP")
