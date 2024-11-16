@@ -29,8 +29,8 @@ module.exports.queries = {
         if (contentStatus) {
             filterConditions.contentStatus = contentStatus;
         }
-        if (contentType) {
-            filterConditions.contentType = contentType;
+        if (contentType && contentType.length > 0) {
+            filterConditions.contentType = { $in: contentType };
         }
         if (recentlyModified) {
             filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
