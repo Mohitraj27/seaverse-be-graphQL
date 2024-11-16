@@ -302,21 +302,34 @@ const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => 
     }
 };
 
-const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData) => {
+const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, session) => {
     try {
-
-        const group = groupData.map(data => ({
-            subscriber: subscriberId,
-            group: groupId,
-            groupType,
-            groupData: data.id,
-            groupName: data.groupName,
+        const operations = groupData.map(data => ({
+            updateOne: {
+                filter: {
+                    subscriber: subscriberId,
+                    group: groupId,
+                    groupType: groupType,
+                    groupData: data.id,
+                },
+                update: {
+                    $set: {
+                        subscriber: subscriberId,
+                        group: groupId,
+                        groupType,
+                        groupData: data.id,
+                        groupName: data.groupName,
+                    },
+                },
+                upsert: true,
+            },
         }));
 
-        const result = await GroupMember.insertMany(group, { ordered: false, session });
-        return result.length;
+        const result = await GroupMember.bulkWrite(operations, { session });
+
+        return result.upsertedCount + result.modifiedCount;
     } catch (error) {
-        console.error(error);
+        console.error('Error in bulkInsertGroups:', error);
         return 0;
     }
 };
@@ -341,13 +354,23 @@ module.exports.mutations = {
 
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
             let existingGroupMembers;
+            let existingGroup;
 
-            const existingGroup = await Group.findOne({
-                groupName: { $regex: `^${input.groupName}$`, $options: "i" },
-                subscriber: subscriberId,
-            })
-                .lean()
-                .select("_id");
+            if (input._id) {
+                existingGroup = await Group.findOne({
+                    _id: input._id,
+                    subscriber: subscriberId,
+                })
+                    .lean()
+                    .select("_id");
+            } else if (input.groupName) {
+                existingGroup = await Group.findOne({
+                    groupName: { $regex: `^${input.groupName}$`, $options: "i" },
+                    subscriber: subscriberId,
+                })
+                    .lean()
+                    .select("_id");
+            }
 
             if (existingGroup && existingGroup?._id?.toString() !== groupFilterConditions._id?.toString()) {
                 throw CustomError(ErrorName.ALREADY_EXIST, "Group name already exists");
