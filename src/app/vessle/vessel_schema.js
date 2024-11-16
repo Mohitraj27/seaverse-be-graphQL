@@ -31,11 +31,11 @@ module.exports = {
         }
         input VesselFilterInput {
             search: String
-            vesselType: String
-            vesselName: String
-            vesselNameAndImoNumber: String
-            companyName: String
-            ownerName: String
+            vesselType: [String]
+            vesselName: [String]
+            vesselNameAndImoNumber: [String]
+            companyName: [String]
+            ownerName: [String]
             isActive: Boolean
         }
 

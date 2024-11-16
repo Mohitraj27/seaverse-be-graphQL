@@ -48,6 +48,8 @@ const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const {
     sendNotificationOn,
     generateRandomString,
+    sendNodeEmail,
+    sendNodeEmailBulk,
 } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require("uuid");
 const { SubRole } = require("../sub-roles/sub_role_model");
@@ -1501,6 +1503,14 @@ module.exports.mutations = {
             child.on("message", async message => {
                 if (message.type === 'NOTIFICATION') {
                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+                }
+
+                if (message.type === 'EMAIL') {
+                    await sendNodeEmailBulk({
+                        receiverEmails: message.data.email,
+                        subject: message.data.subject,
+                        htmlContent: message.data.htmlContent
+                    })
                 }
             });
 

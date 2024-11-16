@@ -25,38 +25,58 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput?.isActive ? true : false;
             }
 
-            if (filterInput?.vesselName) {
+            if (filterInput?.vesselName && filterInput?.vesselName.length > 0) {
                 filterConditions = {
                     ...filterConditions,
-                    name: { $regex: ".*" + filterInput.vesselName + ".*", $options: "i"},
+                    name: {
+                        $in: filterInput.vesselName.map(
+                            name => new RegExp(".*" + name + ".*", "i")
+                        ),
+                    },
                 };
             }
 
-            if (filterInput?.vesselNameAndImoNumber) {
+            if (filterInput?.vesselNameAndImoNumber && filterInput?.vesselNameAndImoNumber.length > 0) {
                 filterConditions = {
                     ...filterConditions,
                     $or: [
                         {
-                            name: { $regex: ".*" + filterInput.vesselNameAndImoNumber + ".*", $options: "i"},
+                            name: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    name => new RegExp(".*" + name + ".*", "i")
+                                ),
+                            },
                         },
                         {
-                            imoNumber: { $regex: ".*" + filterInput.vesselNameAndImoNumber + ".*", $options: "i"},
+                            imoNumber: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    imoNumber => new RegExp(".*" + imoNumber + ".*", "i")
+                                ),
+                            },
                         },
                     ],
                 };
             }
 
-            if (filterInput?.companyName) {
+            if (filterInput?.companyName && filterInput?.companyName.length > 0) {
                 filterConditions = {
                     ...filterConditions,
-                    companyName: { $regex: ".*" + filterInput.companyName + ".*", $options: "i"},
+                    companyName: {
+                        $in: filterInput.companyName.map(
+                            companyName => new RegExp(".*" + companyName + ".*", "i")
+                        ),
+                    },
                 };
             }
 
             if (filterInput?.ownerName) {
                 filterConditions = {
                     ...filterConditions,
-                    ownerName: { $regex: ".*" + filterInput.ownerName + ".*", $options: "i"},
+                    ownerName: {
+                        $in: filterInput.ownerName.map(
+                            ownerName => new RegExp(".*" + ownerName + ".*", "i")
+                        ),
+                    },
                 };
             }
 
@@ -106,12 +126,23 @@ module.exports.queries = {
                     },
                     { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
                     {
-                        $match: filterInput?.vesselType
+                        $match: filterInput?.vesselType && filterInput.vesselType.length > 0
                             ? {
-                                  "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
-                              }
+                                "typeOfVessel.name": {
+                                    $in: filterInput.vesselType.map(
+                                        vesselType => new RegExp(".*" + vesselType + ".*", "i")
+                                    )
+                                },
+                            }
                             : {},
                     },
+                    // {
+                    //     $match: filterInput?.vesselType
+                    //         ? {
+                    //             "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
+                    //         }
+                    //         : {},
+                    // },
                 ]),
                 {
                     offset: skip,

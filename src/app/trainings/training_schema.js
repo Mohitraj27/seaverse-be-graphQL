@@ -90,6 +90,7 @@ module.exports = {
             classroomModule: ClassroomModule
             authorName: String
             isOrdered : Boolean
+            isCertificate: Boolean
         }
         type Scorm {
             type:String
