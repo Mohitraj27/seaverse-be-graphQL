@@ -46,6 +46,7 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
+const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -525,41 +526,63 @@ const deleteUsers = async (users, errors) => {
 
 }
 
-async function validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) {
+const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
-    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+    if (!row["FirstName"]) {
+        errors.push(`First Name is missing in row ${rowIndex + 1}`);
+        return errors;
+    };
 
-    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
-    else if (emails.has(row["Email"])) {
+    if (!row["Email"]) {
+        errors.push(`Email is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else if (emails.has(row["Email"])) {
         errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
+        return errors;
     } else {
         emails.add(row["Email"]);
     }
 
-    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
-    else if (empIds.has(row["EmployeeID"])) {
+    if (!row["EmployeeID"]) {
+        errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else if (empIds.has(row["EmployeeID"])) {
         errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+        return errors;
     } else {
         empIds.add(row["EmployeeID"]);
     }
 
-    if (!row["EmployeeID"]) errors.push(`EmployeeID is missing in row ${rowIndex + 1}`);
-    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
-    else {
+    if (!row["Designation"]) {
+        errors.push(`Designation is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else {
         const designation = row["Designation"].toLowerCase();
         if (!designationNames.some(name => name.toLowerCase() === designation)) {
             errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+            return errors;
         }
     }
-    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
-    else {
+
+    if (!row["VesselIMONumber"]) {
+        errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+        return errors;
+    }
+    else if (!imoNumbers.includes(row["VesselIMONumber"])) {
+        errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+        return errors;
+    }
+
+    if (!row["Status"]) {
+        errors.push(`Status is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else {
         const status = row["Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
+            return errors;
         }
     }
     return errors;
@@ -595,6 +618,20 @@ function mapCSVRowToUser(row) {
 
     return result;
 }
+
+const sendBulkEmails = async (passwordEmailList) => {
+
+    try {
+        process.send({
+            type: 'EMAIL',
+            data: { email: passwordEmailList, subject: 'Welcome to SeaVerse!' }
+        });
+
+    } catch (error) {
+        console.error(`Error sending emails`, error);
+    }
+
+};
 
 module.exports = {
     deleteUsers,
@@ -1123,6 +1160,7 @@ module.exports = {
         let errors = [];
         let updatedEmpIds = [];
         const vesselAssociations = [];
+        let passwordEmailList = [];
 
         for (const user of users) {
 
@@ -1171,12 +1209,14 @@ module.exports = {
 
                 } else {
 
+                    let password = generateRandomString(16);
+
                     inserts.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email,
-                        password: await CryptoHelper.hash(process.env.USER_DUMMY_PASSWORD, 10),
+                        password: await CryptoHelper.hash(password, 10)
                     });
 
                     vesselAssociations.push({
@@ -1184,6 +1224,8 @@ module.exports = {
                         imoNumber: user.imoNumber,
                         vesselStatus: user.vesselStatus,
                     });
+
+                    passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
 
                 }
             }
@@ -1203,7 +1245,7 @@ module.exports = {
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-            sendNotificationOnBULK({
+            await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "BULK IMPORT",
                 createdBy: adminUser?._id,
@@ -1226,6 +1268,8 @@ module.exports = {
 
         let insertedUsers;
         let updatedUsers;
+
+        let endUsers = [];
 
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -1262,7 +1306,7 @@ module.exports = {
                                         $set: {
                                             user: user._id,
                                             vessel: vesselMap.get(vesselData.imoNumber).id,
-                                            vesselStatus: vesselData.vesselStatus,
+                                            vesselStatus: vesselData.vesselStatus.toUpperCase(),
                                             isActive: true,
                                         }
                                     },
@@ -1279,6 +1323,7 @@ module.exports = {
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
                     return {
                         updateOne: {
                             filter: { user: user },
@@ -1286,7 +1331,7 @@ module.exports = {
                                 $set: {
                                     user: user,
                                     subscriber: subscriberId,
-                                    empDesignation: designationMap.get(originalUserData.designation).id,
+                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase()).id,
                                     bulkId: bulkId,
                                     regType: 2
                                 }
@@ -1326,7 +1371,7 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-                sendNotificationOnBULK({
+                await sendNotificationOnBULK({
                     subscriber: subscriberId,
                     action: "BULK IMPORT",
                     createdBy: adminUser?._id,
@@ -1342,6 +1387,14 @@ module.exports = {
                     `No new data created/updated`
                 );
             }
+
+
+            if (passwordEmailList.length > 0) {
+
+                await sendBulkEmails(passwordEmailList);
+
+            }
+
         });
 
         const createImportLog = await ImportLog.create({
@@ -1363,58 +1416,71 @@ module.exports = {
             description: `New data(s) created/updated`,
             notificationType: 'BULK_IMPORT',
             status: 'SUCCESS'
-        })
+        });
+
 
     },
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
-        await new Promise((resolve, reject) => {
-            const stream = createReadStream();
-            const parser = csvParse({ columns: true, trim: true });
-            stream.pipe(parser);
+        try {
 
-            let rowIndex = 0;
-            let isEmptyFile = true;
+            await new Promise((resolve, reject) => {
+                const stream = createReadStream();
+                const parser = csvParse({ columns: true, trim: true });
+                stream.pipe(parser);
 
-            parser.on("data", async (row) => {
-                rowIndex++;
-                isEmptyFile = false;
+                let rowIndex = 0;
+                let isEmptyFile = true;
 
-                validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex))
+                parser.on("data", async (row) => {
 
-                if (validationErrors.length > 0) {
+                    rowIndex++;
 
-                    const createImportLog = await ImportLog.create({
-                        subscriber: subscriberId,
-                        uploadedBy: userId,
-                        fileName: newFileName,
-                        filePath: { url: saveCSV },
-                        importStatus: "FAILED",
-                        description: `${validationErrors[0]}`
-                    })
+                    isEmptyFile = false;
 
-                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-                    return validationErrors;
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
-                } else {
-                    const formatedData = mapCSVRowToUser(row);
-                    users.push(formatedData);
-                }
+                    const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
+                    if (hasNonEmptyArray) {
+
+                        const createImportLog = await ImportLog.create({
+                            subscriber: subscriberId,
+                            uploadedBy: userId,
+                            fileName: newFileName,
+                            filePath: { url: saveCSV },
+                            importStatus: "FAILED",
+                            description: `${validationErrors[0]}`
+                        })
+
+                        if (!createImportLog) throw CustomError(ErrorName.FAILED);
+                        return validationErrors;
+
+                    } else {
+                        const formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
+                    }
+
+
+                });
+
+                parser.on("end", async () => {
+
+                    if (rowIndex === 0) {
+                        validationErrors.push("The CSV file is empty.");
+                    }
+                    resolve()
+                });
+                parser.on("error", reject);
 
             });
 
-            parser.on("end", async () => {
-                if (rowIndex === 0) {
-                    validationErrors.push("The CSV file is empty.");
-                }
-                resolve()
-            });
-            parser.on("error", reject);
+            return validationErrors;
 
-        });
+        } catch (error) {
+            throw Error(error.message);
+        }
 
-        return validationErrors;
     }
 };
