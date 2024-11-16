@@ -107,7 +107,6 @@ module.exports = {
 
         let fromGetGroups = true;
         const membersData = await fetchUserFromAutoSyncedGroups(groupArray, fromGetGroups);
-
         allGroups.forEach(group => {
             if (group.groupType === "GROUP") {
                 group.members.forEach(member => {
@@ -122,7 +121,6 @@ module.exports = {
         });
 
         allGroups = restructureGroupDataArray(allGroups);
-        console.log(allGroups);
         return allGroups;
 
     },

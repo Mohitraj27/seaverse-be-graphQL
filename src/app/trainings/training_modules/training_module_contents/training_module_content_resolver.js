@@ -29,8 +29,8 @@ module.exports.queries = {
         if (contentStatus) {
             filterConditions.contentStatus = contentStatus;
         }
-        if (contentType) {
-            filterConditions.contentType = contentType;
+        if (contentType && contentType.length > 0) {
+            filterConditions.contentType = { $in: contentType };
         }
         if (recentlyModified) {
             filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
@@ -577,10 +577,12 @@ module.exports.mutations = {
 
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
+            console.log("thumbnailFile", thumbnailFile);
             const imageFile = image ? await image : null;
             const videoFile = video ? await video : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
+            console.log("fileFile", fileFile);
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
@@ -628,7 +630,7 @@ module.exports.mutations = {
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content`,
-                    fileName: `image_${Date.now()}`,
+                    fileName: `image_${Date.now()}_${thumbnailFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 input.thumbnail = thumbnailUrl;
@@ -638,7 +640,7 @@ module.exports.mutations = {
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content`,
-                    fileName: `video_${Date.now()}`,
+                    fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentVideo,
                 });
                 input.videos = [{ url: videoUrl }];
@@ -648,7 +650,7 @@ module.exports.mutations = {
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
                     folderName: `audio-content`,
-                    fileName: `audio_${Date.now()}`,
+                    fileName: `audio_${Date.now()}_${audioFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentAudio,
                 });
                 input.audios = [{ url: audioUrl }];
@@ -658,7 +660,7 @@ module.exports.mutations = {
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
                     folderName: `image-content`,
-                    fileName: `image_${Date.now()}`,
+                    fileName: `image_${Date.now()}_${imageFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 input.images = [{ url: imageUrl }];
@@ -668,7 +670,7 @@ module.exports.mutations = {
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
                     folderName: `file-content`,
-                    fileName: `file_${Date.now()}`,
+                    fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentFile,
                 });
                 input.files = [{ url: fileUrl }];
@@ -893,7 +895,7 @@ module.exports.mutations = {
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
                     folderName: `image-content-${existingContent._id}`,
-                    fileName: `image_${Date.now()}`,
+                    fileName: `image_${Date.now()}_${thumbnailFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 updateData.thumbnail = thumbnailUrl;
@@ -905,7 +907,7 @@ module.exports.mutations = {
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content-${existingContent._id}`,
-                    fileName: `video_${Date.now()}`,
+                    fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentAudio,
                 });
                 updateData.videos = [{ url: videoUrl }];
@@ -921,7 +923,7 @@ module.exports.mutations = {
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
                     folderName: `audio-content-${existingContent._id}`,
-                    fileName: `audio_${Date.now()}`,
+                    fileName: `audio_${Date.now()}_${audioFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentAudio,
                 });
                 updateData.audios = [{ url: audioUrl }]
@@ -937,7 +939,7 @@ module.exports.mutations = {
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
                     folderName: `image-content-${existingContent._id}`,
-                    fileName: `image_${Date.now()}`,
+                    fileName: `image_${Date.now()}_${imageFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 updateData.images = [{ url: imageUrl }];
@@ -953,7 +955,7 @@ module.exports.mutations = {
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
                     folderName: `file-content-${existingContent._id}`,
-                    fileName: `file_${Date.now()}`,
+                    fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
                     uploadType: UploadHelper.uploadType.trainingContentFile,
                 });
                 updateData.files = [{ url: fileUrl }];
