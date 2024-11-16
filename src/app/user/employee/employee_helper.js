@@ -530,36 +530,59 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
 
     const errors = [];
 
-    if (!row["FirstName"]) errors.push(`First Name is missing in row ${rowIndex + 1}`);
+    if (!row["FirstName"]) {
+        errors.push(`First Name is missing in row ${rowIndex + 1}`);
+        return errors;
+    };
 
-    if (!row["Email"]) errors.push(`Email is missing in row ${rowIndex + 1}`);
-    else if (emails.has(row["Email"])) {
+    if (!row["Email"]) {
+        errors.push(`Email is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else if (emails.has(row["Email"])) {
         errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
+        return errors;
     } else {
         emails.add(row["Email"]);
     }
 
-    if (!row["EmployeeID"]) errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
-    else if (empIds.has(row["EmployeeID"])) {
+    if (!row["EmployeeID"]) {
+        errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else if (empIds.has(row["EmployeeID"])) {
         errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+        return errors;
     } else {
         empIds.add(row["EmployeeID"]);
     }
-    if (!row["Designation"]) errors.push(`Designation is missing in row ${rowIndex + 1}`);
-    else {
+
+    if (!row["Designation"]) {
+        errors.push(`Designation is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else {
         const designation = row["Designation"].toLowerCase();
         if (!designationNames.some(name => name.toLowerCase() === designation)) {
             errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+            return errors;
         }
     }
-    if (!row["VesselIMONumber"]) errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-    else if (!imoNumbers.includes(row["VesselIMONumber"])) errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
 
-    if (!row["Status"]) errors.push(`Status is missing in row ${rowIndex + 1}`);
-    else {
+    if (!row["VesselIMONumber"]) {
+        errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+        return errors;
+    }
+    else if (!imoNumbers.includes(row["VesselIMONumber"])) {
+        errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+        return errors;
+    }
+
+    if (!row["Status"]) {
+        errors.push(`Status is missing in row ${rowIndex + 1}`);
+        return errors;
+    } else {
         const status = row["Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
+            return errors;
         }
     }
     return errors;
@@ -598,134 +621,14 @@ function mapCSVRowToUser(row) {
 
 const sendBulkEmails = async (passwordEmailList) => {
 
-    for (const data of passwordEmailList) {
+    try {
+        process.send({
+            type: 'EMAIL',
+            data: { email: passwordEmailList, subject: 'Welcome to SeaVerse!' }
+        });
 
-        try {
-
-            const htmlContent = `
-        <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to SeaVerse</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                margin: 0;
-                padding: 0;
-                background-color: #F4F4F4;
-            }
-            .email-container {
-                max-width: 600px;
-                margin: 20px auto;
-                background: #FFFFFF;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            .header {
-                background-color: #0056B3;
-                color: #FFFFFF;
-                text-align: center;
-                padding: 20px;
-            }
-            .header h1 {
-                margin: 0;
-                font-size: 24px;
-            }
-            .content {
-                padding: 20px;
-            }
-            .content p {
-                margin: 0 0 15px;
-            }
-            .cta-button {
-                display: inline-block;
-                background-color: #0056B3;
-                color: #FFFFFF;
-                text-decoration: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 16px;
-                margin: 20px 0;
-                display: block;
-                text-align: center;
-            }
-            .footer {
-                text-align: center;
-                padding: 10px;
-                background: #F4F4F4;
-                font-size: 12px;
-                color: #555;
-            }
-            ul {
-                padding-left: 20px;
-            }
-            ul li {
-                margin-bottom: 10px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="email-container">
-            <div class="header">
-                <h1>Welcome to SeaVerse!</h1>
-            </div>
-            <div class="content">
-                <p>Dear <strong>${data.userName}</strong>,</p>
-                <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
-                <p>To get started, log in with these details:</p>
-                <p><strong>Email:</strong> ${data.email}</p>
-                <p><strong>Temporary Password:</strong> ${data.password}</p>
-                <p><em>Please set a new password upon your first login for security.</em></p>
-                <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>
-                <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
-                <ul>
-                    <li>
-                        // <a href="https://play.google.com/store/games?hl=en&pli=1" target="_blank">
-                        //     <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play Store" class="store-icon">
-                        // </a>
-                        <a href="https://play.google.com/store/games?hl=en&pli=1">
-                            <img src="cid:playstore" alt="Google Play Store" style="width: 120px; height: auto;">
-                        </a>
-                    </li>
-                    <li>
-                        // <a href="https://www.apple.com/in/app-store/" target="_blank">
-                        //     <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Download_on_the_App_Store_Badge.svg" alt="App Store" class="store-icon">
-                        // </a>
-                        <a href="https://www.apple.com/in/app-store/">
-                            <img src="cid:appstore" alt="App Store" style="width: 120px; height: auto;">
-                        </a>
-                    </li>
-                </ul>
-                <p>Explore courses, track your progress, and unlock new skills today! For any assistance, feel free to reach out to our support team at <strong>[support email/phone]</strong>.</p>
-            </div>
-            <div class="footer">
-                <p>Happy sailing and learning,</p>
-                <p>The SeaVerse Team</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
-
-            // const sentEmail = await sendNodeEmail({
-            //     email: data.email,
-            //     subject: 'Welcome to SeaVerse!',
-            //     htmlContent
-            // });
-
-            if (!sentEmail) {
-                console.error(`Failed to send email to ${data.email}`);
-            }
-
-        } catch (error) {
-            console.error(`Error sending email to ${data.email}:`, error);
-        }
-
+    } catch (error) {
+        console.error(`Error sending emails`, error);
     }
 
 };
@@ -1342,7 +1245,7 @@ module.exports = {
 
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-            sendNotificationOnBULK({
+            await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "BULK IMPORT",
                 createdBy: adminUser?._id,
@@ -1468,7 +1371,7 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-                sendNotificationOnBULK({
+                await sendNotificationOnBULK({
                     subscriber: subscriberId,
                     action: "BULK IMPORT",
                     createdBy: adminUser?._id,
@@ -1563,6 +1466,7 @@ module.exports = {
                 });
 
                 parser.on("end", async () => {
+
                     if (rowIndex === 0) {
                         validationErrors.push("The CSV file is empty.");
                     }
