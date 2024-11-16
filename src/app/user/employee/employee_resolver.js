@@ -11,6 +11,20 @@ const {
     VesselStatus,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_ENDPOINT,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_PORT == 465,
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -1614,28 +1628,121 @@ module.exports.mutations = {
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
 
-            const result = await sendEmail({
-                receiverEmail: savedUser.email,
-                subject: "Welcome",
-                htmlContent: `<!DOCTYPE html>
-            <html lang="en">
+            const mailOptions = {
+                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                to: savedUser.email,
+                subject: "Welcome to SeaVerse!",
+                text: "",
+                html: `<!DOCTYPE html>
+                <html lang="en">
                 <head>
-                    <meta charset="UTF-8" />
-                    <title>Welcome</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Welcome to SeaVerse</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f4f4f4;
+                        }
+                        .email-container {
+                            max-width: 600px;
+                            margin: 20px auto;
+                            background: #ffffff;
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            overflow: hidden;
+                        }
+                        .header {
+                            background-color: #0056b3;
+                            color: #ffffff;
+                            text-align: center;
+                            padding: 20px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 24px;
+                        }
+                        .content {
+                            padding: 20px;
+                        }
+                        .content p {
+                            margin: 0 0 15px;
+                        }
+                        .cta-button {
+                            display: inline-block;
+                            background-color: #0056b3;
+                            color: #ffffff;
+                            text-decoration: none;
+                            padding: 10px 20px;
+                            border-radius: 5px;
+                            font-size: 16px;
+                            margin: 20px 0;
+                            display: block;
+                            text-align: center;
+                        }
+                        .footer {
+                            text-align: center;
+                            padding: 10px;
+                            background: #f4f4f4;
+                            font-size: 12px;
+                            color: #555;
+                        }
+                        ul {
+                            padding-left: 20px;
+                        }
+                        ul li {
+                            margin-bottom: 10px;
+                        }
+                    </style>
                 </head>
                 <body>
-                    <div style="width: 600px; margin: 0 auto; text-align: center">
-                        <p>Welcome</p>
-                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-            Get ready for a great career journey with our Learning Management System</div>
-            <h4>User Name: ${savedUser.email}</h4>
-            <h4>Temporary Password: ${generatePassword}</h4>
-                        <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
-                            Click Here
-                        </a>
+                    <div class="email-container">
+                        <div class="header">
+                            <h1>Welcome to SeaVerse!</h1>
+                        </div>
+                        <div class="content">
+                            <p>Dear <strong>${ savedUser.firstName }</strong>,</p>
+                            <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
+                            <p>To get started, log in with these details:</p>
+                            <p><strong>Email:</strong> ${ savedUser.email }</p>
+                            <p><strong>Temporary Password:</strong> ${generatePassword}</p>
+                            <p><em>Please set a new password upon your first login for security.</em></p>
+                            <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>
+                            <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
+                            <ul>
+                                <li>
+                                    <a href="https://play.google.com/store/games?hl=en&pli=1">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play Store" style="width: 120px; height: auto;">
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="https://www.apple.com/in/app-store/">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Download_on_the_App_Store_Badge.svg" alt="App Store" style="width: 120px; height: auto;">
+                                    </a>
+                                </li>
+                            </ul>
+                            <p>Explore courses, track your progress, and unlock new skills today! For any assistance, feel free to reach out to our support team at <strong>[support email/phone]</strong>.</p>
+                        </div>
+                        <div class="footer">
+                            <p>Happy sailing and learning,</p>
+                            <p>The SeaVerse Team</p>
+                        </div>
                     </div>
                 </body>
-            </html>`,
+                </html>
+                `
+            };
+
+            await transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error("Error sending email:", error);
+                } else {
+                    console.log("Email sent:", info.response);
+                }
             });
 
             return savedEmployees;

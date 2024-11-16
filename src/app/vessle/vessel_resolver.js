@@ -7,8 +7,7 @@ const {
 const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
-const { VesselType } = require("./vessel-type/vessel_type_model");
-const { VesselHelper } = require("./vessel_helper");
+const { User } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 
@@ -98,8 +97,9 @@ module.exports.queries = {
         try {
             const { subscriberId } = AuthUser(context);
 
-            const vessel = await Vessel.findOne({ 
-                imoNumber: imoNumber, subscriber: subscriberId });
+            const vessel = await Vessel.findOne({
+                imoNumber: imoNumber, subscriber: subscriberId
+            });
             if (vessel) {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
             }
@@ -246,6 +246,18 @@ module.exports.mutations = {
         try {
             if (!ids || ids.length === 0) {
                 throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel id is required.');
+            }
+
+            const vesselUsers = await User.find({
+                currentVessel: { $in: ids },
+                isDeleted: { $ne: true }
+            });
+
+            if (vesselUsers.length > 0) {
+                await User.updateMany(
+                    { currentVessel: { $in: ids } },
+                    { $set: { currentVessel: null, vesselStatus: "ONSHORE" } }
+                );
             }
 
             for (let id of ids) {

@@ -47,6 +47,8 @@ module.exports = {
 type QuizEvaluation {
     _id: ID!
     contentId: ID!
+    trainingModuleId: ID!
+    trainingId: ID!
     userId: ID!
     attemptedNumber: Int!   
     totalQuestions: Int!
@@ -64,6 +66,8 @@ input QuestionAnswerInput {
 type QuizEvaluationResult {
     _id: ID!
     contentId: ID!
+    trainingModuleId: ID!
+    trainingId: ID!
     userId: ID!
     attended: Int!
     totalQuestions: Int!
@@ -98,5 +102,5 @@ type QuestionResult {
     `,
     mutations: `
         addQuizAttempt(id: ID!, questionAnswers: [QuizAttemptQuestionAnswerInput!]!): QuizAttempt!
-        QuizEvaluation(contentId: ID!, questionAnswers: [QuestionAnswerInput!]!): QuizEvaluation      `,
+        quizEvaluation(contentId: ID!,trainingModuleId: ID!,trainingId: ID!, questionAnswers: [QuestionAnswerInput!]!): QuizEvaluation      `,
 };
