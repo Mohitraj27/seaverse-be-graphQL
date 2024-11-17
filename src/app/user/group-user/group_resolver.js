@@ -281,6 +281,90 @@ module.exports.queries = {
         };
 
     },
+    getAllGroupMembers: async ({ groupId, pageInput, groupFilter }, context) => {
+        const { subscriberId } = AuthUser(context);
+
+        const skip = pageInput?.skip ?? 0;
+        const limit = pageInput?.limit ?? 50;
+
+        let filterConditions = {
+            group: groupId,
+            isDeleted: { $ne: true },
+        };
+
+        if (groupFilter?.search) {
+            const searchRegex = new RegExp(groupFilter.search, "i");
+            filterConditions["member.name"] = { $regex: searchRegex };
+        }
+
+        let members = [];
+        let totalCount = 0;
+
+        try {
+            const groupData = await Group.aggregate([
+                { 
+                    $match: { _id: ObjectId(groupId) }
+                },
+                {
+                    $lookup: {
+                        from: 'groupmembers',
+                        localField: '_id',
+                        foreignField: 'group',
+                        as: 'members',
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: 'users',
+                                    localField: 'member',
+                                    foreignField: '_id',
+                                    as: 'memberDetails'
+                                }
+                            },
+                            { 
+                                $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true } 
+                            },
+                            {
+                                $project: {
+                                    'memberDetails._id': 1,
+                                    'memberDetails.firstName': 1,
+                                    'memberDetails.lastName': 1,
+                                    'memberDetails.email': 1,
+                                    'memberDetails.isRegistered': 1
+                                }
+                            }
+                        ]
+                    }
+                },
+            
+                { 
+                    $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
+                },
+                {
+                    $project: {
+                        _id: '$members.memberDetails._id',  
+                        firstName: '$members.memberDetails.firstName',
+                        lastName: '$members.memberDetails.lastName',
+                        email: '$members.memberDetails.email',
+                        isRegistered: '$members.memberDetails.isRegistered'
+                    }
+                },
+            ]);
+            
+
+            const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
+            members = groupData.slice(skip, skip + limit);
+            totalCount = totalMembers;
+
+            return {
+                status: "Success",
+                totalCount,
+                members,
+            };
+        } catch (error) {
+            console.error('Error fetching group members:', error);
+            throw new Error('Error fetching group members');
+        }
+    }    
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => {
