@@ -1,8 +1,10 @@
 const { CustomError, ErrorName, AuthUser } = require("../../../util");
 const { Training } = require('../../trainings/training_model');
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
-const { TrainingModule } = require('../../trainings/training_modules/training_module_model')
+const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
+const { TrainingContentBridge } = require('../../trainings/training_content_bridge/training_content_model');
 const AwsHelper = require("../../../util/aws_helper");
+const { getTheContent } = require("./content_zip_helper");
 
 module.exports.queries = {
 
@@ -25,12 +27,31 @@ module.exports.mutations = {
 
             if (!existingTrainingModule) throw CustomError(ErrorName.NOT_FOUND, "Lesson not found");
 
-            const trainingModuleContents = await TrainingProgress.find({ user: userId, trainingModule: input.trainingModule })
+            const trainingModuleContentsFromTrainingProgress = await TrainingProgress.find({ user: userId, trainingModule: input.trainingModule })
                 .populate('trainingModuleContent')
                 .select('trainingModuleContent').lean();
 
-            let url = 'public/sample_course_download.zip';
-            const zip = await AwsHelper.fetchFile(url);
+            let trainingModuleContentsFromTrainingContent = [];
+            if (trainingModuleContentsFromTrainingProgress.length === 0) {
+                trainingModuleContentsFromTrainingContent = await TrainingContentBridge.find({
+                    training: input.training,
+                    trainingModule: input.trainingModule,
+                    isDeleted: false
+                }).populate('trainingContent').select('trainingContent').lean();
+            }
+
+            let getContent;
+            if (trainingModuleContentsFromTrainingProgress.length > 0) {
+
+                getContent = await getTheContent(trainingModuleContentsFromTrainingProgress, 'progressCollection');
+                
+            } else if (trainingModuleContentsFromTrainingContent.length > 0) {
+
+                getContent = await getTheContent(trainingModuleContentsFromTrainingContent, 'contentCollection');
+
+            }
+
+            const zip = await AwsHelper.fetchFile(getContent);
 
             return {
                 status: "01",

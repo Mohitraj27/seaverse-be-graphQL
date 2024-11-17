@@ -36,7 +36,6 @@ module.exports = {
     getCustomGroups: async () => {
 
         let allGroups = await Group.aggregate([
-            { $match: {} },
             {
                 $lookup: {
                     from: 'groupmembers',
@@ -95,7 +94,6 @@ module.exports = {
             },
         ]);
 
-
         const groupArray = allGroups
             .filter(group => group.groupType === "GROUP")
             .flatMap(group =>
@@ -107,7 +105,6 @@ module.exports = {
 
         let fromGetGroups = true;
         const membersData = await fetchUserFromAutoSyncedGroups(groupArray, fromGetGroups);
-
         allGroups.forEach(group => {
             if (group.groupType === "GROUP") {
                 group.members.forEach(member => {
@@ -122,7 +119,6 @@ module.exports = {
         });
 
         allGroups = restructureGroupDataArray(allGroups);
-        console.log(allGroups);
         return allGroups;
 
     },

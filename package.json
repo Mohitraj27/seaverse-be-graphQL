@@ -19,6 +19,7 @@
 		"access-safe": "^0.1.0",
 		"apollo-server-express": "2.25.1",
 		"apple-signin": "1.0.9",
+		"archiver": "^7.0.1",
 		"aws-sdk": "^2.928.0",
 		"axios": "0.21.1",
 		"bcryptjs": "2.4.3",

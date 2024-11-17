@@ -11,13 +11,14 @@ const fileType = {
     allImages: "image/",
     documents: [
         "application/pdf",
-        "application/vnd.ms-powerpoint", 
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation", 
-        "application/vnd.openxmlformats-officedocument.presentationml.slideshow", 
-        "application/vnd.ms-powerpoint.presentation.macroEnabled.12", 
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+        "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
         "application/vnd.ms-powerpoint.slideshow.macroEnabled.12"
     ],
     csv: "text/csv",
+    zip: "application/zip",
     all: "*",
 };
 
@@ -38,10 +39,11 @@ const uploadType = {
     trainingCertificateImage: "trainingCertificateImage",
     trainingBannerImage: "trainingBannerImage",
     bulkCSV: "bulkCSV",
-    certificateLogo : "certificateLogo",
+    certificateLogo: "certificateLogo",
     exportExcel: "exportExcel",
-    exportLearnersReportAsExcel :"exportLearnersReportAsExcel",
-    exportLearnersCoursesReportAsExcel :"exportLearnersCoursesReportAsExcel",
+    exportLearnersReportAsExcel: "exportLearnersReportAsExcel",
+    exportLearnersCoursesReportAsExcel: "exportLearnersCoursesReportAsExcel",
+    lessonZip: "lessonZip",
 };
 
 
@@ -78,6 +80,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.exportExcel) return `${rootFolder}/export-users/${folder}/${filename}`;
     else if (type === uploadType.exportLearnersReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
     else if (type === uploadType.exportLearnersCoursesReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
+    else if (type === uploadType.lessonZip) return `${rootFolder}/lessons/${folder}/${filename}`;
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;
@@ -124,7 +127,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
     } else if (fileData instanceof require('stream').Readable) {
         let extension = PathHelper.extname(fileName);
         if (!extension) {
-            const ext = MimeHelper.extension("application/octet-stream"); 
+            const ext = MimeHelper.extension("application/octet-stream");
             if (ext) extension = `.${ext}`;
         }
         fileName = `${fileName}${extension}`;
@@ -137,13 +140,42 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
 
         if (filePath) {
             const s3Path = await AwsHelper.uploadFile({
-                fileData: fileData, 
+                fileData: fileData,
                 filePath: filePath,
                 originalFileName: fileName,
-                mimeType: "application/octet-stream", 
+                mimeType: "application/octet-stream",
             });
 
-            fileData.destroy(); 
+            fileData.destroy();
+            if (s3Path) return s3Path;
+        }
+        throw CustomError(ErrorName.UPLOAD_FAILED);
+
+    } else if (typeof fileData.pipe === "function" &&
+        typeof fileData._read === "function" &&
+        typeof fileData._readableState === "object") {
+        let extension = PathHelper.extname(fileName);
+        if (!extension) {
+            const ext = MimeHelper.extension("application/octet-stream");
+            if (ext) extension = `.${ext}`;
+        }
+        fileName = `${fileName}${extension}`;
+
+        const filePath = getPathFromType({
+            type: uploadType,
+            folder: folderName,
+            filename: fileName,
+        });
+
+        if (filePath) {
+            const s3Path = await AwsHelper.uploadFile({
+                fileData: fileData,
+                filePath: filePath,
+                originalFileName: fileName,
+                mimeType: "application/octet-stream",
+            });
+
+            fileData.destroy();
             if (s3Path) return s3Path;
         }
         throw CustomError(ErrorName.UPLOAD_FAILED);
@@ -176,6 +208,19 @@ const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) 
 module.exports = {
     uploadType,
     uploadJsonObject,
+    uploadZip: async ({ data, folderName, fileName, uploadType }) => {
+        if (typeof data === "object" && typeof data.pipe === "function") {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.zip,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
     uploadVideo: async ({ data, folderName, fileName, uploadType }) => {
         if (isPromise(data)) {
             const filePath = await uploadFile({
@@ -222,7 +267,7 @@ module.exports = {
                 folderName: folderName,
                 fileName: fileName,
                 uploadType: uploadType,
-                acceptedTypes: fileType.documents, 
+                acceptedTypes: fileType.documents,
             });
 
             if (filePath) return filePath;
@@ -245,16 +290,16 @@ module.exports = {
         if (isPromise(data) || Buffer.isBuffer(data)) {
             const stream = streamifier.createReadStream(data);
             const filePath = await uploadFile({
-                fileData: stream, 
+                fileData: stream,
                 folderName: folderName,
                 fileName: fileName,
                 uploadType: uploadType,
-                acceptedTypes: fileType.excel, 
+                acceptedTypes: fileType.excel,
             });
             if (filePath) return filePath;
         } else if (typeof data === "string") {
             return data;
         }
     },
-    
+
 };
