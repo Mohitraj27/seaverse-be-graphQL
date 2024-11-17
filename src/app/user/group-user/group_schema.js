@@ -118,18 +118,25 @@ module.exports = {
             groupData: String
             memberDetails: singleMemberDetails
         }
-        type singleGroupRes {
+        type SingleGroupRes {
             groupName: String
-            description: String
-            members: [groupMembersDetails]
+            groupType: String
+            groupId: String
+            members: [singleMemberDetails]
+        }
+        input SingleGroupInput {
+            groupName: String
+            groupId: String!
+            groupType: String!
         }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
-        getSingleGroup(groupId: ID!): singleGroupRes
+        getSingleGroup(groupId: ID!): SingleGroupRes
         getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!
+        getSingleAutoSyncGroupUsers(input: SingleGroupInput!): SingleGroupRes!
     `,
     mutations: `
         createOrUpdateGroup(input: createGroupInput!): GroupResponse!

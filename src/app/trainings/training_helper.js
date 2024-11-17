@@ -14,6 +14,9 @@ const { TargetAudience } = require("./targetAudience/targetAudienceModel");
 const { User } = require("../user/user_model");
 const { Group } = require("../user/group-user");
 const { ClassroomModule } = require("./Classroom_module/Classroom_model");
+const { TrainingRegistration } = require("../training-registrations/training_registration_model");
+const { TrainingModule } = require("./training_modules/training_module_model");
+const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
 
     coverImage._id = coverImage._id ?? ObjectId();
@@ -205,6 +208,78 @@ module.exports = {
             .populate('ClassroomModule');
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
         return savedTraining;
+    },
+    validateAndCheckProgress: async (inputData) => {
+        
+        const trainingIds = [];
+        const trainingModuleIds = [];
+        const contentDetailsMap = new Map();
+
+        inputData.forEach((training) => {
+            trainingIds.push(training.training);
+            trainingModuleIds.push(training.trainingModule);
+
+            if (!contentDetailsMap.has(training.trainingModule)) {
+                contentDetailsMap.set(training.trainingModule, []);
+            }
+
+            training.contentDetails.forEach((content) => {
+                contentDetailsMap.get(training.trainingModule).push(content.contentId);
+            });
+        });
+
+        const [trainings, trainingModules, trainingProgress] = await Promise.all([
+            TrainingRegistration.find({ _id: { $in: trainingIds } }),
+            TrainingModule.findOne({ _id: { $in: trainingModuleIds }, training: { $in: trainingIds } }),
+            TrainingProgress.find({
+                $or: Array.from(contentDetailsMap.entries()).flatMap(([trainingModule, trainingModuleContents]) =>
+                    trainingModuleContents.map((trainingModuleContent) => ({
+                        trainingModule,
+                        trainingModuleContent,
+                    }))
+                ),
+            }),
+        ]);
+
+        const trainingMap = new Map(trainings.map((training) => [training._id.toString(), training]));
+        const trainingModuleMap = new Map(
+            trainingModules.map((module) => [module._id.toString(), module])
+        );
+        const trainingProgressMap = new Map(
+            trainingProgress.map((progress) => {
+                const key = `${progress.trainingModule}-${progress.contentId}`;
+                return [key, progress];
+            })
+        );
+
+        let error = [];
+        const results = inputData.map((training) => {
+            const { training, trainingModule, contentDetails } = training;
+
+            if (!trainingMap.has(training)) {
+                throw new Error(`Invalid training ID: ${training}`);
+            }
+
+            if (!trainingModuleMap.has(trainingModule)) {
+                throw new Error(`Invalid training module ID: ${trainingModule}`);
+            }
+
+            const contentValidationResults = contentDetails.map((content) => {
+                const progressKey = `${trainingModule}-${content.contentId}`;
+                if (!trainingProgressMap.has(progressKey)) {
+                    throw new Error(`No progress found for contentId ${content.contentId}`);
+                }
+                return trainingProgressMap.get(progressKey);
+            });
+
+            return {
+                training,
+                trainingModule,
+                contentValidations: contentValidationResults,
+            };
+        });
+
+        return results;
     },
     sendNotificationOnCRUD: async notificationData => {
         try {
