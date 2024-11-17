@@ -182,7 +182,9 @@ module.exports.queries = {
             const { subscriberId } = AuthUser(context);
 
             const vessel = await Vessel.findOne({
-                imoNumber: imoNumber, subscriber: subscriberId
+                imoNumber: imoNumber,
+                subscriber: subscriberId,
+                isDeleted: { $ne: true }
             });
             if (vessel) {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');

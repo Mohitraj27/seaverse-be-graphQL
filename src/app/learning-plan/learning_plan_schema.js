@@ -198,6 +198,7 @@ module.exports = {
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
+        getLearningPlan(id: ID!): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `
