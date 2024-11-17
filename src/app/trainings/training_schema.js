@@ -67,7 +67,7 @@ module.exports = {
             setTimeLimitForModule: Boolean
             approvalStatus: String
             certifications: [MultiMediaInfo]
-            bannerImage: [MultiMediaInfo]
+            bannerImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
@@ -191,9 +191,6 @@ module.exports = {
         }
         input TrainingFilterInput {
             search: String
-            trainingCategory: ID
-            trainingSubCategory: ID
-            approvalStatus: ApprovalStatus
             isActive: Boolean
             status: StatusType
             dateFilter: Int
