@@ -7,6 +7,7 @@ const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const {  Moment } = require("../../tools");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
+const { get } = require("lodash");
 
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
@@ -19,7 +20,7 @@ module.exports.mutations = {
             if (userInfo.role !== 'ADMIN') {
                 throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
             }
-            const result = await createLearningPlanHelper({ ...input, createdBy:userId , updatedBy: userId });
+            const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId });
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
             }
@@ -99,19 +100,19 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    deleteLearningPlan : async ({ id }, context) => {
-        const { userInfo , userId } = AuthUser(context);
+    deleteLearningPlan: async ({ id }, context) => {
+        const { userInfo, userId } = AuthUser(context);
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            if(userInfo.role !== 'ADMIN') {
+            if (userInfo.role !== 'ADMIN') {
                 throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can delete Learning Plans");
             }
             const learningPlan = await LearningPlan.findById({ _id: id });
             if (!learningPlan) {
-                throw  CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
             }
-            if(learningPlan.isDeleted) {
-                throw  CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
+            if (learningPlan.isDeleted) {
+                throw CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
             }
             if (![LearningPlanStatus.INACTIVE, LearningPlanStatus.DRAFT].includes(learningPlan.status)) {
                 throw CustomError(ErrorName.INVALID_LEARNING_PLAN, 'Only Learning Plans with status INACTIVE or DRAFT can be deleted.');
@@ -146,11 +147,11 @@ module.exports.mutations = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
-       
+
     },
     updateLearningPlan: async ({ id, input }, context) => {
         const { userId, userInfo } = AuthUser(context);
-    
+
         if (userInfo.role !== 'ADMIN') {
             throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can update Learning Plans");
         }
@@ -166,7 +167,7 @@ module.exports.mutations = {
             learningPlan.updatedBy = userId;
             learningPlan.updatedAt = new Date();
             learningPlan.isUpdated = true;
-    
+
             await learningPlan.save();
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -220,55 +221,55 @@ module.exports.queries = {
                         ? filterInput.audienceSelection
                         : [filterInput.audienceSelection]
                 };
-            }    
+            }
             let startDate, endDate;
             if (filterInput?.lastModified) {
-            delete queryConditions.lastModified
-            const today = Moment();
-            switch (filterInput.lastModified) {
-                case "TODAY":
-                    startDate = today.startOf("day").toDate();
-                    endDate = today.endOf("day").toDate();
-                    break;
-                case "YESTERDAY":
-                    startDate = today.subtract(1, "day").startOf("day").toDate();
-                    endDate = today.subtract(1, "day").endOf("day").toDate();
-                    break;
-                case "LAST_7_DAYS":
-                    startDate = today.subtract(7, "days").startOf("day").toDate();
-                    endDate = Moment().endOf("day").toDate();
-                    break;
-                case "LAST_30_DAYS":
-                    startDate = today.subtract(30, "days").startOf("day").toDate();
-                    endDate = Moment().endOf("day").toDate();
-                    break;
-                case "LAST_3_MONTHS":
-                    startDate = today.subtract(3, "months").startOf("day").toDate();
-                    endDate = Moment().endOf("day").toDate();
-                    break;
-                case "LAST_6_MONTHS":
-                    startDate = today.subtract(6, "months").startOf("day").toDate();
-                    endDate = Moment().endOf("day").toDate();
-                    break;
-                case "LAST_YEAR":
-                    startDate = today.subtract(1, "year").startOf("day").toDate();
-                    endDate = Moment().endOf("day").toDate();
-                    break;
-                default:
-                    break;
-            }
+                delete queryConditions.lastModified
+                const today = Moment();
+                switch (filterInput.lastModified) {
+                    case "TODAY":
+                        startDate = today.startOf("day").toDate();
+                        endDate = today.endOf("day").toDate();
+                        break;
+                    case "YESTERDAY":
+                        startDate = today.subtract(1, "day").startOf("day").toDate();
+                        endDate = today.subtract(1, "day").endOf("day").toDate();
+                        break;
+                    case "LAST_7_DAYS":
+                        startDate = today.subtract(7, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
+                        break;
+                    case "LAST_30_DAYS":
+                        startDate = today.subtract(30, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
+                        break;
+                    case "LAST_3_MONTHS":
+                        startDate = today.subtract(3, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
+                        break;
+                    case "LAST_6_MONTHS":
+                        startDate = today.subtract(6, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
+                        break;
+                    case "LAST_YEAR":
+                        startDate = today.subtract(1, "year").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
+                        break;
+                    default:
+                        break;
+                }
 
-            if (startDate && endDate) {
-                queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+                if (startDate && endDate) {
+                    queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+                }
             }
-        }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
 
                 { $match: queryConditions },
                 {
                     $lookup: {
-                        from: "users", 
+                        from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
                         as: "createdByDetails"
@@ -425,7 +426,7 @@ module.exports.queries = {
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
-                learningPlan.overallProgress = overallProgress; 
+                learningPlan.overallProgress = overallProgress;
             }
             return {
                 learningPlans: learningPlans,
@@ -435,17 +436,148 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    getLearningPlan: async ({ id }, context) => {
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
+        try {
+            if (userInfo.role !== 'ADMIN') {
+                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can access this Learning Plan");
+            }
+
+            const queryConditions = {
+                _id: id,
+                isDeleted: false,
+            };
+
+            const learningPlan = await LearningPlan.aggregate([
+                { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "createdBy",
+                        foreignField: "_id",
+                        as: "createdByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "updatedBy",
+                        foreignField: "_id",
+                        as: "updatedByDetails"
+                    }
+                },
+                {
+                    $addFields: {
+                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "selectCourses",
+                        foreignField: "_id",
+                        as: "courseDetails",
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+
+                                },
+                            },
+                        ],
+                    }
+                },
+                {
+                    $addFields: {
+                        selectCourses: {
+                            $map: {
+                                input: "$selectCourses",
+                                as: "courseId",
+                                in: {
+                                    $let: {
+                                        vars: {
+                                            matchedCourse: {
+                                                $arrayElemAt: [
+                                                    {
+                                                        $filter: {
+                                                            input: "$courseDetails",
+                                                            as: "course",
+                                                            cond: { $eq: ["$$course._id", "$$courseId"] }
+                                                        }
+                                                    },
+                                                    0
+                                                ]
+                                            }
+                                        },
+                                        in: {
+                                            $mergeObjects: [
+                                                { _id: "$$courseId" },
+                                                "$$matchedCourse"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        targetAudience: 1,
+                        status: 1,
+                        audienceSelection: 1,
+                        isDeleted: 1,
+                        assignedLearnerIDs: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        conditionType: 1,
+                        selectCourses: 1,
+                        "createdBy._id": "$createdByDetails._id",
+                        "createdBy.firstName": "$createdByDetails.firstName",
+                        "createdBy.lastName": "$createdByDetails.lastName",
+                        "createdBy.email": "$createdByDetails.email",
+                        "createdBy.role": "$createdByDetails.role",
+                        "updatedBy._id": "$updatedByDetails._id",
+                        "updatedBy.firstName": "$updatedByDetails.firstName",
+                        "updatedBy.lastName": "$updatedByDetails.lastName",
+                        "updatedBy.email": "$updatedByDetails.email",
+                        "updatedBy.role": "$updatedByDetails.role"
+                    }
+                }
+            ]);
+
+            if (!learningPlan.length) {
+                throw CustomError(ErrorName.NOT_FOUND, "Learning Plan not found");
+            }
+
+            const detailedPlan = learningPlan[0];
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id);
+
+            return detailedPlan;
+        } catch (error) {
+            console.log("error", error);
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
     getUsersForLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-    
+
         try {
             if (userInfo.role !== 'ADMIN') {
                 throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
             }
-    
-            const {userIds, count } = await getUsersAndCount(input);
+
+            const { userIds, count } = await getUsersAndCount(input);
             return {
                 userIds,
                 count
