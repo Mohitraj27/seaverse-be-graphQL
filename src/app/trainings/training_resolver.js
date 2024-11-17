@@ -43,20 +43,18 @@ module.exports.queries = {
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { createdAt: "descending" };
         if (filterInput) {
-            if (filterInput.trainingCategory)
-                filterConditions.trainingCategories = filterInput.trainingCategory;
 
-            if (filterInput.trainingSubCategory)
-                filterConditions.trainingSubCategories = filterInput.trainingSubCategory;
-
-            if (filterInput.approvalStatus)
-                filterConditions.approvalStatus = filterInput.approvalStatus;
-
-            if (filterInput.search)
-                filterConditions["title.value"] = {
+            if (filterInput.search) {
+                const searchRegex = {
                     $regex: ".*" + filterInput.search + ".*",
                     $options: "i",
                 };
+            
+                filterConditions["$or"] = [
+                    { "title.value": searchRegex },
+                    { authorName: searchRegex },
+                ];
+            }
 
             if (typeof filterInput.isActive === "boolean")
                 filterConditions.isActive = filterInput.isActive;
@@ -69,75 +67,27 @@ module.exports.queries = {
             }
         }
 
-        const result = await Training.aggregatePaginate(
-            Training.aggregate([
-                { $match: filterConditions },
-                {
-                    $lookup: {
-                        from: TrainingModule.collection.name,
-                        localField: "_id",
-                        foreignField: "training",
-                        as: "trainingModules",
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: "TrainingContentBridge",
-                                    localField: "trainingModuleContents",
-                                    foreignField: "_id",
-                                    as: "trainingContentBridges",
-                                    pipeline: [
-                                        {
-                                            $lookup: {
-                                                from: TrainingModuleContent.collection.name,
-                                                localField: "trainingContent",
-                                                foreignField: "_id",
-                                                as: "trainingModuleContentDetails",
-                                            },
-                                        },
-                                        {
-                                            $unwind: "$trainingModuleContentDetails",
-                                        },
-                                        {
-                                            $sort: { "trainingModuleContentDetails.version": -1 },
-                                        },
-                                        {
-                                            $group: {
-                                                _id: "$_id",
-                                                trainingModuleContentDetails: { $first: "$trainingModuleContentDetails" },
-                                            },
-                                        },
-                                    ],
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "createdBy",
-                        foreignField: "_id",
-                        as: "createdBy",
-                    },
-                },
-                {
-                    $unwind: "$createdBy",
-                },
-            ]),
+        const result = await Training.aggregate([
+            { $match: filterConditions },
             {
-                offset: skip,
-                limit,
-                sort: sortOrder,
-                customLabels: {
-                    docs: "trainings",
-                    totalDocs: "totalCount",
-                    offset: "skip",
+                $facet: {
+                    totalCount: [{ $count: "count" }],
+                    trainings: [{ $skip: skip }, { $limit: limit }],
                 },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            }
-        );
-        return result;
+            },
+            {
+                $project: {
+                    totalCount: { $arrayElemAt: ["$totalCount.count", 0] },
+                    trainings: 1,
+                },
+            },
+        ]);
+
+        const { totalCount, trainings } = result[0];
+        return {
+            totalCount,
+            trainings,
+        };
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
