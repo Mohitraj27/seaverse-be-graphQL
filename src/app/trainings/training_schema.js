@@ -91,6 +91,7 @@ module.exports = {
             authorName: String
             isOrdered : Boolean
             isCertificate: Boolean
+            courseTag: String
         }
         type Scorm {
             type:String
@@ -224,6 +225,14 @@ module.exports = {
             status: Int
             message: String
         }
+        input SyncOfflineDataInput {
+            id: ID!
+            offlineData: String
+        }
+        type offlineSyncRes {
+            status: Int
+            message: String
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
@@ -235,5 +244,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
+        syncOfflineDataAndUpdateProgress(input: SyncOfflineDataInput!): offlineSyncRes
     `,
 };

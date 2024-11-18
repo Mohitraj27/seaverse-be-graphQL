@@ -349,15 +349,10 @@ module.exports.queries = {
                             },
                         },
                     },
-                },
-                {
-                    $project: {
-                        training: 1,
-                        moduleCount: 1,
-                        totalDuration: 1,
-                    },
-                },
+                }
             ]);
+
+            console.log(courses);
 
             return {
                 status: true,

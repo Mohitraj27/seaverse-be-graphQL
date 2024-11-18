@@ -18,7 +18,7 @@ const restructureGroupDataArray = groupDataArray => {
             const memberDetails = groupData.members.map(member => member.member);
             groupData.members = [
                 {
-                    _id: groupData.members[0]._id,
+                    _id: groupData.members[0]?._id,
                     firstName: null,
                     lastName: null,
                     email: null,
@@ -33,9 +33,17 @@ const restructureGroupDataArray = groupDataArray => {
 }
 
 module.exports = {
-    getCustomGroups: async () => {
-
+    getCustomGroups: async (id = null) => {
+        let matchStage = {};
+    
+        if (id) {
+            matchStage = { _id: ObjectId(id) };
+        }
+    
         let allGroups = await Group.aggregate([
+            { 
+                $match: matchStage
+            },
             {
                 $lookup: {
                     from: 'groupmembers',
@@ -93,7 +101,7 @@ module.exports = {
                 $unwind: "$updatedBy",
             },
         ]);
-
+    
         const groupArray = allGroups
             .filter(group => group.groupType === "GROUP")
             .flatMap(group =>
@@ -102,7 +110,7 @@ module.exports = {
                     groupId: member.groupData,
                 }))
             );
-
+    
         let fromGetGroups = true;
         const membersData = await fetchUserFromAutoSyncedGroups(groupArray, fromGetGroups);
         allGroups.forEach(group => {
@@ -117,10 +125,9 @@ module.exports = {
                 });
             }
         });
-
+    
         allGroups = restructureGroupDataArray(allGroups);
         return allGroups;
-
     },
     getAutoSyncedGroups: async subscriberId => {
         groupType = "Autosyncedgroups";
@@ -195,6 +202,7 @@ module.exports = {
                 },
             },
         ]);
+
 
         const roleGroups = await User.aggregate([
             {
@@ -272,6 +280,7 @@ module.exports = {
                 },
             },
         ]);
+
 
         const registeredUserGroups = await User.aggregate([
             {
@@ -612,4 +621,15 @@ module.exports = {
 
         return allGroups;
     },
+    getAutoSyncUsersOfSingleGroup: async (group) => {
+
+        const groupArray = [{ groupType: group.groupType, groupId: group.groupId }];
+
+        const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
+        if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+            return autoSyncedUsers;
+        } else {
+            return [];
+        }
+    }
 };

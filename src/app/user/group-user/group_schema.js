@@ -1,5 +1,10 @@
 module.exports = {
     types: `
+        enum groupingCriteria { 
+            MEMBER
+            AUTOSYNCED 
+            CUSTOMGROUP
+        }
         type Group {
             _id: ID
             groupName: String!
@@ -75,6 +80,7 @@ module.exports = {
         }
         input GroupFilterInput {
             search: String
+            customGroupId :ID
         }
         type DeleteGroupResponse {
             message: String
@@ -99,7 +105,7 @@ module.exports = {
             designation: String
             role: String
             vessel: String
-            vesselStatus: String 
+            vesselStatus: String
             vesselType: String
             subRole: [String]
             regStatus: String
@@ -118,18 +124,40 @@ module.exports = {
             groupData: String
             memberDetails: singleMemberDetails
         }
-        type singleGroupRes {
+        type SingleGroupRes {
             groupName: String
-            description: String
-            members: [groupMembersDetails]
+            groupType: String
+            groupId: String
+            members: [singleMemberDetails]
+        }
+        input SingleGroupInput {
+            groupName: String
+            groupId: String!
+            groupType: String!
+        }
+        input memberFilter {
+            isDeleted :Boolean
+            search : String
+        }
+        input autosyncInput {
+            groupId : String
+            groupType : String
+            groupName : String
+        }
+        type memberResponse {
+            status : String
+            members: [singleMemberDetails]
+            totalCount: Int
         }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
-        getSingleGroup(groupId: ID!): singleGroupRes
+        getSingleGroup(groupId: ID!): SingleGroupRes
         getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!
+        getSingleAutoSyncGroupUsers(input: SingleGroupInput!): SingleGroupRes!
+        getAllGroupMembers(groupKind :groupingCriteria, groupId :ID,pageInput : PageInput,groupFilter : memberFilter, autosyncInput : autosyncInput ):memberResponse
     `,
     mutations: `
         createOrUpdateGroup(input: createGroupInput!): GroupResponse!
