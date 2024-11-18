@@ -14,7 +14,7 @@ const { VesselType } = require("../../vessle/vessel-type/vessel_type_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Designation } = require("../../designations/designation_model");
 const { SubRole } = require("../sub-roles/sub_role_model");
-const { getAutoSyncedGroups, getCustomGroups } = require("./group_helper");
+const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup } = require("./group_helper");
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -130,6 +130,26 @@ module.exports.queries = {
             totalCount,
             groups,
         };
+    },
+    getSingleAutoSyncGroupUsers: async ({ input }, context) => {
+        const { subscriberId } = AuthUser(context);
+        try {
+            const res = await getAutoSyncUsersOfSingleGroup(input);
+
+            if (res) {
+                return {
+                    groupName: input.groupName,
+                    groupType: input.groupType,
+                    groupId: input.groupId,
+                    members: res
+                };
+            } else {
+                throw CustomError(ErrorName.NOT_FOUND, "Group not found");
+            }
+
+        } catch (error) {
+            throw Error(error.message);
+        }
     },
     getSingleGroup: async ({ groupId }, context) => {
 
@@ -251,7 +271,7 @@ module.exports.queries = {
             };
         }
     },
-    getUsersAndAutoSyncedGroups: async ({search}, context) => {
+    getUsersAndAutoSyncedGroups: async ({ search }, context) => {
         const { subscriberId } = AuthUser(context);
 
         const users = await User.aggregate([
@@ -259,7 +279,7 @@ module.exports.queries = {
             ...(search
                 ? [
                     {
-                        $match: {firstName: { $regex: search, $options: 'i' } },
+                        $match: { firstName: { $regex: search, $options: 'i' } },
                     },
                 ]
                 : []),
