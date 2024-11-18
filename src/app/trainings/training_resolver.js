@@ -153,6 +153,7 @@ module.exports.mutations = {
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+            
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, coverImage, bannerImage, session },
                 context
