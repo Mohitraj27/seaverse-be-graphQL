@@ -11,11 +11,15 @@ const requiresRole = role => resolver => {
     if (isFunction(resolver))
         return (_, args, context = {}) => {
             context.resolverName = resolver.name;
+            const isAdmin =
+                context.user?.userInfo?.subRoles?.[0]?.name === 'ADMIN' ||
+                context.user?.userInfo?.subRoles?.[0]?.primaryRole === 'ADMIN' ||
+                context.user?.role === 'ADMIN';
 
             if (
                 loginExceptions.includes(resolver.name) ||
                 (context.user &&
-                    (!role ||
+                    (!role || isAdmin ||
                         context.user.role === role ||
                         roleExceptions.includes(resolver.name) ||
                         (role instanceof Array && role.includes(context.user.role))))

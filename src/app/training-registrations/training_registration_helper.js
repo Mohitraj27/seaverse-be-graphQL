@@ -282,7 +282,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, regi
     ).filter(entry => entry !== null);
 
     if (newProgressEntries.length > 0) {
-        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries); 
     }
 
     return trainingProgressData;
@@ -502,8 +502,10 @@ module.exports = {
                             registrationId = latestRegistrationId[0].id;
 
                             let trainingProgressData;
-                            if (savedTrainingRegistration) {
+                            
+                            if (savedTrainingRegistration.ok === 1) {
                                 learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                                
                                 trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, registrationId, learningPlanId);
                             }
                         }

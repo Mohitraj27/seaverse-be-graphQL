@@ -71,11 +71,6 @@ module.exports = {
             groups: [Group]
             totalCount: Int
         }
-        type memberResponse {
-            status : String
-            members: [singleMemberDetails]
-            totalCount: Int
-        }
         type UserAndAutoSyncedGroupRes {
             users: [User]
             autoSyncedGroups: [Group]
@@ -109,7 +104,7 @@ module.exports = {
             designation: String
             role: String
             vessel: String
-            vesselStatus: String 
+            vesselStatus: String
             vesselType: String
             subRole: [String]
             regStatus: String
@@ -128,10 +123,16 @@ module.exports = {
             groupData: String
             memberDetails: singleMemberDetails
         }
-        type singleGroupRes {
+        type SingleGroupRes {
             groupName: String
-            description: String
-            members: [groupMembersDetails]
+            groupType: String
+            groupId: String
+            members: [singleMemberDetails]
+        }
+        input SingleGroupInput {
+            groupName: String
+            groupId: String!
+            groupType: String!
         }
         input memberFilter {
             isDeleted :Boolean
@@ -142,13 +143,19 @@ module.exports = {
             groupType : String
             groupName : String
         }
+        type memberResponse {
+            status : String
+            members: [singleMemberDetails]
+            totalCount: Int
+        }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
         exportGroupToCSV(groupId: ID!): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
-        getSingleGroup(groupId: ID!): singleGroupRes
+        getSingleGroup(groupId: ID!): SingleGroupRes
         getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!
+        getSingleAutoSyncGroupUsers(input: SingleGroupInput!): SingleGroupRes!
         getAllGroupMembers(groupKind :groupingCriteria, groupId :ID,pageInput : PageInput,groupFilter : memberFilter, autosyncInput : autosyncInput ):memberResponse
     `,
     mutations: `

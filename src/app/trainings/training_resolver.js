@@ -32,6 +32,8 @@ const {
     queries,
 } = require("./training_modules/training_module_contents/training_module_content_resolver");
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
+const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
+const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -49,7 +51,7 @@ module.exports.queries = {
                     $regex: ".*" + filterInput.search + ".*",
                     $options: "i",
                 };
-            
+
                 filterConditions["$or"] = [
                     { "title.value": searchRegex },
                     { authorName: searchRegex },
@@ -151,6 +153,7 @@ module.exports.mutations = {
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+            
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, coverImage, bannerImage, session },
                 context
@@ -420,5 +423,39 @@ module.exports.mutations = {
         }
 
         return savedTraining;
+    },
+    syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
+
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+
+        // const sampleInput =[
+        //     {
+        //         training: 673985e4eed6a475949eebd5,
+        //         trainingModule: 673985e4eed6a475949eebdc,
+        //         contentDetails: [
+        //             {
+        //                 contentId: 672c56bb30341a64bce39daf,
+        //                 contentStatus: COMPLETED,
+        //                 playerSettings: {}
+        //             },
+        //             {
+        //                 contentId: 672c55a98739e629342ac266,
+        //                 contentStatus: IN_PROGRESS,
+        //                 playerSettings: {}
+        //             }
+        //         ]
+        //     }
+        // ]
+
+        try {
+
+            if (!subscriberId || !userId) throw CustomError(ErrorName.NOT_FOUND);
+
+            if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+
     },
 };

@@ -47,6 +47,7 @@ const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
+const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -618,6 +619,227 @@ function mapCSVRowToUser(row) {
 
     return result;
 }
+const getLearningPlansInBulk= async (inputs) => {
+    const pipeline = inputs.map((input) => ({
+        $match: {
+            $expr: {
+                $cond: {
+                    if: { $eq: ["$conditionType", "MATCH_ALL_CONDITION"] },
+                    then: {
+                        $and: [
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["DESIGNATION", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.designationId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["DESIGNATION", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.designationId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL_TYPE", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselTypeId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL_TYPE", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselTypeId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["EMAIL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.email, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["EMAIL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.email, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["CURRENT_STATUS", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselStatus, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["CURRENT_STATUS", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselStatus, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    else: {
+                        $or: [
+                           
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["DESIGNATION", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.designationId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["DESIGNATION", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.designationId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                           
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                           
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL_TYPE", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselTypeId, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["VESSEL_TYPE", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselTypeId, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                            
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["EMAIL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.email, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["EMAIL", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.email, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            },
+                          
+                            {
+                                $or: [
+                                    {
+                                        $and: [
+                                            { $in: ["CURRENT_STATUS", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $in: [input.vesselStatus, "$conditionalCustomFields.valueOfField"] }
+                                        ]
+                                    },
+                                    {
+                                        $and: [
+                                            { $in: ["CURRENT_STATUS", "$conditionalCustomFields.type_of_Field"] },
+                                            { $in: ["IS_NOT", "$conditionalCustomFields.isOrIsNot"] },
+                                            { $not: { $in: [input.vesselStatus, "$conditionalCustomFields.valueOfField"] } }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }));
+
+    const learningPlans = await LearningPlan.aggregate(pipeline);
+    const learningPlanIds = learningPlans.map(plan => plan._id);
+
+    for (const input of inputs) {
+        await LearningPlan.updateMany(
+            { _id: { $in: learningPlanIds } }, 
+            { $addToSet: { assignedLearnerIDs: input.userId } }
+        );
+    }
+    return learningPlans;
+}
+
 
 const sendBulkEmails = async (passwordEmailList) => {
 
@@ -1121,6 +1343,9 @@ module.exports = {
             totalCount: savedEmployees.length,
         };
     },
+
+
+   
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
@@ -1148,12 +1373,13 @@ module.exports = {
 
         let userIndex = 0;
 
-        const existingVessels = await Vessel.find({ isDeleted: false, isActive: true }).lean();
+        const existingVessels = await Vessel.find({ isDeleted: false, isActive: true })
+        
 
         const vesselMap = new Map(
             existingVessels.map(vessel => [
                 vessel.imoNumber,
-                { id: vessel._id }
+                { id: vessel._id, typeOfVessel:vessel.typeOfVessel }
             ])
         );
 
@@ -1196,6 +1422,7 @@ module.exports = {
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user.imoNumber,
                         vesselStatus: user.vesselStatus,
+                        typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
                 }
@@ -1223,6 +1450,7 @@ module.exports = {
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user.imoNumber,
                         vesselStatus: user.vesselStatus,
+                        typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
                     passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
@@ -1289,7 +1517,36 @@ module.exports = {
 
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+            const automateLearningPlanIds = [];
+            allUpdatedUsers.forEach(user => {
+                
+                const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
+                
+                const designationId = originalUserData?.designation
+                    ? designationMap.get(originalUserData.designation.toUpperCase())?.id
+                    : null;
+
+               
+                const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
+              
+                const vesselId = vesselData?.imoNumber
+                    ? vesselMap.get(vesselData.imoNumber)?.id
+                    : null;
+
+               
+                automateLearningPlanIds.push({
+                    userId: user._id,
+                    email: user.email,
+                    designationId,
+                    vesselId,
+                    vesselTypeId: vesselData?.typeOfVessel || null,
+                    vesselStatus: vesselData?.vesselStatus || null,
+                });
+            });
+            // console.log(automateLearningPlanIds, "automateLearningPlanIds");
+            const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
+            // console.log(matchedLearningPlans,"matchedLearningPlans");
             if (allUpdatedUsers.length > 0) {
 
                 const userVesselsInsert = [];

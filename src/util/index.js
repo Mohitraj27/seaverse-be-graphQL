@@ -110,7 +110,8 @@ module.exports = {
 
                 if (isAuthenticated) {
                     masterLogin = context.user.masterLogin ?? false;
-                    role = context.user.role ?? Role.GUEST;
+                    role = context.user.userInfo?.subRoles?.[0]?.name ||
+                        context.user.userInfo?.subRoles?.[0]?.primaryRole || context.user.role || Role.GUEST;
                     userId = ObjectId(context.user.userId);
                     userInfo = context.user.userInfo;
                     primaryRole = context.user.userInfo.subRoles.map((role) => { if (role.primaryRole === "ADMIN") return role.primaryRole });

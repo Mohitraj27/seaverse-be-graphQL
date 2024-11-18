@@ -209,7 +209,6 @@ module.exports.queries = {
                 url: signedUrl,
             };
         } catch (error) {
-            console.error("Error fetching file:", error);
             return {
                 success: false,
                 message: "Failed to fetch file",
@@ -521,10 +520,25 @@ module.exports.queries = {
             role,
             userPermissions,
             subscriberId,
+            primaryRole,
             employeeId,
             isOrganizationManager,
             managingOrganization,
         } = AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                primaryRole : primaryRole,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
@@ -1830,11 +1844,10 @@ module.exports.mutations = {
                 }
             ]);
 
-            console.log("Filtered Learning Plans:", learningPlans?.length);
             if (learningPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: learningPlans.map((lp) => lp._id) } },
-                    { $addToSet: { userObjectIds: savedUser._id } }
+                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
                 );
             }
             invitationList.push({
