@@ -209,78 +209,78 @@ module.exports = {
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
         return savedTraining;
     },
-    validateAndCheckProgress: async (inputData) => {
+    // validateAndCheckProgress: async (inputData) => {
         
-        const trainingIds = [];
-        const trainingModuleIds = [];
-        const contentDetailsMap = new Map();
+    //     const trainingIds = [];
+    //     const trainingModuleIds = [];
+    //     const contentDetailsMap = new Map();
 
-        inputData.forEach((training) => {
-            trainingIds.push(training.training);
-            trainingModuleIds.push(training.trainingModule);
+    //     inputData.forEach((training) => {
+    //         trainingIds.push(training.training);
+    //         trainingModuleIds.push(training.trainingModule);
 
-            if (!contentDetailsMap.has(training.trainingModule)) {
-                contentDetailsMap.set(training.trainingModule, []);
-            }
+    //         if (!contentDetailsMap.has(training.trainingModule)) {
+    //             contentDetailsMap.set(training.trainingModule, []);
+    //         }
 
-            training.contentDetails.forEach((content) => {
-                contentDetailsMap.get(training.trainingModule).push(content.contentId);
-            });
-        });
+    //         training.contentDetails.forEach((content) => {
+    //             contentDetailsMap.get(training.trainingModule).push(content.contentId);
+    //         });
+    //     });
 
-        const [trainings, trainingModules, trainingProgress] = await Promise.all([
-            TrainingRegistration.find({ _id: { $in: trainingIds } }),
-            TrainingModule.findOne({ _id: { $in: trainingModuleIds }, training: { $in: trainingIds } }),
-            TrainingProgress.find({
-                $or: Array.from(contentDetailsMap.entries()).flatMap(([trainingModule, trainingModuleContents]) =>
-                    trainingModuleContents.map((trainingModuleContent) => ({
-                        trainingModule,
-                        trainingModuleContent,
-                    }))
-                ),
-            }),
-        ]);
+    //     const [trainings, trainingModules, trainingProgress] = await Promise.all([
+    //         TrainingRegistration.find({ _id: { $in: trainingIds } }),
+    //         TrainingModule.findOne({ _id: { $in: trainingModuleIds }, training: { $in: trainingIds } }),
+    //         TrainingProgress.find({
+    //             $or: Array.from(contentDetailsMap.entries()).flatMap(([trainingModule, trainingModuleContents]) =>
+    //                 trainingModuleContents.map((trainingModuleContent) => ({
+    //                     trainingModule,
+    //                     trainingModuleContent,
+    //                 }))
+    //             ),
+    //         }),
+    //     ]);
 
-        const trainingMap = new Map(trainings.map((training) => [training._id.toString(), training]));
-        const trainingModuleMap = new Map(
-            trainingModules.map((module) => [module._id.toString(), module])
-        );
-        const trainingProgressMap = new Map(
-            trainingProgress.map((progress) => {
-                const key = `${progress.trainingModule}-${progress.contentId}`;
-                return [key, progress];
-            })
-        );
+    //     const trainingMap = new Map(trainings.map((training) => [training._id.toString(), training]));
+    //     const trainingModuleMap = new Map(
+    //         trainingModules.map((module) => [module._id.toString(), module])
+    //     );
+    //     const trainingProgressMap = new Map(
+    //         trainingProgress.map((progress) => {
+    //             const key = `${progress.trainingModule}-${progress.contentId}`;
+    //             return [key, progress];
+    //         })
+    //     );
 
-        let error = [];
-        const results = inputData.map((training) => {
-            const { training, trainingModule, contentDetails } = training;
+    //     let error = [];
+    //     const results = inputData.map((training) => {
+    //         const { training, trainingModule, contentDetails } = training;
 
-            if (!trainingMap.has(training)) {
-                throw new Error(`Invalid training ID: ${training}`);
-            }
+    //         if (!trainingMap.has(training)) {
+    //             throw new Error(`Invalid training ID: ${training}`);
+    //         }
 
-            if (!trainingModuleMap.has(trainingModule)) {
-                throw new Error(`Invalid training module ID: ${trainingModule}`);
-            }
+    //         if (!trainingModuleMap.has(trainingModule)) {
+    //             throw new Error(`Invalid training module ID: ${trainingModule}`);
+    //         }
 
-            const contentValidationResults = contentDetails.map((content) => {
-                const progressKey = `${trainingModule}-${content.contentId}`;
-                if (!trainingProgressMap.has(progressKey)) {
-                    throw new Error(`No progress found for contentId ${content.contentId}`);
-                }
-                return trainingProgressMap.get(progressKey);
-            });
+    //         const contentValidationResults = contentDetails.map((content) => {
+    //             const progressKey = `${trainingModule}-${content.contentId}`;
+    //             if (!trainingProgressMap.has(progressKey)) {
+    //                 throw new Error(`No progress found for contentId ${content.contentId}`);
+    //             }
+    //             return trainingProgressMap.get(progressKey);
+    //         });
 
-            return {
-                training,
-                trainingModule,
-                contentValidations: contentValidationResults,
-            };
-        });
+    //         return {
+    //             training,
+    //             trainingModule,
+    //             contentValidations: contentValidationResults,
+    //         };
+    //     });
 
-        return results;
-    },
+    //     return results;
+    // },
     sendNotificationOnCRUD: async notificationData => {
         try {
             const trainingTitle = notificationData.training.title?.find(

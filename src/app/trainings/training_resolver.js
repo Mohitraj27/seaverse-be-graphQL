@@ -452,18 +452,9 @@ module.exports.mutations = {
 
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            TrainingHelper.validateAndCheckProgress(input)
-                .then((results) => {
-                    console.log("Validation Results:", results);
-                })
-                .catch((error) => {
-                    console.error("Validation Error:", error.message);
-                });
-
         } catch (error) {
             throw Error(error.message);
         }
-
 
     },
 };
