@@ -8,8 +8,11 @@ module.exports = {
         title: LocalisedDataInput!,
         authoringTitle: String,
         certificateReference:String,
-        logos: [String],
+        logos: [logoUrl],
         additionalData: [genericObjectInput],
+    }
+    input logoUrl {
+        url : String
     }
 
     type certificateLayoutOutput {
