@@ -91,6 +91,7 @@ module.exports = {
             authorName: String
             isOrdered : Boolean
             isCertificate: Boolean
+            courseTag: String
         }
         type Scorm {
             type:String

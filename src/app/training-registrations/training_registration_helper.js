@@ -142,7 +142,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         if (designationUsersIds.length) {
             designationUsers = await User.find({ _id: { $in: designationUsersIds } });
         }
-        
+
 
         if (fromGetGroups) {
 
@@ -247,7 +247,8 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
     return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
 });
-const createTrainingProgressHelper = async (users, trainings, subscriberId, registrationId, learningPlanId) => {
+const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
+
     let trainingProgressData;
 
     const existingProgressRecords = await OverallTrainingProgress.find({
@@ -259,9 +260,9 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, regi
         existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
     );
 
-    const newProgressEntries = trainings.flatMap(training =>
+    const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
         users.map(user => {
-            const progressKey = `${training._id.toString()}-${user._id.toString()}`;
+            const progressKey = `${training.toString()}-${user._id.toString()}`;
 
             if (existingProgressSet.has(progressKey)) {
                 return null;
@@ -269,7 +270,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, regi
 
             return {
                 learningPlan: learningPlanId ? learningPlanId : null,
-                training: training._id,
+                training: training,
                 user: user._id,
                 trainingRegistration: registrationId,
                 subscriberId: subscriberId.toString(),
@@ -282,7 +283,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, regi
     ).filter(entry => entry !== null);
 
     if (newProgressEntries.length > 0) {
-        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries); 
+        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
     }
 
     return trainingProgressData;
@@ -460,9 +461,7 @@ module.exports = {
 
                         const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-                        const existingTrainingCourses = await TrainingRegistration.find({ training: { $in: input.trainings } }).session(session);
-
-                        const existingTrainingIds = existingTrainingCourses.map(t => t.training.toString());
+                        const existingTrainingIds = existingTrainings.map(t => t.training.toString());
 
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
@@ -475,6 +474,7 @@ module.exports = {
                         }
 
                         let savedTrainingRegistration;
+                        let trainingRegistrationIds;
 
                         if (existingTrainingIds.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
@@ -482,6 +482,10 @@ module.exports = {
                                 updateFields,
                                 { session }
                             );
+                            const updatedRegistrations = await TrainingRegistration.find({
+                                training: { $in: existingTrainingIds }
+                            }).session(session);
+                            trainingRegistrationIds = updatedRegistrations && updatedRegistrations.map(({ _id, training }) => ({ _id, training }));
                         }
 
                         const newRegistrations = newTrainingIds.map(trainingId => ({
@@ -493,21 +497,16 @@ module.exports = {
 
                         if (newRegistrations.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
+                            trainingRegistrationIds = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
                         }
-                        const latestRegistrationId = await TrainingRegistration.find(
-                            { training: { $in: existingTrainingIds } },
-                            { _id: 1 }
-                        );
-                        if (latestRegistrationId.length) {
-                            registrationId = latestRegistrationId[0].id;
+
+                        if (savedTrainingRegistration) {
 
                             let trainingProgressData;
-                            
-                            if (savedTrainingRegistration.ok === 1) {
-                                learningPlanId = input.learningPlan ? input.learningPlan._id : null;
-                                
-                                trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, registrationId, learningPlanId);
-                            }
+
+                            learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
+
                         }
 
 
