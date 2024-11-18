@@ -351,8 +351,6 @@ module.exports.queries = {
                 }
             ]);
 
-            console.log(courses);
-
             return {
                 status: true,
                 message: "My Courses fetched successfully",
@@ -362,7 +360,106 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    getSingleCourseDetails: async ({ input }, context) => {
 
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+
+            const trainingDetails = await OverallTrainingProgress.aggregate([
+                { $match: { _id: input } },
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                { $unwind: "$training" },
+                {
+                    $lookup: {
+                        from: "trainingmodules",
+                        localField: "training._id",
+                        foreignField: "training",
+                        as: "trainingModules",
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "trainingprogresses",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingModuleContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                        ],
+                        as: "trainingProgresses",
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "trainingcontentbridges",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                        ],
+                        as: "trainingContentsFallback",
+                    },
+                },
+                {
+                    $addFields: {
+                        trainingModules: {
+                            $map: {
+                                input: "$trainingModules",
+                                as: "module",
+                                in: {
+                                    $mergeObjects: [
+                                        "$$module",
+                                        {
+                                            trainingProgresses: {
+                                                $filter: {
+                                                    input: "$trainingProgresses",
+                                                    as: "progress",
+                                                    cond: { $eq: ["$$progress.trainingModule", "$$module._id"] },
+                                                },
+                                            },
+                                            trainingContentsFallback: {
+                                                $filter: {
+                                                    input: "$trainingContentsFallback",
+                                                    as: "content",
+                                                    cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+            ]);
+
+            // console.log(trainingDetails[0].trainingModules[0].trainingContentsFallback[1].trainingModuleContentDetails[0].files);
+
+        } catch (error) {
+            console.error(error);
+        }
+    }
 };
 
 module.exports.mutations = {
