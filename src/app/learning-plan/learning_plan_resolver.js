@@ -16,10 +16,6 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userId, userInfo } = AuthUser(context);
-
-            if (userInfo.role !== 'ADMIN') {
-                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
-            }
             const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId });
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
@@ -104,9 +100,7 @@ module.exports.mutations = {
         const { userInfo, userId } = AuthUser(context);
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            if (userInfo.role !== 'ADMIN') {
-                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can delete Learning Plans");
-            }
+           
             const learningPlan = await LearningPlan.findById({ _id: id });
             if (!learningPlan) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
@@ -151,10 +145,6 @@ module.exports.mutations = {
     },
     updateLearningPlan: async ({ id, input }, context) => {
         const { userId, userInfo } = AuthUser(context);
-
-        if (userInfo.role !== 'ADMIN') {
-            throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can update Learning Plans");
-        }
         try {
             const learningPlan = await LearningPlan.findById(id);
             if (!learningPlan) {
@@ -201,9 +191,7 @@ module.exports.queries = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
-            if (userInfo.role !== 'ADMIN') {
-                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
-            }
+            
             const queryConditions = {
                 ...filterInput,
                 isDeleted: false,
@@ -441,10 +429,6 @@ module.exports.queries = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
-            if (userInfo.role !== 'ADMIN') {
-                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can access this Learning Plan");
-            }
-
             const queryConditions = {
                 _id: id,
                 isDeleted: false,
@@ -573,10 +557,6 @@ module.exports.queries = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
-            if (userInfo.role !== 'ADMIN') {
-                throw CustomError(ErrorName.UNAUTHORIZED, "Only Admins can create Learning Plans");
-            }
-
             const { userIds, count } = await getUsersAndCount(input);
             return {
                 userIds,
