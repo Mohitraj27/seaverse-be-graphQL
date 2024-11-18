@@ -196,6 +196,7 @@ module.exports = {
             },
         ]);
 
+
         const roleGroups = await User.aggregate([
             {
                 $match: {
@@ -272,6 +273,7 @@ module.exports = {
                 },
             },
         ]);
+
 
         const registeredUserGroups = await User.aggregate([
             {
@@ -612,4 +614,15 @@ module.exports = {
 
         return allGroups;
     },
+    getAutoSyncUsersOfSingleGroup: async (group) => {
+
+        const groupArray = [{ groupType: group.groupType, groupId: group.groupId }];
+
+        const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
+        if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+            return autoSyncedUsers;
+        } else {
+            return [];
+        }
+    }
 };

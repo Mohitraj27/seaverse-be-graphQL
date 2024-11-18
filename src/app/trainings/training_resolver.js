@@ -32,6 +32,8 @@ const {
     queries,
 } = require("./training_modules/training_module_contents/training_module_content_resolver");
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
+const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
+const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -43,20 +45,18 @@ module.exports.queries = {
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { createdAt: "descending" };
         if (filterInput) {
-            if (filterInput.trainingCategory)
-                filterConditions.trainingCategories = filterInput.trainingCategory;
 
-            if (filterInput.trainingSubCategory)
-                filterConditions.trainingSubCategories = filterInput.trainingSubCategory;
-
-            if (filterInput.approvalStatus)
-                filterConditions.approvalStatus = filterInput.approvalStatus;
-
-            if (filterInput.search)
-                filterConditions["title.value"] = {
+            if (filterInput.search) {
+                const searchRegex = {
                     $regex: ".*" + filterInput.search + ".*",
                     $options: "i",
                 };
+
+                filterConditions["$or"] = [
+                    { "title.value": searchRegex },
+                    { authorName: searchRegex },
+                ];
+            }
 
             if (typeof filterInput.isActive === "boolean")
                 filterConditions.isActive = filterInput.isActive;
@@ -69,75 +69,27 @@ module.exports.queries = {
             }
         }
 
-        const result = await Training.aggregatePaginate(
-            Training.aggregate([
-                { $match: filterConditions },
-                {
-                    $lookup: {
-                        from: TrainingModule.collection.name,
-                        localField: "_id",
-                        foreignField: "training",
-                        as: "trainingModules",
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: "TrainingContentBridge",
-                                    localField: "trainingModuleContents",
-                                    foreignField: "_id",
-                                    as: "trainingContentBridges",
-                                    pipeline: [
-                                        {
-                                            $lookup: {
-                                                from: TrainingModuleContent.collection.name,
-                                                localField: "trainingContent",
-                                                foreignField: "_id",
-                                                as: "trainingModuleContentDetails",
-                                            },
-                                        },
-                                        {
-                                            $unwind: "$trainingModuleContentDetails",
-                                        },
-                                        {
-                                            $sort: { "trainingModuleContentDetails.version": -1 },
-                                        },
-                                        {
-                                            $group: {
-                                                _id: "$_id",
-                                                trainingModuleContentDetails: { $first: "$trainingModuleContentDetails" },
-                                            },
-                                        },
-                                    ],
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "createdBy",
-                        foreignField: "_id",
-                        as: "createdBy",
-                    },
-                },
-                {
-                    $unwind: "$createdBy",
-                },
-            ]),
+        const result = await Training.aggregate([
+            { $match: filterConditions },
             {
-                offset: skip,
-                limit,
-                sort: sortOrder,
-                customLabels: {
-                    docs: "trainings",
-                    totalDocs: "totalCount",
-                    offset: "skip",
+                $facet: {
+                    totalCount: [{ $count: "count" }],
+                    trainings: [{ $skip: skip }, { $limit: limit }],
                 },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            }
-        );
-        return result;
+            },
+            {
+                $project: {
+                    totalCount: { $arrayElemAt: ["$totalCount.count", 0] },
+                    trainings: 1,
+                },
+            },
+        ]);
+
+        const { totalCount, trainings } = result[0];
+        return {
+            totalCount,
+            trainings,
+        };
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -201,6 +153,7 @@ module.exports.mutations = {
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+            
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, coverImage, bannerImage, session },
                 context
@@ -470,5 +423,39 @@ module.exports.mutations = {
         }
 
         return savedTraining;
+    },
+    syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
+
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+
+        // const sampleInput =[
+        //     {
+        //         training: 673985e4eed6a475949eebd5,
+        //         trainingModule: 673985e4eed6a475949eebdc,
+        //         contentDetails: [
+        //             {
+        //                 contentId: 672c56bb30341a64bce39daf,
+        //                 contentStatus: COMPLETED,
+        //                 playerSettings: {}
+        //             },
+        //             {
+        //                 contentId: 672c55a98739e629342ac266,
+        //                 contentStatus: IN_PROGRESS,
+        //                 playerSettings: {}
+        //             }
+        //         ]
+        //     }
+        // ]
+
+        try {
+
+            if (!subscriberId || !userId) throw CustomError(ErrorName.NOT_FOUND);
+
+            if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+
     },
 };

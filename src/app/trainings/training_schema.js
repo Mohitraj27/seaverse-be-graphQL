@@ -67,7 +67,7 @@ module.exports = {
             setTimeLimitForModule: Boolean
             approvalStatus: String
             certifications: [MultiMediaInfo]
-            bannerImage: [MultiMediaInfo]
+            bannerImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
@@ -191,9 +191,6 @@ module.exports = {
         }
         input TrainingFilterInput {
             search: String
-            trainingCategory: ID
-            trainingSubCategory: ID
-            approvalStatus: ApprovalStatus
             isActive: Boolean
             status: StatusType
             dateFilter: Int
@@ -227,6 +224,14 @@ module.exports = {
             status: Int
             message: String
         }
+        input SyncOfflineDataInput {
+            id: ID!
+            offlineData: String
+        }
+        type offlineSyncRes {
+            status: Int
+            message: String
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
@@ -238,5 +243,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
+        syncOfflineDataAndUpdateProgress(input: SyncOfflineDataInput!): offlineSyncRes
     `,
 };

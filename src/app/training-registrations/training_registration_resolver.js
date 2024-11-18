@@ -358,6 +358,8 @@ module.exports.queries = {
                 },
             ]);
 
+            console.log(courses);
+
             return {
                 status: true,
                 message: "My Courses fetched successfully",
