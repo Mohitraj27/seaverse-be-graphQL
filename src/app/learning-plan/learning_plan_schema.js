@@ -158,11 +158,16 @@ module.exports = {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
         }
+            input pageInput {
+                limit: Int
+                skip: Int
+            }
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
             audienceSelection: [String!]
             lastModified: lastModifiedEnum
+             
         }
         input LearningPlanInput {
             title: String
@@ -197,7 +202,7 @@ module.exports = {
         }
     `,
     queries: `
-        getLearningPlans(filterInput: LearningPlanFilterInput):LearningPlanResponse!
+        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput):LearningPlanResponse!
         getLearningPlan(id: ID!): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
