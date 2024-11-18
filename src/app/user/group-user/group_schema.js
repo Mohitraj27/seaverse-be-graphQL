@@ -1,5 +1,10 @@
 module.exports = {
     types: `
+        enum groupingCriteria { 
+            MEMBER
+            AUTOSYNCED 
+            CUSTOMGROUP
+        }
         type Group {
             _id: ID
             groupName: String!
@@ -132,6 +137,11 @@ module.exports = {
             isDeleted :Boolean
             search : String
         }
+        input autosyncInput {
+            groupId : String
+            groupType : String
+            groupName : String
+        }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
@@ -139,7 +149,7 @@ module.exports = {
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
         getSingleGroup(groupId: ID!): singleGroupRes
         getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!
-        getAllGroupMembers( groupId :ID!,pageInput : PageInput,groupFilter : memberFilter ):memberResponse
+        getAllGroupMembers(groupKind :groupingCriteria, groupId :ID,pageInput : PageInput,groupFilter : memberFilter, autosyncInput : autosyncInput ):memberResponse
     `,
     mutations: `
         createOrUpdateGroup(input: createGroupInput!): GroupResponse!

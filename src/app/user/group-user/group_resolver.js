@@ -15,6 +15,8 @@ const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Designation } = require("../../designations/designation_model");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const { getAutoSyncedGroups, getCustomGroups } = require("./group_helper");
+const error_helper = require("../../../util/error_helper");
+const { getCustomGroupUsers, getAutoSyncUsers, getAutoSyncUsersOfSingleGroup } = require("../../training-registrations/training_registration_helper");
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -280,91 +282,91 @@ module.exports.queries = {
             autoSyncedGroups: filteredAutoSyncedGroups,
         };
 
-    },
-    getAllGroupMembers: async ({ groupId, pageInput, groupFilter }, context) => {
+    },   
+    getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
-        let filterConditions = {
-            group: groupId,
-            isDeleted: { $ne: true },
-        };
-
-        if (groupFilter?.search) {
-            const searchRegex = new RegExp(groupFilter.search, "i");
-            filterConditions["member.name"] = { $regex: searchRegex };
-        }
-
-        let members = [];
-        let totalCount = 0;
-
         try {
-            const groupData = await Group.aggregate([
-                { 
-                    $match: { _id: ObjectId(groupId) }
-                },
-                {
-                    $lookup: {
-                        from: 'groupmembers',
-                        localField: '_id',
-                        foreignField: 'group',
-                        as: 'members',
-                        pipeline: [
-                            {
-                                $lookup: {
-                                    from: 'users',
-                                    localField: 'member',
-                                    foreignField: '_id',
-                                    as: 'memberDetails'
-                                }
-                            },
-                            { 
-                                $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true } 
-                            },
-                            {
-                                $project: {
-                                    'memberDetails._id': 1,
-                                    'memberDetails.firstName': 1,
-                                    'memberDetails.lastName': 1,
-                                    'memberDetails.email': 1,
-                                    'memberDetails.isRegistered': 1
-                                }
-                            }
-                        ]
-                    }
-                },
-            
-                { 
-                    $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
-                },
-                {
-                    $project: {
-                        _id: '$members.memberDetails._id',  
-                        firstName: '$members.memberDetails.firstName',
-                        lastName: '$members.memberDetails.lastName',
-                        email: '$members.memberDetails.email',
-                        isRegistered: '$members.memberDetails.isRegistered'
-                    }
-                },
-            ]);
-            
+            let members;
+            let totalCount;
 
-            const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
-            members = groupData.slice(skip, skip + limit);
-            totalCount = totalMembers;
+            if (groupKind === "CUSTOMGROUP") {
+                const selectedGroup = await Group.findOne({ _id: groupId }).select('groupType').lean();
+                if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND);
+                members = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
+            } else if (groupKind === "MEMBER") {
+                const groupData = await Group.aggregate([
+                    {
+                        $match: { _id: ObjectId(groupId) }
+                    },
+                    {
+                        $lookup: {
+                            from: 'groupmembers',
+                            localField: '_id',
+                            foreignField: 'group',
+                            as: 'members',
+                            pipeline: [
+                                {
+                                    $lookup: {
+                                        from: 'users',
+                                        localField: 'member',
+                                        foreignField: '_id',
+                                        as: 'memberDetails'
+                                    }
+                                },
+                                {
+                                    $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true }
+                                },
+                                {
+                                    $project: {
+                                        'memberDetails._id': 1,
+                                        'memberDetails.firstName': 1,
+                                        'memberDetails.lastName': 1,
+                                        'memberDetails.email': 1,
+                                        'memberDetails.isRegistered': 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
 
+                    {
+                        $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
+                    },
+                    {
+                        $project: {
+                            _id: '$members.memberDetails._id',
+                            firstName: '$members.memberDetails.firstName',
+                            lastName: '$members.memberDetails.lastName',
+                            email: '$members.memberDetails.email',
+                            isRegistered: '$members.memberDetails.isRegistered'
+                        }
+                    },
+                ]);
+
+
+                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
+                members = groupData.slice(skip, skip + limit);
+                totalCount = totalMembers;
+
+            } else {
+                members = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
+            }
+
+            paginatedMembers = members.slice(skip, skip + limit);
             return {
                 status: "Success",
-                totalCount,
-                members,
+                totalCount: members.length,
+                members: paginatedMembers,
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
             throw new Error('Error fetching group members');
         }
-    }    
+    }
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => {
