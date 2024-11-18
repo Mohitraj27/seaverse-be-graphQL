@@ -184,6 +184,10 @@ const trainingSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        courseTag: {
+            type: String,
+            default: 'ASSIGNED'
+        },
         createdBy: {
             type: ObjectId,
             ref: "User",

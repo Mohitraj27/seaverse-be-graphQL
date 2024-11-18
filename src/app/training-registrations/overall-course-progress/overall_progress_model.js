@@ -1,52 +1,55 @@
-const { Schema, ObjectId ,Model} = require("../../../tools");
+const { Schema, ObjectId, Model } = require("../../../tools");
 const { certificateLayout } = require("../../trainings/certificate_layout/certificateLayout_model");
 
 const overallProgressSchema = new Schema(
     {
-        subscriber:{
+        subscriber: {
             type: ObjectId,
             ref: "Subscriber"
         },
-        learningPlan:{
+        learningPlan: {
             type: ObjectId,
-            ref :  "LearninPlan"
+            ref: "LearninPlan"
         },
-        training : {
-            type : ObjectId,
+        training: {
+            type: ObjectId,
             ref: "Training"
         },
         certificateLayout: {
             type: ObjectId,
-            ref:"certificateLayout"
+            ref: "certificateLayout"
         },
-        user:{
-            type:ObjectId,
-            ref : "User"
+        user: {
+            type: ObjectId,
+            ref: "User"
         },
         trainingRegistration: {
-            type : ObjectId,
-            ref : "TrainingRegistration",
+            type: ObjectId,
+            ref: "TrainingRegistration",
         },
-        trainingModuleContentIds:[ObjectId],
-        trainingModuleIds:[ObjectId],
-        mandatoryModules : Number,
-        completedModules : Number,
-        isComplete : {
-            type : Boolean, 
-            default :false,
-        },
-        status:{
-            type: String,
-            enum : ["NOT_STARTED", "IN_PROGRESS","COMPLETED"],
-        },
-        isCertificateGenerated:{
+        trainingModuleContentIds: [ObjectId],
+        trainingModuleIds: [ObjectId],
+        mandatoryModules: Number,
+        completedModules: Number,
+        isComplete: {
             type: Boolean,
             default: false,
         },
-        completionDate : Date,
+        status: {
+            type: String,
+            enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
+        },
+        isCertificateGenerated: {
+            type: Boolean,
+            default: false,
+        },
+        completionDate: Date,
         retryCount: Number,
-        progressPercentage : Number,
-        isEnrolled : Boolean,
+        progressPercentage: {
+            type: Number,
+            default: 0
+        },
+        isEnrolled: Boolean,
     },
     { timestamps: true }
 )
