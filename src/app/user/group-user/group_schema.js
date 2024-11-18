@@ -80,6 +80,7 @@ module.exports = {
         }
         input GroupFilterInput {
             search: String
+            customGroupId :ID
         }
         type DeleteGroupResponse {
             message: String
