@@ -163,6 +163,8 @@ module.exports = {
             status: LearningPlanStatus
             audienceSelection: [String!]
             lastModified: lastModifiedEnum
+            page: Int
+            limit: Int
         }
         input LearningPlanInput {
             title: String
