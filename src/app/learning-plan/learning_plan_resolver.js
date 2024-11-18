@@ -185,13 +185,15 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
-    getLearningPlans: async ({ filterInput }, context) => {
+    getLearningPlans: async ({ filterInput, pageInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
+        const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
+        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 10);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
-            
+
             const queryConditions = {
                 ...filterInput,
                 isDeleted: false,
@@ -411,6 +413,9 @@ module.exports.queries = {
                         "updatedBy.role": "$updatedByDetails.role"
                     }
                 }
+                ,
+                { $skip: parsedSkip },
+                { $limit: parsedLimit }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
@@ -418,7 +423,7 @@ module.exports.queries = {
             }
             return {
                 learningPlans: learningPlans,
-                totalCount: totalCount,
+                totalCount: learningPlans?.length,
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
