@@ -520,12 +520,26 @@ module.exports.queries = {
         const {
             role,
             userPermissions,
+            primaryRole,
             subscriberId,
             employeeId,
             isOrganizationManager,
             managingOrganization,
         } = AuthUser(context);
 
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                primaryRole : primaryRole,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
