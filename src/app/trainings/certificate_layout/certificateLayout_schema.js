@@ -8,7 +8,7 @@ module.exports = {
         title: LocalisedDataInput!,
         authoringTitle: String,
         certificateReference:String,
-        logo: String,
+        logos: [String],
         additionalData: [genericObjectInput],
     }
 
@@ -19,6 +19,6 @@ module.exports = {
 
 `,
     mutations: `
-    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage : Upload):certificateLayoutOutput
+    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
 `,
 };
