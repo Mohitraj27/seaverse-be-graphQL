@@ -45,7 +45,7 @@ module.exports.queries = {
         };
         const fetchMenuItems = (userInfo) => {
 
-            if (userInfo.role === 'ADMIN') {
+            if (role === 'ADMIN') {
                 return [
                     {
                         role_name: 'ADMIN',

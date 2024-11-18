@@ -209,7 +209,6 @@ module.exports.queries = {
                 url: signedUrl,
             };
         } catch (error) {
-            console.error("Error fetching file:", error);
             return {
                 success: false,
                 message: "Failed to fetch file",
@@ -1830,11 +1829,10 @@ module.exports.mutations = {
                 }
             ]);
 
-            console.log("Filtered Learning Plans:", learningPlans?.length);
             if (learningPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: learningPlans.map((lp) => lp._id) } },
-                    { $addToSet: { userObjectIds: savedUser._id } }
+                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
                 );
             }
             invitationList.push({
