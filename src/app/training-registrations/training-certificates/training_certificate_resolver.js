@@ -334,8 +334,6 @@ module.exports.queries = {
           ];
       
           const certificates = await TrainingCertificate.aggregate(certificatesQuery);
-
-          console.log(certificates);
       
           if (!certificates || certificates.length === 0) {
             return {
@@ -364,7 +362,6 @@ module.exports.queries = {
             totalCount,
           };
         } catch (error) {
-            console.log(error, "error");
           throw Error(error.message);
         }
       }
