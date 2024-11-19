@@ -5,7 +5,7 @@ const { TrainingCertificate } = require("./training_certificate_model");
 const { SubscriberProfile } = require("../../user/subscriber-profile/subscriber_profile_model");
 
 const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
-
+const TrainingCertificateHelper = require("./training_certificate_helper")
 const Permission = require("../../user/sub-roles/permission.json");
 
 module.exports.queries = {
@@ -249,31 +249,91 @@ module.exports.queries = {
     },
     getUserCertificates: async ({ pageInput, id }) => {
         try {
-          const pagination = pageInput || { page: 1, limit: 0 };
-          const { page, limit } = pagination;
-          const skip = (page - 1) * limit;
+          
+        const skip = pageInput?.skip ?? 0,
+        limit = pageInput?.limit ?? 50;
       
-          const certificatesQuery = {
-            user: id,
-            isDeleted: false,
-          };
+          const certificatesQuery = [
+            {
+              $match: {
+                user: id,
+              },
+            },
+            {
+              $lookup: {
+                from: 'trainings',
+                localField: 'training',
+                foreignField: '_id',
+                as: 'training',
+              },
+            },
+            {
+              $unwind: { path: '$training', preserveNullAndEmptyArrays: true },
+            },
+            {
+              $lookup: {
+                from: 'organizations',
+                localField: 'organization',
+                foreignField: '_id',
+                as: 'organization',
+              },
+            },
+            {
+              $unwind: { path: '$organization', preserveNullAndEmptyArrays: true },
+            },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'user',
+                foreignField: '_id',
+                as: 'user',
+              },
+            },
+            {
+              $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
+            },
+            {
+              $lookup: {
+                from: 'certificatelayouts',
+                localField: 'certificateLayout',
+                foreignField: '_id',
+                as: 'layoutInfo',
+              },
+            },
+            {
+              $unwind: { path: '$layoutInfo', preserveNullAndEmptyArrays: true },
+            },
+            {
+              $project: {
+                'training.title': 1,
+                'training.description': 1,
+                'organization.name': 1,
+                'organization.address': 1,
+                'user.firstName': 1,
+                'user.lastName': 1,
+                'layoutInfo.layout': 1,
+                'layoutInfo.authorName': 1,
+                'layoutInfo.title': 1,
+                'layoutInfo.authoringTitle': 1,
+                'layoutInfo.certificateReference': 1,
+                'layoutInfo.logos': 1,
+                'layoutInfo.additionalData': 1,
+                createdAt: 1,
+                trainingCertificateValidity: 1,
+                generatedAt: 1,
+                certificateNumber: 1,
+                expiresAt:1,
+              },
+            },
+            {
+              $skip: skip,
+            },
+            {
+              $limit: limit > 0 ? limit : 0,
+            },
+          ];
       
-          const certificates = await TrainingCertificate.find(certificatesQuery)
-            .skip(skip)
-            .limit(limit > 0 ? limit : 0)
-            .populate({
-              path: 'training',
-              select: 'title description',
-            })
-            .populate({
-              path: 'organization',
-              select: 'name address',
-            })
-            .populate({
-              path: 'user',
-              select: 'firstName lastName avatar',
-            })
-            .lean();
+          const certificates = await TrainingCertificate.aggregate(certificatesQuery);
       
           if (!certificates || certificates.length === 0) {
             return {
@@ -282,28 +342,35 @@ module.exports.queries = {
             };
           }
       
-          const totalCount = await TrainingCertificate.countDocuments(certificatesQuery);
+          const totalCountQuery = [
+            {
+              $match: {
+                user: id,
+                isDeleted: false,
+              },
+            },
+            {
+              $count: 'totalCount',
+            },
+          ];
       
-          const certificatesWithSubscriberInfo = await Promise.all(
-            certificates.map(async (certificate) => {
-              const subscriberInfo = await SubscriberProfile.findOne({ subscriber: certificate.subscriber })
-                .lean()
-                .select('user')
-                .populate({ path: 'user', select: 'firstName lastName avatar' });
-      
-              certificate.subscriberInfo = subscriberInfo;
-      
-              return certificate;
-            })
-          );
+          const totalCountResult = await TrainingCertificate.aggregate(totalCountQuery);
+          const totalCount = totalCountResult.length > 0 ? totalCountResult[0].totalCount : 0;
       
           return {
-            trainingCertificates: certificatesWithSubscriberInfo,
+            trainingCertificates: certificates,
             totalCount,
           };
         } catch (error) {
-          throw CustomError(ErrorName.SERVER_ERROR);
+          throw Error(error.message);
         }
       }
-      ,
-};
+      
+    };
+      
+
+module.exports.mutations = {
+    generateCertificates: async (input,context) =>{
+        return TrainingCertificateHelper.generateCertificate(input,context);
+    },
+}

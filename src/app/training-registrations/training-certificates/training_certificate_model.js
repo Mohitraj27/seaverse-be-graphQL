@@ -131,6 +131,10 @@ const trainingCertificateSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        certificateLayout:{
+            type : ObjectId,
+            ref : "certificateLayout"
+        },
         additionalData: [{
             key: { type: String, required: true },
             value: { type: Types.Mixed, required: true }
