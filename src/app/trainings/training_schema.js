@@ -244,6 +244,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
-        syncOfflineDataAndUpdateProgress(input: SyncOfflineDataInput!): offlineSyncRes
+        syncOfflineDataAndUpdateProgress: offlineSyncRes
     `,
 };
