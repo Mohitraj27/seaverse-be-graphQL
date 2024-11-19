@@ -247,4 +247,63 @@ module.exports.queries = {
 
         return existingTrainingCertificate;
     },
+    getUserCertificates: async ({ pageInput, id }) => {
+        try {
+          const pagination = pageInput || { page: 1, limit: 0 };
+          const { page, limit } = pagination;
+          const skip = (page - 1) * limit;
+      
+          const certificatesQuery = {
+            user: id,
+            isDeleted: false,
+          };
+      
+          const certificates = await TrainingCertificate.find(certificatesQuery)
+            .skip(skip)
+            .limit(limit > 0 ? limit : 0)
+            .populate({
+              path: 'training',
+              select: 'title description',
+            })
+            .populate({
+              path: 'organization',
+              select: 'name address',
+            })
+            .populate({
+              path: 'user',
+              select: 'firstName lastName avatar',
+            })
+            .lean();
+      
+          if (!certificates || certificates.length === 0) {
+            return {
+              trainingCertificates: [],
+              totalCount: 0,
+            };
+          }
+      
+          const totalCount = await TrainingCertificate.countDocuments(certificatesQuery);
+      
+          const certificatesWithSubscriberInfo = await Promise.all(
+            certificates.map(async (certificate) => {
+              const subscriberInfo = await SubscriberProfile.findOne({ subscriber: certificate.subscriber })
+                .lean()
+                .select('user')
+                .populate({ path: 'user', select: 'firstName lastName avatar' });
+      
+              certificate.subscriberInfo = subscriberInfo;
+      
+              return certificate;
+            })
+          );
+      
+          return {
+            trainingCertificates: certificatesWithSubscriberInfo,
+            totalCount,
+          };
+        } catch (error) {
+          throw CustomError(ErrorName.SERVER_ERROR);
+        }
+      }
+      ,
 };

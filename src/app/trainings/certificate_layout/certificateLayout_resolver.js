@@ -3,9 +3,30 @@ const { Training } = require("../../trainings/training_model");
 const Permission = require("../../user/sub-roles/permission.json");
 const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 const {  CustomError, ErrorName,AuthUser ,UploadHelper} = require("../../../util");
+const aws_helper = require("../../../util/aws_helper")
 
+module.exports.queries = {
+    getCertificateLayoutByTrainingId: async ({ trainingId },context) => {
+        const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
+        AuthUser(context);
+        if (!subscriberId) {
+            throw  CustomError(ErrorName.FORBIDDEN);
+        }
+        try {
+          const certificate = await certificateLayout.findOne({ training: trainingId }).exec();
+          
+          if (!certificate) {
+            throw new Error('Certificate layout not found for this training ID');
+          }
+          return certificate;
+        } catch (error) {
+          console.error(error);
+          throw new Error('Error fetching certificate layout');
+        }
+      },
+}
 module.exports.mutations = {
-    createOrUpdateCertificateLayout: async ({ input, logoImage }, context) => {
+    createOrUpdateCertificateLayout: async ({ input, logoImage1,logoImage2,logoImage3 }, context) => {
         try {
             const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
                 AuthUser(context);
@@ -26,18 +47,6 @@ module.exports.mutations = {
                 throw  CustomError(ErrorName.FORBIDDEN);
             }
 
-            if (logoImage) {
-                
-                const logo = await UploadHelper.uploadImage({
-                    data: logoImage,
-                    folderName: `certificate-layout`,
-                    fileName: `certificate-layout-logo_${Date.now()}`,
-                    uploadType: UploadHelper.uploadType.certificateLogo,
-                });
-
-                input.logo = logo;
-            }
-
             const {
                 id,  
                 layout = "0",
@@ -46,9 +55,45 @@ module.exports.mutations = {
                 title,
                 authoringTitle,
                 certificateReference,
-                logo,
+                logos,
                 additionalData,
             } = input;
+            
+            logosInput = logos ?  logos : []
+
+            if (logoImage1) {
+                
+                const logo = await UploadHelper.uploadImage({
+                    data: logoImage1,
+                    folderName: `certificate-layout`,
+                    fileName: `certificate-layout-logo1_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.certificateLogo,
+                });
+                logoUrl = await aws_helper.fetchFile(logo)
+                logosInput.push({url :logoUrl});
+            }
+            if (logoImage2) {
+                
+                const logo = await UploadHelper.uploadImage({
+                    data: logoImage2,
+                    folderName: `certificate-layout`,
+                    fileName: `certificate-layout-logo2_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.certificateLogo,
+                });
+                logoUrl = await aws_helper.fetchFile(logo)
+                logosInput.push({url :logoUrl});
+            }
+            if (logoImage3) {
+                
+                const logo = await UploadHelper.uploadImage({
+                    data: logoImage3,
+                    folderName: `certificate-layout`,
+                    fileName: `certificate-layout-logo3_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.certificateLogo,
+                });
+                logoUrl = await aws_helper.fetchFile(logo)
+                logosInput.push({url :logoUrl});
+            }
 
             if (!title) {
                 throw  CustomError(ErrorName.VALIDATION_ERROR, "Title and Authoring Title are required");
@@ -75,7 +120,7 @@ module.exports.mutations = {
                 existingLayout.title = title;
                 existingLayout.authoringTitle = authoringTitle;
                 existingLayout.certificateReference = certificateReference;
-                existingLayout.logo = logo;
+                existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
 
                 await existingLayout.save();
@@ -88,7 +133,7 @@ module.exports.mutations = {
                     title,
                     authoringTitle,
                     certificateReference,
-                    logo,
+                    logos : logosInput,
                     additionalData,
                 });
 

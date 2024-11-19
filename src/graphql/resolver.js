@@ -130,7 +130,7 @@ module.exports = {
         ...AuthHelper.requiresLogin(ReportResolver.queries),
         ...AuthHelper.requiresLogin(SubscriberProfileResolver.queries),
         ...AuthHelper.requiresLogin(TrainingAttendanceResolver.queries),
-
+        ...AuthHelper.requiresLogin(CertificateLayoutResolver.queries),
         ...AuthHelper.requiresLogin(QuizContentResolver.queries),
         ...AuthHelper.requiresLogin(QuizAttemptResolver.queries),
         ...AuthHelper.requiresEmployee(DesignationResolver.queries),

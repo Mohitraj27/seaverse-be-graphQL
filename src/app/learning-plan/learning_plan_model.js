@@ -77,9 +77,12 @@ const learningPlanSchema = new Schema(
             type: ObjectId,
             ref: "User"
         }],
-        selectCourses:[{
+        selectCourses: [{
             type: ObjectId,
-            ref: "Training"
+            ref: "Training",
+            required: function() {
+                return this.status !== LearningPlanStatus.DRAFT;
+            }
         }],
         assignedLearnerIDs: [{ 
             type: ObjectId, 
@@ -98,6 +101,14 @@ const learningPlanSchema = new Schema(
         isDeleted: {             
             type: Boolean,
             default: false
+        },
+        pushNotification: {
+            type:Boolean,
+            default: true
+        },
+        emailNotification: {
+            type:Boolean,
+            default: true
         },
         isUpdated: {          
             type: Boolean,

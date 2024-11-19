@@ -49,7 +49,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     designationIds.push(groupId);
                     break;
                 case groupTypes.role:
-                    roleIds.push(groupId);
+                    roleIds.push(...groupId);
                     break;
                 case groupTypes.subRole:
                     subRoleIds.push(groupId);
@@ -64,7 +64,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     vesselIds.push(groupId);
                     break;
                 case groupTypes.vesselStatus:
-                    vesselStatusIds.push(groupId);
+                    vesselStatusIds.push(...groupId);
                     break;
                 case groupTypes.vesselType:
                     vesselTypeIds.push(groupId);
@@ -78,7 +78,21 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             .select({ user: 1 })
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
-        const roleQuery = roleIds.length ? User.find({ role: { $in: roleIds } }) : Promise.resolve([]);
+
+        const roleQuery = roleIds.length
+            ? User.find({
+                $or: roleIds.includes("ADMIN")
+                    ? [
+                        { role: "ADMIN" },
+                        { "subRoles.name": "ADMIN" }
+                    ]
+                    : [
+                        { role: "LEARNER", "subRoles.name": { $ne: "ADMIN" } } // Learner and subRole not admin
+                    ]
+            }).populate("subRoles", "name")
+            : Promise.resolve([]);
+
+
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
 
@@ -303,6 +317,15 @@ const getAutoSyncUsers = (async (groups) => {
         return [];
     }
 });
+const getAutoSyncUsersOfSingleGroup = async (group) => {
+    const groupArray = [{ groupType: group.groupType, groupId: group.groupId }];
+    const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
+    if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+        return autoSyncedUsers;
+    } else {
+        return [];
+    }
+}
 
 const getCustomGroupUsers = (async (groups) => {
 
@@ -346,8 +369,8 @@ module.exports = {
     getAutoSyncUsers,
     getCustomGroupUsers,
     fetchUserFromAutoSyncedGroups,
+    getAutoSyncUsersOfSingleGroup,
     createTrainingRegistration: async (input, context) => {
-
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
