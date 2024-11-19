@@ -23,6 +23,22 @@ const { isAlphanumeric } = require('../../../util/password_helper');
 const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_ENDPOINT,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_PORT == 465, 
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
@@ -419,11 +435,12 @@ module.exports.mutations = {
             if(!updatedUser) {
                 throw CustomError(ErrorName.FAILED);
             }
-            
-            const result = await AwsHelper.sendEmail({
-                receiverEmail: email,
+
+            const mailOptions = {
+                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                to: email, 
                 subject: "Reset Password",
-                htmlContent: `<!DOCTYPE html>
+                html: `<!DOCTYPE html>
                     <html lang="en">
                         <head>
                             <meta charset="UTF-8" />
@@ -431,16 +448,16 @@ module.exports.mutations = {
                         </head>
                         <body>
                             <div style="width: 600px; margin: 0 auto; text-align: center">
-                
                                 <p>Please visit the link below to reset your password</p>
-                
                                 <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>
                         </body>
                     </html>`,
-            });
+            };
+            
+            const result = await transporter.sendMail(mailOptions)
 
             if (result) {
                 return {
