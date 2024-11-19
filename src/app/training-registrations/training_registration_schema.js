@@ -69,6 +69,7 @@ module.exports = {
             isEnrolled: Boolean
             moduleCount: Int
             totalDuration: Int
+            trainingModules: [TrainingModule]
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -190,12 +191,18 @@ module.exports = {
             message: String
             courses: [OverallTrainingProgress]
         }
+        type singleTrainingRes {
+            status: Boolean
+            message: String
+            course: OverallTrainingProgress
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
         myCourses(filterInput: myCourseFilterInput): myCoursesRes!
+        getSingleCourseDetails(input: ID!): singleTrainingRes!
     `,
     mutations: `
         """used for assign course to employee"""

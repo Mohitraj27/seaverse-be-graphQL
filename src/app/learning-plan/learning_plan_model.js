@@ -102,6 +102,14 @@ const learningPlanSchema = new Schema(
             type: Boolean,
             default: false
         },
+        pushNotification: {
+            type:Boolean,
+            default: true
+        },
+        emailNotification: {
+            type:Boolean,
+            default: true
+        },
         isUpdated: {          
             type: Boolean,
             default: false,

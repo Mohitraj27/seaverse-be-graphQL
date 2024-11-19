@@ -172,7 +172,7 @@ module.exports = {
         input LearningPlanInput {
             title: String
             targetAudience: TargetAudienceEnum
-            selectCourses: [ID!]
+            selectCourses: [ID]
             groupIDs: [GroupTypeInput!] 
             userObjectIds: [ID]
             status: LearningPlanStatus

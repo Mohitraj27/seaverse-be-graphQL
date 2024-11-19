@@ -64,6 +64,7 @@ module.exports = {
             createdBy: UserData
             updatedBy: UserData
             featuredInCourses: Int
+            trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
