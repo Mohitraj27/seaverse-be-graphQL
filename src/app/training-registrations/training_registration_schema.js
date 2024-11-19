@@ -69,6 +69,7 @@ module.exports = {
             isEnrolled: Boolean
             moduleCount: Int
             totalDuration: Int
+            trainingModules: [TrainingModule]
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
