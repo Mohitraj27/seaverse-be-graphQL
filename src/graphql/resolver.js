@@ -130,7 +130,7 @@ module.exports = {
         ...AuthHelper.requiresLogin(ReportResolver.queries),
         ...AuthHelper.requiresLogin(SubscriberProfileResolver.queries),
         ...AuthHelper.requiresLogin(TrainingAttendanceResolver.queries),
-
+        ...AuthHelper.requiresLogin(CertificateLayoutResolver.queries),
         ...AuthHelper.requiresLogin(QuizContentResolver.queries),
         ...AuthHelper.requiresLogin(QuizAttemptResolver.queries),
         ...AuthHelper.requiresEmployee(DesignationResolver.queries),
@@ -176,7 +176,7 @@ module.exports = {
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselTypeResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselResolver.mutations),
-        ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
+        ...AuthHelper.simplify(ContactSupportResolver.mutations),
         ...AuthHelper.requiresAdmin(UserVesselResolver.mutations),
         ...AuthHelper.requiresAdmin(QuestionResolver.mutations),
         ...AuthHelper.requiresAdmin(LearningPlanResolver.mutations),

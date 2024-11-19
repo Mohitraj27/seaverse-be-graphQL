@@ -352,8 +352,6 @@ module.exports.queries = {
                 }
             ]);
 
-            console.log(courses);
-
             return {
                 status: true,
                 message: "My Courses fetched successfully",
@@ -363,7 +361,219 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    getSingleCourseDetails: async ({ input }, context) => {
 
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+
+            if (!input) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
+            }
+
+            const trainingDetails = await OverallTrainingProgress.aggregate([
+                { $match: { _id: input } },
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                { $unwind: "$training" },
+                {
+                    $lookup: {
+                        from: "trainingmodules",
+                        localField: "training._id",
+                        foreignField: "training",
+                        as: "trainingModules",
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "trainingprogresses",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingModuleContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "quizzes",
+                                    localField: "trainingModuleContentDetails.quiz",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $group: {
+                                    _id: "$_id",
+                                    trainingModuleContent: { $first: "$trainingModuleContent" },
+                                    trainingModule: { $first: "$trainingModule" },
+                                    trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
+                                },
+                            },
+                        ],
+                        as: "trainingProgresses",
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "trainingcontentbridges",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "quizzes",
+                                    localField: "trainingModuleContentDetails.quiz",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $group: {
+                                    _id: "$_id",
+                                    trainingContent: { $first: "$trainingContent" },
+                                    trainingModule: { $first: "$trainingModule" },
+                                    trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
+                                },
+                            },
+                        ],
+                        as: "trainingContentsFallback",
+                    },
+                },
+                {
+                    $addFields: {
+                        trainingModules: {
+                            $map: {
+                                input: "$trainingModules",
+                                as: "module",
+                                in: {
+                                    $mergeObjects: [
+                                        "$$module",
+                                        {
+                                            trainingModuleContents: {
+                                                $cond: {
+                                                    if: {
+                                                        $eq: [
+                                                            {
+                                                                $size: {
+                                                                    $filter: {
+                                                                        input: "$trainingProgresses",
+                                                                        as: "progress",
+                                                                        cond: { $eq: ["$$progress.trainingModule", "$$module._id"] },
+                                                                    },
+                                                                },
+                                                            },
+                                                            0,
+                                                        ],
+                                                    },
+                                                    then: {
+                                                        $filter: {
+                                                            input: "$trainingContentsFallback",
+                                                            as: "content",
+                                                            cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                        },
+                                                    },
+                                                    else: {
+                                                        $filter: {
+                                                            input: "$trainingProgresses",
+                                                            as: "progress",
+                                                            cond: { $eq: ["$$progress.trainingModule", "$$module._id"] },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        trainingProgresses: 0,
+                        trainingContentsFallback: 0,
+                    },
+                },
+            ]);
+
+            if (trainingDetails.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
+            }
+
+            const processedTrainingDetails = trainingDetails.map((trainingDetail) => {
+
+                const moduleCount = trainingDetail.trainingModules.length;
+
+                const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
+
+                    const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
+                        if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
+                            content.trainingModuleContentDetails.forEach((detail) => {
+
+                                const durationParts = (detail.duration || "00:00:00").split(":");
+                                const hours = parseInt(durationParts[0], 10) || 0;
+                                const minutes = parseInt(durationParts[1], 10) || 0;
+                                const seconds = parseInt(durationParts[2], 10) || 0;
+
+                                moduleAcc += (hours * 3600) + (minutes * 60) + seconds;
+                            });
+                        }
+                        return moduleAcc;
+                    }, 0);
+
+                    acc += moduleDurationInSeconds;
+                    return acc;
+                }, 0);
+
+                return {
+                    ...trainingDetail,
+                    totalDuration,
+                    moduleCount
+                };
+            });
+
+            return {
+                status: true,
+                message: "Course details fetched successfully",
+                course: processedTrainingDetails[0]
+            }
+
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+    }
 };
 
 module.exports.mutations = {
