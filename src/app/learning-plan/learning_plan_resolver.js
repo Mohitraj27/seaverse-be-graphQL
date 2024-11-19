@@ -553,7 +553,6 @@ module.exports.queries = {
 
             return detailedPlan;
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },

@@ -127,7 +127,6 @@ const validatePickingCourses = async (selectCourses) => {
 };
 
 const createLearningPlanHelper = async (input, context) => {
-    console.log(context, "context");
     let errorList = [];
 
     try {
@@ -227,7 +226,6 @@ const createLearningPlanHelper = async (input, context) => {
             learningPlan: newLearningPlan._id
         }
         await createTrainingRegistration({ enrollData }, context);
-        // console.log(enrollLearningPlan,"enrollLearningPlan");
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
         errorList.push(error.message);
@@ -237,7 +235,6 @@ const createLearningPlanHelper = async (input, context) => {
 
 const updateLearningPlanHelper = async (id, input) => {
     let errorList = [];
-    console.log(input, "errorList");
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
@@ -297,7 +294,6 @@ const updateLearningPlanHelper = async (id, input) => {
             _id: id,
             isDeleted: false
         });
-        console.log(existingLearningPlan, "existingLearningPlan");
 
         const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
         let groupIDs = [];
@@ -312,7 +308,6 @@ const updateLearningPlanHelper = async (id, input) => {
             conditionalCustomFields: input.conditionalCustomFields,
             groupIDs: input.groupIDs
         });
-        console.log(input.targetAudience, existingLearningPlan.targetAudience, "lplp");
         const shouldUpdateUsers =
             input.targetAudience !== existingLearningPlan?.targetAudience ||
             input.audienceSelection !== existingLearningPlan.audienceSelection ||
@@ -334,7 +329,6 @@ const updateLearningPlanHelper = async (id, input) => {
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
-        console.log(shouldUpdateUsers,"bool")
         if (shouldUpdateUsers) {
             const { userIds, count } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
@@ -342,7 +336,6 @@ const updateLearningPlanHelper = async (id, input) => {
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields
             });
-            console.log(input.userObjectIds, "userIds");
        
         }
         existingLearningPlan.title = input.title || existingLearningPlan.title;
@@ -357,7 +350,6 @@ const updateLearningPlanHelper = async (id, input) => {
         await existingLearningPlan.save();
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
-        console.log(error, "error");
         throw new Error(error.message)
     }
 };
