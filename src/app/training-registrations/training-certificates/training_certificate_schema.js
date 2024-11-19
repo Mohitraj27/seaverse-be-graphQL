@@ -59,5 +59,6 @@ module.exports = {
     queries: `
         getTrainingCertificates(pageInput: PageInput, filterInput: TrainingCertificateFilterInput): TrainingCertificateList!
         getTrainingCertificate(id: ID!): TrainingCertificate!
+        getUserCertificates(id: ID!,pageInput: PageInput): TrainingCertificateList!
     `,
 };
