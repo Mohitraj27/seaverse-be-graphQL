@@ -65,7 +65,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     break;
                 case groupTypes.vesselStatus:
                     vesselStatusIds.push(...groupId);
-                    console.log(vesselStatusIds,"vesselStatus")
                     break;
                 case groupTypes.vesselType:
                     vesselTypeIds.push(groupId);
@@ -79,7 +78,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             .select({ user: 1 })
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
-            
+
         const roleQuery = roleIds.length
             ? User.find({
                 $or: roleIds.includes("ADMIN")
@@ -94,7 +93,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             : Promise.resolve([]);
 
 
-           const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
+        const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
 
         const vesselQuery = vesselIds.length ? UserVessel.find({ vessel: { $in: vesselIds }, isActive: true })
@@ -372,7 +371,6 @@ module.exports = {
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
     createTrainingRegistration: async (input, context) => {
-        console.log(context, "createTrainingRegistration");
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 

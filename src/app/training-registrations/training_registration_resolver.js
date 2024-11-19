@@ -578,7 +578,6 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
-        console.log(context,"context00000");
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
     verifyRegistrationEmails: async ({ input }, context) => {
