@@ -13,14 +13,15 @@ const { certificateLayout } = require("../../trainings/certificate_layout/certif
 const { OverallTrainingProgress } = require("../overall-course-progress/overall_progress_model");
 const { TrainingProgress } = require("../training-progress/training_progress_model");
 const { Training } = require("../../trainings/training_model");
+const { v4: uuidv4 } = require('uuid');
 
-const generateTrainingCertificateNumber  =  async ({ subscriberId, userId, session }) => {
+const generateTrainingCertificateNumber  =  async ({ subscriberId, userId, session  }) => {
     const currentYear = CurrentDateTime().utcDateTimeObj.year();
 
     const savedCounter = await CounterHelper.updateCounter({
         subscriberId,
         modelName: TrainingCertificate.modelName,
-        session,
+        session
     });
 
     if (!savedCounter) throw CustomError(ErrorName.FAILED);
@@ -28,6 +29,12 @@ const generateTrainingCertificateNumber  =  async ({ subscriberId, userId, sessi
     return `CERT-${userId}-${currentYear}-${savedCounter.count
         .toString()
         .padStart(6, "0")}`;
+}
+
+const generateSVCertificateId  =  async () => {
+    const uuid = uuidv4().replace(/-/g, '').toUpperCase();  
+    const certNumber = `SV-${uuid.substring(0, 8)}`;
+    return certNumber;
 }
 
 const sendCertificateGenerationNotification = async notificationsData => {
@@ -128,13 +135,6 @@ module.exports = {
                 throw CustomError(ErrorName.ALREADY_EXIST, "Certificate already exists for this user and training registration.");
             }
     
-            const selectedCertificateLayout = await certificateLayout.findOne({
-                layout: setCertificateLayout
-            });
-    
-            if (!selectedCertificateLayout) {
-                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
-            }
     
             const existingProgressData = await OverallTrainingProgress.findOne({
                 trainingRegistration: input.trainingRegistrationId,
@@ -144,14 +144,32 @@ module.exports = {
             if (!existingProgressData) {
                 throw CustomError(ErrorName.NOT_FOUND, "Training Registration Not Found");
             }
-    
-            const startDate = await TrainingProgress.findOne({
+
+            const selectedCertificateLayout = await certificateLayout.findOne({
                 training: existingProgressData.training._id,
+            });
+    
+            if (!selectedCertificateLayout) {
+                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
+            }
+    
+            const firstContentInfo = await TrainingProgress.findOne({
+                trainingRegistration: existingProgressData.trainingRegistration._id,
                 user: userId,
                 trainingModuleContent: existingProgressData.trainingModuleContentIds[0]
-            }).createdAt;
-    
-            const certificateValidity = existingProgressData.training?.certificateValidity;
+            });
+
+            const selectedCourse = await Training.findOne({
+                _id : existingProgressData.training?._id
+            })
+            if (!selectedCourse) {
+                throw CustomError(ErrorName.NOT_FOUND, "course not found");
+            }
+            
+
+            const startDate = firstContentInfo.createdAt;
+
+            const certificateValidity = selectedCourse?.certificateValidity;
             const completedAt = CurrentDateTime()?.utcDateTime;
             const generatedAt = CurrentDateTime()?.utcDateTime;
             const expiresAt = certificateValidity && completedAt
@@ -159,12 +177,7 @@ module.exports = {
                 : undefined;
             
             const userName = `${existingProgressData.user?.firstName ?? ""} ${existingProgressData.user?.lastName?? ""}`
-            const certificateNumber = await generateTrainingCertificateNumber({
-                subscriberId, 
-                userId,
-                session: input.session 
-            });
-    
+            const certificateNumber = await generateSVCertificateId();
             const certificateData = {
                 subscriber: subscriberId,
                 trainingRegistration: input.trainingRegistrationId,
@@ -178,6 +191,7 @@ module.exports = {
                 completedAt: completedAt,
                 generatedAt: generatedAt,
                 expiresAt: expiresAt,
+                certificateLayout: selectedCertificateLayout._id,
                 additionalData: input.additionalData || [],
             };
     

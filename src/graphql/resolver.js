@@ -184,6 +184,7 @@ module.exports = {
         ...AuthHelper.requiresLogin(ContentZipResolver.mutations),
         ...AuthHelper.requiresAdmin(CompanyResolver.mutations),
         ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
+        ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
