@@ -21,6 +21,7 @@ const { getCustomGroupUsers, getAutoSyncUsers, createTrainingRegistration } = re
 const roles = require("../../util/role.json");
 const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const validRoles = Object.values(roles);
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -56,7 +57,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                     group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
                     break;
                 case 'role':
-                    if (![roles].includes(group.groupIDs)) {
+                    if (!group.groupIDs.every(role => validRoles.includes(role))) {
                         errors.push(errorMessages.INVALID_ROLE_ID);
                     } else {
                         group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
@@ -219,15 +220,19 @@ const createLearningPlanHelper = async (input, context) => {
             updatedBy: input.updatedBy
         });
         await newLearningPlan.save();
-        const enrollData = {
-            trainings: newLearningPlan.selectCourses,
-            users: newLearningPlan?.assignedLearnerIDs,
-            type: "ENROLL",
-            learningPlan: newLearningPlan._id
+
+        if (newLearningPlan.assignedLearnerIDs.length > 0) {
+            const enrollData = {
+                trainings: newLearningPlan.selectCourses,
+                users: newLearningPlan?.assignedLearnerIDs,
+                type: "ENROLL",
+                learningPlan: newLearningPlan._id
+            }
+            await createTrainingRegistration(enrollData, context);
         }
-        await createTrainingRegistration({ enrollData }, context);
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
+        console.log(error, "error");
         errorList.push(error.message);
         return { success: false, errors: errorList };
     }
@@ -336,7 +341,7 @@ const updateLearningPlanHelper = async (id, input) => {
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields
             });
-       
+
         }
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
@@ -358,6 +363,8 @@ const getUsersAndCount = async (input) => {
     try {
         let filter = {};
         filter.isDeleted = false;
+        filter.isActive = true;
+        filter.isRegistered = true;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
