@@ -5,6 +5,26 @@ const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 const {  CustomError, ErrorName,AuthUser ,UploadHelper} = require("../../../util");
 const aws_helper = require("../../../util/aws_helper")
 
+module.exports.queries = {
+    getCertificateLayoutByTrainingId: async ({ trainingId },context) => {
+        const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
+        AuthUser(context);
+        if (!subscriberId) {
+            throw  CustomError(ErrorName.FORBIDDEN);
+        }
+        try {
+          const certificate = await certificateLayout.findOne({ training: trainingId }).exec();
+          
+          if (!certificate) {
+            throw new Error('Certificate layout not found for this training ID');
+          }
+          return certificate;
+        } catch (error) {
+          console.error(error);
+          throw new Error('Error fetching certificate layout');
+        }
+      },
+}
 module.exports.mutations = {
     createOrUpdateCertificateLayout: async ({ input, logoImage1,logoImage2,logoImage3 }, context) => {
         try {
