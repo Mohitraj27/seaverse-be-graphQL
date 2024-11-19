@@ -45,7 +45,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             if (Array.isArray(valueOfField) && valueOfField.length > 0) {
                 errors.push(errorMessages.VALUE_OF_FIELD_NOT_REQUIRED_FOR_GROUP_BASED);
             }
-           switch (group.groupType) {
+            switch (group.groupType) {
                 case 'custom':
                     group.groupIDs = await getCustomGroupUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
                     break;
@@ -193,58 +193,7 @@ const createLearningPlanHelper = async (input) => {
         }
         const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
         let groupIDs = [];
-        if (targetAudience === targetAudienceEnum.GROUP_BASED) {
-            if (!input.groupIDs || input.groupIDs.length === 0) {
-                errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
-            } else {
-                const { groupType, groupIDs: groupIdArray } = input.groupIDs[0];
-                const [groupId] = groupIdArray;
-                if (!groupId) {
-                    errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
-                } else {
-                    switch (groupType) {
-                        case 'custom':
-                            groupIDs = await getCustomGroupUsers([{ groupType, groupId }]);
-                            break;
-                        case 'designation':
-                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            break;
-                        case 'role':
-                            if (![roles].includes(groupId)) {
-                                errorList.push(errorMessages.INVALID_ROLE_ID);
-                            } else {
-                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            }
-                            break;
-                        case 'subRole':
-                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            break;
-                        case 'regStatus':
-                            if (typeof groupId !== "boolean") {
-                                errorList.push(errorMessages.INVALID_REG_STATUS);
-                            } else {
-                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            }
-                            break;
-                        case 'vessel':
-                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            break;
-                        case 'vesselType':
-                            groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            break;
-                        case 'vesselStatus':
-                            if (![vesselStatusEnum].includes(groupId)) {
-                                errorList.push(errorMessages.INVALID_VESSEL_STATUS);
-                            } else {
-                                groupIDs = await getAutoSyncUsers([{ groupType, groupId }]);
-                            }
-                            break;
-                        default:
-                            errorList.push(errorMessages.INVALID_GROUP_TYPE);
-                    }
-                }
-            }
-        }
+       
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -252,7 +201,8 @@ const createLearningPlanHelper = async (input) => {
             targetAudience: input.targetAudience,
             audienceSelection: input.audienceSelection,
             conditionType: input.conditionType,
-            conditionalCustomFields: input.conditionalCustomFields
+            conditionalCustomFields: input.conditionalCustomFields,
+            groupIDs:input.groupIDs
         });
         const newLearningPlan = new LearningPlan({
             title: input.title,
@@ -264,7 +214,7 @@ const createLearningPlanHelper = async (input) => {
             conditionalCustomFields: input.conditionalCustomFields,
             userObjectIds: input.userObjectIds,
             selectCourses: input.selectCourses,
-            assignedLearnerIDs: userIds,
+            assignedLearnerIDs: input.userObjectIds || userIds,
             createdBy: input.createdBy,
             updatedBy: input.updatedBy
         });
@@ -350,10 +300,10 @@ const getUsersAndCount = async (input) => {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
                         const fieldMapping = {
                             DESIGNATION: '_id',
-                            GROUP: 'employee.group',
+                            GROUP: '_id',
                             VESSEL: 'currentVessel',
                             VESSEL_TYPE: 'currentVessel.typeOfVessel',
-                            EMAIL: 'email',
+                            EMAIL: '_id',
                             CURRENT_STATUS: 'vesselStatus'
                         };
                         const field = fieldMapping[condition.type_of_Field];
@@ -374,6 +324,22 @@ const getUsersAndCount = async (input) => {
                                 };
                             }
                             valueData = finalQueryValue;
+                        }
+                        else if (condition.type_of_Field === "EMAIL") {
+                            const value = condition.valueOfField.map(id => ObjectId(id));
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    '_id': { $in: value },
+                                    'isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    '_id': { $nin: value },
+                                    'isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
                         } else if (condition.type_of_Field === "VESSEL_TYPE") {
                             const typeOfVesselIds = condition.valueOfField.map(id => ObjectId(id));
                             const vessels = await Vessel.find(
@@ -382,7 +348,6 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
                             if (vesselIds.length === 0) {
                                 return {
                                     userIds: [],
@@ -409,6 +374,7 @@ const getUsersAndCount = async (input) => {
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);
+
                             valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
 
                         } else if (condition.type_of_Field === "GROUP") {
@@ -425,6 +391,7 @@ const getUsersAndCount = async (input) => {
                                     errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
                                     continue;
                                 }
+                              
 
                                 switch (item.groupType) {
                                     case 'custom':
@@ -500,7 +467,7 @@ const getUsersAndCount = async (input) => {
 
                         case 'designation':
                             const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
-                            groupIDs = getDesignationUsers.map(user => user.user);
+                            groupIDs = getDesignationUsers.map(user => user._id);
                             break;
                         case 'role':
                             const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
@@ -544,7 +511,7 @@ const getUsersAndCount = async (input) => {
                             GROUP: '_id',
                             VESSEL: 'currentVessel',
                             VESSEL_TYPE: 'currentVessel.typeOfVessel',
-                            EMAIL: 'email',
+                            EMAIL: '_id',
                             CURRENT_STATUS: 'vesselStatus'
                         };
                         const field = fieldMapping[condition.type_of_Field];
@@ -562,6 +529,21 @@ const getUsersAndCount = async (input) => {
                                 finalQueryValue = {
                                     'currentVessel._id': { $nin: value },
                                     'currentVessel.isDeleted': false,
+                                };
+                            }
+                            valueData = finalQueryValue;
+                        } else if (condition.type_of_Field === "EMAIL") {
+                            const value = condition.valueOfField.map(id => ObjectId(id));
+                            let finalQueryValue;
+                            if (condition.isOrIsNot === 'IS') {
+                                finalQueryValue = {
+                                    '_id': { $in: value },
+                                    'isDeleted': false,
+                                };
+                            } else {
+                                finalQueryValue = {
+                                    '_id': { $nin: value },
+                                    'isDeleted': false,
                                 };
                             }
                             valueData = finalQueryValue;
@@ -699,14 +681,14 @@ const getUsersAndCount = async (input) => {
             {
                 $group: {
                     _id: null,
-                    userIds: { $push: "$_id" },
+                    userIds: { $addToSet: "$_id" },
                     count: { $sum: 1 }
                 }
             }
         ]);
 
         return {
-            userIds: userData.length > 0 ? userData[0].userIds : null,
+            userIds: userData.length > 0 ? [...new Set(userData[0].userIds)] : null,
             count: userData.length > 0 ? userData[0].count : 0
         };
     } catch (error) {
