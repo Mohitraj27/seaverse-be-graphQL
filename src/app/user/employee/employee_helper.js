@@ -532,19 +532,30 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
     const errors = [];
 
     if (!row["FirstName"]) {
-        errors.push(`First Name is missing in row ${rowIndex + 1}`);
-        return errors;
-    };
+        errors.push(`First Name is missing in row ${rowIndex + 1}.`);
+    } else if (!validateName(row["FirstName"])) {
+        errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
+    }
+
+    if (!row["LastName"]) {
+        errors.push(`Last Name is missing in row ${rowIndex + 1}.`);
+    } else if (!validateName(row["LastName"])) {
+        errors.push(`Last Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
+    }
 
     if (!row["Email"]) {
         errors.push(`Email is missing in row ${rowIndex + 1}`);
         return errors;
-    } else if (emails.has(row["Email"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["Email"]}`);
-        return errors;
     } else {
-        emails.add(row["Email"]);
+        const normalizedEmail = row["Email"].toLowerCase();
+        if (emails.has(normalizedEmail)) {
+            errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${normalizedEmail}.`);
+            return errors;
+        } else {
+            emails.add(normalizedEmail);
+        }
     }
+
 
     if (!row["EmployeeID"]) {
         errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
@@ -619,7 +630,7 @@ function mapCSVRowToUser(row) {
 
     return result;
 }
-const getLearningPlansInBulk= async (inputs) => {
+const getLearningPlansInBulk = async (inputs) => {
     const pipeline = inputs.map((input) => ({
         $match: {
             $expr: {
@@ -627,7 +638,7 @@ const getLearningPlansInBulk= async (inputs) => {
                     if: { $eq: ["$conditionType", "MATCH_ALL_CONDITION"] },
                     then: {
                         $and: [
-                          
+
                             {
                                 $or: [
                                     {
@@ -646,7 +657,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                          
+
                             {
                                 $or: [
                                     {
@@ -665,7 +676,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                          
+
                             {
                                 $or: [
                                     {
@@ -684,7 +695,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                          
+
                             {
                                 $or: [
                                     {
@@ -703,7 +714,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                          
+
                             {
                                 $or: [
                                     {
@@ -726,7 +737,7 @@ const getLearningPlansInBulk= async (inputs) => {
                     },
                     else: {
                         $or: [
-                           
+
                             {
                                 $or: [
                                     {
@@ -745,7 +756,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                           
+
                             {
                                 $or: [
                                     {
@@ -764,7 +775,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                           
+
                             {
                                 $or: [
                                     {
@@ -783,7 +794,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                            
+
                             {
                                 $or: [
                                     {
@@ -802,7 +813,7 @@ const getLearningPlansInBulk= async (inputs) => {
                                     }
                                 ]
                             },
-                          
+
                             {
                                 $or: [
                                     {
@@ -833,7 +844,7 @@ const getLearningPlansInBulk= async (inputs) => {
 
     for (const input of inputs) {
         await LearningPlan.updateMany(
-            { _id: { $in: learningPlanIds } }, 
+            { _id: { $in: learningPlanIds } },
             { $addToSet: { assignedLearnerIDs: input.userId } }
         );
     }
@@ -853,6 +864,13 @@ const sendBulkEmails = async (passwordEmailList) => {
         console.error(`Error sending emails`, error);
     }
 
+};
+const validateName = (name) => {
+    const nameRegex = /^[A-Za-z\s]+$/;
+    if (!nameRegex.test(name)) {
+        return false;
+    }
+    return true;
 };
 
 module.exports = {
@@ -1345,8 +1363,10 @@ module.exports = {
     },
 
 
-   
+
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
+        console.log(users, "users", emailsArray);
+
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
 
@@ -1367,23 +1387,23 @@ module.exports = {
 
         const getAllDBUsers = await User.find().select('email');
         const getAllDBEmails = getAllDBUsers.map(user => user.email);
-
+        let errors = [];
         const updates = [];
         const inserts = [];
 
         let userIndex = 0;
 
         const existingVessels = await Vessel.find({ isDeleted: false, isActive: true })
-        
+
 
         const vesselMap = new Map(
             existingVessels.map(vessel => [
                 vessel.imoNumber,
-                { id: vessel._id, typeOfVessel:vessel.typeOfVessel }
+                { id: vessel._id, typeOfVessel: vessel.typeOfVessel }
             ])
         );
 
-        let errors = [];
+
         let updatedEmpIds = [];
         const vesselAssociations = [];
         let passwordEmailList = [];
@@ -1410,7 +1430,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    email: user.email,
+                                    email: user.email?.toLowerCase(),
                                 },
                             },
                         },
@@ -1442,7 +1462,7 @@ module.exports = {
                         civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
-                        email: user.email,
+                        email: user.email?.toLowerCase(),
                         password: await CryptoHelper.hash(password, 10)
                     });
 
@@ -1517,24 +1537,25 @@ module.exports = {
 
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+            console.log(allUpdatedUsers, "allUpdatedUsers");
             const automateLearningPlanIds = [];
             allUpdatedUsers.forEach(user => {
-                
+
                 const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
-                
+
                 const designationId = originalUserData?.designation
                     ? designationMap.get(originalUserData.designation.toUpperCase())?.id
                     : null;
 
-               
+
                 const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
-              
+
                 const vesselId = vesselData?.imoNumber
                     ? vesselMap.get(vesselData.imoNumber)?.id
                     : null;
 
-               
+
                 automateLearningPlanIds.push({
                     userId: user._id,
                     email: user.email,
@@ -1653,6 +1674,7 @@ module.exports = {
             }
 
         });
+
 
         const createImportLog = await ImportLog.create({
             subscriber: subscriberId,
