@@ -372,7 +372,7 @@ module.exports = {
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
     createTrainingRegistration: async (input, context) => {
-
+        console.log(context, "createTrainingRegistration");
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
