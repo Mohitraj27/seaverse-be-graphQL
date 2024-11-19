@@ -27,7 +27,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot,  groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
-            const validStatus = ["ASSIGNED", "ON_LEAVE", "OFFBOARD", "ONBOARD"];
+            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARD"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
             if (invalidStatus.length > 0) {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
@@ -132,8 +132,9 @@ const createLearningPlanHelper = async (input) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED); }
-        if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status !== "DRAFT") {
+            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
             ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
             errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED);
@@ -412,8 +413,8 @@ const getUsersAndCount = async (input) => {
 
                         } else if (condition.type_of_Field === "GROUP") {
                             let groupIDs = [];
-                            const groupType = condition.groupTypes.map(groupType => groupType);
-                            const groupId = condition.groupIDs.map(groupId => groupId);
+                            const groupType = condition.groupIDs.map(groupType => groupType.groupType);
+                            const groupId = condition.groupIDs.map(groupId => groupId.groupIDs).flat();
                             const combinedArray = groupType.map((groupType, index) => {
                                 return { groupType, groupId: groupId[index] };
                             });
@@ -433,7 +434,7 @@ const getUsersAndCount = async (input) => {
 
                                     case 'designation':
                                         const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = getDesignationUsers.map(user => user.user);
+                                        groupIDs = getDesignationUsers.map(user => user._id);
                                         break;
                                     case 'role':
                                         const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
