@@ -48,7 +48,10 @@ module.exports.queries = {
 
         const results = await OverallTrainingProgress.aggregate([
             {
-                $match: filterConditions
+                $match: {
+                    training: input.training,
+                    isEnrolled: input.isEnrolled
+                }
             },
             {
                 $lookup: {
@@ -94,14 +97,12 @@ module.exports.queries = {
                 $sort: { '_id.learningPlanName': 1 }
             }
         ]);
-
         const formattedResults = results.map(group => ({
             learningPlanName: group._id.learningPlanName,
             users: group.users
         }));
 
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
-
         return formattedResults;
     },
     getTrainingRegistration: async ({ id }, context) => {

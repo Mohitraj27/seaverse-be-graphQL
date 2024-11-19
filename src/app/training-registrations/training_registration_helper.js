@@ -303,6 +303,15 @@ const getAutoSyncUsers = (async (groups) => {
         return [];
     }
 });
+const getAutoSyncUsersOfSingleGroup = async (group) => {
+    const groupArray = [{ groupType: group.groupType, groupId: group.groupId }];
+    const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
+    if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+        return autoSyncedUsers;
+    } else {
+        return [];
+    }
+}
 
 const getCustomGroupUsers = (async (groups) => {
 
@@ -346,6 +355,7 @@ module.exports = {
     getAutoSyncUsers,
     getCustomGroupUsers,
     fetchUserFromAutoSyncedGroups,
+    getAutoSyncUsersOfSingleGroup,
     createTrainingRegistration: async (input, context) => {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =

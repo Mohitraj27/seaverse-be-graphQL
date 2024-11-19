@@ -27,7 +27,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot,  groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
-            const validStatus = ["ASSIGNED", "ON_LEAVE", "OFFBOARD", "ONBOARD"];
+            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARD"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
             if (invalidStatus.length > 0) {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
@@ -81,9 +81,13 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             }
         }
         else {
-            const validFieldCount = await getValidObjectIds(type_of_Field, valueOfField);
-            if (validFieldCount.length !== valueOfField.length) {
-                errors.push(`Invalid ObjectId(s) provided for type ${type_of_Field}.`);
+            if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
+                continue;
+            } else {
+                const validFieldCount = await getValidObjectIds(type_of_Field, valueOfField);
+                if (validFieldCount.length !== valueOfField.length) {
+                    errors.push(`Invalid ObjectId(s) provided for type ${type_of_Field}.`);
+                }
             }
         }
     }
@@ -106,7 +110,8 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
 
         case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
             return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
-
+        case typeOfConditionalCustomFieldEnum.CURRENT_STATUS:
+            return valueOfField.map(value => ({ currentStatus: value }));
         default:
             return [];
     }
@@ -127,10 +132,11 @@ const createLearningPlanHelper = async (input) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (!input.audienceSelection) { errorList.push(errorMessages.AUDIENCE_SELECTION_REQUIRED); }
-        if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status !== "DRAFT") {
+            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
-        ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
+            ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
             errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED);
         }
         if (input.audienceSelection === audienceSelection.ALL_EMPLOYEES && input.conditionType) {
@@ -407,8 +413,8 @@ const getUsersAndCount = async (input) => {
 
                         } else if (condition.type_of_Field === "GROUP") {
                             let groupIDs = [];
-                            const groupType = condition.groupTypes.map(groupType => groupType);
-                            const groupId = condition.groupIDs.map(groupId => groupId);
+                            const groupType = condition.groupIDs.map(groupType => groupType.groupType);
+                            const groupId = condition.groupIDs.map(groupId => groupId.groupIDs).flat();
                             const combinedArray = groupType.map((groupType, index) => {
                                 return { groupType, groupId: groupId[index] };
                             });
@@ -428,7 +434,7 @@ const getUsersAndCount = async (input) => {
 
                                     case 'designation':
                                         const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = getDesignationUsers.map(user => user.user);
+                                        groupIDs = getDesignationUsers.map(user => user._id);
                                         break;
                                     case 'role':
                                         const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
@@ -710,25 +716,25 @@ const getUsersAndCount = async (input) => {
 };
 
 const getLearningPlanAverageProgress = async (learningPlanId) => {
-  try {
-    const progressRecords = await OverallTrainingProgress.find({ learningPlan: learningPlanId })
-      .select('progressPercentage')
-      .lean();
+    try {
+        const progressRecords = await OverallTrainingProgress.find({ learningPlan: learningPlanId })
+            .select('progressPercentage')
+            .lean();
 
-    if (progressRecords.length === 0) {
-      return 0;
+        if (progressRecords.length === 0) {
+            return 0;
+        }
+
+        const totalProgress = progressRecords.reduce((sum, record) => sum + (record.progressPercentage || 0), 0);
+
+        const averageProgress = totalProgress / progressRecords.length;
+
+        return averageProgress;
+    } catch (error) {
+        throw Error(error.message);
     }
-
-    const totalProgress = progressRecords.reduce((sum, record) => sum + (record.progressPercentage || 0), 0);
-
-    const averageProgress = totalProgress / progressRecords.length;
-
-    return averageProgress;
-  } catch (error) {
-    throw Error(error.message);
-  }
 };
 
-  
 
-module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper,getLearningPlanAverageProgress };
+
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress };

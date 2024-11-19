@@ -18,9 +18,9 @@ const certificateLayout = new Schema(
         authorName: String,
         authoringTitle: String,
         certificateReference: String,
-        logo: {
+        logos: [{
             url: String,
-        },
+        }],
         additionalData: [{
             key: { type: String, required: true },
             value: { type: Types.Mixed, required: true }
