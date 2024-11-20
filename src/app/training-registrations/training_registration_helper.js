@@ -214,51 +214,58 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
 const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
-    let remainingUsers = [];
-    let invalidEmails = [];
-    let unRegEmails = [];
-    let alreadyEnrolledEmails = [];
-    let notEnrolledEmails = [];
+    try {
 
-    for (let user of inputUsers) {
+        let remainingUsers = [];
+        let invalidEmails = [];
+        let unRegEmails = [];
+        let alreadyEnrolledEmails = [];
+        let notEnrolledEmails = [];
 
-        if (!Validator.isEmail(user.email)) {
-            invalidEmails.push(user.email)
-        } else if (!user.isRegistered) {
-            unRegEmails.push(user.email)
-        } else {
-            remainingUsers.push(user);
+        for (let user of inputUsers) {
+            if (!Validator.isEmail(user.email)) {
+                invalidEmails.push(user.email)
+            } else if (!user.isRegistered) {
+                unRegEmails.push(user.email)
+            } else {
+                remainingUsers.push(user);
+            }
+
         }
 
+        const userObjectIds = remainingUsers.map(user => user._id);
+        const userObjectIdStrings = userObjectIds.map(id => id.toString());
+
+        let alreadyEnrolledUserIds = [];
+        let notEnrolledUserIds = [];
+
+        if (existingTrainings) {
+            existingTrainings.forEach(training => {
+                if (userObjectIdStrings.includes(training.user.toString())) {
+                    alreadyEnrolledUserIds.push(training.user.toString());
+                } else {
+                    notEnrolledUserIds.push(training.user.toString());
+                }
+            });
+        }
+
+        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+        if (alreadyEnrolledUserIds.length > 0) {
+            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
+        }
+
+        if (notEnrolledUserIds.length > 0) {
+            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+        }
+
+        return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
+    } catch (error) {
+        throw Error(error.message);
     }
-
-    const userObjectIds = remainingUsers.map(user => user._id);
-    const userObjectIdStrings = userObjectIds.map(id => id.toString());
-
-    let alreadyEnrolledUserIds = [];
-    let notEnrolledUserIds = [];
-
-    if (existingTrainings) {
-        existingTrainings.forEach(training => {
-            alreadyEnrolledUserIds.push(...training.users.filter(user => userObjectIdStrings.includes(user.toString())));
-            notEnrolledUserIds.push(...training.users.filter(user => !userObjectIdStrings.includes(user.toString())));
-        });
-    }
-
-    alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
-    notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
-
-    if (alreadyEnrolledUserIds.length > 0) {
-        const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
-        alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
-    }
-
-    if (notEnrolledUserIds.length > 0) {
-        const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
-        notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
-    }
-
-    return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
 
 });
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
@@ -396,7 +403,7 @@ module.exports = {
 
             let existingTrainings = [];
             if (input.trainings && input.trainings.length > 0) {
-                existingTrainings = await TrainingRegistration.find({ training: { $in: input.trainings } });
+                existingTrainings = await OverallTrainingProgress.find({ training: { $in: input.trainings } });
             }
 
             if (input.type === "ENROLL") {
@@ -627,24 +634,22 @@ module.exports = {
                         }
 
                         const userObjectIdStrings = userObjectIds.map(id => id.toString());
-                        const updatedUsersInTraining = existingTrainings[0].users.filter(
+
+                        const existTrainingReg = await TrainingRegistration.find({ training: { $in: input.trainings } });
+                        const updatedUsersInTraining = existTrainingReg[0].users.filter(
                             userId => !userObjectIdStrings.includes(userId.toString())
                         );
 
-                        existingTrainings[0].users = updatedUsersInTraining;
-                        const updateTrainingRegistration = await existingTrainings[0].save({ session });
+                        existTrainingReg[0].users = updatedUsersInTraining;
+                        const updateTrainingRegistration = await existTrainingReg[0].save({ session });
 
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
-                        const operations = userObjectIds.map(userId => ({
-                            updateOne: {
-                                filter: { user: userId, training: input.training },
-                                update: { $set: { enroledStatus: false } },
-                                upsert: true
-                            }
-                        }));
-
-                        const unenrollUsers = await TrainingProgress.bulkWrite(operations, { session });
+                        const unenrolledUsers = await OverallTrainingProgress.updateMany(
+                            { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
+                            { $set: { isEnrolled: false } },
+                            { session }
+                        );
 
                         return updateTrainingRegistration;
                     }

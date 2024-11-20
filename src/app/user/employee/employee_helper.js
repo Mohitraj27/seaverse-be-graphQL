@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper, Validator } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -537,25 +537,21 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
     }
 
-    if (!row["LastName"]) {
-        errors.push(`Last Name is missing in row ${rowIndex + 1}.`);
-    } else if (!validateName(row["LastName"])) {
-        errors.push(`Last Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
-    }
-
     if (!row["Email"]) {
         errors.push(`Email is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
         const normalizedEmail = row["Email"].toLowerCase();
-        if (emails.has(normalizedEmail)) {
+        if (!Validator.isEmail(normalizedEmail)) {
+            errors.push(`Invalid Email in row ${rowIndex + 1} as ${normalizedEmail}.`);
+            return errors;
+        } else if (emails.has(normalizedEmail)) {
             errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${normalizedEmail}.`);
             return errors;
         } else {
             emails.add(normalizedEmail);
         }
     }
-
 
     if (!row["EmployeeID"]) {
         errors.push(`Employee ID is missing in row ${rowIndex + 1}`);

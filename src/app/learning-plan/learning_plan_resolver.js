@@ -1,10 +1,10 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper ,getLearningPlanAverageProgress } = require("./learning_plan_helper");
+const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
-const {  Moment } = require("../../tools");
+const { Moment } = require("../../tools");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
@@ -100,7 +100,7 @@ module.exports.mutations = {
         const { userInfo, userId } = AuthUser(context);
         try {
             const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-           
+
             const learningPlan = await LearningPlan.findById({ _id: id });
             if (!learningPlan) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
@@ -429,7 +429,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getLearningPlan: async ({ id }, context) => {
+    getLearningPlan: async ({ id, status, search }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -549,7 +549,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search);
 
             return detailedPlan;
         } catch (error) {

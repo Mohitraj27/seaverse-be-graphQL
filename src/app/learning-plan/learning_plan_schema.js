@@ -24,6 +24,11 @@ module.exports = {
         enum GroupTypeEnum {
             ${Object.keys(groupTypeEnums).join(" ")}
         }
+         enum TrainingProgressStatusEnum {
+             NOT_STARTED
+             IN_PROGRESS
+             COMPLETED
+         }   
          enum lastModifiedEnum {
             TODAY
             YESTERDAY
@@ -118,6 +123,23 @@ module.exports = {
             authorName: String
             isOrdered: Boolean
         }
+      type learnerData {
+        _id: ID
+       firstName: String
+       lastName: String
+       email: String
+       progressPercentage: Float
+       completedModules : Int
+       totalModules : Int
+       updatedAt: String
+     
+      }
+        type overAllProgress {
+          participantsCompleted: Int
+        learningPlan:ID
+        averageProgress:Float
+        users:[learnerData]
+        }
         type LearningPlan {
             _id: ID
             title: String!
@@ -135,7 +157,7 @@ module.exports = {
             updatedBy: User
             createdAt: String
             updatedAt: String
-            overallProgress: Float
+            overallProgress: overAllProgress
         }
         type DeleteLearningPlanResponse {
             success: Boolean!
@@ -167,6 +189,7 @@ module.exports = {
             status: LearningPlanStatus
             audienceSelection: [String!]
             lastModified: lastModifiedEnum
+           
              
         }
         input LearningPlanInput {
@@ -200,10 +223,11 @@ module.exports = {
             groupIDs: [GroupTypeInput!]
             userObjectIds: [ID]
         }
+            
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput):LearningPlanResponse!
-        getLearningPlan(id: ID!): LearningPlan
+        getLearningPlan(id: ID!,status:TrainingProgressStatusEnum,search: String): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `

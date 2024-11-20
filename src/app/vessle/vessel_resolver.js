@@ -136,13 +136,13 @@ module.exports.queries = {
                             }
                             : {},
                     },
-                    // {
-                    //     $match: filterInput?.vesselType
-                    //         ? {
-                    //             "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
-                    //         }
-                    //         : {},
-                    // },
+                    {
+                        $match: filterInput?.vesselType
+                            ? {
+                                "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
+                            }
+                            : {},
+                    },
                 ]),
                 {
                     offset: skip,
