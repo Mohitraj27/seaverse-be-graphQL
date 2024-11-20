@@ -4,6 +4,7 @@ const Permission = require("../../user/sub-roles/permission.json");
 const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 const {  CustomError, ErrorName,AuthUser ,UploadHelper} = require("../../../util");
 const aws_helper = require("../../../util/aws_helper")
+const {ObjectId} = require("../../../tools");
 
 module.exports.queries = {
     getCertificateLayoutByTrainingId: async ({ trainingId },context) => {
@@ -14,7 +15,6 @@ module.exports.queries = {
         }
         try {
           const certificate = await certificateLayout.findOne({ training: trainingId }).exec();
-          
           if (!certificate) {
             throw new Error('Certificate layout not found for this training ID');
           }
@@ -106,10 +106,6 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
             }
     
-            const logoUrls = await Promise.all(logoKeys.map(async (key) => {
-                const url = await aws_helper.fetchFile(key);
-                return { url };
-            }));
     
             if (id) {
                 const existingLayout = await certificateLayout.findById(id);
@@ -133,6 +129,8 @@ module.exports.mutations = {
                     uploadedLogos: logoUrls,
                 };
             } else {
+                const oldCertificateLayout = await certificateLayout.findOne({training : ObjectId(training)});
+                if(oldCertificateLayout)throw new Error('a layout already exists for this trainng');
                 const newCertificateLayout = new certificateLayout({
                     layout,
                     training,
@@ -147,7 +145,7 @@ module.exports.mutations = {
                 return {
                     success: true,
                     message: "Certificate layout created successfully.",
-                    uploadedLogos: logoUrls,
+                    logos: logosInput,
                 };
             }
         } catch (error) {
