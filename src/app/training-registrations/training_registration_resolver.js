@@ -600,37 +600,37 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
+            const unregEmails = [];
+            const invalidEmails = [];
+            const alreadyEnrolledEmails = [];
+            const notEnrolledEmails = [];
 
-
+            for (let email of input.users) {
+                if (!Validator.isEmail(email)) {
+                    invalidEmails.push(email);
+                }
+            }
             if (!input.users) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
             let existingTraining = null;
             if (input.training) {
-                existingTraining = await TrainingRegistration.findOne({ training: input.training });
+                existingTraining = await OverallTrainingProgress.find({ training: input.training });
             }
 
             const inputUsers = await User.find({ email: { $in: input.users } });
+           
+            if (inputUsers.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "No users found with the provided email addresses");
+            }
 
             const users = Array.from(
                 new Map(inputUsers.map(user => [user._id.toString(), user])).values()
             );
 
-            const unregEmails = [];
-            const invalidEmails = [];
-            const alreadyEnrolledEmails = [];
-            const notEnrolledEmails = [];
-
 
             if (users.length > 0) {
-
-                for (let email of input.users) {
-                    if (!Validator.isEmail(email)) {
-                        invalidEmails.push(email);
-                    }
-                }
-
                 const verifiedUsers = await TrainingRegistrationHelper.enrolUserVerificationHelper(users, existingTraining);
 
                 if (verifiedUsers.unRegEmails.length > 0) {
@@ -686,7 +686,7 @@ module.exports.mutations = {
             }
 
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw Error(error.message);
         }
 
     },
