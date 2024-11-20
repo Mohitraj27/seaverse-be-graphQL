@@ -550,7 +550,7 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id);
-
+              
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
