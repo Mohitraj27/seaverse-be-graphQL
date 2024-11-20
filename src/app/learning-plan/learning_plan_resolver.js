@@ -16,7 +16,7 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userId, userInfo } = AuthUser(context);
-            const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId });
+            const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId }, context);
             if (!result.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
             }
@@ -553,7 +553,6 @@ module.exports.queries = {
 
             return detailedPlan;
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
