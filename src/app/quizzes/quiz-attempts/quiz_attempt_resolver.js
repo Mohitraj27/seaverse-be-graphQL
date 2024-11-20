@@ -439,12 +439,12 @@ module.exports.mutations = {
 
             let totalScore = 0;
             let acquiredScore = 0;
-            const attemptedNumber = filteredQuestionAnswers.length;
+            const attemptedNumber = filteredQuestionAnswers?.length;
             let skippedQuestions = 0;
             let isPassed = false;
 
             const questionResults = trainingModuleContent.quiz.map(question => {
-                const userAnswer = filteredQuestionAnswers.find(
+                const userAnswer = filteredQuestionAnswers?.find(
                     ans => ans.questionId.toString() === question._id.toString()
                 );
 

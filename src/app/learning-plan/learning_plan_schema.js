@@ -118,6 +118,23 @@ module.exports = {
             authorName: String
             isOrdered: Boolean
         }
+      type learnerData {
+        _id: ID
+       firstName: String
+       lastName: String
+       email: String
+       progressPercentage: Float
+       completedModules : Int
+       totalModules : Int
+       updatedAt: String
+     
+      }
+        type overAllProgress {
+          participantsCompleted: Int
+        learningPlan:ID
+        averageProgress:Float
+        users:[learnerData]
+        }
         type LearningPlan {
             _id: ID
             title: String!
@@ -135,7 +152,7 @@ module.exports = {
             updatedBy: User
             createdAt: String
             updatedAt: String
-            overallProgress: Float
+            overallProgress: overAllProgress
         }
         type DeleteLearningPlanResponse {
             success: Boolean!
