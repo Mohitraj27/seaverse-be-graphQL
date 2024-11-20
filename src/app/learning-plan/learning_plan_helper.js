@@ -778,11 +778,17 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId) => {
+const getLearningPlanAverageProgress = async (learningPlanId, status, search = '') => {
     try {
+        const matchCriteria = { learningPlan: learningPlanId };
+
+        if (status !== null) {
+            matchCriteria.status = status;
+        }
+
         const groupedProgress = await OverallTrainingProgress.aggregate([
             {
-                $match: { learningPlan: learningPlanId }
+                $match: matchCriteria
             },
             {
                 $lookup: {
@@ -790,6 +796,19 @@ const getLearningPlanAverageProgress = async (learningPlanId) => {
                     localField: "user",
                     foreignField: "_id",
                     as: "userDetails"
+                }
+            },
+            {
+                $unwind: "$userDetails"  
+            },
+           
+            {
+                $match: {
+                    $or: [
+                        { "userDetails.firstName": { $regex: search, $options: 'i' } },
+                        { "userDetails.lastName": { $regex: search, $options: 'i' } },
+                        { "userDetails.email": { $regex: search, $options: 'i' } }
+                    ]
                 }
             },
             {
@@ -802,7 +821,7 @@ const getLearningPlanAverageProgress = async (learningPlanId) => {
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
                             totalModules: { $ifNull: [{ $size: "$trainingModuleIds" }, 0] },
-                            userDetails: { $arrayElemAt: ["$userDetails", 0] }
+                            userDetails: "$userDetails"
                         }
                     }
                 }
@@ -812,15 +831,6 @@ const getLearningPlanAverageProgress = async (learningPlanId) => {
                     _id: 0,
                     learningPlan: "$_id",
                     averageProgress: { $round: ["$averageProgress", 2] },
-                    // participantsCompleted: {
-                    //     $size: {
-                    //         $filter: {
-                    //             input: "$users",
-                    //             as: "user",
-                    //             cond: { $eq: ["$$user.completedModules", "$$user.totalModules"] }
-                    //         }
-                    //     }
-                    // },
                     users: {
                         $map: {
                             input: "$users",
@@ -846,6 +856,8 @@ const getLearningPlanAverageProgress = async (learningPlanId) => {
         throw new Error(error.message);
     }
 };
+
+
 
 
 
