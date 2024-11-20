@@ -97,7 +97,10 @@ module.exports.queries = {
                 break;
 
             case "Customgroups":
-                if(!groupFilter?.customGroupId)groupFilter.customGroupId = null;
+                if (groupFilter && !groupFilter.customGroupId) {
+                    groupFilter.customGroupId = null;
+                  }
+                  
                 const allCustomGroups = await getCustomGroups(groupFilter?.customGroupId);
 
                 let filteredCustomGroups = allCustomGroups;

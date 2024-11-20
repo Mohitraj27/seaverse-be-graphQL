@@ -526,7 +526,7 @@ module.exports.queries = {
                     },
                 },
             ]);
-
+            
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
