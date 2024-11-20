@@ -126,7 +126,7 @@ module.exports.mutations = {
                 return {
                     success: true,
                     message: "Certificate layout updated successfully.",
-                    uploadedLogos: logoUrls,
+                    logos: logosInput,
                 };
             } else {
                 const oldCertificateLayout = await certificateLayout.findOne({training : ObjectId(training)});
