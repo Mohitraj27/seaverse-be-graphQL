@@ -50,7 +50,7 @@ type QuizEvaluation {
     trainingModuleId: ID!
     trainingId: ID!
     userId: ID!
-    attemptedNumber: Int!   
+    attended: Int!
     totalQuestions: Int!
     totalPoints: Int!
     acquiredMarks: Int!
