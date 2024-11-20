@@ -777,25 +777,77 @@ const getUsersAndCount = async (input) => {
 
 };
 
+
 const getLearningPlanAverageProgress = async (learningPlanId) => {
     try {
-        const progressRecords = await OverallTrainingProgress.find({ learningPlan: learningPlanId })
-            .select('progressPercentage')
-            .lean();
+        const groupedProgress = await OverallTrainingProgress.aggregate([
+            {
+                $match: { learningPlan: learningPlanId }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $group: {
+                    _id: "$learningPlan",
+                    averageProgress: { $avg: "$progressPercentage" },
+                    users: {
+                        $push: {
+                            userId: "$user",
+                            progressPercentage: "$progressPercentage",
+                            completedModules: "$completedModules",
+                            totalModules: { $ifNull: [{ $size: "$trainingModuleIds" }, 0] },
+                            userDetails: { $arrayElemAt: ["$userDetails", 0] }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    learningPlan: "$_id",
+                    averageProgress: { $round: ["$averageProgress", 2] },
+                    // participantsCompleted: {
+                    //     $size: {
+                    //         $filter: {
+                    //             input: "$users",
+                    //             as: "user",
+                    //             cond: { $eq: ["$$user.completedModules", "$$user.totalModules"] }
+                    //         }
+                    //     }
+                    // },
+                    users: {
+                        $map: {
+                            input: "$users",
+                            as: "user",
+                            in: {
+                                _id: "$$user.userId",
+                                progressPercentage: "$$user.progressPercentage",
+                                completedModules: "$$user.completedModules",
+                                totalModules: "$$user.totalModules",
+                                email: "$$user.userDetails.email",
+                                firstName: "$$user.userDetails.firstName",
+                                lastName: "$$user.userDetails.lastName",
+                                updatedAt: "$$user.userDetails.updatedAt"
+                            }
+                        }
+                    }
+                }
+            }
+        ]);
 
-        if (progressRecords.length === 0) {
-            return 0;
-        }
-
-        const totalProgress = progressRecords.reduce((sum, record) => sum + (record.progressPercentage || 0), 0);
-
-        const averageProgress = totalProgress / progressRecords.length;
-
-        return averageProgress;
+        return groupedProgress?.[0] || [];
     } catch (error) {
-        throw Error(error.message);
+        throw new Error(error.message);
     }
 };
+
+
 
 
 
