@@ -207,7 +207,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         ];
 
     } catch (error) {
-        console.log(error);
+        throw Error(error.message);
     }
 
 })
@@ -456,7 +456,7 @@ module.exports = {
                             throw CustomError(ErrorName.INVALID_EMAIL);
                         }
 
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
+                        if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
                             throw CustomError(ErrorName.ALREADY_EXIST);
                         }
 
