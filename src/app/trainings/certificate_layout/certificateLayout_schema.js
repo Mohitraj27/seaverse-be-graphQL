@@ -26,6 +26,7 @@ module.exports = {
     type certificateLayoutOutput {
         success : Boolean,
         message : String
+        uploadedLogos : [MultiMediaInfo]
     }
     type CertificateLayout {
         id: ID
