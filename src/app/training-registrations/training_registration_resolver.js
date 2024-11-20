@@ -76,7 +76,20 @@ module.exports.queries = {
                 }
             },
             {
-                $unwind: '$userInfo'
+                $unwind: {
+                    path: '$userInfo',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $match: input?.search
+                    ? {
+                        $or: [
+                            { 'userInfo.firstName': { $regex: input.search, $options: 'i' } },
+                            { 'userInfo.lastName': { $regex: input.search, $options: 'i' } },
+                        ]
+                    }
+                    : {}
             },
             {
                 $group: {
@@ -86,6 +99,7 @@ module.exports.queries = {
                     },
                     users: {
                         $push: {
+                            id: "$userInfo._id",
                             firstName: "$userInfo.firstName",
                             lastName: "$userInfo.lastName",
                             status: "$status"
@@ -97,6 +111,7 @@ module.exports.queries = {
                 $sort: { '_id.learningPlanName': 1 }
             }
         ]);
+
         const formattedResults = results.map(group => ({
             learningPlanName: group._id.learningPlanName,
             users: group.users
@@ -104,6 +119,7 @@ module.exports.queries = {
 
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
         return formattedResults;
+
     },
     getTrainingRegistration: async ({ id }, context) => {
         const { role, subscriberId, employeeId } = AuthUser(context);
@@ -620,7 +636,7 @@ module.exports.mutations = {
             }
 
             const inputUsers = await User.find({ email: { $in: input.users } });
-           
+
             if (inputUsers.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No users found with the provided email addresses");
             }
