@@ -457,8 +457,6 @@ module.exports.mutations = {
 
             const validationRes = await TrainingHelper.validateTrainingProgress(input, userId);
 
-            console.log(validationRes);
-
         } catch (error) {
             throw Error(error.message);
         }
