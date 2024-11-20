@@ -150,7 +150,7 @@ module.exports.mutations = {
             if (!learningPlan) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Learning Plan not found");
             }
-            const validation = await updateLearningPlanHelper(learningPlan, input);
+            const validation = await updateLearningPlanHelper(id, input, context);
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
@@ -567,7 +567,7 @@ module.exports.queries = {
                 count
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw Error(error.message);
         }
     },
 };

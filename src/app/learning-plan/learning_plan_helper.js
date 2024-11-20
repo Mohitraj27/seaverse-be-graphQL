@@ -8,6 +8,7 @@ const { Vessel } = require("../vessle/vessel_model");
 const { VesselType } = require("../vessle/vessel-type/vessel_type_model");
 const { Designation } = require("../designations/designation_model");
 const approval_status = require("../trainings/approval_status.json")
+const TrainingStatus = require("../trainings/enum_fields/training_status.json");
 const { Training } = require("../trainings/training_model");
 const errorMessages = require("./error_helper/error_message");
 const audienceSelection = require("./enumFields/audienceSelectionEnum.json")
@@ -120,7 +121,7 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
 const validatePickingCourses = async (selectCourses) => {
     const validCourses = await Training.find({
         _id: { $in: selectCourses },
-        approvalStatus: approval_status.APPROVED,
+        status: TrainingStatus.PUBLISHED,
         isDeleted: false,
         isActive: true
     });
@@ -232,13 +233,11 @@ const createLearningPlanHelper = async (input, context) => {
         }
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
-        console.log(error, "error");
-        errorList.push(error.message);
-        return { success: false, errors: errorList };
+        throw Error(error.message);
     }
 };
 
-const updateLearningPlanHelper = async (id, input) => {
+const updateLearningPlanHelper = async (id, input, context) => {
     let errorList = [];
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
@@ -353,6 +352,15 @@ const updateLearningPlanHelper = async (id, input) => {
         existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
         existingLearningPlan.status = input.status || existingLearningPlan.status;
         await existingLearningPlan.save();
+        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers) {
+            const enrollData = {
+                trainings: existingLearningPlan.selectCourses,
+                users: existingLearningPlan?.assignedLearnerIDs,
+                type: "ENROLL",
+                learningPlan: existingLearningPlan._id
+            }
+            await createTrainingRegistration(enrollData, context);
+        }
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
