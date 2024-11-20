@@ -112,29 +112,26 @@ const generateCourseId = (courseType) => {
 const validateTrainingProgress = async (input, userId) => {
 
     try {
-        
+
         const overallIds = [...new Set(input.map(item => item.overallId))];
 
         const overallTrainingProgress = await OverallTrainingProgress.find({ _id: { $in: overallIds } });
         const overallIdToTrainingRegMap = Object.fromEntries(
             overallTrainingProgress.map(item => [item._id.toString(), item.trainingRegistration])
         );
-        
+
         const trainingRegistrationIds = [
             ...new Set(
                 Object.values(overallIdToTrainingRegMap).map(id => id.toString())
             )
         ];
 
-        const trainingProgress = await TrainingProgress.find({
-            trainingRegistration: { $in: trainingRegistrationIds },
-            userId
-        });
+        const trainingProgress = await TrainingProgress.find({ trainingRegistration: { $in: trainingRegistrationIds }, user: userId });
 
         const trainingRegToContentMap = Object.fromEntries(
             trainingProgress.map(item => [
                 item.trainingRegistration.toString(),
-                new Set(item.trainingModuleContent.map(contentId => contentId.toString()))
+                new Set([item.trainingModuleContent.toString()])
             ])
         );
 

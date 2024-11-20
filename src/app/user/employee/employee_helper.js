@@ -537,12 +537,6 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
     }
 
-    if (!row["LastName"]) {
-        errors.push(`Last Name is missing in row ${rowIndex + 1}.`);
-    } else if (!validateName(row["LastName"])) {
-        errors.push(`Last Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
-    }
-
     if (!row["Email"]) {
         errors.push(`Email is missing in row ${rowIndex + 1}`);
         return errors;
@@ -555,7 +549,6 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
             emails.add(normalizedEmail);
         }
     }
-
 
     if (!row["EmployeeID"]) {
         errors.push(`Employee ID is missing in row ${rowIndex + 1}`);

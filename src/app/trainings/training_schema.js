@@ -224,6 +224,8 @@ module.exports = {
         type creationRes {
             status: Int
             message: String
+            trainingId: ID
+            trainingName: String
         }
         input SyncOfflineDataInput {
             id: ID!

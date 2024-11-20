@@ -242,10 +242,11 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
 
-
         return {
             status: 1,
             message: "Training created successfully",
+            trainingId: savedTraining._id,
+            trainingName: savedTraining.title[0].value,
         };
     },
     deleteTraining: async ({ id }, context) => {
