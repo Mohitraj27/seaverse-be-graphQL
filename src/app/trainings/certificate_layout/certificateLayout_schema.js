@@ -26,7 +26,7 @@ module.exports = {
     type certificateLayoutOutput {
         success : Boolean,
         message : String
-        uploadedLogos : [MultiMediaInfo]
+        logos : [MultiMediaInfo]
     }
     type CertificateLayout {
         id: ID
@@ -36,7 +36,7 @@ module.exports = {
         title: [LocalisedData]
         authoringTitle: String
         certificateReference: String
-        logos: [logoUrlOutput]
+        logos: [MultiMediaInfo]
         additionalData: [genericObjectOutput]
         createdAt: String
         updatedAt: String
