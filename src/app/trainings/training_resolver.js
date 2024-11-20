@@ -311,7 +311,7 @@ module.exports.mutations = {
             _id: input.id,
             subscriber: subscriberId,
         });
-        if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND);
+        if (!currentTraining) throw CustomError(ErrorName.NOT_FOUND, "Training not found.");
         const currentStatus = currentTraining.status;
         const updateFields = {};
         if (input.newStatus) {

@@ -8,6 +8,7 @@ const { Vessel } = require("../vessle/vessel_model");
 const { VesselType } = require("../vessle/vessel-type/vessel_type_model");
 const { Designation } = require("../designations/designation_model");
 const approval_status = require("../trainings/approval_status.json")
+const TrainingStatus = require("../trainings/enum_fields/training_status.json");
 const { Training } = require("../trainings/training_model");
 const errorMessages = require("./error_helper/error_message");
 const audienceSelection = require("./enumFields/audienceSelectionEnum.json")
@@ -21,6 +22,7 @@ const { getCustomGroupUsers, getAutoSyncUsers, createTrainingRegistration } = re
 const roles = require("../../util/role.json");
 const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const validRoles = Object.values(roles);
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -56,7 +58,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                     group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
                     break;
                 case 'role':
-                    if (![roles].includes(group.groupIDs)) {
+                    if (!group.groupIDs.every(role => validRoles.includes(role))) {
                         errors.push(errorMessages.INVALID_ROLE_ID);
                     } else {
                         group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
@@ -119,7 +121,7 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
 const validatePickingCourses = async (selectCourses) => {
     const validCourses = await Training.find({
         _id: { $in: selectCourses },
-        approvalStatus: approval_status.APPROVED,
+        status: TrainingStatus.PUBLISHED,
         isDeleted: false,
         isActive: true
     });
@@ -219,21 +221,23 @@ const createLearningPlanHelper = async (input, context) => {
             updatedBy: input.updatedBy
         });
         await newLearningPlan.save();
-        const enrollData = {
-            trainings: newLearningPlan.selectCourses,
-            users: newLearningPlan?.assignedLearnerIDs,
-            type: "ENROLL",
-            learningPlan: newLearningPlan._id
+
+        if (newLearningPlan.assignedLearnerIDs.length > 0) {
+            const enrollData = {
+                trainings: newLearningPlan.selectCourses,
+                users: newLearningPlan?.assignedLearnerIDs,
+                type: "ENROLL",
+                learningPlan: newLearningPlan._id
+            }
+            await createTrainingRegistration(enrollData, context);
         }
-        await createTrainingRegistration({ enrollData }, context);
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
-        errorList.push(error.message);
-        return { success: false, errors: errorList };
+        throw Error(error.message);
     }
 };
 
-const updateLearningPlanHelper = async (id, input) => {
+const updateLearningPlanHelper = async (id, input, context) => {
     let errorList = [];
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
@@ -336,7 +340,7 @@ const updateLearningPlanHelper = async (id, input) => {
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields
             });
-       
+
         }
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
@@ -348,6 +352,15 @@ const updateLearningPlanHelper = async (id, input) => {
         existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
         existingLearningPlan.status = input.status || existingLearningPlan.status;
         await existingLearningPlan.save();
+        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers) {
+            const enrollData = {
+                trainings: existingLearningPlan.selectCourses,
+                users: existingLearningPlan?.assignedLearnerIDs,
+                type: "ENROLL",
+                learningPlan: existingLearningPlan._id
+            }
+            await createTrainingRegistration(enrollData, context);
+        }
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
@@ -358,6 +371,8 @@ const getUsersAndCount = async (input) => {
     try {
         let filter = {};
         filter.isDeleted = false;
+        filter.isActive = true;
+        filter.isRegistered = true;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';

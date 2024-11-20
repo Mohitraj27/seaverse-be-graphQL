@@ -28,7 +28,7 @@ module.exports = {
         message : String
     }
     type CertificateLayout {
-        id: ID!
+        id: ID
         layout: String
         training: Training
         authorName: String
