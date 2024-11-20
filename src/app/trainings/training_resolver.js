@@ -34,6 +34,7 @@ const {
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -153,7 +154,7 @@ module.exports.mutations = {
         }
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
-            
+
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, coverImage, bannerImage, session },
                 context
@@ -241,10 +242,11 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
 
-
         return {
             status: 1,
             message: "Training created successfully",
+            trainingId: savedTraining._id,
+            trainingName: savedTraining.title[0].value,
         };
     },
     deleteTraining: async ({ id }, context) => {
@@ -424,34 +426,36 @@ module.exports.mutations = {
 
         return savedTraining;
     },
-    syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
+    syncOfflineDataAndUpdateProgress: async (_, context) => {
 
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
 
-        // const sampleInput =[
-        //     {
-        //         training: 673985e4eed6a475949eebd5,
-        //         trainingModule: 673985e4eed6a475949eebdc,
-        //         contentDetails: [
-        //             {
-        //                 contentId: 672c56bb30341a64bce39daf,
-        //                 contentStatus: COMPLETED,
-        //                 playerSettings: {}
-        //             },
-        //             {
-        //                 contentId: 672c55a98739e629342ac266,
-        //                 contentStatus: IN_PROGRESS,
-        //                 playerSettings: {}
-        //             }
-        //         ]
-        //     }
-        // ]
+        const input = [
+            {
+                overallId: "673b4c7b4e2e6e365028678b",
+                trainingModule: "673b32cee826bf6a20cfe157",
+                contentDetails: [
+                    {
+                        contentId: "672b0c6c4cdb99219b24fd09",
+                        contentStatus: 'COMPLETED',
+                        playerSettings: {}
+                    },
+                    {
+                        contentId: "67348588c0d4bf51b6053c39",
+                        contentStatus: 'IN_PROGRESS',
+                        playerSettings: {}
+                    }
+                ]
+            }
+        ]
 
         try {
 
             if (!subscriberId || !userId) throw CustomError(ErrorName.NOT_FOUND);
 
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+            const validationRes = await TrainingHelper.validateTrainingProgress(input, userId);
 
         } catch (error) {
             throw Error(error.message);

@@ -224,6 +224,8 @@ module.exports = {
         type creationRes {
             status: Int
             message: String
+            trainingId: ID
+            trainingName: String
         }
         input SyncOfflineDataInput {
             id: ID!
@@ -244,6 +246,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
-        syncOfflineDataAndUpdateProgress(input: SyncOfflineDataInput!): offlineSyncRes
+        syncOfflineDataAndUpdateProgress: offlineSyncRes
     `,
 };
