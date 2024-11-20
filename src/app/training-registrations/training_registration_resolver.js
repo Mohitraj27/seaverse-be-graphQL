@@ -555,8 +555,6 @@ module.exports.queries = {
                 },
             ]);
 
-            console.log(JSON.stringify(trainingDetails, null, 2));
-
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
@@ -598,7 +596,6 @@ module.exports.queries = {
                 message: "Course details fetched successfully",
                 course: processedTrainingDetails[0]
             }
-
 
         } catch (error) {
             throw Error(error.message);
