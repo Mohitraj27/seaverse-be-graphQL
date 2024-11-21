@@ -27,10 +27,17 @@ const overallProgressSchema = new Schema(
             type: ObjectId,
             ref: "TrainingRegistration",
         },
-        trainingModuleContentIds: [ObjectId],
-        trainingModuleIds: [ObjectId],
+        contentData : [
+            {
+                moduleId : ObjectId,
+                contentIds : [ObjectId]
+            },
+        ],
+        startDate: Date,
+        endDate : Date,
         mandatoryModules: Number,
         completedModules: Number,
+        totalTrainingModules : Number,
         isComplete: {
             type: Boolean,
             default: false,

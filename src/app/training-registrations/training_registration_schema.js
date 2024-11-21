@@ -198,6 +198,22 @@ module.exports = {
             message: String
             course: OverallTrainingProgress
         }
+        input MarkAsCompleteInput {
+            training: ID!
+            userIds: [ID]!
+        }
+        input ResetModulesInput {
+            training: ID!
+            userIds: [ID]
+        }
+        type MarkAsCompletedRes {
+            status: Boolean
+            message: String
+        }
+        type ResetModulesRes {
+            status: Boolean
+            message: String
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
@@ -213,5 +229,7 @@ module.exports = {
         updateTrainingRegistration(id: ID!, input: TrainingRegistrationUpdateInput!): TrainingRegistration!
         deleteTrainingRegistration(id: ID!): TrainingRegistration!
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
+        markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
+        resetModules(input: ResetModulesInput!): ResetModulesRes!
     `,
 };

@@ -52,6 +52,12 @@ module.exports = {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]!  
             isOrIsNot: String!
+            groupIDs: [ID!]
+        }
+          type groupTypeRes {
+            _id: ID
+            groupType: GroupTypeEnum
+            groupIDs: [ID!]
         }
         type LocalizedField {
             _id: ID
@@ -145,7 +151,7 @@ module.exports = {
             title: String!
             selectCourses: [courseDetails!]!
             targetAudience: TargetAudienceEnum
-            groupIDs: [ID]
+            groupIDs: [groupTypeRes]
             userObjectIds: [ID]
             status: LearningPlanStatus!
             audienceSelection: AudienceSelectionEnum!

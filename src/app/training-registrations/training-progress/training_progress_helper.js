@@ -267,6 +267,30 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
     }
 };
 
+const calculateTotalDuration = async (moduleContentIds)=>{
+    try {
+        const moduleContents = await TrainingModuleContent.find({
+            '_id': { $in: moduleContentIds }
+        }).select('duration');
+
+        if (!moduleContents.length) {
+            return 0;
+        }
+        let totalDuration = 0;
+        moduleContents.forEach(content => {
+            const duration = parseFloat(content.duration);
+            
+            if (!isNaN(duration)) {
+                totalDuration += duration;
+            }
+        });
+        return totalDuration;
+    } catch (error) {
+        console.error("Error calculating total duration:", error);
+        throw error;
+    }
+};
+
 module.exports = {
     updateTrainingProgress: async ({ input, existingTrainingRegistration }, context) => {
         const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager } =
@@ -477,6 +501,7 @@ module.exports = {
                     subscriber: subscriberId,
                     user: userId,
                     trainingRegistration: input.trainingRegistrationId,
+                    training : currentOverallTrainingProgress.training,
                     trainingModuleContentId: input.nextTrainingModuleContentId,
                     trainingModule: input.nextTrainingModuleId,
                     trainingModuleContentData: {

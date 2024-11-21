@@ -26,6 +26,8 @@ const { sendEmail } = require("../../util/aws_helper");
 const Permission = require("../user/sub-roles/permission.json");
 const LogType = require("../logs/log_type.json");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
+const { TrainingModuleContent } = require("../trainings/training_modules/training_module_contents/training_module_content_model")
+const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 
 
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
@@ -217,10 +219,13 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
         let notEnrolledEmails = [];
 
         for (let user of inputUsers) {
+            const existEmail = await User.findOne({ email: user.email });
             if (!Validator.isEmail(user.email)) {
                 invalidEmails.push(user.email)
             } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
+            } else if (!existEmail) {
+                invalidEmails.push(user.email)
             } else {
                 remainingUsers.push(user);
             }
@@ -271,6 +276,19 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         user: { $in: users.map(user => user._id) }
     });
 
+    const trainingModules = await TrainingModule.find({
+        training: { $in: trainings.map(training => training._id) }
+    });
+    const trainingModulesMap = trainingModules.reduce((result, trainingModule) => {
+        if (!result[trainingModule.training]) {
+            result[trainingModule.training] = [];
+        }
+        result[trainingModule.training].push({
+            moduleId: trainingModule._id,
+            contentIds: trainingModule.trainingModuleContents || [] 
+        });
+        return result;
+    }, {});
     const existingProgressSet = new Set(
         existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
     );
@@ -283,6 +301,9 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 return null;
             }
 
+            const contentData = trainingModulesMap[training] || [];
+            const totalTrainingModules = contentData.length;
+
             return {
                 learningPlan: learningPlanId ? learningPlanId : null,
                 training: training,
@@ -292,7 +313,11 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 status: 'NOT_STARTED',
                 isEnrolled: true,
                 progressPercentage: 0.0,
-                completedModules: 0
+                completedModules: 0,
+                contentData: contentData,
+                totalTrainingModules: totalTrainingModules,
+                startDate : null,
+                endDate : null,
             };
         })
     ).filter(entry => entry !== null);
@@ -302,8 +327,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
     }
 
     return trainingProgressData;
-}
-
+};
 
 const getAutoSyncUsers = (async (groups) => {
 
@@ -469,6 +493,15 @@ module.exports = {
                 if (users.length > 0) {
                     userObjectIds = users.map(user => user._id);
                 }
+
+                const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
+                if (alreadyExistInCourse.length > 0) {
+                    await OverallTrainingProgress.updateMany(
+                        { user: { $in: userObjectIds }, training: { $in: input.trainings } },
+                        { $set: { isEnrolled: true } }
+                    );
+                }
+
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
