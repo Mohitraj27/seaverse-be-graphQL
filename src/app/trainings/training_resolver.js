@@ -182,9 +182,9 @@ module.exports.mutations = {
                     );
             }
 
-            const savedTrainingModuleIDs = savedTrainingModule.result.upserted.map(item => item._id)
+            const savedTrainingModuleIDs = savedTrainingModule?.result?.upserted?.map(item => item._id)
 
-            input.trainingModules.forEach((trainingModule, index) => {
+            input.trainingModules?.forEach((trainingModule, index) => {
                 if (!trainingModule._id && savedTrainingModuleIDs[index]) {
                     trainingModule._id = savedTrainingModuleIDs[index];
                 }
@@ -247,10 +247,10 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-
+        const message = input._id?`Training updated successfully`:`Training created successfully`;
         return {
             status: 1,
-            message: "Training created successfully",
+            message: message,
             trainingId: savedTraining._id,
             trainingName: savedTraining.title[0].value,
         };
