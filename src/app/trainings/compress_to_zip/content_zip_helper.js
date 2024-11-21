@@ -1,3 +1,6 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { contentTypes } = require("../../../util");
 const axios = require('axios');
 const archiver = require('archiver');
@@ -7,56 +10,85 @@ const AwsHelper = require("../../../util/aws_helper");
 
 const fileDownloader = async (contentMap) => {
 
-    const zipStream = new stream.PassThrough();
     const archive = archiver('zip', { zlib: { level: 9 } });
     const metadata = {};
 
-    archive.pipe(zipStream);
+    const saveZipName = `zip_${Date.now()}.zip`;
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, saveZipName);
+    const fileWriteStream = fs.createWriteStream(tempFilePath);
+
+    archive.pipe(fileWriteStream);
 
     for (const [contentId, fileUrl] of contentMap.entries()) {
-
-        let updatedUrl = await AwsHelper.fetchFile(fileUrl);
+        const updatedUrl = await AwsHelper.fetchFile(fileUrl);
 
         try {
+
             const response = await axios.get(updatedUrl, { responseType: 'stream' });
             const fileName = fileUrl.split('/').pop();
 
             archive.append(response.data, { name: fileName });
 
             metadata[contentId] = fileName;
+
         } catch (error) {
-            console.error(`Failed to download file: ${updatedUrl}`, error);
+            return;
         }
+
     }
 
     archive.append(JSON.stringify(metadata, null, 2), { name: 'metadata.json' });
 
     await archive.finalize();
 
-    let saveZipName = `zip_${Date.now()}.zip`;
-
-    const filePath = await uploadZip({
-        data: zipStream,
-        folderName: 'trainingContents',
-        fileName: saveZipName,
-        uploadType: uploadType.lessonZip,
+    await new Promise((resolve, reject) => {
+        fileWriteStream.on('finish', () => {
+            resolve();
+        });
+        fileWriteStream.on('error', (error) => {
+            reject(error);
+        });
     });
 
-    return filePath;
+    let filePath;
 
-}
+    try {
+
+        filePath = await uploadZip({
+            data: fs.createReadStream(tempFilePath),
+            folderName: 'trainingContents',
+            fileName: saveZipName,
+            uploadType: uploadType.lessonZip,
+        });
+
+    } catch (uploadError) {
+        return;
+    } finally {
+        fs.unlink(tempFilePath, (err) => {
+            if (err) {
+                return;
+            }
+        });
+    }
+
+    return filePath;
+    
+};
+
 const fetchFiles = (contents) => {
 
     let fileUrlMap = new Map();
 
     for (let content of contents) {
         const trainingContent = content.trainingContent;
-        switch (content.contentType) {
+
+        switch (trainingContent.contentType) {
             case contentTypes.VIDEO:
-                fileUrlMap.set(content._id, trainingContent.video[0]?.url);
+                fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
                 break;
             case contentTypes.IMAGE:
-                fileUrlMap.set(content._id, trainingContent.audio[0]?.url);
+                fileUrlMap.set(content._id, trainingContent.images[0]?.url);
                 break;
             default:
                 fileUrlMap.set(content._id, trainingContent.files[0]?.url);
@@ -76,6 +108,10 @@ const getTheContent = async (contents, tableType) => {
 
     if (fetchedData.size > 0) {
         zipUrl = await fileDownloader(fetchedData);
+    }
+
+    if (!zipUrl) {
+        return null;
     }
 
     return zipUrl;
