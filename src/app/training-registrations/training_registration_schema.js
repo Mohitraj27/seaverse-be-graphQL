@@ -170,6 +170,7 @@ module.exports = {
             COMPLETED
         }
         type userDetails {
+            id: ID!
             firstName: String!
             lastName: String
             status: Status!
@@ -181,6 +182,7 @@ module.exports = {
         input getTrainingRegsInput {
             training: ID!
             isEnrolled: Boolean!
+            search: String
         }
         input myCourseFilterInput {
             search: String
