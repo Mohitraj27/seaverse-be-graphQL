@@ -15,7 +15,7 @@ module.exports = {
             const trainingModuleFilterConditions = {
                 _id: module._id ?? ObjectId(),
                 subscriber: subscriberId,
-                training: module.training?._id ?? module.training,
+                
             };
 
             const trainingModuleUpdateData = {};
@@ -25,12 +25,10 @@ module.exports = {
             if (typeof module.isActive === "boolean") trainingModuleUpdateData.isActive = module.isActive;
             if (module.trainingModuleContents) trainingModuleContentUpdateData.push(...module.trainingModuleContents);
             if (trainingId) trainingModuleUpdateData.training = trainingId;
-
             return {
                 updateOne: {
                     filter: trainingModuleFilterConditions,
                     update: {
-                        ...trainingModuleFilterConditions,
                         ...trainingModuleUpdateData,
                         $setOnInsert: { createdBy: userId },
                         updatedBy: userId,
@@ -50,6 +48,7 @@ module.exports = {
         if (!updatedModules) {
             throw CustomError(ErrorName.FAILED);
         }
+        
 
         return updatedModules;
     }

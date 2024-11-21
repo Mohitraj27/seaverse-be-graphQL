@@ -432,10 +432,24 @@ module.exports.queries = {
                             },
                             {
                                 $lookup: {
-                                    from: "quizzes",
+                                    from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
                                     as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails.quizDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails.choices",
                                 },
                             },
                             {
@@ -472,10 +486,24 @@ module.exports.queries = {
                             },
                             {
                                 $lookup: {
-                                    from: "quizzes",
+                                    from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
                                     as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails.quizDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails.choices",
                                 },
                             },
                             {
@@ -588,7 +616,6 @@ module.exports.queries = {
                 message: "Course details fetched successfully",
                 course: processedTrainingDetails[0]
             }
-
 
         } catch (error) {
             throw Error(error.message);
