@@ -11,6 +11,10 @@ const requiresRole = role => resolver => {
     if (isFunction(resolver))
         return (_, args, context = {}) => {
             context.resolverName = resolver.name;
+            if (!context.user) {
+                console.log(`auth_helper:requiresRole:UNAUTHORIZED:${context.resolverName}`);
+                throw CustomError(ErrorName.UNAUTHORIZED);
+            }
             const isAdmin =
                 context.user?.userInfo?.subRoles?.[0]?.name === 'ADMIN' ||
                 context.user?.userInfo?.subRoles?.[0]?.primaryRole === 'ADMIN' ||
@@ -26,7 +30,7 @@ const requiresRole = role => resolver => {
             ) {
                 return resolver(args, context);
             } else {
-                console.log(`auth_helper:requiresRole:UNAUTHORIZED:${context.resolverName}`);
+                console.log(`auth_helper:requiresRole:FORBIDDEN:${context.resolverName}`);
                 throw CustomError(ErrorName.FORBIDDEN);
             }
         };
