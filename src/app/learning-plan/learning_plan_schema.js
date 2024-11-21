@@ -157,7 +157,7 @@ module.exports = {
             updatedBy: User
             createdAt: String
             updatedAt: String
-            overallProgress: overAllProgress
+            overallProgress: overAllProgress 
         }
         type DeleteLearningPlanResponse {
             success: Boolean!

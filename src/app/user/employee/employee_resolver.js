@@ -1497,6 +1497,20 @@ module.exports.mutations = {
 
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
+
+                await EmployeeHelper.sendNotificationOnBULK({
+                    subscriber: subscriberId,
+                    action: "BULK IMPORT",
+                    createdBy: userId,
+                    uploadedBy: userId,
+                    isError: true,
+                    description: `${errors[0]}`,
+                    notificationType: 'BULK_IMPORT',
+                    status: "FAILED"
+                })
+
+
+
                 throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
             }
 
