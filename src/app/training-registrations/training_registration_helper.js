@@ -276,8 +276,6 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
 
     let trainingProgressData;
-    console.log("users", users);
-    console.log("trainings", trainings);
     const existingProgressRecords = await OverallTrainingProgress.find({
         training: { $in: trainings.map(training => training._id) },
         user: { $in: users.map(user => user._id) }
