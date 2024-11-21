@@ -56,12 +56,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                 case groupTypes.subRole:
                     subRoleIds.push(groupId);
                     break;
-                case groupTypes.regStatus:
-                    regStatusIds.push(groupId);
-                    break;
-                case groupTypes.unregStatus:
-                    regStatusIds.push(groupId);
-                    break;
                 case groupTypes.vessel:
                     vesselIds.push(groupId);
                     break;
@@ -89,7 +83,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                         { "subRoles.name": "ADMIN" }
                     ]
                     : [
-                        { role: "LEARNER", "subRoles.name": { $ne: "ADMIN" } } // Learner and subRole not admin
+                        { role: "LEARNER", "subRoles.name": { $ne: "ADMIN" } }
                     ]
             }).populate("subRoles", "name")
             : Promise.resolve([]);
