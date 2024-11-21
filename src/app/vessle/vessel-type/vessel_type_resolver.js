@@ -117,14 +117,16 @@ module.exports.mutations = {
 
             const vesselType = await VesselType.findById(id);
             if (!vesselType) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel Type not found.');
+                throw  CustomError(ErrorName.NOT_FOUND, 'Vessel Type not found.');
             }
 
             const alreadyInUse = await Vessel.findOne({ typeOfVessel: id, isDeleted: { $ne: true } });
             if (alreadyInUse) {
                 throw CustomError(ErrorName.ALREADY_IN_USE, 'Vessel Type already in use.');
             }
-
+            if(vesselType.isDeleted) {
+                throw CustomError(ErrorName.ALREADY_DELETED, 'Vessel Type already deleted.');
+            }
             vesselType.isDeleted = true;
             vesselType.updatedBy = userId;
 

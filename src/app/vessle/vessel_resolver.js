@@ -8,6 +8,9 @@ const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
 const { VesselType } = require("./vessel-type/vessel_type_model");
+const { VesselHelper } = require("./vessel_helper");
+const LogHelper = require("../logs/log_helper");
+const LogType = require("../logs/log_type.json");
 
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
@@ -57,7 +60,6 @@ module.exports.queries = {
                         },
                     },
                     { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
-                    // { $project: { _id: 1, name: 1, typeOfVessel: 1, imoNumber: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }
                 ]),
                 {
                     offset: skip,
@@ -73,7 +75,7 @@ module.exports.queries = {
                 }
             );
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
@@ -88,16 +90,42 @@ module.exports.queries = {
 
             return vessel;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
+        }
+    },
+
+    validateImoNumber: async ({ imoNumber }, context) => {
+        try {
+            const { subscriberId } = AuthUser(context);
+
+            const vessel = await Vessel.findOne({ 
+                imoNumber: { $regex: imoNumber, $options: "i" }, subscriber: subscriberId });
+            if (vessel) {
+                throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
+            }
+
+            return {
+                status: true,
+                message: 'IMO number is valid'
+            };
+        } catch (error) {
+            throw Error(error.message);
         }
     },
 };
 
 module.exports.mutations = {
     createVessel: async ({ input }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            const { name, typeOfVessel, imoNumber } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
+
+            if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
+            if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
+            if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
+            if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
+            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
+
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -109,6 +137,10 @@ module.exports.mutations = {
                 name: name,
                 typeOfVessel: typeOfVessel,
                 imoNumber: imoNumber,
+                isActive: isActive,
+                companyName: companyName,
+                ownerName: ownerName,
+                address: address,
                 createdBy: userId,
                 updatedBy: userId,
             });
@@ -116,21 +148,51 @@ module.exports.mutations = {
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
 
-            return vesselData;
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.VESSEL_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "Vessel",
+                        target: vesselData._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "VESSEL_INFO",
+                        infoData: JSON.stringify(vesselData),
+                    },
+                ],
+                createdBy: userInfo,
+            });
+
+            return {
+                success: true,
+                message: 'Vessel created successfully.',
+                vessel: vesselData
+            }
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
     updateVessel: async ({ id, input }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-            const { name, typeOfVessel, imoNumber } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
 
             const vessel = await Vessel.findOne({ _id: id });
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
+
+            if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
+            if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
+            if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
+            if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
+            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -140,60 +202,139 @@ module.exports.mutations = {
             vessel.name = name;
             vessel.typeOfVessel = typeOfVessel;
             vessel.imoNumber = imoNumber;
+            vessel.isActive = isActive;
+            vessel.companyName = companyName;
+            vessel.ownerName = ownerName;
+            vessel.address = address;
             vessel.subscriber = subscriberId;
 
             await vessel.save();
 
-            return vessel;
+            const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
+
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.VESSEL_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "Vessel",
+                        target: vesselData._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "VESSEL_INFO",
+                        infoData: JSON.stringify(vesselData),
+                    },
+                ],
+                createdBy: userInfo,
+            });
+
+            return {
+                success: true,
+                message: 'Vessel updated successfully.',
+                vessel: vesselData
+            }
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
-    deleteVessel: async ({ id }, context) => {
+    deleteVessel: async ({ ids }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-
-            const vessel = await Vessel.findOne({ _id: id });
-
-            if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+            if (!ids || ids.length === 0) {
+                throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel id is required.');
             }
 
-            vessel.isDeleted = true;
-            vessel.updatedBy = userId;
+            for (let id of ids) {
+                const vessel = await Vessel.findOne({ _id: id });
 
-            await vessel.save();
+                if (!vessel) {
+                    throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                }
+                if (vessel.isDeleted) {
+                    throw CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
+                }
+                vessel.isDeleted = true;
+                vessel.updatedBy = userId;
+
+                await vessel.save();
+
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.VESSEL_LOG,
+                    operation: "DELETE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "Vessel",
+                            target: vessel._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "VESSEL_INFO",
+                            infoData: JSON.stringify(vessel),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
+            }
 
             return {
                 success: true,
                 message: 'Vessel deleted successfully.'
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
 
-    activateDeactivateVessel: async ({ id }, context) => {
+    activateDeactivateVessel: async ({ ids }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+            let vessel
+            for (let id of ids) {
+                vessel = await Vessel.findOne({ _id: id });
+                if (!vessel) {
+                    throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                }
 
-            const vessel = await Vessel.findOne({ _id: id });
-            if (!vessel) {
-                throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                vessel.isActive = !vessel.isActive;
+                vessel.updatedBy = userId;
+
+                await vessel.save();
+
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.VESSEL_LOG,
+                    operation: "ACTIVATE_DEACTIVATE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "Vessel",
+                            target: vessel._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "VESSEL_INFO",
+                            infoData: JSON.stringify(vessel),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
             }
-
-            vessel.isActive = !vessel.isActive;
-            vessel.updatedBy = userId;
-
-            await vessel.save();
 
             return {
                 success: true,
                 message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
-    }
+    },
 };
