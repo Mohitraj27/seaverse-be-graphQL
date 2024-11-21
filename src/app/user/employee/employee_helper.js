@@ -1658,7 +1658,7 @@ module.exports = {
                                 $set: {
                                     user: user,
                                     subscriber: subscriberId,
-                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase()).id,
+                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase())?.id,
                                     bulkId: bulkId,
                                     regType: 2
                                 }
