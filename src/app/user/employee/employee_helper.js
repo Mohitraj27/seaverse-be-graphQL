@@ -875,6 +875,7 @@ module.exports = {
     sendCourseInvitationMail,
     sendEnrollmentNotification,
     sendNotificationOnCRUD,
+    sendNotificationOnBULK,
     generateUserUID,
     generateEmployeeUID,
     sendCredentialMail,
