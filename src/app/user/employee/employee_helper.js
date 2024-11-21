@@ -1358,8 +1358,6 @@ module.exports = {
         };
     },
 
-
-
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
         console.log(users, "users", emailsArray);
 
