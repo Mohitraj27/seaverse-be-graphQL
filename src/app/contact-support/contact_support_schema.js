@@ -13,5 +13,6 @@ module.exports = {
    
     mutations: `
         contactSupport(input: contactSupportInput!): contactSupportResponse!
+        sendTestMail(input: contactSupportInput!): contactSupportResponse!
     `,
 };

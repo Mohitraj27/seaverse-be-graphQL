@@ -25,6 +25,11 @@ module.exports = {
             question: ID
             choice: [LocalisedData]
         }
+        type UserData {
+            _id: ID
+            firstName: String
+            lastName: String
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
@@ -55,6 +60,12 @@ module.exports = {
             modifiedDate: String
             isUpdated: Boolean
             isDeleted: Boolean
+            isPublished: Boolean
+            createdBy: UserData
+            updatedBy: UserData
+            featuredInCourses: Int
+            quizDetails: QuestionNew
+            trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
@@ -77,6 +88,11 @@ module.exports = {
             invalidDeletes: [InvalidUpdate]
         }
         type UpdateContentResponse {
+            success: Boolean!
+            message: String!
+            updatedContent: TrainingModuleContent
+        }
+        type UpdateContentQuizResponse {
             success: Boolean!
             message: String!
             updatedContent: TrainingModuleContent
@@ -105,8 +121,11 @@ module.exports = {
         }
         input TrainingModuleContentQuizInput {
             _id: ID
+            UID: String
             title: [LocalisedDataInput]!
             description: [LocalisedDataInput]
+            contentType: TrainingModuleContentType
+            contentStatus: TrainingModuleContentStatus
             percentageCriteria: Int
             duration: String
             randomiseQuestionOrder: Boolean
@@ -136,10 +155,19 @@ module.exports = {
             lang: Language!
             value: String!
         }
+        enum useStatusInput {
+            IN_USE
+            NOT_IN_USE
+        }
+        type featuredInCourses {
+            courseCount: Int
+            courseNames: [String]
+        }
     `,
     queries: `
-        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: TrainingModuleContentType): TrainingModuleContentList
+        getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: [TrainingModuleContentType], useStatus: useStatusInput): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
+        getFeaturedInCourses(id: ID!): featuredInCourses
     `,
     mutations: `
         uploadTrainingModuleContentSorm(input: TrainingModuleContentInput!,scorm: Upload!, thumbnail: Upload): TrainingModuleContent!
@@ -152,5 +180,7 @@ module.exports = {
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
+        updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
+        pushLatestContent(id: ID!): creationRes!
          `,
 };

@@ -53,7 +53,7 @@ module.exports = {
             enableFreeFlow: Boolean
             unlockOn: UnlockOn
             status: StatusType
-            trainingModuleContents:[TrainingModuleContent]
+            trainingModuleContents:[String]
             courseId: String
             course_validity: String
             courseLevel: CourseLevel
@@ -67,7 +67,7 @@ module.exports = {
             setTimeLimitForModule: Boolean
             approvalStatus: String
             certifications: [MultiMediaInfo]
-            bannerImage: [MultiMediaInfo]
+            bannerImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
@@ -75,6 +75,7 @@ module.exports = {
             createdBy: User
             isDeleted: Boolean
             createdAt: String
+            updatedAt: String
             trainingModules: [TrainingModule]
             scorm:Scorm
             groupTrainingModule: [GroupTrainingModule]
@@ -85,9 +86,12 @@ module.exports = {
             enableEmailNotification: Boolean  
             setReminder: Boolean 
             setFrequencyDate: String 
-            manadatoryModules: String  
+            manadatoryModules: Int  
             classroomModule: ClassroomModule
             authorName: String
+            isOrdered : Boolean
+            isCertificate: Boolean
+            courseTag: String
         }
         type Scorm {
             type:String
@@ -145,7 +149,6 @@ module.exports = {
             feedback: FeedbackContentFeedbackInput
             feedbackContent: ID
             
-            images: [MultiMediaInfoInput]
             price: Float
             """in days"""
             durationHours: Int
@@ -165,7 +168,6 @@ module.exports = {
             attemptType: AttemptType
             setLimitAttempt: Int
             certifications: [MultiMediaInfoInput]
-            bannerImage: [MultiMediaInfoInput]
             disableFurtherAttemptsOnPass: Boolean
             lockModulesBetweenAttempts: Boolean
             setTimeLimitForModule: Boolean
@@ -183,16 +185,16 @@ module.exports = {
             setReminder: Boolean 
             setFrequencyDate: String 
             authorName: String 
-            manadatoryModules: String 
+            manadatoryModules: Int 
             classroomModule: ClassroomModuleInput
             isCertificate : Boolean
+            isOrdered : Boolean
         }
         input TrainingFilterInput {
             search: String
-            trainingCategory: ID
-            trainingSubCategory: ID
-            approvalStatus: ApprovalStatus
             isActive: Boolean
+            status: StatusType
+            dateFilter: Int
         }
         input ClassroomModuleInput {
             title: [LocalisedDataInput]!
@@ -214,16 +216,36 @@ module.exports = {
             startTime: String
             endTime: String
         }
+         
+        input UpdateTrainingStatusInput {
+            id: ID!
+            newStatus : StatusType
+        }
+        type creationRes {
+            status: Int
+            message: String
+            trainingId: ID
+            trainingName: String
+        }
+        input SyncOfflineDataInput {
+            id: ID!
+            offlineData: String
+        }
+        type offlineSyncRes {
+            status: Int
+            message: String
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
         getTraining(id: ID!): Training!
     `,
     mutations: `
-        createOrUpdateTraining(input: TrainingInput!): Training!
+        createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!
         deleteTraining(id: ID!): Training!
-        updateTrainingStatus(id: ID!, isActive: Boolean!): Training!
+        updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
+        syncOfflineDataAndUpdateProgress: offlineSyncRes
     `,
 };

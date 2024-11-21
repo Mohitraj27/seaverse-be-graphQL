@@ -68,6 +68,16 @@ const errorName = {
     INVALID_FILE_FORMAT: "INVALID_FILE_FORMAT",
     NOT_ALL_PUBLISHED: "NOT_ALL_PUBLISHED",
     INVALID_PERCENTAGE_CRITERIA: "INVALID_PERCENTAGE_CRITERIA",
+    ALREADY_DELETED: "ALREADY_DELETED",
+    GROUP_NOT_FOUND: "GROUP_NOT_FOUND",
+    INVALID_GROUP_ID: "INVALID_GROUP_ID",
+    LEARNING_PLAN_ALREADY_EXISTS: "LEARNING_PLAN_ALREADY_EXISTS",
+    LEARNING_PLAN_NOT_CREATED: "LEARNING_PLAN_NOT_CREATED",
+    EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
+    INVALID_EMAIL: "INVALID_EMAIL",
+    INVALID_LEARNING_PLAN_STATUS_UPDATE:"INVALID_LEARNING_PLAN_STATUS_UPDATE",
+    INVALID_LEARNING_PLAN:"INVALID_LEARNING_PLAN",
+    LEARNING_PLAN_NOT_FOUND:"LEARNING_PLAN_NOT_FOUND"
 };
 
 const errorType = {
@@ -410,6 +420,56 @@ const errorType = {
         message: "Percentage criteria should be less than the total score",
         statusCode: 400,
         type: "INVALID_PERCENTAGE_CRITERIA"
+    },
+    ALREADY_DELETED: {
+        message: 'Already Deleted',
+        statusCode: 400,
+        type: "ALREADY_DELETED"
+    },
+    GROUP_NOT_FOUND: {
+        message: 'Group Not Found',
+        status: 400,
+        type: "GROUP_NOT_FOUND"
+    },
+    INVALID_GROUP_ID: {
+        message: 'Invalid Group Id',
+        status: 400,
+        type: "INVALID_GROUP_ID"
+    },
+    LEARNING_PLAN_ALREADY_EXISTS: {
+        message: 'Learning Plan with this title already exists',
+        status: 400,
+        type: "LEARNING_PLAN_ALREADY_EXISTS"
+    },
+    LEARNING_PLAN_NOT_CREATED:{
+        message: 'Learning Plan Not Created',
+        status: 400,    
+        type: "LEARNING_PLAN_NOT_CREATED"
+    },
+    EMPLOYEE_NOT_REGISTERED: {
+        message: "Employee Not Registered",
+        statusCode: 400,
+        type: "EMPLOYEE_NOT_REGISTERED"
+    },
+    INVALID_EMAIL: {
+        message: "Invalid Email",
+        statusCode: 400,
+        type: "INVALID_EMAIL"
+    },
+    INVALID_LEARNING_PLAN_STATUS_UPDATE: {
+        message: "Learning Plan Status Update Cannot be DRAFT",
+        statusCode: 400,
+        type: "INVALID_LEARNING_PLAN_STATUS_UPDATE"
+    },
+    INVALID_LEARNING_PLAN: {
+        message: "Invalid Learning Plan Provided",
+        statusCode: 400,
+        type: "INVALID_LEARNING_PLAN"
+    },
+    LEARNING_PLAN_NOT_FOUND: {
+        message: "Learning Plan Not Found",
+        statusCode: 400,
+        type: "LEARNING_PLAN_NOT_FOUND"
     }
 };
 

@@ -44,6 +44,7 @@ module.exports = {
             trainingCertificates: [TrainingCertificate]
             signature: String
             currentVessel: Vessel
+            groupDetails: Group
         }
         type EmployeeList {
             batch: Batch
@@ -199,7 +200,7 @@ module.exports = {
             organization: ID
             subRole: ID,
             regType: Int
-            role: RoleEnum
+            role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
@@ -213,6 +214,13 @@ module.exports = {
         }
         input ManagerFilterInput {
             search: String
+        }
+        input EmailorEmployeeIdInput {
+            email: String
+            civilIdOrPassport: String
+        }
+        input UserObjectIDs {
+            ids: [ID!]!
         }
         input ImportUserInput {
             firstName: String!
@@ -249,15 +257,34 @@ module.exports = {
             status: Boolean
             message: String
         }
+        type valdationResponse {
+            status: Boolean
+            message: String
+        }
+        type exportUserToCsvResponse {
+            status: Boolean
+            message: String
+            filePath: String
+        }
         type csvimportLogRes {
             id: ID,
             usersCount: Int,
             fileName: String,
-            filePath: String,
+            filePath: MultiMediaInfo,
             importStatus: String,
             description: String,
             createdAt: String
         }
+        input emailIDInput{
+            email: [String]!
+        }  
+
+     
+type FetchFileResponse {
+    success: Boolean!
+    message: String
+    url: String
+}
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -267,6 +294,9 @@ module.exports = {
         getImportLogs: [importlogs]
         getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
+        sendWelcomeMails(emailInput: emailIDInput): [String]
+        validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
+         fetchSampleFile: FetchFileResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
@@ -279,5 +309,6 @@ module.exports = {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
+        exportUserToCsv(input: UserObjectIDs!): exportUserToCsvResponse!
     `,
 };

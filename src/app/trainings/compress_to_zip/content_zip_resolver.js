@@ -42,14 +42,12 @@ module.exports.mutations = {
 
             let getContent;
             if (trainingModuleContentsFromTrainingProgress.length > 0) {
-
                 getContent = await getTheContent(trainingModuleContentsFromTrainingProgress, 'progressCollection');
-                
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-
                 getContent = await getTheContent(trainingModuleContentsFromTrainingContent, 'contentCollection');
-
             }
+
+            if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
 
             const zip = await AwsHelper.fetchFile(getContent);
 

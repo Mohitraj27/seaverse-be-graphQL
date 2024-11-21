@@ -39,9 +39,8 @@ const trainingModuleSchema = new Schema(
         trainingModuleContents: [
             {
                 type: ObjectId,
-                ref: "TrainingModuleContent",
+                ref: "TrainingContentBridge",
                 required: true,
-                index: true,
             }
         ],
     },

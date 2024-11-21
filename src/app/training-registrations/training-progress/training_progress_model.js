@@ -3,24 +3,41 @@ const {
     TrainingModuleContentSpecificSchema,
 } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { QuizAttemptSpecificSchema } = require("../../quizzes/quiz-attempts/quiz_attempt_model");
+const Types = require("mongoose");
+const { contentTypes } = require("../../../util");
 
 const trainingProgressSchema = new Schema(
     {
         subscriber: {
             type: ObjectId,
             ref: "Subscriber",
-            required: true,
+        },
+        training: {
+            type: ObjectId,
+            ref: "Training",
+        },
+        user: {
+            type: ObjectId,
+            ref: "User",
         },
         trainingRegistration: {
             type: ObjectId,
             ref: "TrainingRegistration",
-            required: true,
-            index: true,
         },
         trainingModuleContent: {
             type: ObjectId,
             ref: "TrainingModuleContent",
-            required: true,
+        },
+        playerSettings: {
+            type: Schema.Types.Mixed,
+        },
+        trainingModule: {
+            type: ObjectId,
+            ref: "TrainingModule",
+        },
+        contentType: {
+            type: String,
+            enum: contentTypes,
         },
         trainingModuleContentData: {
             trainingId: ObjectId,
@@ -28,15 +45,25 @@ const trainingProgressSchema = new Schema(
             trainingModuleContentId: ObjectId,
             ...TrainingModuleContentSpecificSchema,
         },
+        playerSettings: [
+            {
+                key: { type: String, required: true },
+                value: { type: Types.Mixed, required: true },
+            },
+        ],
         retryCount: Number,
         status: {
             type: String,
-            uppercase: true,
+            default: "NOT_STARTED",
+            enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
+        },
+        enroledStatus: {
+            type: Boolean,
+            default: true,
         },
         lastAccessedItem: String,
         lastAccessedAt: Date,
         lastAccessedDuration: Number,
-
         quizAttempts: [QuizAttemptSpecificSchema],
 
         startedAt: Date,

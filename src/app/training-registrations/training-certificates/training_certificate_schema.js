@@ -55,9 +55,39 @@ module.exports = {
             dateFrom: String
             dateTo: String
         }
+        
+        type getCertificateOutput {
+            trainingCertificates : [userCertificateData]
+            totalCount : Int
+        }
+
+        type userCertificateData {
+            _id : ID
+            createdAt : String
+            generatedAt : String
+            expiresAt : String
+            certificateNumber : String
+            user : certificateUserInfo
+            training : certiTrainingInfo
+            layoutInfo : CertificateLayout
+        }
+        type certificateUserInfo{
+            firstName : String
+            lastName : String
+        }
+        type certiTrainingInfo{
+            title : [LocalisedData]
+            description : [LocalisedData]
+        }
+
+        
     `,
     queries: `
         getTrainingCertificates(pageInput: PageInput, filterInput: TrainingCertificateFilterInput): TrainingCertificateList!
         getTrainingCertificate(id: ID!): TrainingCertificate!
+        getUserCertificates(id: ID!,pageInput: PageInput): getCertificateOutput
+    `,
+    mutations : `
+        generateCertificates(trainingRegistrationId:ID):TrainingCertificateList
     `,
 };

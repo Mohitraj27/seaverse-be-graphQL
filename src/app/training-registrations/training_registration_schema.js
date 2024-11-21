@@ -18,7 +18,7 @@ module.exports = {
         }
         type TrainingRegistration {
             _id: ID
-            training: Training
+            training: ID
             batch: Batch
             batchNumber: String
             trainingDuration: Int
@@ -49,6 +49,27 @@ module.exports = {
             trainingAttendance: TrainingAttendance
             trainingCertificate: TrainingCertificate
             scorm:Scorm
+            users: [ID]
+        }
+        type OverallTrainingProgress {
+            _id: ID
+            subscriber: Subscriber
+            learningPlan: LearningPlan
+            training: Training
+            user: User
+            trainingRegistration: ID
+            trainingModuleContentIds: [ID]
+            trainingModuleIds: [ID]
+            mandatoryModules: Int
+            completedModules: Int
+            isComplete: Boolean
+            status: Status
+            retryCount: Int
+            progressPercentage: Int
+            isEnrolled: Boolean
+            moduleCount: Int
+            totalDuration: Int
+            trainingModules: [TrainingModule]
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -65,19 +86,36 @@ module.exports = {
             employee: ID!
             trainer: ID
         }
+        enum groupTypeEnums {
+            designation
+            role
+            subRole
+            regStatus
+            vessel
+            vesselType
+            vesselStatus
+            custom
+        }
+        input GroupInputForEnroll {
+            groupType: groupTypeEnums!
+            groupId: String!
+        }
+        enum enrollType {
+            ENROLL
+            UNENROLL
+        }
         input TrainingRegistrationInput {
-            employee: ID
-            branch: ID
-            organization: ID
+            type: enrollType!
             training: ID
+            trainings: [ID]
+            learningPlan: ID
             trainingDuration: Int
             certificateValidity: Int
             trainer: ID
             startDate: String
             endDate: String
-            unitPrice: Float
-            customPrice: Float
-            remarks: String
+            groups: [GroupInputForEnroll]
+            users: [String]
             trainingMode: TrainingMode
         }
         input TrainingRegistrationUpdateInput {
@@ -110,17 +148,88 @@ module.exports = {
         input AssignedTrainingRegistrationFilterInput {
             organization: ID
         }
+        type trainingEnrollmentRes {
+            message: String!
+        }
+        input verifyRegistrationEmailsInput {
+            training: ID
+            users: [String]!
+            type: enrollType!
+        }
+        type verifyRegistrationEmailsRes {
+            unregEmails: [String]
+            invalidEmails: [String]
+            alreadyEnrolledEmails: [String]
+            notEnrolledEmails: [String]
+            remainingEmails: [String]
+            status: Boolean
+        }
+        enum Status {
+            NOT_STARTED
+            IN_PROGRESS
+            COMPLETED
+        }
+        type userDetails {
+            id: ID!
+            firstName: String!
+            lastName: String
+            status: Status!
+        }
+        type getTrainingRegsRes {
+            learningPlanName: String
+            users: [userDetails]
+        }
+        input getTrainingRegsInput {
+            training: ID!
+            isEnrolled: Boolean!
+            search: String
+        }
+        input myCourseFilterInput {
+            search: String
+            status: Status
+        }
+        type myCoursesRes {
+            status: Boolean
+            message: String
+            courses: [OverallTrainingProgress]
+        }
+        type singleTrainingRes {
+            status: Boolean
+            message: String
+            course: OverallTrainingProgress
+        }
+        input MarkAsCompleteInput {
+            training: ID!
+            userIds: [ID]!
+        }
+        input ResetModulesInput {
+            training: ID!
+            userIds: [ID]
+        }
+        type MarkAsCompletedRes {
+            status: Boolean
+            message: String
+        }
+        type ResetModulesRes {
+            status: Boolean
+            message: String
+        }
     `,
     queries: `
-        getTrainingRegistrations(pageInput: PageInput, filterInput: TrainingRegistrationFilterInput): TrainingRegistrationList!
+        getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
+        myCourses(filterInput: myCourseFilterInput): myCoursesRes!
+        getSingleCourseDetails(input: ID!): singleTrainingRes!
     `,
     mutations: `
         """used for assign course to employee"""
-        createTrainingRegistration(input: TrainingRegistrationInput!, invoiceInput: TrainingRegistrationInvoiceInput): TrainingRegistration
+        createTrainingRegistration(input: TrainingRegistrationInput!): trainingEnrollmentRes!
+        verifyRegistrationEmails(input: verifyRegistrationEmailsInput!): verifyRegistrationEmailsRes!
         updateTrainingRegistration(id: ID!, input: TrainingRegistrationUpdateInput!): TrainingRegistration!
         deleteTrainingRegistration(id: ID!): TrainingRegistration!
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
+        markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
+        resetModules(input: ResetModulesInput!): ResetModulesRes!
     `,
 };
