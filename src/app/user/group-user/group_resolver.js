@@ -102,7 +102,7 @@ module.exports.queries = {
                     groupFilter.customGroupId = null;
                 }
 
-                const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId);
+                const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
 
                 let filteredCustomGroups = allCustomGroups;
                 if (groupFilter?.search) {
@@ -111,7 +111,7 @@ module.exports.queries = {
                     );
                 }
 
-                const paginatedCustomGroups = filteredCustomGroups.slice(skip, skip + limit);
+                const paginatedCustomGroups = filteredCustomGroups;
                 groups = paginatedCustomGroups;
                 totalCount = paginatedCustomGroups.length;
                 break;
@@ -603,14 +603,6 @@ module.exports.mutations = {
             if (input.groupType === "GROUP") {
                 if (getDesignationIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "designation", getDesignationIds, session);
-                }
-
-                if (regStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "registered", regStatusIds, session);
-                }
-
-                if (unRegStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "unregistered", unRegStatusIds, session);
                 }
 
                 if (subRoleIds.length > 0) {
