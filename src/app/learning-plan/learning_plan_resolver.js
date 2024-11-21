@@ -259,6 +259,20 @@ module.exports.queries = {
                 { $match: queryConditions },
                 {
                     $lookup: {
+                        from: "groups", 
+                        localField: "groupIDs", 
+                        foreignField: "_id", 
+                        as: "groupDetails"  
+                    }
+                },
+                {
+                    $unwind: {
+                        path: "$groupDetails",
+                        preserveNullAndEmptyArrays: true 
+                    }
+                },
+                {
+                    $lookup: {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
@@ -401,6 +415,7 @@ module.exports.queries = {
                         updatedAt: 1,
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
+                        conditionalCustomFields: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
