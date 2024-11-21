@@ -130,6 +130,31 @@ module.exports = {
             fileName : String
             learnerData : [singleLearnersReport]
         }
+        input MainCoursesReportInput {
+            filterInput: CourseFilterInput   
+            pageInput: PageInput       
+            export: Boolean                  
+        }
+        input CourseFilterInput {
+            name: String            
+            isDeleted: Boolean      
+            status: String          
+        }
+        type CourseReportData {
+            _id: ID
+            title :  [LocalisedData]                       
+            updatedAt: String                
+            updatedBy: String                
+            totalUsers: Int                  
+            NOT_STARTED: Int                 
+            IN_PROGRESS: Int                
+            COMPLETED: Int                  
+        }
+        type mainCourseReportOutput {
+            filePath : String
+            fileName : String
+            coursesData : [CourseReportData]
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -138,5 +163,6 @@ module.exports = {
         getTrainingMatrixReports(pageInput: PageInput, filterInput: TrainingMatrixReportFilterInput): TrainingMatrixReportsList!
         getMainLearnersReport(input :learnerMainReportInput ):learnerMainReportResponse
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
+        getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
     `,
 };

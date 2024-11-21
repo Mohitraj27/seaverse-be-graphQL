@@ -434,9 +434,184 @@ const getSingleLearnerReport = async ({ input }, context) => {
     }
 };
 
+const getMainCoursesReport = async ({ input }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+    try {
+        input = input || {};
+
+        const matchStage = [];
+
+        if (Object.keys(input).length > 0) {
+            const filterInput = input.filterInput || {};
+
+            if (filterInput.name) {
+                matchStage.push({
+                    $match: {
+                        'title.value': { $regex: filterInput.name, $options: 'i' },
+                    },
+                });
+            }
+
+            if (filterInput.isDeleted !== undefined) {
+                matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
+            }
+
+            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+            const limit = input.pageInput?.pageSize || 0;
+
+            if (limit > 0) {
+                matchStage.push({ $skip: skip }, { $limit: limit });
+            }
+        }
+
+        const data = await Training.aggregate([
+            {
+                $lookup: {
+                    from: 'overalltrainingprogresses',
+                    localField: '_id',
+                    foreignField: 'training',
+                    as: 'progress',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$progress',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'progress.user',
+                    foreignField: '_id',
+                    as: 'userInfo',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$userInfo',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'updatedBy',
+                    foreignField: '_id',
+                    as: 'updatedByUser',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$updatedByUser',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            ...matchStage,
+            {
+                $group: {
+                    _id: '$_id',
+                    title: { $first: '$title' },
+                    updatedAt: { $first: '$updatedAt' },
+                    updatedBy: { $first: '$updatedByUser.firstName' },
+                    updatedByLastName: { $first: '$updatedByUser.lastName' },
+                    uniqueUsers: { $addToSet: '$progress.user' },
+                    usersByStatus: { $push: { user: '$progress.user', status: '$progress.status' } },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    updatedAt: 1,
+                    updatedBy: {
+                        $concat: [
+                            '$updatedBy',
+                            ' ',
+                            '$updatedByLastName',
+                        ],
+                    },
+                    totalUsers: { $size: '$uniqueUsers' },
+                    statusCounts: {
+                        NOT_STARTED: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'NOT_STARTED'] },
+                                },
+                            },
+                        },
+                        IN_PROGRESS: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'IN_PROGRESS'] },
+                                },
+                            },
+                        },
+                        COMPLETED: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'COMPLETED'] },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ]);
+
+        const coursesData = data.map(item => ({
+            _id: item._id,
+            title: item.title,
+            updatedAt: new Date(item.updatedAt).toLocaleString(),
+            updatedBy: item.updatedBy,
+            totalUsers: item.totalUsers,
+            NOT_STARTED: item.statusCounts.NOT_STARTED,
+            IN_PROGRESS: item.statusCounts.IN_PROGRESS,
+            COMPLETED: item.statusCounts.COMPLETED,
+        }));
+
+        let s3PresignedUrl = "";
+
+        if (input?.export) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "Courses_Report_exports",
+                fileName: `Courses_Report-${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
+            });
+            if (excelFilePath) {
+                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            }
+            return {
+                filePath: s3PresignedUrl,
+                fileName: path.basename(excelFilePath),
+                coursesData,
+            };
+        }
+        return {
+            coursesData,
+        };
+
+    } catch (err) {
+        throw Error(err.message);
+    }
+};
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
+    getMainCoursesReport,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 
