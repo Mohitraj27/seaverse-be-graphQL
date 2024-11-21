@@ -223,10 +223,13 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
         let notEnrolledEmails = [];
 
         for (let user of inputUsers) {
+            const existEmail = await User.findOne({ email: user.email });
             if (!Validator.isEmail(user.email)) {
                 invalidEmails.push(user.email)
             } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
+            } else if (!existEmail) {
+                invalidEmails.push(user.email)
             } else {
                 remainingUsers.push(user);
             }
@@ -475,6 +478,15 @@ module.exports = {
                 if (users.length > 0) {
                     userObjectIds = users.map(user => user._id);
                 }
+
+                const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
+                if (alreadyExistInCourse.length > 0) {
+                    await OverallTrainingProgress.updateMany(
+                        { user: { $in: userObjectIds }, training: { $in: input.trainings } },
+                        { $set: { isEnrolled: true } }
+                    );
+                }
+
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
