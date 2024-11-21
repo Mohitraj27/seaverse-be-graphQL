@@ -44,7 +44,7 @@ module.exports = {
 
 `,
     queries:`
-    getCertificateLayoutByTrainingId(trainingId:ID):CertificateLayout
+    getCertificateLayoutByTrainingId(trainingId:ID!):CertificateLayout
 `,
     mutations: `
     createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
