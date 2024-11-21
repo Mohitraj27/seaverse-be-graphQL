@@ -276,7 +276,8 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
 
     let trainingProgressData;
-
+    console.log("users", users);
+    console.log("trainings", trainings);
     const existingProgressRecords = await OverallTrainingProgress.find({
         training: { $in: trainings.map(training => training._id) },
         user: { $in: users.map(user => user._id) }
@@ -291,7 +292,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         }
         result[trainingModule.training].push({
             moduleId: trainingModule._id,
-            contentIds: trainingModule.trainingModuleContents || [] 
+            contentIds: trainingModule.trainingModuleContents || []
         });
         return result;
     }, {});
@@ -322,8 +323,8 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 completedModules: 0,
                 contentData: contentData,
                 totalTrainingModules: totalTrainingModules,
-                startDate : null,
-                endDate : null,
+                startDate: null,
+                endDate: null,
             };
         })
     ).filter(entry => entry !== null);
@@ -447,29 +448,32 @@ module.exports = {
                     }
 
                     allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
-
+                    console.log("allUsersFetched", allUsersFetched);
                 }
 
                 const userIds = [];
                 const emails = [];
+                let users = [];
 
-                for (const user of input.users) {
-                    if (ObjectId.isValid(user)) {
-                        userIds.push(user);
-                    } else {
-                        emails.push(user);
+                if (input.users && input.users.length > 0) {
+                    for (const user of input.users) {
+                        if (ObjectId.isValid(user)) {
+                            userIds.push(user);
+                        } else {
+                            emails.push(user);
+                        }
                     }
+
+                    const criteria = [];
+                    if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                    if (emails.length) criteria.push({ email: { $in: emails } });
+
+                    const inputUsers = await User.find({ $or: criteria });
+
+                    allUsersFetched = [...allUsersFetched, ...inputUsers];
                 }
 
-                const criteria = [];
-                if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                if (emails.length) criteria.push({ email: { $in: emails } });
-
-                const inputUsers = await User.find({ $or: criteria });
-
-                allUsersFetched = [...allUsersFetched, ...inputUsers];
-
-                const users = Array.from(
+                users = Array.from(
                     new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
                 );
 
@@ -705,6 +709,7 @@ module.exports = {
             }
 
         } catch (error) {
+            console.log("error", error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
 
