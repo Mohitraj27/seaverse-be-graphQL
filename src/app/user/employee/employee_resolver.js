@@ -530,7 +530,7 @@ module.exports.queries = {
             !SubRoleHelper.hasPermission({
                 currentRole: role,
                 currentPermissions: userPermissions,
-                primaryRole : primaryRole,
+                primaryRole: primaryRole,
                 requiredPermission: [
                     Permission.GET_EMPLOYEES,
                 ],
@@ -665,46 +665,65 @@ module.exports.queries = {
             },
             {
                 $lookup: {
-                    from: "vessels",
-                    localField: "user.currentVessel",
-                    foreignField: "_id",
-                    as: "currentVessel",
+                    from: "uservessels",
+                    localField: "user._id",
+                    foreignField: "user",
+                    as: "userVessels",
                     pipeline: [
-                        {
-                            $match: {
-                                name: { $exists: true, $ne: null },
-                            },
-                        },
-                        {
-                            $project: {
-                                _id: 1,
-                                name: 1,
-                                typeOfVessel: 1,
-                                imoNumber: 1,
-                                isActive: 1,
-                                createdAt: 1,
-                                updatedAt: 1,
-                            },
-                        },
+                        // {
+                        //     $match: {
+                        //         isActive: true,
+                        //     },
+                        // },
                         {
                             $lookup: {
-                                from: "vesseltypes",
-                                localField: "typeOfVessel",
+                                from: "vessels",
+                                localField: "vessel",
                                 foreignField: "_id",
-                                as: "typeOfVessel",
+                                as: "vesselDetails",
                                 pipeline: [
                                     {
                                         $match: {
-                                            _id: { $ne: null },
+                                            name: { $exists: true, $ne: null },
                                         },
                                     },
                                     {
                                         $project: {
                                             _id: 1,
                                             name: 1,
+                                            typeOfVessel: 1,
+                                            imoNumber: 1,
                                             isActive: 1,
-                                            createdAt: 1,
-                                            updatedAt: 1,
+
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "vesseltypes",
+                                            localField: "typeOfVessel",
+                                            foreignField: "_id",
+                                            as: "typeOfVesselDetails",
+                                            pipeline: [
+                                                {
+                                                    $match: {
+                                                        _id: { $ne: null },
+                                                    },
+                                                },
+                                                {
+                                                    $project: {
+                                                        _id: 1,
+                                                        name: 1,
+                                                        isActive: 1,
+
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$typeOfVesselDetails",
+                                            preserveNullAndEmptyArrays: true,
                                         },
                                     },
                                 ],
@@ -712,7 +731,7 @@ module.exports.queries = {
                         },
                         {
                             $unwind: {
-                                path: "$typeOfVessel",
+                                path: "$vesselDetails",
                                 preserveNullAndEmptyArrays: true,
                             },
                         },
@@ -721,15 +740,16 @@ module.exports.queries = {
             },
             {
                 $unwind: {
-                    path: "$currentVessel",
+                    path: "$userVessels",
                     preserveNullAndEmptyArrays: true,
                 },
             },
+
             ...(filterInput?.vesselName?.length > 0
                 ? [
                     {
                         $match: {
-                            "currentVessel.name": {
+                            "userVessels.vesselDetails.name": {
                                 $in: filterInput.vesselName.map(
                                     name => new RegExp(".*" + name + ".*", "i")
                                 ),
@@ -742,7 +762,7 @@ module.exports.queries = {
                 ? [
                     {
                         $match: {
-                            "currentVessel.typeOfVessel._id": {
+                            "userVessels.vesselDetails.typeOfVesselDetails._id": {
                                 $in: filterInput.vesselType.map(id => ObjectId(id)),
                             },
                         },
@@ -796,18 +816,6 @@ module.exports.queries = {
                                         $options: "i",
                                     },
                                 },
-                                {
-                                    "managerObjectId.firstName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "managerObjectId.lastName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
                             ],
                         },
                     },
@@ -850,6 +858,8 @@ module.exports.queries = {
                 ]
                 : []),
         ]);
+        console.log(JSON.stringify(result), "result");
+
         return result;
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
