@@ -277,10 +277,10 @@ module.exports = {
                     }
                 });
 
-                existingContentBridges.forEach(doc => {
+                existingContentBridges?.forEach(doc => {
                     const key = `${doc.trainingModule}_${doc.trainingContent}`;
-                    if (doc.trainingModule.toString() === moduleId.toString() &&
-                        !module.trainingModuleContents.includes(doc.trainingContent.toString()) &&
+                    if (doc.trainingModule?.toString() === moduleId?.toString() &&
+                        !module.trainingModuleContents?.includes(doc.trainingContent?.toString()) &&
                         doc.isDeleted === false) {
                         trainingContentBridgeBulkOperations.push({
                             updateOne: {
