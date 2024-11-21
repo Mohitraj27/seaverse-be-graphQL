@@ -122,6 +122,7 @@ module.exports = {
             status : String
             updatedAt : String
             quizPercentage : Int
+            totalTimeSpent : Int
             isPassed : Boolean
         }
         type singleLearnersReportOutput {

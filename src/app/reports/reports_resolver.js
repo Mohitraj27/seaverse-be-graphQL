@@ -320,16 +320,46 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     "preserveNullAndEmptyArrays": true
                   }
                 },
-                ...matchStage,
+                {
+                  "$lookup": {
+                    "from": "trainingprogress",
+                    "localField": "training",
+                    "foreignField": "training",
+                    "as": "trainingProgressInfo",
+                    "pipeline": [
+                      {
+                        "$match": {
+                          "user": ObjectId(input.learnerId),
+                          "status": "COMPLETED"
+                        }
+                      },
+                      {
+                        "$lookup": {
+                          "from": "trainingmodulecontents",
+                          "localField": "trainingModuleContent",
+                          "foreignField": "_id",
+                          "as": "moduleContentInfo"
+                        }
+                      },
+                      {
+                        "$unwind": {
+                          "path": "$moduleContentInfo",
+                          "preserveNullAndEmptyArrays": true
+                        }
+                      },
+                      {
+                        "$project": {
+                          "duration": "$moduleContentInfo.duration"
+                        }
+                      }
+                    ]
+                  }
+                },
                 {
                   "$project": {
                     "courseName": {
-                      "$arrayElemAt": [
-                        "$trainingInfo.title.value",
-                        0
-                      ]
+                      "$arrayElemAt": ["$trainingInfo.title.value", 0]
                     },
-                    "duration": "$trainingInfo.durationHours",
                     "createdAt": 1,
                     "completionDate": 1,
                     "status": 1,
@@ -341,23 +371,25 @@ const getSingleLearnerReport = async ({ input }, context) => {
                       "$arrayElemAt": ["$userInfo.lastName", 0]
                     },
                     "quizPercentage": {
-                      "$ifNull": [
-                        "$quizevaluationInfo.percentage",
-                        null
-                      ]
+                      "$ifNull": ["$quizevaluationInfo.percentage", null]
                     },
                     "isPassed": {
-                      "$ifNull": [
-                        "$quizevaluationInfo.isPassed",
-                        null
-                      ]
+                      "$ifNull": ["$quizevaluationInfo.isPassed", null]
+                    },
+                    "totalTimeSpent": {
+                      "$sum": {
+                        "$map": {
+                          "input": "$trainingProgressInfo.duration",
+                          "as": "duration",
+                          "in": { "$toDouble": "$$duration" }
+                        }
+                      }
                     }
                   }
                 }
-              ]
-              
+              ]              
         );
-        console.log(learnerData);
+        
         const learnerName = learnerData.length > 0 ? `${learnerData[0].firstName} ${learnerData[0].lastName}` : 'Unknown Learner';
 
         const data = learnerData.map(item => ({
@@ -365,7 +397,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             status: item.status,
             Enrollment_Date: item.createdAt,
             Completion_Date: item.completionDate ? item.completionDate : "Not Applicable",
-            Duration: item.duration[0] ? item.duration[0] : "Not Present",
+            totalTimeSpent : item.totalTimeSpent ? item.totalTimeSpent : 0,
             LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
         }));
 
