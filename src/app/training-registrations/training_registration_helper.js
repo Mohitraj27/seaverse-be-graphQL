@@ -446,7 +446,6 @@ module.exports = {
                     }
 
                     allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
-                    console.log("allUsersFetched", allUsersFetched);
                 }
 
                 const userIds = [];
@@ -707,7 +706,6 @@ module.exports = {
             }
 
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
 
