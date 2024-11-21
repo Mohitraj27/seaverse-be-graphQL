@@ -875,6 +875,7 @@ module.exports = {
     sendCourseInvitationMail,
     sendEnrollmentNotification,
     sendNotificationOnCRUD,
+    sendNotificationOnBULK,
     generateUserUID,
     generateEmployeeUID,
     sendCredentialMail,
@@ -1357,8 +1358,6 @@ module.exports = {
             totalCount: savedEmployees.length,
         };
     },
-
-
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
         console.log(users, "users", emailsArray);

@@ -8,6 +8,7 @@ const {
     ParseDateTime,
     courseStatus,
     UploadHelper,
+    CurrentDateTime
 } = require("../../util");
 
 const { TrainingRegistration } = require("./training_registration_model");
@@ -37,6 +38,9 @@ const { OverallTrainingProgress } = require("./overall-course-progress/overall_p
 const XLSX = require('xlsx');
 const path = require('path');
 const aws_helper = require("../../util/aws_helper");
+const { TrainingContentBridge } = require("../../app/trainings/training_content_bridge/training_content_model");
+const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
+const { v4: uuidv4 } = require('uuid');
 
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
@@ -428,10 +432,24 @@ module.exports.queries = {
                             },
                             {
                                 $lookup: {
-                                    from: "quizzes",
+                                    from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
                                     as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails.quizDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails.choices",
                                 },
                             },
                             {
@@ -468,10 +486,24 @@ module.exports.queries = {
                             },
                             {
                                 $lookup: {
-                                    from: "quizzes",
+                                    from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
                                     as: "trainingModuleContentDetails.quizDetails",
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingModuleContentDetails.quizDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "answerchoices",
+                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails.quizDetails.choices",
                                 },
                             },
                             {
@@ -542,7 +574,7 @@ module.exports.queries = {
                     },
                 },
             ]);
-            
+
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
@@ -584,7 +616,6 @@ module.exports.queries = {
                 message: "Course details fetched successfully",
                 course: processedTrainingDetails[0]
             }
-
 
         } catch (error) {
             throw Error(error.message);
@@ -635,6 +666,18 @@ module.exports.mutations = {
                 existingTraining = await OverallTrainingProgress.find({ training: input.training });
             }
 
+            if (input.users && input.users.length > 0) {
+                for (let email of input.users) {
+                    if (!Validator.isEmail(email)) {
+                        invalidEmails.push(email);
+                    } else {
+                        const user = await User.findOne({ email: email });
+                        if (!user) {
+                            invalidEmails.push(email);
+                        }
+                    }
+                }
+            }
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
@@ -884,4 +927,144 @@ module.exports.mutations = {
         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
         return savedTrainingRegistration;
     },
+
+    markAsCompleted: async ({ input }, context) => {
+        const { subscriberId } = AuthUser(context);
+        try {
+            if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+            if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
+            if (!input.userIds || input.userIds.length === 0) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "User IDs are required");
+
+            const trainingData = await Training.findOne({ _id: input.training });
+            const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
+            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
+            await OverallTrainingProgress.updateMany(
+                { training: input.training, user: { $in: input.userIds } },
+                {
+                    $set: {
+                        status: "COMPLETED",
+                        progressPercentage: 100,
+                        isComplete: true,
+                        completedModules: trainingModuleIds.length,
+                        isCertificateGenerated: true
+                    }
+                }
+            );
+
+            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } });
+
+            const selectedCertificateLayout = await certificateLayout.findOne({
+                training: input.training,
+            });
+
+            if (!selectedCertificateLayout) {
+                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
+            }
+
+            const generateSVCertificateId = async () => {
+                const uuid = uuidv4().replace(/-/g, '').toUpperCase();
+                const certNumber = `SV-${uuid.substring(0, 8)}`;
+                return certNumber;
+            }
+
+            await Promise.all(
+                overallTrainingProgressUsers.map(async (progressUser) => {
+                    const populate = [
+                        { path: "user", select: "firstName lastName email" }
+                    ];
+
+                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate(populate);
+
+                    const existingCertificate = await TrainingCertificate.findOne({
+                        trainingRegistration: progressUser.trainingRegistration,
+                        user: progressUser.user
+                    });
+
+                    if (!existingCertificate) {
+                        const startDate = overallTrainingProgress.createdAt;
+                        const completedAt = CurrentDateTime()?.utcDateTime;
+                        const generatedAt = CurrentDateTime()?.utcDateTime;
+                        const certificateValidity = trainingData?.certificateValidity;
+                        const expiresAt = certificateValidity
+                            ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
+                            : undefined;
+
+                        const certificateNumber = await generateSVCertificateId();
+                        const userName = `${overallTrainingProgress.user?.firstName ?? ""} ${overallTrainingProgress.user?.lastName ?? ""}`;
+
+                        const certificateData = {
+                            subscriber: subscriberId,
+                            trainingRegistration: overallTrainingProgress.trainingRegistration,
+                            training: overallTrainingProgress.training,
+                            certificateLayout: selectedCertificateLayout._id,
+                            user: overallTrainingProgress.user,
+                            trainingCertificateValidity: certificateValidity,
+                            status: "COMPLETED",
+                            certificateNumber: certificateNumber,
+                            startDate: startDate,
+                            completedAt: completedAt,
+                            generatedAt: generatedAt,
+                            expiresAt: expiresAt,
+                        };
+
+                        const savedTrainingCertificate = await TrainingCertificate.create(certificateData);
+
+                        if (!savedTrainingCertificate) {
+                            throw CustomError(ErrorName.FAILED, "Failed to generate certificate");
+                        }
+                    }
+                })
+            );
+
+            return {
+                status: true,
+                message: "Marked as completed successfully"
+            }
+        } catch (error) {
+            throw Error(error.message);
+        }
+    },
+
+    resetModules: async ({ input }, context) => {
+        const { subscriberId } = AuthUser(context);
+
+        try {
+            if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+            if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
+
+            if (input.userIds && input.userIds.length > 0) {
+                await OverallTrainingProgress.updateMany(
+                    { training: input.training, user: { $in: input.userIds } },
+                    {
+                        $set: {
+                            status: "NOT_STARTED",
+                            progressPercentage: 0,
+                            isComplete: false,
+                            completedModules: 0
+                        }
+                    }
+                );
+            } else {
+                await OverallTrainingProgress.updateMany(
+                    { training: input.training },
+                    {
+                        $set: {
+                            status: "NOT_STARTED",
+                            progressPercentage: 0,
+                            isComplete: false,
+                            completedModules: 0
+                        }
+                    }
+                );
+            }
+
+            return {
+                status: true,
+                message: "Modules reset successfully"
+            }
+        } catch (error) {
+            throw Error(error.message);
+        }
+    }
 };

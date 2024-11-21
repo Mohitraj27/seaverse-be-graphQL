@@ -6,7 +6,7 @@ const {
     DbTransactionHelper,
     CurrentDateTime,
 } = require("../../util");
-
+const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
 const { TrainingModule } = require("./training_modules/training_module_model");
 const {
@@ -35,6 +35,7 @@ const { TrainingContentBridge } = require("./training_content_bridge/training_co
 const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const { populate } = require("../contact-support/contact_support_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -105,10 +106,6 @@ module.exports.queries = {
             .populate({
                 path: "trainingModules",
                 options: { sort: { displayPosition: 1 } },
-                populate: {
-                    path: "quizContent",
-                    options: { sort: { displayPosition: 1 } },
-                },
             });
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
@@ -119,7 +116,16 @@ module.exports.queries = {
             .populate({
                 path: 'trainingContent',
                 model: 'TrainingModuleContent',
-                select: '_id UID contentType duration contentStatus title description',
+                populate: ({
+                    path: "quiz",
+                    model: "Question",
+                    populate: [
+                        {
+                            path: 'choices',
+                            select: { _id: 1, question: 1, choice: 1 }
+                        }
+                    ]
+                })
             });
 
         const moduleContentsMap = {};
