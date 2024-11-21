@@ -1,4 +1,4 @@
-const { Moment } = require("../../tools");
+const { Moment, ObjectId } = require("../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../util");
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -268,43 +268,100 @@ const getSingleLearnerReport = async ({ input }, context) => {
             }
         }
 
-        const learnerData = await OverallTrainingProgress.aggregate([
-            {
-                $lookup: {
-                    from: 'trainings',
-                    localField: 'training',
-                    foreignField: '_id',
-                    as: 'trainingInfo',
+        const learnerData = await OverallTrainingProgress.aggregate(
+            [
+                {
+                  "$lookup": {
+                    "from": "trainings",
+                    "localField": "training",
+                    "foreignField": "_id",
+                    "as": "trainingInfo"
+                  }
                 },
-            },
-            { $match: { user: input.learnerId } },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'user',
-                    foreignField: '_id',
-                    as: 'userInfo',
+                {
+                  "$lookup": {
+                    "from": "users",
+                    "localField": "user",
+                    "foreignField": "_id",
+                    "as": "userInfo"
+                  }
                 },
-            },
-            ...matchStage,
-            {
-                $project: {
-                    courseName: { $arrayElemAt: ["$trainingInfo.title.value", 0] },
-                    duration: "$trainingInfo.durationHours",
-                    createdAt: 1,
-                    completionDate: 1,
-                    status: 1,
-                    updatedAt: 1,
-                    firstName: { $arrayElemAt: ["$userInfo.firstName", 0] },
-                    lastName: { $arrayElemAt: ["$userInfo.lastName", 0] },
+                {
+                  "$match": {
+                    "user": ObjectId(input.learnerId)
+                  }
                 },
-            },
-        ]);
-
+                {
+                  "$lookup": {
+                    "from": "quizevaluations",
+                    "localField": "training",
+                    "foreignField": "trainingId",
+                    "as": "quizevaluationInfo",
+                    "pipeline": [
+                      {
+                        "$match": {
+                          "userId": ObjectId(input.learnerId)
+                        }
+                      },
+                      {
+                        "$sort": {
+                          "updatedAt": -1
+                        }
+                      },
+                      {
+                        "$limit": 1
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$unwind": {
+                    "path": "$quizevaluationInfo",
+                    "preserveNullAndEmptyArrays": true
+                  }
+                },
+                ...matchStage,
+                {
+                  "$project": {
+                    "courseName": {
+                      "$arrayElemAt": [
+                        "$trainingInfo.title.value",
+                        0
+                      ]
+                    },
+                    "duration": "$trainingInfo.durationHours",
+                    "createdAt": 1,
+                    "completionDate": 1,
+                    "status": 1,
+                    "updatedAt": 1,
+                    "firstName": {
+                      "$arrayElemAt": ["$userInfo.firstName", 0]
+                    },
+                    "lastName": {
+                      "$arrayElemAt": ["$userInfo.lastName", 0]
+                    },
+                    "quizPercentage": {
+                      "$ifNull": [
+                        "$quizevaluationInfo.percentage",
+                        null
+                      ]
+                    },
+                    "isPassed": {
+                      "$ifNull": [
+                        "$quizevaluationInfo.isPassed",
+                        null
+                      ]
+                    }
+                  }
+                }
+              ]
+              
+        );
+        console.log(learnerData);
         const learnerName = learnerData.length > 0 ? `${learnerData[0].firstName} ${learnerData[0].lastName}` : 'Unknown Learner';
 
         const data = learnerData.map(item => ({
-            courseName: item.courseName[0],
+            courseName: item.courseName?item.courseName[0]:null,
             status: item.status,
             Enrollment_Date: item.createdAt,
             Completion_Date: item.completionDate ? item.completionDate : "Not Applicable",

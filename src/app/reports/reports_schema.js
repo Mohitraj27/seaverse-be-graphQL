@@ -121,6 +121,8 @@ module.exports = {
             completionDate : String
             status : String
             updatedAt : String
+            quizPercentage : Int
+            isPassed : Boolean
         }
         type singleLearnersReportOutput {
             filePath : String
