@@ -7,8 +7,7 @@ const {
 const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
-const { VesselType } = require("./vessel-type/vessel_type_model");
-const { VesselHelper } = require("./vessel_helper");
+const { User } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 
@@ -26,19 +25,85 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput?.isActive ? true : false;
             }
 
-            if (filterInput?.vesselType) {
+            if (filterInput?.vesselName && filterInput?.vesselName.length > 0) {
                 filterConditions = {
                     ...filterConditions,
-                    typeOfVessel: ObjectId(filterInput.vesselType),
+                    name: {
+                        $in: filterInput.vesselName.map(
+                            name => new RegExp(".*" + name + ".*", "i")
+                        ),
+                    },
+                };
+            }
+
+            if (filterInput?.vesselNameAndImoNumber && filterInput?.vesselNameAndImoNumber.length > 0) {
+                filterConditions = {
+                    ...filterConditions,
+                    $or: [
+                        {
+                            name: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    name => new RegExp(".*" + name + ".*", "i")
+                                ),
+                            },
+                        },
+                        {
+                            imoNumber: {
+                                $in: filterInput.vesselNameAndImoNumber.map(
+                                    imoNumber => new RegExp(".*" + imoNumber + ".*", "i")
+                                ),
+                            },
+                        },
+                    ],
+                };
+            }
+
+            if (filterInput?.companyName && filterInput?.companyName.length > 0) {
+                filterConditions = {
+                    ...filterConditions,
+                    companyName: {
+                        $in: filterInput.companyName.map(
+                            companyName => new RegExp(".*" + companyName + ".*", "i")
+                        ),
+                    },
+                };
+            }
+
+            if (filterInput?.ownerName) {
+                filterConditions = {
+                    ...filterConditions,
+                    ownerName: {
+                        $in: filterInput.ownerName.map(
+                            ownerName => new RegExp(".*" + ownerName + ".*", "i")
+                        ),
+                    },
                 };
             }
 
             if (filterInput?.search) {
                 filterConditions = {
                     ...filterConditions,
-                    $and: [
+                    $or: [
                         {
                             "name": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "imoNumber": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "companyName": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "ownerName": {
                                 $regex: ".*" + filterInput.search + ".*",
                                 $options: "i",
                             },
@@ -60,6 +125,24 @@ module.exports.queries = {
                         },
                     },
                     { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                    {
+                        $match: filterInput?.vesselType && filterInput.vesselType.length > 0
+                            ? {
+                                "typeOfVessel.name": {
+                                    $in: filterInput.vesselType.map(
+                                        vesselType => new RegExp(".*" + vesselType + ".*", "i")
+                                    )
+                                },
+                            }
+                            : {},
+                    },
+                    {
+                        $match: filterInput?.vesselType
+                            ? {
+                                "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
+                            }
+                            : {},
+                    },
                 ]),
                 {
                     offset: skip,
@@ -98,8 +181,11 @@ module.exports.queries = {
         try {
             const { subscriberId } = AuthUser(context);
 
-            const vessel = await Vessel.findOne({ 
-                imoNumber: { $regex: imoNumber, $options: "i" }, subscriber: subscriberId });
+            const vessel = await Vessel.findOne({
+                imoNumber: imoNumber,
+                subscriber: subscriberId,
+                isDeleted: { $ne: true }
+            });
             if (vessel) {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
             }
@@ -124,8 +210,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
-
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -192,7 +277,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -247,6 +332,18 @@ module.exports.mutations = {
         try {
             if (!ids || ids.length === 0) {
                 throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel id is required.');
+            }
+
+            const vesselUsers = await User.find({
+                currentVessel: { $in: ids },
+                isDeleted: { $ne: true }
+            });
+
+            if (vesselUsers.length > 0) {
+                await User.updateMany(
+                    { currentVessel: { $in: ids } },
+                    { $set: { currentVessel: null, vesselStatus: "ONSHORE" } }
+                );
             }
 
             for (let id of ids) {
