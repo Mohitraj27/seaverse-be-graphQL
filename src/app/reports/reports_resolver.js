@@ -1,4 +1,4 @@
-const { Moment } = require("../../tools");
+const { Moment, ObjectId } = require("../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../util");
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -268,47 +268,136 @@ const getSingleLearnerReport = async ({ input }, context) => {
             }
         }
 
-        const learnerData = await OverallTrainingProgress.aggregate([
-            {
-                $lookup: {
-                    from: 'trainings',
-                    localField: 'training',
-                    foreignField: '_id',
-                    as: 'trainingInfo',
+        const learnerData = await OverallTrainingProgress.aggregate(
+            [
+                {
+                  "$lookup": {
+                    "from": "trainings",
+                    "localField": "training",
+                    "foreignField": "_id",
+                    "as": "trainingInfo"
+                  }
                 },
-            },
-            { $match: { user: input.learnerId } },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'user',
-                    foreignField: '_id',
-                    as: 'userInfo',
+                {
+                  "$lookup": {
+                    "from": "users",
+                    "localField": "user",
+                    "foreignField": "_id",
+                    "as": "userInfo"
+                  }
                 },
-            },
-            ...matchStage,
-            {
-                $project: {
-                    courseName: { $arrayElemAt: ["$trainingInfo.title.value", 0] },
-                    duration: "$trainingInfo.durationHours",
-                    createdAt: 1,
-                    completionDate: 1,
-                    status: 1,
-                    updatedAt: 1,
-                    firstName: { $arrayElemAt: ["$userInfo.firstName", 0] },
-                    lastName: { $arrayElemAt: ["$userInfo.lastName", 0] },
+                {
+                  "$match": {
+                    "user": ObjectId(input.learnerId)
+                  }
                 },
-            },
-        ]);
-
+                {
+                  "$lookup": {
+                    "from": "quizevaluations",
+                    "localField": "training",
+                    "foreignField": "trainingId",
+                    "as": "quizevaluationInfo",
+                    "pipeline": [
+                      {
+                        "$match": {
+                          "userId": ObjectId(input.learnerId)
+                        }
+                      },
+                      {
+                        "$sort": {
+                          "updatedAt": -1
+                        }
+                      },
+                      {
+                        "$limit": 1
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$unwind": {
+                    "path": "$quizevaluationInfo",
+                    "preserveNullAndEmptyArrays": true
+                  }
+                },
+                {
+                  "$lookup": {
+                    "from": "trainingprogress",
+                    "localField": "training",
+                    "foreignField": "training",
+                    "as": "trainingProgressInfo",
+                    "pipeline": [
+                      {
+                        "$match": {
+                          "user": ObjectId(input.learnerId),
+                          "status": "COMPLETED"
+                        }
+                      },
+                      {
+                        "$lookup": {
+                          "from": "trainingmodulecontents",
+                          "localField": "trainingModuleContent",
+                          "foreignField": "_id",
+                          "as": "moduleContentInfo"
+                        }
+                      },
+                      {
+                        "$unwind": {
+                          "path": "$moduleContentInfo",
+                          "preserveNullAndEmptyArrays": true
+                        }
+                      },
+                      {
+                        "$project": {
+                          "duration": "$moduleContentInfo.duration"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$project": {
+                    "courseName": {
+                      "$arrayElemAt": ["$trainingInfo.title.value", 0]
+                    },
+                    "createdAt": 1,
+                    "completionDate": 1,
+                    "status": 1,
+                    "updatedAt": 1,
+                    "firstName": {
+                      "$arrayElemAt": ["$userInfo.firstName", 0]
+                    },
+                    "lastName": {
+                      "$arrayElemAt": ["$userInfo.lastName", 0]
+                    },
+                    "quizPercentage": {
+                      "$ifNull": ["$quizevaluationInfo.percentage", null]
+                    },
+                    "isPassed": {
+                      "$ifNull": ["$quizevaluationInfo.isPassed", null]
+                    },
+                    "totalTimeSpent": {
+                      "$sum": {
+                        "$map": {
+                          "input": "$trainingProgressInfo.duration",
+                          "as": "duration",
+                          "in": { "$toDouble": "$$duration" }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]              
+        );
+        
         const learnerName = learnerData.length > 0 ? `${learnerData[0].firstName} ${learnerData[0].lastName}` : 'Unknown Learner';
 
         const data = learnerData.map(item => ({
-            courseName: item.courseName[0],
+            courseName: item.courseName?item.courseName[0]:null,
             status: item.status,
             Enrollment_Date: item.createdAt,
             Completion_Date: item.completionDate ? item.completionDate : "Not Applicable",
-            Duration: item.duration[0] ? item.duration[0] : "Not Present",
+            totalTimeSpent : item.totalTimeSpent ? item.totalTimeSpent : 0,
             LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
         }));
 
@@ -345,9 +434,184 @@ const getSingleLearnerReport = async ({ input }, context) => {
     }
 };
 
+const getMainCoursesReport = async ({ input }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+    try {
+        input = input || {};
+
+        const matchStage = [];
+
+        if (Object.keys(input).length > 0) {
+            const filterInput = input.filterInput || {};
+
+            if (filterInput.name) {
+                matchStage.push({
+                    $match: {
+                        'title.value': { $regex: filterInput.name, $options: 'i' },
+                    },
+                });
+            }
+
+            if (filterInput.isDeleted !== undefined) {
+                matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
+            }
+
+            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+            const limit = input.pageInput?.pageSize || 0;
+
+            if (limit > 0) {
+                matchStage.push({ $skip: skip }, { $limit: limit });
+            }
+        }
+
+        const data = await Training.aggregate([
+            {
+                $lookup: {
+                    from: 'overalltrainingprogresses',
+                    localField: '_id',
+                    foreignField: 'training',
+                    as: 'progress',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$progress',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'progress.user',
+                    foreignField: '_id',
+                    as: 'userInfo',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$userInfo',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'updatedBy',
+                    foreignField: '_id',
+                    as: 'updatedByUser',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$updatedByUser',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            ...matchStage,
+            {
+                $group: {
+                    _id: '$_id',
+                    title: { $first: '$title' },
+                    updatedAt: { $first: '$updatedAt' },
+                    updatedBy: { $first: '$updatedByUser.firstName' },
+                    updatedByLastName: { $first: '$updatedByUser.lastName' },
+                    uniqueUsers: { $addToSet: '$progress.user' },
+                    usersByStatus: { $push: { user: '$progress.user', status: '$progress.status' } },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    updatedAt: 1,
+                    updatedBy: {
+                        $concat: [
+                            '$updatedBy',
+                            ' ',
+                            '$updatedByLastName',
+                        ],
+                    },
+                    totalUsers: { $size: '$uniqueUsers' },
+                    statusCounts: {
+                        NOT_STARTED: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'NOT_STARTED'] },
+                                },
+                            },
+                        },
+                        IN_PROGRESS: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'IN_PROGRESS'] },
+                                },
+                            },
+                        },
+                        COMPLETED: {
+                            $size: {
+                                $filter: {
+                                    input: '$usersByStatus',
+                                    as: 'entry',
+                                    cond: { $eq: ['$$entry.status', 'COMPLETED'] },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ]);
+
+        const coursesData = data.map(item => ({
+            _id: item._id,
+            title: item.title,
+            updatedAt: new Date(item.updatedAt).toLocaleString(),
+            updatedBy: item.updatedBy,
+            totalUsers: item.totalUsers,
+            NOT_STARTED: item.statusCounts.NOT_STARTED,
+            IN_PROGRESS: item.statusCounts.IN_PROGRESS,
+            COMPLETED: item.statusCounts.COMPLETED,
+        }));
+
+        let s3PresignedUrl = "";
+
+        if (input?.export) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "Courses_Report_exports",
+                fileName: `Courses_Report-${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
+            });
+            if (excelFilePath) {
+                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            }
+            return {
+                filePath: s3PresignedUrl,
+                fileName: path.basename(excelFilePath),
+                coursesData,
+            };
+        }
+        return {
+            coursesData,
+        };
+
+    } catch (err) {
+        throw Error(err.message);
+    }
+};
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
+    getMainCoursesReport,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 

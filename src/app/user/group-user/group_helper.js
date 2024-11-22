@@ -54,8 +54,9 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
                     default:
                         break;
                 }
+                
+                const matchedGroup = relevantGroup.find(g => g.groupId == groupId);
 
-                const matchedGroup = relevantGroup.find(g => g.groupId === groupId);
                 if (matchedGroup) {
                     matchedGroup.userIds.forEach(userId => uniqueUserIds.add(userId));
                 }
@@ -93,6 +94,7 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                 }
             }
         ]);
+
 
         const roleUsers = await User.aggregate([
             {
@@ -193,7 +195,7 @@ const restructureGroupDataArray = groupDataArray => {
 }
 
 module.exports = {
-    getCustomGroupsOnly: async (id = null) => {
+    getCustomGroupsOnly: async (id = null, skip, limit) => {
         let matchStage = {};
 
         if (id) {
@@ -211,7 +213,7 @@ module.exports = {
                     foreignField: 'group',
                     as: 'members',
                     pipeline: [
-                        { $match: { isDeleted: false } },
+                        { $match: { isDeleted: { $ne: true } } },
                         {
                             $project: {
                                 groupType: 1,
@@ -258,7 +260,7 @@ module.exports = {
                     members: 1,
                 },
             },
-        ]);
+        ]).skip(skip).limit(limit);
 
         const groupUserIds = await getUserIdsInAutoSyncedGroups();
 

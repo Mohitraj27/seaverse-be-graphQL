@@ -579,6 +579,7 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         return errors;
     }
     else if (!imoNumbers.includes(row["VesselIMONumber"])) {
+     
         errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
         return errors;
     }
@@ -616,7 +617,7 @@ function mapCSVRowToUser(row) {
     const result = {
         firstName: row["FirstName"],
         lastName: row["LastName"] ?? "",
-        email: row["Email"],
+        email: row["Email"]?.toLowerCase(),
         designation: row["Designation"],
         civilIdOrPassport: row["EmployeeID"],
         imoNumber: row["VesselIMONumber"],
@@ -1360,12 +1361,12 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
-        console.log(users, "users", emailsArray);
-
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
 
+
         const adminUser = await User.findById(userId);
+
 
         const existingUsers = await User.find({
             $or: [
@@ -1374,21 +1375,28 @@ module.exports = {
             ]
         }).lean();
 
-        const existingEmailsInDB = existingUsers.map(user => user.email);
+
+        const existingEmailsInDB = existingUsers.map(user => user.email?.toLowerCase());
+
 
         const existingEmpIdsInDB = existingUsers.map(user => ({
-            [user.civilIdOrPassport]: user.email
+            [user.civilIdOrPassport]: user.email?.toLowerCase()
         }));
 
+
         const getAllDBUsers = await User.find().select('email');
-        const getAllDBEmails = getAllDBUsers.map(user => user.email);
+        const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         let errors = [];
         const updates = [];
         const inserts = [];
 
+
         let userIndex = 0;
 
+
         const existingVessels = await Vessel.find({ isDeleted: false, isActive: true })
+
+
 
 
         const vesselMap = new Map(
@@ -1399,24 +1407,34 @@ module.exports = {
         );
 
 
+
+
         let updatedEmpIds = [];
         const vesselAssociations = [];
         let passwordEmailList = [];
 
+
         for (const user of users) {
+
 
             const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
 
+
             if (existingEmpIdsMap) {
+
 
                 const email = existingEmpIdsMap[user.civilIdOrPassport];
 
-                if (email !== user.email && existingEmailsInDB.includes(user.email)) {
+
+                if (email !== user.email?.toLowerCase() && existingEmailsInDB.includes(user.email?.toLowerCase())) {
+
 
                     errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
                     break;
 
+
                 } else {
+
 
                     updates.push({
                         updateMany: {
@@ -1431,7 +1449,9 @@ module.exports = {
                         },
                     });
 
+
                     updatedEmpIds.push(user.civilIdOrPassport);
+
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
@@ -1440,18 +1460,24 @@ module.exports = {
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
+
                 }
 
+
             } else {
+
 
                 if (getAllDBEmails.includes(user.email)) {
 
                     errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
                     break;
 
+
                 } else {
 
+
                     let password = generateRandomString(16);
+
 
                     inserts.push({
                         civilIdOrPassport: user.civilIdOrPassport,
@@ -1460,6 +1486,7 @@ module.exports = {
                         email: user.email?.toLowerCase(),
                         password: await CryptoHelper.hash(password, 10)
                     });
+
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
@@ -1475,7 +1502,9 @@ module.exports = {
             userIndex++;
         };
 
+
         if (errors.length > 0) {
+
 
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
@@ -1486,7 +1515,9 @@ module.exports = {
                 description: `${errors[0]}`,
             })
 
+
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
 
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
@@ -1499,29 +1530,39 @@ module.exports = {
                 status: "FAILED"
             })
 
+
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
                 `${errors[0]}`
             );
 
+
         }
+
 
         let bulkInsertUsers;
         let bulkUpdateUsers;
 
+
         let insertedUsers;
         let updatedUsers;
 
+
         let endUsers = [];
+
 
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
+
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
+
 
             insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
 
+
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
             updatedUsers = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
+
 
             const designationMap = new Map(
                 existingDesignations.map(designation => [
@@ -1530,13 +1571,16 @@ module.exports = {
                 ])
             );
 
+
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
-            console.log(allUpdatedUsers, "allUpdatedUsers");
             const automateLearningPlanIds = [];
             allUpdatedUsers.forEach(user => {
 
+
                 const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
+
 
 
                 const designationId = originalUserData?.designation
@@ -1544,11 +1588,16 @@ module.exports = {
                     : null;
 
 
+
+
                 const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
+
 
                 const vesselId = vesselData?.imoNumber
                     ? vesselMap.get(vesselData.imoNumber)?.id
                     : null;
+
+
 
 
                 automateLearningPlanIds.push({
@@ -1561,14 +1610,17 @@ module.exports = {
                 });
             });
             // console.log(automateLearningPlanIds, "automateLearningPlanIds");
-            const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
+            // const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
             // console.log(matchedLearningPlans,"matchedLearningPlans");
             if (allUpdatedUsers.length > 0) {
+
 
                 const userVesselsInsert = [];
                 for (const vesselData of vesselAssociations) {
 
+
                     const originalUserData = await User.find({ civilIdOrPassport: vesselData.civilIdOrPassport });
+
 
                     if (originalUserData.length > 0) {
                         originalUserData.forEach(user => {
@@ -1589,13 +1641,15 @@ module.exports = {
                         });
                     }
                 }
-
+                   
                 if (userVesselsInsert.length > 0) {
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
                 }
 
+
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
 
                     return {
                         updateOne: {
@@ -1604,7 +1658,7 @@ module.exports = {
                                 $set: {
                                     user: user,
                                     subscriber: subscriberId,
-                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase()).id,
+                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase())?.id,
                                     bulkId: bulkId,
                                     regType: 2
                                 }
@@ -1614,9 +1668,12 @@ module.exports = {
                     };
                 });
 
+
                 await Employee.bulkWrite(employeesToInsert, { session });
 
+
                 const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
+
 
                 const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
                     const UID = await generateEmployeeUID({ subscriberId, session });
@@ -1629,9 +1686,12 @@ module.exports = {
                     };
                 }));
 
+
                 await Employee.bulkWrite(uidUpdates, { session });
 
+
             } else {
+
 
                 const createImportLog = await ImportLog.create({
                     subscriber: subscriberId,
@@ -1642,7 +1702,9 @@ module.exports = {
                     description: `No new data created/updated`
                 })
 
+
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
 
                 await sendNotificationOnBULK({
                     subscriber: subscriberId,
@@ -1655,6 +1717,7 @@ module.exports = {
                     status: 'FAILED'
                 })
 
+
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `No new data created/updated`
@@ -1662,13 +1725,20 @@ module.exports = {
             }
 
 
+
+
             if (passwordEmailList.length > 0) {
+
 
                 await sendBulkEmails(passwordEmailList);
 
+
             }
 
+
         });
+
+
 
 
         const createImportLog = await ImportLog.create({
@@ -1680,7 +1750,9 @@ module.exports = {
             description: `New data(s) created/updated`
         })
 
+
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
 
         await sendNotificationOnBULK({
             subscriber: subscriberId,
@@ -1693,7 +1765,10 @@ module.exports = {
         });
 
 
+
+
     },
+
     bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];

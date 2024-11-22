@@ -10,6 +10,7 @@ const { Vessel } = require("./vessel_model");
 const { User } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
+const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
@@ -331,34 +332,32 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             if (!ids || ids.length === 0) {
-                throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel id is required.');
+                throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel ID is required.');
             }
 
-            const vesselUsers = await User.find({
-                currentVessel: { $in: ids },
-                isDeleted: { $ne: true }
+            const vesselUsers = await UserVessel.find({
+                vessel: { $in: ids },
+                isActive: true,
             });
 
             if (vesselUsers.length > 0) {
-                await User.updateMany(
-                    { currentVessel: { $in: ids } },
-                    { $set: { currentVessel: null, vesselStatus: "ONSHORE" } }
+                await UserVessel.updateMany(
+                    { vessel: { $in: ids } },
+                    { $set: { isActive: false, vesselStatus: "ONSHORE" } }
                 );
             }
 
-            for (let id of ids) {
-                const vessel = await Vessel.findOne({ _id: id });
+            const vessels = await Vessel.find({ _id: { $in: ids } });
 
-                if (!vessel) {
-                    throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
-                }
-                if (vessel.isDeleted) {
-                    throw CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
-                }
-                vessel.isDeleted = true;
-                vessel.updatedBy = userId;
+           
+            await Vessel.updateMany(
+                { _id: { $in: ids } },
+                { $set: { isDeleted: true, updatedBy: userId } }
+            );
 
-                await vessel.save();
+           
+            for (const vessel of vessels) {
+                if (!vessel) continue; 
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -383,12 +382,13 @@ module.exports.mutations = {
 
             return {
                 success: true,
-                message: 'Vessel deleted successfully.'
+                message: 'Vessel(s) deleted successfully.',
             };
         } catch (error) {
-            throw Error(error.message);
+            throw new Error(error.message);
         }
     },
+
 
     activateDeactivateVessel: async ({ ids }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
