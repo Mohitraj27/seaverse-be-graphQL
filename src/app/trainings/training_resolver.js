@@ -185,8 +185,11 @@ module.exports.mutations = {
             const savedTrainingModuleIDs = savedTrainingModule?.result?.upserted?.map(item => item._id)
 
             input.trainingModules?.forEach((trainingModule, index) => {
-                if (!trainingModule._id && savedTrainingModuleIDs[index]) {
-                    trainingModule._id = savedTrainingModuleIDs[index];
+                if (!trainingModule._id) {
+                    const newId = savedTrainingModuleIDs.shift();
+                    if (newId) {
+                        trainingModule._id = newId;
+                    }
                 }
             });
 

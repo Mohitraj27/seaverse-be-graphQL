@@ -577,12 +577,10 @@ module.exports.mutations = {
 
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
-            console.log("thumbnailFile", thumbnailFile);
             const imageFile = image ? await image : null;
             const videoFile = video ? await video : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
-            console.log("fileFile", fileFile);
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
