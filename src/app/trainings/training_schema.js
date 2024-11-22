@@ -68,6 +68,7 @@ module.exports = {
             approvalStatus: String
             certifications: [MultiMediaInfo]
             bannerImage: MultiMediaInfo
+            coverImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
