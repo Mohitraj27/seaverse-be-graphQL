@@ -153,6 +153,9 @@ module.exports.mutations = {
 
         const moduleContentIds = [];
 
+        if (!input.authorName) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
+        if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
