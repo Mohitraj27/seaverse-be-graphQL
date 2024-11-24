@@ -35,7 +35,7 @@ const { TrainingContentBridge } = require("./training_content_bridge/training_co
 const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
-const { populate } = require("../contact-support/contact_support_model");
+const { populate, validate } = require("../contact-support/contact_support_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -247,7 +247,7 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        const message = input._id?`Training updated successfully`:`Training created successfully`;
+        const message = input._id ? `Training updated successfully` : `Training created successfully`;
         return {
             status: 1,
             message: message,
@@ -434,21 +434,25 @@ module.exports.mutations = {
     },
     syncOfflineDataAndUpdateProgress: async (_, context) => {
 
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        const { role, userId, userInfo } = AuthUser(context);
 
         const input = [
             {
-                overallId: "673b4c7b4e2e6e365028678b",
-                trainingModule: "673b32cee826bf6a20cfe157",
+                overallId: "6740345784b7444f4c06aeaa",
+                trainingModule: "674030b8fdf4682e8ca8d51f",
                 contentDetails: [
                     {
-                        contentId: "672b0c6c4cdb99219b24fd09",
+                        contentId: "673dcbfb4476163738844efe",
                         contentStatus: 'COMPLETED',
+                        duration: "00:10:00",
+                        progressPercentage: "50",
                         playerSettings: {}
                     },
                     {
-                        contentId: "67348588c0d4bf51b6053c39",
+                        contentId: "67303a0906ef6d11a857ab41",
                         contentStatus: 'IN_PROGRESS',
+                        duration: "00:20:00",
+                        progressPercentage: "30",
                         playerSettings: {}
                     }
                 ]
@@ -457,11 +461,17 @@ module.exports.mutations = {
 
         try {
 
-            if (!subscriberId || !userId) throw CustomError(ErrorName.NOT_FOUND);
-
+            if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            const validationRes = await TrainingHelper.validateTrainingProgress(input, userId);
+            const validateAndUpdateErrors = await TrainingHelper.validateAndUpdateContentData(input);
+
+            if (validateAndUpdateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateAndUpdateErrors[0]);
+            }
+
+            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input);
+
 
         } catch (error) {
             throw Error(error.message);

@@ -62,6 +62,7 @@ const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const NotificationEvent = require("../../notifications/notification_event.json");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
+const { Notification } = require("../../notifications/notification_model");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
@@ -1507,20 +1508,6 @@ module.exports.mutations = {
 
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
-
-                await EmployeeHelper.sendNotificationOnBULK({
-                    subscriber: subscriberId,
-                    action: "BULK IMPORT",
-                    createdBy: userId,
-                    uploadedBy: userId,
-                    isError: true,
-                    description: `${errors[0]}`,
-                    notificationType: 'BULK_IMPORT',
-                    status: "FAILED"
-                })
-
-
-
                 throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
             }
 
@@ -1656,7 +1643,7 @@ module.exports.mutations = {
 
             if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
             const vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
-             
+
             invitationList.push({
                 userData: savedUser,
             });
@@ -1740,10 +1727,10 @@ module.exports.mutations = {
                             <h1>Welcome to SeaVerse!</h1>
                         </div>
                         <div class="content">
-                            <p>Dear <strong>${ savedUser.firstName }</strong>,</p>
+                            <p>Dear <strong>${savedUser.firstName}</strong>,</p>
                             <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
                             <p>To get started, log in with these details:</p>
-                            <p><strong>Email:</strong> ${ savedUser.email }</p>
+                            <p><strong>Email:</strong> ${savedUser.email}</p>
                             <p><strong>Temporary Password:</strong> ${generatePassword}</p>
                             <p><em>Please set a new password upon your first login for security.</em></p>
                             <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>

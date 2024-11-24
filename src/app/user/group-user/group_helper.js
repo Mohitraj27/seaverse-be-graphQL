@@ -260,7 +260,7 @@ module.exports = {
                     members: 1,
                 },
             },
-        ]).skip(skip).limit(limit);
+        ]);
 
         const groupUserIds = await getUserIdsInAutoSyncedGroups();
 

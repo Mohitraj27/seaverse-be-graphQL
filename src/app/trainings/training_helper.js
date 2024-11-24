@@ -109,61 +109,196 @@ const generateCourseId = (courseType) => {
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
 
-const validateTrainingProgress = async (input, userId) => {
+const validateAndUpdateContentData = async (input) => {
 
-    try {
+    const overallIds = input.map((item) => item.overallId);
 
-        const overallIds = [...new Set(input.map(item => item.overallId))];
+    const overallDocs = await OverallTrainingProgress.find({
+        _id: { $in: overallIds },
+    }).lean();
 
-        const overallTrainingProgress = await OverallTrainingProgress.find({ _id: { $in: overallIds } });
-        const overallIdToTrainingRegMap = Object.fromEntries(
-            overallTrainingProgress.map(item => [item._id.toString(), item.trainingRegistration])
-        );
+    const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
 
-        const trainingRegistrationIds = [
-            ...new Set(
-                Object.values(overallIdToTrainingRegMap).map(id => id.toString())
-            )
-        ];
+    const errors = [];
+    const missingOverallEntries = [];
 
-        const trainingProgress = await TrainingProgress.find({ trainingRegistration: { $in: trainingRegistrationIds }, user: userId });
+    for (const item of input) {
 
-        const trainingRegToContentMap = Object.fromEntries(
-            trainingProgress.map(item => [
-                item.trainingRegistration.toString(),
-                new Set([item.trainingModuleContent.toString()])
+        const { overallId, trainingModule, contentDetails } = item;
+
+        const overallDoc = overallMap.get(overallId);
+
+        if (!overallDoc) {
+            errors.push({
+                overallId,
+                error: `Training not found in contentData`,
+            });
+            continue;
+        }
+
+        let matchingContentData;
+        if (overallDoc) {
+            matchingContentData = overallDoc.contentData?.find(
+                (data) => data.moduleId.toString() == trainingModule
+            );
+        }
+
+        if (!matchingContentData) {
+
+            missingOverallEntries.push({
+                updateOne: {
+                    filter: { _id: overallId },
+                    update: {
+                        status: "IN_PROGRESS",
+                        $push: {
+                            contentData: {
+                                moduleId: trainingModule,
+                                contentIds: contentDetails.map((content) => content.contentId),
+                            },
+                        },
+                    },
+                    upsert: true,
+                },
+            });
+
+            continue;
+        }
+
+        if (matchingContentData) {
+            for (const content of contentDetails) {
+
+                const missingContentIds = contentDetails
+                    .map((content) => content.contentId.toString())
+                    .filter(
+                        (contentId) =>
+                            !matchingContentData.contentIds.map((id) => id.toString()).includes(contentId)
+                    );
+
+                if (missingContentIds.length > 0) {
+                    errors.push({
+                        overallId,
+                        contentId: content.contentId,
+                        error: `Content ID ${content.contentId} not found in contentIds for the module`,
+                    });
+                    continue;
+                }
+            }
+        }
+
+    }
+
+    if (missingOverallEntries.length > 0) {
+        await OverallTrainingProgress.bulkWrite(missingOverallEntries);
+    }
+
+    return errors;
+};
+
+const updateTrainingProgress = async (input) => {
+
+    const overallIds = input.map((item) => item.overallId);
+
+    const overallDocs = await OverallTrainingProgress.find({
+        _id: { $in: overallIds },
+    }).lean();
+
+    const trainingRegMap = new Map(
+        overallDocs.map((doc) => [doc._id.toString(), doc.trainingRegistration])
+    );
+
+    const trainingRegistrationIds = [];
+    const contentIds = new Set();
+
+    input.forEach((item) => {
+        const trainingRegistration = trainingRegMap.get(item.overallId);
+        if (trainingRegistration) {
+            trainingRegistrationIds.push(trainingRegistration);
+            item.contentDetails.forEach((content) => {
+                contentIds.add(content.contentId);
+            });
+        }
+    });
+
+    const trainingProgressDocs = await TrainingProgress.find({
+        trainingRegistration: { $in: trainingRegistrationIds },
+        trainingModuleContent: { $in: [...contentIds] },
+    }).lean();
+
+    let trainingProgressMap;
+
+    if (trainingProgressDocs) {
+
+        trainingProgressMap = new Map(
+            trainingProgressDocs.map((doc) => [
+                `${doc.trainingRegistration}_${doc.trainingModuleContent}`,
+                doc,
             ])
         );
 
-        const results = input.map(item => {
-            const trainingRegistration = overallIdToTrainingRegMap[item.overallId.toString()];
-            const validContents = trainingRegToContentMap[trainingRegistration];
-
-            if (!trainingRegistration || !validContents) {
-                return { ...item, isValid: false, reason: "Missing trainingRegistration or TrainingProgress data" };
-            }
-
-            const allContentsValid = item.contentDetails.every(detail =>
-                validContents.has(detail.contentId.toString())
-            );
-
-            return {
-                ...item,
-                isValid: allContentsValid,
-                reason: allContentsValid ? null : "Invalid contentId(s) in contentDetails"
-            };
-        });
-
-        return results;
-    } catch (error) {
-        console.error("Error validating training progress:", error);
-        throw error;
     }
-};
+
+    const bulkOps = [];
+
+    input.forEach((item) => {
+
+        const trainingRegistration = trainingRegMap.get(item.overallId);
+
+        if (!trainingRegistration) return;
+
+        item.contentDetails.forEach((content) => {
+
+            const progressKey = `${trainingRegistration}_${content.contentId}`;
+            const existingProgress = trainingProgressMap.get(progressKey);
+
+            if (existingProgress) {
+
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: existingProgress._id },
+                        update: {
+                            $set: {
+                                contentStatus: content.contentStatus,
+                                lastAccessedDuration: content.duration,
+                                progressPercentage: content.progressPercentage,
+                                playerSettings: content.playerSettings,
+                            },
+                        },
+                    },
+                });
+
+            } else {
+
+                bulkOps.push({
+                    insertOne: {
+                        document: {
+                            trainingRegistration,
+                            trainingModule: item.trainingModule,
+                            trainingModuleContent: ObjectId(content.contentId),
+                            contentStatus: content.contentStatus,
+                            lastAccessedDuration: content.duration,
+                            progressPercentage: content.progressPercentage,
+                            playerSettings: content.playerSettings,
+                            status: "IN_PROGRESS",
+                        },
+                    },
+                });
+
+            }
+        });
+    });
+
+    if (bulkOps.length > 0) {
+        await TrainingProgress.bulkWrite(bulkOps);
+    }
+
+    return { updatedCount: bulkOps.length };
+
+}
 
 module.exports = {
     uploadTrainingImages,
-    validateTrainingProgress,
+    updateTrainingProgress,
+    validateAndUpdateContentData,
     generateTrainingUID,
     uploadCertificateTrainingImages,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
