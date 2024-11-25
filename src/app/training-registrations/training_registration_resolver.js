@@ -602,6 +602,7 @@ module.exports.queries = {
 
                     acc += moduleDurationInSeconds;
                     return acc;
+
                 }, 0);
 
                 return {
