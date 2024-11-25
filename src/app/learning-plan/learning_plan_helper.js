@@ -809,7 +809,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                             completedModules: "$completedModules",
                             userDetails: "$userDetails"
                         }
-                    }
+                    },
+                    overallTrainingprogressStatus: { $addToSet: "$status" }
                 }
             },
             {
@@ -832,7 +833,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                                 updatedAt: "$$user.userDetails.updatedAt"
                             }
                         }
-                    }
+                    },
+                    overallTrainingprogressStatus: 1
                 }
             }
         ];

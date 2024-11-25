@@ -144,6 +144,7 @@ module.exports = {
             learningPlan:ID
             averageProgress:Float
             users:[learnerData]
+            overallTrainingprogressStatus: [TrainingProgressStatusEnum]
         }
         type LearningPlan {
             _id: ID
