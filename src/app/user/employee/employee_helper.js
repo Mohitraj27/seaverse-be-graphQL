@@ -1724,19 +1724,6 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-
-                await sendNotificationOnBULK({
-                    subscriber: subscriberId,
-                    action: "BULK IMPORT",
-                    createdBy: adminUser?._id,
-                    uploadedBy: adminUser?._id,
-                    isError: true,
-                    description: `${errors[0]}`,
-                    notificationType: 'BULK_IMPORT',
-                    status: 'FAILED'
-                })
-
-
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `No new data created/updated`
@@ -1771,20 +1758,6 @@ module.exports = {
 
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-
-        await sendNotificationOnBULK({
-            subscriber: subscriberId,
-            action: "BULK IMPORT",
-            createdBy: adminUser?._id,
-            uploadedBy: adminUser?._id,
-            description: `New data(s) created/updated`,
-            notificationType: 'BULK_IMPORT',
-            status: 'SUCCESS'
-        });
-
-
-
 
     },
 
