@@ -785,11 +785,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
         if (status !== null) {
             matchCriteria.status = status;
         }
-
-        const groupedProgress = await OverallTrainingProgress.aggregate([
-            {
-                $match: matchCriteria
-            },
+        const pipeline =  [
             {
                 $lookup: {
                     from: "users",
@@ -803,15 +799,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
             },
            
             {
-                $match: {
-                    $or: [
-                        { "userDetails.firstName": { $regex: search, $options: 'i' } },
-                        { "userDetails.lastName": { $regex: search, $options: 'i' } },
-                        { "userDetails.email": { $regex: search, $options: 'i' } }
-                    ]
-                }
-            },
-            {
                 $group: {
                     _id: "$learningPlan",
                     averageProgress: { $avg: "$progressPercentage" },
@@ -820,7 +807,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
-                            totalModules: { $ifNull: [{ $size: "$trainingModuleIds" }, 0] },
                             userDetails: "$userDetails"
                         }
                     }
@@ -849,7 +835,26 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                     }
                 }
             }
-        ]);
+        ];
+        if(status != null && status){
+            pipeline.push({
+                $match: {
+                    status: status
+                }
+            });
+        }
+        if(search != null && search){
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { "userDetails.firstName": { $regex: search, $options: 'i' } },
+                        { "userDetails.lastName": { $regex: search, $options: 'i' } },
+                        { "userDetails.email": { $regex: search, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+        const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
 
         return groupedProgress?.[0] || [];
     } catch (error) {

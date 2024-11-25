@@ -185,17 +185,15 @@ module.exports = {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
         }
-            input pageInput {
-                limit: Int
-                skip: Int
-            }
+        input pageInput {
+            limit: Int
+            skip: Int
+        }
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
             audienceSelection: [String!]
-            lastModified: lastModifiedEnum
-           
-             
+            lastModified: lastModifiedEnum  
         }
         input LearningPlanInput {
             title: String
@@ -231,7 +229,7 @@ module.exports = {
             
     `,
     queries: `
-        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput):LearningPlanResponse!
+        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:TrainingProgressStatusEnum,search: String):LearningPlanResponse!
         getLearningPlan(id: ID!,status:TrainingProgressStatusEnum,search: String): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
