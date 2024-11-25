@@ -432,32 +432,9 @@ module.exports.mutations = {
 
         return savedTraining;
     },
-    syncOfflineDataAndUpdateProgress: async (_, context) => {
+    syncOfflineDataAndUpdateProgress: async (input, context) => {
 
         const { role, userId, userInfo } = AuthUser(context);
-
-        const input = [
-            {
-                overallId: "6740345784b7444f4c06aeaa",
-                trainingModule: "674030b8fdf4682e8ca8d51f",
-                contentDetails: [
-                    {
-                        contentId: "673dcbfb4476163738844efe",
-                        contentStatus: 'COMPLETED',
-                        duration: "00:10:00",
-                        progressPercentage: "50",
-                        playerSettings: {}
-                    },
-                    {
-                        contentId: "67303a0906ef6d11a857ab41",
-                        contentStatus: 'IN_PROGRESS',
-                        duration: "00:20:00",
-                        progressPercentage: "30",
-                        playerSettings: {}
-                    }
-                ]
-            }
-        ]
 
         try {
 
@@ -471,6 +448,13 @@ module.exports.mutations = {
             }
 
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input);
+
+            if (updateTrainingProgress) {
+                return {
+                    status: 1,
+                    message: "Progress updated successfully!"
+                };
+            }
 
 
         } catch (error) {
