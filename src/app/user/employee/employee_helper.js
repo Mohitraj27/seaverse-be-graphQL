@@ -266,6 +266,37 @@ const sendNotificationOnBULK = async notificationData => {
     }
 
 }
+const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
+    try {
+
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `${notificationData.action}` }],
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            createdBy: notificationData.createdBy,
+            employee: notificationData.createdBy,
+            description: notificationData.description,
+            isError: notificationData.isError,
+            notificationType: notificationData.notificationType,
+            status: notificationData.status
+        };
+
+        notification.message = {
+            lang: "en",
+            value: notificationData.description,
+        };
+
+        const createdNotification = await Notification.create(notification);
+        console.log(createdNotification);
+
+        if (createdNotification) await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
+
+    } catch (error) {
+        console.log("employee_helper.sendNotificationOnBULK:exception:", error?.message);
+    }
+}
 const sendNotificationOnCRUD = async notificationData => {
     try {
         const employeeName = notificationData.employee.user?.firstName;
@@ -883,6 +914,7 @@ module.exports = {
     generateDefaultGroup,
     insertGroupMember,
     removeGroupMember,
+    sendNotificationOnBULKOutsideChildProcess,
     updateEmployees: async ({ id, input, userId, subscriberId, role }, context) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
@@ -1629,7 +1661,7 @@ module.exports = {
                         });
                     }
                 }
-                   
+
                 if (userVesselsInsert.length > 0) {
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
                 }
