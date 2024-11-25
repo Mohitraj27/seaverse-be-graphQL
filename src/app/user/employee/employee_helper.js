@@ -588,7 +588,7 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
         return errors;
     } else if (empIds.has(row["EmployeeID"])) {
-        errors.push(`Duplicate Email found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+        errors.push(`Duplicate EmployeeID found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
         return errors;
     } else {
         empIds.add(row["EmployeeID"]);
@@ -598,8 +598,8 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const designation = row["Designation"].toLowerCase();
-        if (!designationNames.some(name => name.toLowerCase() === designation)) {
+        const designation = row["Designation"]?.toUpperCase();
+        if (!designationNames.some(name => name?.toUpperCase() === designation)) {
             errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
             return errors;
         }
@@ -1607,53 +1607,41 @@ module.exports = {
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
             const automateLearningPlanIds = [];
-            allUpdatedUsers.forEach(user => {
+
+            //  dont remove this code we need it for automate learning plan  
+            // allUpdatedUsers.forEach(user => {
+            //     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+            //     const designationId = originalUserData?.designation?.toUpperCase()
+            //         ? designationMap.get(originalUserData.designation.toUpperCase())?.id
+            //         : null;
+
+            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
+            //        console.log(vesselData,"vesselData");
+
+            //     const vesselId = vesselData?.imoNumber
+            //         ? vesselMap.get(vesselData.imoNumber)?.id
+            //         : null;
 
 
-                const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-
-
-
-
-                const designationId = originalUserData?.designation
-                    ? designationMap.get(originalUserData.designation.toUpperCase())?.id
-                    : null;
-
-
-
-
-                const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
-
-
-                const vesselId = vesselData?.imoNumber
-                    ? vesselMap.get(vesselData.imoNumber)?.id
-                    : null;
-
-
-
-
-                automateLearningPlanIds.push({
-                    userId: user._id,
-                    email: user.email,
-                    designationId,
-                    vesselId,
-                    vesselTypeId: vesselData?.typeOfVessel || null,
-                    vesselStatus: vesselData?.vesselStatus || null,
-                });
-            });
+            //     automateLearningPlanIds.push({
+            //         userId: user._id,
+            //         email: user.email,
+            //         designationId,
+            //         vesselId,
+            //         vesselTypeId: vesselData?.typeOfVessel || null,
+            //         vesselStatus: vesselData?.vesselStatus || null,
+            //     });
+            // });
             // console.log(automateLearningPlanIds, "automateLearningPlanIds");
             // const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
             // console.log(matchedLearningPlans,"matchedLearningPlans");
             if (allUpdatedUsers.length > 0) {
 
-
                 const userVesselsInsert = [];
                 for (const vesselData of vesselAssociations) {
-
-
-                    const originalUserData = await User.find({ civilIdOrPassport: vesselData.civilIdOrPassport });
-
-
+                    const originalUserData = allUpdatedUsers.filter(
+                        user => user.civilIdOrPassport === vesselData.civilIdOrPassport
+                    );
                     if (originalUserData.length > 0) {
                         originalUserData.forEach(user => {
                             userVesselsInsert.push({
@@ -1677,7 +1665,6 @@ module.exports = {
                 if (userVesselsInsert.length > 0) {
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
                 }
-
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
@@ -1737,19 +1724,6 @@ module.exports = {
 
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-
-                await sendNotificationOnBULK({
-                    subscriber: subscriberId,
-                    action: "BULK IMPORT",
-                    createdBy: adminUser?._id,
-                    uploadedBy: adminUser?._id,
-                    isError: true,
-                    description: `${errors[0]}`,
-                    notificationType: 'BULK_IMPORT',
-                    status: 'FAILED'
-                })
-
-
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     `No new data created/updated`
@@ -1784,20 +1758,6 @@ module.exports = {
 
 
         if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-
-        await sendNotificationOnBULK({
-            subscriber: subscriberId,
-            action: "BULK IMPORT",
-            createdBy: adminUser?._id,
-            uploadedBy: adminUser?._id,
-            description: `New data(s) created/updated`,
-            notificationType: 'BULK_IMPORT',
-            status: 'SUCCESS'
-        });
-
-
-
 
     },
 

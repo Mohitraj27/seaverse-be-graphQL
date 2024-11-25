@@ -41,11 +41,6 @@ module.exports.queries = {
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
-        const contentUsageCounts = await TrainingContentBridge.aggregate([
-            { $match: { isDeleted: false } },
-            { $group: { _id: "$trainingContent", featuredInCourses: { $sum: 1 } } }
-        ]);
-
         const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
                 { $match: filterConditions },
@@ -82,9 +77,7 @@ module.exports.queries = {
                         ]
                     },
                 },
-                {
-                    $unwind: "$createdBy",
-                },
+                { $unwind: "$createdBy" },
                 {
                     $lookup: {
                         from: "users",
@@ -96,29 +89,22 @@ module.exports.queries = {
                         ]
                     },
                 },
-                {
-                    $unwind: "$updatedBy",
-                },
+                { $unwind: "$updatedBy" },
                 {
                     $lookup: {
                         from: "trainingcontentbridges",
                         localField: "_id",
                         foreignField: "trainingContent",
-                        as: "courseUsage"
-                    }
+                        as: "courseUsage",
+                        pipeline: [
+                            { $match: { isDeleted: false } }
+                        ]
+                    },
                 },
                 {
                     $addFields: {
-                        featuredInCourses: {
-                            $size: {
-                                $filter: {
-                                    input: contentUsageCounts,
-                                    as: "count",
-                                    cond: { $eq: ["$$count._id", "$_id"] }
-                                }
-                            }
-                        }
-                    }
+                        featuredInCourses: { $size: "$courseUsage" }
+                    },
                 },
                 ...(useStatus
                     ? [{
@@ -142,6 +128,7 @@ module.exports.queries = {
                 allowDiskUse: true,
             }
         );
+
         if (!contents) {
             return {
                 contents: [],
