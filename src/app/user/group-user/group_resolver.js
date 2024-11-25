@@ -111,7 +111,7 @@ module.exports.queries = {
                     );
                 }
 
-                const paginatedCustomGroups = filteredCustomGroups.slice(skip, skip + limit);
+                const paginatedCustomGroups = filteredCustomGroups;
                 groups = paginatedCustomGroups;
                 totalCount = paginatedCustomGroups.length;
                 break;
