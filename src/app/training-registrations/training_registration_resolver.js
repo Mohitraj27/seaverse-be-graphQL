@@ -602,6 +602,7 @@ module.exports.queries = {
 
                     acc += moduleDurationInSeconds;
                     return acc;
+
                 }, 0);
 
                 return {
@@ -652,20 +653,6 @@ module.exports.mutations = {
             const alreadyEnrolledEmails = [];
             const notEnrolledEmails = [];
 
-            for (let email of input.users) {
-                if (!Validator.isEmail(email)) {
-                    invalidEmails.push(email);
-                }
-            }
-            if (!input.users) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
-            }
-
-            let existingTraining = null;
-            if (input.training) {
-                existingTraining = await OverallTrainingProgress.find({ training: input.training });
-            }
-
             if (input.users && input.users.length > 0) {
                 for (let email of input.users) {
                     if (!Validator.isEmail(email)) {
@@ -678,6 +665,16 @@ module.exports.mutations = {
                     }
                 }
             }
+
+            if (!input.users) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+            }
+            const inputUserIds = await User.find({ email: { $in: input.users } }).select("_id");
+            let existingTraining = null;
+            if (input.training) {
+                existingTraining = await OverallTrainingProgress.find({ training: input.training, user: { $in: inputUserIds } });
+            }
+
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
@@ -697,7 +694,11 @@ module.exports.mutations = {
                 }
 
                 if (verifiedUsers.invalidEmails.length > 0) {
-                    invalidEmails.push(...verifiedUsers.invalidEmails);
+                    verifiedUsers.invalidEmails.forEach(email => {
+                        if (!invalidEmails.includes(email)) {
+                            invalidEmails.push(email);
+                        }
+                    });
                 }
 
                 if (input.type === "ENROLL") {

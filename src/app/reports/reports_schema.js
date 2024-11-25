@@ -121,11 +121,72 @@ module.exports = {
             completionDate : String
             status : String
             updatedAt : String
+            quizPercentage : Int
+            totalTimeSpent : Int
+            isPassed : Boolean
         }
         type singleLearnersReportOutput {
             filePath : String
             fileName : String
             learnerData : [singleLearnersReport]
+        }
+        input MainCoursesReportInput {
+            filterInput: CourseFilterInput   
+            pageInput: PageInput       
+            export: Boolean                  
+        }
+        input CourseFilterInput {
+            name: String            
+            isDeleted: Boolean      
+            status: String          
+        }
+        type CourseReportData {
+            _id: ID
+            title :  [LocalisedData]                       
+            updatedAt: String                
+            updatedBy: String                
+            totalUsers: Int                  
+            NOT_STARTED: Int                 
+            IN_PROGRESS: Int                
+            COMPLETED: Int                  
+        }
+        type mainCourseReportOutput {
+            filePath : String
+            fileName : String
+            coursesData : [CourseReportData]
+        }
+        input singleCourseReportInput {
+            courseId : ID!
+            pageInput: PageInput
+            filter : singleCourseReportFilter
+            export : Boolean
+        }
+        input singleCourseReportFilter {
+            vesselName : String
+            vesselType : String
+            designation : String
+            courseStatus:String
+            dateRange : filterDateRange
+        }
+        type singleCourseReportOutput {
+            filePath : String
+            fileName : String
+            coursesData : [singleCourseEnrollmentReport]
+        }
+        type singleCourseEnrollmentReport {
+            _id :ID
+            learnerName : String
+            employeeId : String
+            designation : String
+            status : String
+            currentVessel : String
+            vesselType : String
+            createdAt : String
+            updatedAt : String
+            completionDate : String
+            timeSpent : Int
+            quizPercentage : Int
+            isPassed :Boolean
         }
     `,
     queries: `
@@ -135,5 +196,7 @@ module.exports = {
         getTrainingMatrixReports(pageInput: PageInput, filterInput: TrainingMatrixReportFilterInput): TrainingMatrixReportsList!
         getMainLearnersReport(input :learnerMainReportInput ):learnerMainReportResponse
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
+        getSingleCourseEnrollmentReport(input: singleCourseReportInput):singleCourseReportOutput
+        getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
     `,
 };
