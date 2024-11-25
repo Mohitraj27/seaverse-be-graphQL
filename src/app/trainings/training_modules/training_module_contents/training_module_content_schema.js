@@ -65,6 +65,8 @@ module.exports = {
             updatedBy: UserData
             featuredInCourses: Int
             quizDetails: QuestionNew
+            progressPercentage: Int
+            lastAccessedDuration: Int
             trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {

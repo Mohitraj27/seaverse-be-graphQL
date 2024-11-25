@@ -67,7 +67,10 @@ const trainingProgressSchema = new Schema(
         },
         lastAccessedItem: String,
         lastAccessedAt: Date,
-        lastAccessedDuration: Number,
+        lastAccessedDuration: {
+            type: Number,
+            default: 0,
+        },
         quizAttempts: [QuizAttemptSpecificSchema],
         startedAt: Date,
         completedAt: Date,

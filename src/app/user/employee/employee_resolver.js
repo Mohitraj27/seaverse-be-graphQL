@@ -1704,7 +1704,6 @@ module.exports.mutations = {
                 vesselID: savedUserVessel.vessel,
                 vesselTypeID: vessel?.typeOfVessel?._id,
                 currentStatus: savedUserVessel.vesselStatus
-                
             };
 
             const filteredPlans = filterLearningPlans(learningPlans, conditions);

@@ -598,8 +598,8 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const designation = row["Designation"]?.toUpperCase();
-        if (!designationNames.some(name => name?.toUpperCase() === designation)) {
+        const designation = row["Designation"]?.toLowerCase();
+        if (!designationNames.some(name => name?.toLowerCase() === designation)) {
             errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
             return errors;
         }
@@ -649,7 +649,7 @@ function mapCSVRowToUser(row) {
         firstName: row["FirstName"],
         lastName: row["LastName"] ?? "",
         email: row["Email"]?.toLowerCase(),
-        designation: row["Designation"],
+        designation: row["Designation"]?.toLowerCase(),
         civilIdOrPassport: row["EmployeeID"],
         imoNumber: row["VesselIMONumber"],
         vesselStatus: row["Status"],
@@ -1393,9 +1393,7 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
-
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
-
 
         const adminUser = await User.findById(userId);
 
@@ -1488,7 +1486,7 @@ module.exports = {
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user.imoNumber,
-                        vesselStatus: user.vesselStatus,
+                        vesselStatus: user.vesselStatus?.toUpperCase(),
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1523,7 +1521,7 @@ module.exports = {
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user.imoNumber,
-                        vesselStatus: user.vesselStatus,
+                        vesselStatus: user.vesselStatus?.toUpperCase(),
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1551,16 +1549,16 @@ module.exports = {
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "BULK IMPORT",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: true,
-                description: `${errors[0]}`,
-                notificationType: 'BULK_IMPORT',
-                status: "FAILED"
-            })
+            // await sendNotificationOnBULK({
+            //     subscriber: subscriberId,
+            //     action: "BULK IMPORT",
+            //     createdBy: adminUser?._id,
+            //     uploadedBy: adminUser?._id,
+            //     isError: true,
+            //     description: `${errors[0]}`,
+            //     notificationType: 'BULK_IMPORT',
+            //     status: "FAILED"
+            // })
 
 
             throw CustomError(
@@ -1598,7 +1596,7 @@ module.exports = {
 
             const designationMap = new Map(
                 existingDesignations.map(designation => [
-                    designation.name,
+                    designation.name?.toLowerCase(),
                     { id: designation._id }
                 ])
             );
@@ -1677,7 +1675,7 @@ module.exports = {
                                 $set: {
                                     user: user,
                                     subscriber: subscriberId,
-                                    empDesignation: designationMap.get(originalUserData.designation.toUpperCase())?.id,
+                                    empDesignation: designationMap.get(originalUserData.designation.toLowerCase())?.id,
                                     bulkId: bulkId,
                                     regType: 2
                                 }
