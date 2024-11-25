@@ -1732,7 +1732,7 @@ module.exports.mutations = {
                             <p><strong>Email:</strong> ${savedUser.email}</p>
                             <p><strong>Temporary Password:</strong> ${generatePassword}</p>
                             <p><em>Please set a new password upon your first login for security.</em></p>
-                            <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>
+                            <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank" class="cta-button">Web Access</a>
                             <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
                             <ul>
                                 <li>
