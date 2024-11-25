@@ -112,10 +112,12 @@ const generateCourseId = (courseType) => {
 const validateAndUpdateContentData = async (input) => {
 
     const overallIds = input.map((item) => item.overallId);
-
-    const overallDocs = await OverallTrainingProgress.find({
-        _id: { $in: overallIds },
-    }).lean();
+    let overallDocs;
+    if (overallIds.length > 0) {
+        overallDocs = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
 
     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
 
