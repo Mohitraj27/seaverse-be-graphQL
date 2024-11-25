@@ -859,7 +859,6 @@ module.exports.queries = {
                 ]
                 : []),
         ]);
-        console.log(JSON.stringify(result), "result");
 
         return result;
     },
