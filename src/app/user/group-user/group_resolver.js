@@ -118,7 +118,7 @@ module.exports.queries = {
 
             default:
                 const allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
-                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId);
+                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId,skip,limit);
 
                 const allGroups = [...allAutosynced, ...allCustom];
 
