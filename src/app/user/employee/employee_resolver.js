@@ -1836,7 +1836,7 @@ module.exports.mutations = {
             return savedEmployees;
         });
 
-        // if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
