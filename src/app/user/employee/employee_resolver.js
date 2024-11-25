@@ -1616,6 +1616,7 @@ module.exports.mutations = {
 
             if (!savedUser) throw CustomError(ErrorName.FAILED);
 
+
             let employeeUpdate = {
                 subscriber: subscriberId,
                 user: savedUser,
@@ -1648,7 +1649,73 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
+            const learningPlans = await LearningPlan.find();
+            function filterLearningPlans(learningPlans, conditions) {
+                const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
 
+                return learningPlans?.filter(plan => {
+                    const { conditionType, conditionalCustomFields } = plan;
+
+                    let matches = conditionalCustomFields.map(field => {
+                        const { type_of_Field, valueOfField, isOrIsNot } = field;
+
+                        switch (type_of_Field) {
+                            case "DESIGNATION":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(designationID)
+                                    : !valueOfField.includes(designationID);
+
+                            case "VESSEL":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselID)
+                                    : !valueOfField.includes(vesselID);
+
+                            case "VESSEL_TYPE":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselTypeID)
+                                    : !valueOfField.includes(vesselTypeID);
+
+                            case "CURRENT_STATUS":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(currentStatus)
+                                    : !valueOfField.includes(currentStatus);
+
+                            default:
+                                return false;
+                        }
+                    });
+
+                    if (conditionType === "MATCH_ANY_CONDITION") {
+                        return matches.some(match => match === true);
+                    }
+
+                    if (conditionType === "MATCH_ALL_CONDITION") {
+                        return matches.every(match => match === true);
+                    }
+
+                    return false;
+                });
+            }
+
+            
+
+            const conditions = {
+                designationID: input.empDesignation,
+                vesselID: savedUserVessel.vessel,
+                vesselTypeID: vessel?.typeOfVessel?._id,
+                currentStatus: savedUserVessel.vesselStatus
+                
+            };
+
+            const filteredPlans = filterLearningPlans(learningPlans, conditions);
+
+
+            if (filteredPlans?.length > 0) {
+                await LearningPlan.updateMany(
+                    { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                );
+            }
             const mailOptions = {
                 from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
                 to: savedUser.email,
@@ -1769,7 +1836,7 @@ module.exports.mutations = {
             return savedEmployees;
         });
 
-        if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+        // if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
