@@ -24,11 +24,11 @@ module.exports = {
         enum GroupTypeEnum {
             ${Object.keys(groupTypeEnums).join(" ")}
         }
-         enum TrainingProgressStatusEnum {
+        enum TrainingProgressStatusEnum {
              NOT_STARTED
              IN_PROGRESS
              COMPLETED
-         }   
+        }   
          enum lastModifiedEnum {
             TODAY
             YESTERDAY
@@ -54,7 +54,7 @@ module.exports = {
             isOrIsNot: String!
             groupIDs: [ID!]
         }
-          type groupTypeRes {
+        type groupTypeRes {
             _id: ID
             groupType: GroupTypeEnum
             groupIDs: [ID!]
@@ -129,22 +129,21 @@ module.exports = {
             authorName: String
             isOrdered: Boolean
         }
-      type learnerData {
-        _id: ID
-       firstName: String
-       lastName: String
-       email: String
-       progressPercentage: Float
-       completedModules : Int
-       totalModules : Int
-       updatedAt: String
-     
-      }
+        type learnerData {
+            _id: ID
+            firstName: String
+            lastName: String
+            email: String
+            progressPercentage: Float
+            completedModules : Int
+            totalModules : Int
+            updatedAt: String
+        }
         type overAllProgress {
-          participantsCompleted: Int
-        learningPlan:ID
-        averageProgress:Float
-        users:[learnerData]
+            participantsCompleted: Int
+            learningPlan:ID
+            averageProgress:Float
+            users:[learnerData]
         }
         type LearningPlan {
             _id: ID
