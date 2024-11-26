@@ -41,8 +41,8 @@ module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+        const skip = pageInput?.skip ?? 0;
+          let  limit = pageInput?.limit ?? 50;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { createdAt: "descending" };
@@ -75,7 +75,6 @@ module.exports.queries = {
             { $match: filterConditions },
             {
                 $facet: {
-                    totalCount: [{ $count: "count" }],
                     trainings: [{ $skip: skip }, { $limit: limit }],
                 },
             },
@@ -86,10 +85,10 @@ module.exports.queries = {
                 },
             },
         ]);
-
-        const { totalCount, trainings } = result[0];
+     
+        const {  trainings } = result[0];
         return {
-            totalCount,
+            totalCount:limit,
             trainings,
         };
     },
