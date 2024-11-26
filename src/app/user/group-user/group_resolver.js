@@ -14,9 +14,9 @@ const { VesselType } = require("../../vessle/vessel-type/vessel_type_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Designation } = require("../../designations/designation_model");
 const { SubRole } = require("../sub-roles/sub_role_model");
-const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup } = require("./group_helper");
+const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup, getAutoSyncedGroupsOnly, getCustomGroupsOnly } = require("./group_helper");
 const error_helper = require("../../../util/error_helper");
-const { getCustomGroupUsers, getAutoSyncUsers} = require("../../training-registrations/training_registration_helper");
+const { getCustomGroupUsers, getAutoSyncUsers } = require("../../training-registrations/training_registration_helper");
 module.exports.queries = {
     exportGroupToCSV: async ({ groupId }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -84,7 +84,8 @@ module.exports.queries = {
 
         switch (groupType) {
             case "Autosyncedgroups":
-                const allAutosyncedGroups = await getAutoSyncedGroups(subscriberId);
+                const allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+
                 let filteredAutosyncedGroups = allAutosyncedGroups;
                 if (groupFilter?.search) {
                     filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
@@ -99,9 +100,9 @@ module.exports.queries = {
             case "Customgroups":
                 if (groupFilter && !groupFilter.customGroupId) {
                     groupFilter.customGroupId = null;
-                  }
-                  
-                const allCustomGroups = await getCustomGroups(groupFilter?.customGroupId);
+                }
+
+                const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
 
                 let filteredCustomGroups = allCustomGroups;
                 if (groupFilter?.search) {
@@ -109,13 +110,15 @@ module.exports.queries = {
                         filterConditions.groupName.$regex.test(group.groupName)
                     );
                 }
-                groups = filteredCustomGroups;
-                totalCount = filteredCustomGroups.length;
+
+                const paginatedCustomGroups = filteredCustomGroups;
+                groups = paginatedCustomGroups;
+                totalCount = paginatedCustomGroups.length;
                 break;
 
             default:
-                const allAutosynced = await getAutoSyncedGroups(subscriberId);
-                const allCustom = await getCustomGroups();
+                const allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
+                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId,skip,limit);
 
                 const allGroups = [...allAutosynced, ...allCustom];
 
@@ -127,7 +130,7 @@ module.exports.queries = {
                 }
                 const paginatedGroups = filteredGroups.slice(skip, skip + limit);
                 groups = paginatedGroups;
-                totalCount = filteredGroups.length;
+                totalCount = paginatedGroups.length;
                 break;
         }
 
@@ -306,7 +309,7 @@ module.exports.queries = {
             autoSyncedGroups: filteredAutoSyncedGroups,
         };
 
-    },   
+    },
     getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
 
@@ -446,6 +449,7 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, ses
 
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
 
         if (!input.groupType) {
@@ -463,6 +467,7 @@ module.exports.mutations = {
         };
 
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
+
             let existingGroupMembers;
             let existingGroup;
 
@@ -498,7 +503,7 @@ module.exports.mutations = {
             if (input.description) groupUpdateData.description = input.description;
             if (input.groupType) groupUpdateData.groupType = input.groupType;
             if (input.members && input.members.length === 0) {
-                groupUpdateData.members = input.members;
+                // groupUpdateData.members = input.members;
                 groupUpdateData.memberCount = input.members.length;
             }
 
@@ -598,14 +603,6 @@ module.exports.mutations = {
             if (input.groupType === "GROUP") {
                 if (getDesignationIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "designation", getDesignationIds, session);
-                }
-
-                if (regStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "registered", regStatusIds, session);
-                }
-
-                if (unRegStatusIds.length > 0) {
-                    await bulkInsertGroups(subscriberId, savedGroupName._id, "unregistered", unRegStatusIds, session);
                 }
 
                 if (subRoleIds.length > 0) {

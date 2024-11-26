@@ -57,15 +57,21 @@ const trainingProgressSchema = new Schema(
             default: "NOT_STARTED",
             enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
         },
+        progressPercentage: {
+            type: Number,
+            default: 0,
+        },
         enroledStatus: {
             type: Boolean,
             default: true,
         },
         lastAccessedItem: String,
         lastAccessedAt: Date,
-        lastAccessedDuration: Number,
+        lastAccessedDuration: {
+            type: Number,
+            default: 0,
+        },
         quizAttempts: [QuizAttemptSpecificSchema],
-
         startedAt: Date,
         completedAt: Date,
         createdBy: {

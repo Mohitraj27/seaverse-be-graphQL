@@ -18,6 +18,33 @@ module.exports = {
             field_name: String
             value: String
         }
+
+        type TypeOfVesselDetails {
+    _id: ID!
+    isActive: Boolean!
+    name: String!
+}
+
+type VesselDetails {
+    _id: ID!
+    isActive: Boolean!
+    name: String!
+    typeOfVessel: ID!
+    imoNumber: String
+    typeOfVesselDetails: TypeOfVesselDetails
+}
+
+type userVessels {
+    _id: ID!
+    user: ID!
+    createdAt: String!
+    updatedAt: String!
+    isActive: Boolean!
+    vessel: ID!
+    vesselStatus: String!
+    vesselDetails: VesselDetails
+}
+
         type Employee {
             _id: ID
             UID: String
@@ -43,7 +70,7 @@ module.exports = {
             isActive: Boolean
             trainingCertificates: [TrainingCertificate]
             signature: String
-            currentVessel: Vessel
+            userVessels: userVessels
             groupDetails: Group
         }
         type EmployeeList {
