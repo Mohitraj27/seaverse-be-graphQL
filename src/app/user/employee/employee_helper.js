@@ -1604,7 +1604,7 @@ module.exports = {
 
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
-            userCount = allUpdatedUsers.length;
+            userCount = allUpdatedUsers?.length || 0;
             const automateLearningPlanIds = [];
 
             //  dont remove this code we need it for automate learning plan  
