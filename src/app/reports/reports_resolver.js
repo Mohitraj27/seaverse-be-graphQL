@@ -9,7 +9,7 @@ const { Employee } = require("../user/employee/employee_model");
 const Permission = require("../user/sub-roles/permission.json");
 const aws_helper = require("../../util/aws_helper");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model")
-
+const { Vessel } = require("../vessle/vessel_model")
 const {
     TrainingRegistrationInvoice,
 } = require("../training-registrations/training-registration-invoices/training_registration_invoice_model");
@@ -943,12 +943,246 @@ const getSingleCourseEnrollmentReport = async ({ input }, context) => {
     }
 };
 
+const getVesselMainReport = async ({ input }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+    try {
+        input = input || {};
+
+        const matchStage = [];
+
+        if (Object.keys(input).length > 0) {
+            const filterInput = input.filterInput || {};
+
+            if (filterInput.name) {
+                matchStage.push({
+                    $match: {
+                        'name': { $regex: filterInput.name, $options: 'i' },
+                    },
+                });
+            }
+
+            if (filterInput.imoNumber) {
+                matchStage.push({
+                    $match: {
+                        'imoNumber': { $regex: filterInput.imoNumber, $options: 'i' },
+                    },
+                });
+            }
+
+            if (filterInput.ownerName) {
+                matchStage.push({
+                    $match: {
+                        'ownerName': { $regex: filterInput.ownerName, $options: 'i' },
+                    },
+                });
+            }
+
+            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
+            const limit = input.pageInput?.pageSize || 0;
+
+            if (limit > 0) {
+                matchStage.push({ $skip: skip }, { $limit: limit });
+            }
+        }
+
+        const data = await Vessel.aggregate([
+            {
+                $lookup: {
+                    from: "vesseltypes",
+                    localField: "typeOfVessel",
+                    foreignField: "_id",
+                    as: "vesselTypesInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$vesselTypesInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "uservessels",
+                    localField: "_id",
+                    foreignField: "vessel",
+                    as: "userVesselsInfo"
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userVesselsInfo.user",
+                    foreignField: "_id",
+                    as: "userInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "overalltrainingprogresses",
+                    localField: "userInfo._id",
+                    foreignField: "user",
+                    as: "trainingProgressInfo"
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    imoNumber: 1,
+                    companyName: 1,
+                    ownerName: 1,
+                    vesselType: "$vesselTypesInfo.name",
+                    onboardedUsers: {
+                        $ifNull: [
+                            {
+                                $setUnion: [
+                                    {
+                                        $map: {
+                                            input: {
+                                                $filter: {
+                                                    input: "$userVesselsInfo",
+                                                    as: "userVessel",
+                                                    cond: {
+                                                        $eq: [
+                                                            "$$userVessel.vesselStatus",
+                                                            "ONBOARDED"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            as: "userVessel",
+                                            in: "$$userVessel.user"
+                                        }
+                                    },
+                                    []
+                                ]
+                            },
+                            []
+                        ]
+                    },
+                    filteredTrainingProgress: {
+                        $filter: {
+                            input: "$trainingProgressInfo",
+                            as: "training",
+                            cond: {
+                                $in: [
+                                    "$$training.user",
+                                    {
+                                        $ifNull: [
+                                            {
+                                                $map: {
+                                                    input: "$onboardedUsers",
+                                                    as: "user",
+                                                    in: "$$user"
+                                                }
+                                            },
+                                            []
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    averageProgress: {
+                        $cond: {
+                            if: {
+                                $gt: [
+                                    {
+                                        $size: {
+                                            $ifNull: [
+                                                "$filteredTrainingProgress",
+                                                []
+                                            ]
+                                        }
+                                    },
+                                    0
+                                ]
+                            },
+                            then: {
+                                $avg: "$filteredTrainingProgress.progressPercentage"
+                            },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    vesselName: "$name",
+                    imoNumber: 1,
+                    vesselId: "$_id",
+                    typeOfVessel: "$vesselType",
+                    ownerName: 1,
+                    onboardedCount: {
+                        $size: {
+                            $ifNull: ["$onboardedUsers", []]
+                        }
+                    },
+                    progress: "$averageProgress"
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    vesselName: { $first: "$vesselName" },
+                    imoNumber: { $first: "$imoNumber" },
+                    vesselId: { $first: "$vesselId" },
+                    typeOfVessel: { $first: "$typeOfVessel" },
+                    ownerName: { $first: "$ownerName" },
+                    onboardedCount: { $first: "$onboardedCount" },
+                    progress: { $avg: "$progress" },
+                }
+            },
+            ...matchStage
+        ]);
+
+        let s3PresignedUrl = "";
+
+        if (input?.export) {
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Vessel_Progress_Report-${Date.now()}`);
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "Vessel_Progress_Reports",
+                fileName: `Vessel_Progress_Report-${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportVesselProgressReportAsExcel,
+            });
+            if (excelFilePath) {
+                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            }
+            return {
+                filePath: s3PresignedUrl,
+                fileName: path.basename(excelFilePath),
+                vesselData: data,
+            };
+        }
+
+        return {
+            vesselData: data,
+        };
+
+    } catch (err) {
+        throw Error(err.message);
+    }
+};
+
+
 
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
     getMainCoursesReport,
     getSingleCourseEnrollmentReport,
+    getVesselMainReport,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 

@@ -173,6 +173,11 @@ module.exports = {
             fileName : String
             coursesData : [singleCourseEnrollmentReport]
         }
+        type mainVesselReportOutput {
+            filePath : String
+            fileName : String
+            vesselData : [mainVesselReportData]
+        }
         type singleCourseEnrollmentReport {
             _id :ID
             learnerName : String
@@ -188,6 +193,14 @@ module.exports = {
             quizPercentage : Int
             isPassed :Boolean
         }
+        type mainVesselReportData {
+            vesselId : ID
+            imoNumber : String
+            vesselName : String
+            ownerName : String
+            onboardedCount : Int
+            progress : Int
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -198,5 +211,6 @@ module.exports = {
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
         getSingleCourseEnrollmentReport(input: singleCourseReportInput):singleCourseReportOutput
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
+        getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
     `,
 };
