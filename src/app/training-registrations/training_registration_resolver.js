@@ -670,8 +670,6 @@ module.exports.queries = {
                 };
             });
 
-            console.log(JSON.stringify(processedTrainingDetails, null, 2));
-
             return {
                 status: true,
                 message: "Course details fetched successfully",
