@@ -778,12 +778,12 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId, status, search = '') => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '') => {
     try {
         const matchCriteria = { learningPlan: learningPlanId };
 
-        if (status !== null) {
-            matchCriteria.status = status;
+        if (status && Array.isArray(status) && status.length > 0) {
+            matchCriteria.status = { $in: status };
         }
         const pipeline =  [
             {
@@ -807,7 +807,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
-                            userDetails: "$userDetails"
+                            userDetails: "$userDetails",
+                            status: "$status" 
                         }
                     },
                     overallTrainingprogressStatus: { $addToSet: "$status" }
@@ -830,7 +831,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                                 email: "$$user.userDetails.email",
                                 firstName: "$$user.userDetails.firstName",
                                 lastName: "$$user.userDetails.lastName",
-                                updatedAt: "$$user.userDetails.updatedAt"
+                                updatedAt: "$$user.userDetails.updatedAt",
+                                status: "$$user.status"
                             }
                         }
                     },
@@ -838,13 +840,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                 }
             }
         ];
-        if(status != null && status){
-            pipeline.push({
-                $match: {
-                    status: status
-                }
-            });
-        }
         if(search != null && search){
             pipeline.push({
                 $match: {
