@@ -453,6 +453,37 @@ module.exports.queries = {
                                 },
                             },
                             {
+                                $addFields: {
+                                    "trainingModuleContentDetails.quizDetails": {
+                                        $ifNull: [
+                                            {
+                                                $map: {
+                                                    input: { $ifNull: ["$questions", []] },
+                                                    as: "question",
+                                                    in: {
+                                                        _id: "$$question._id",
+                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                        choices: {
+                                                            $filter: {
+                                                                input: { $ifNull: ["$questionChoices", []] },
+                                                                as: "choice",
+                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                            },
+                                                        },
+                                                        answerKey: "$$question.answerKey",
+                                                        questionType: "$$question.questionType",
+                                                        points: "$$question.points",
+                                                        negativePoints: "$$question.negativePoints",
+                                                    },
+                                                },
+                                            },
+                                            [],
+                                        ],
+                                    },
+                                },
+                            },
+                            {
                                 $group: {
                                     _id: "$_id",
                                     trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -489,21 +520,46 @@ module.exports.queries = {
                                     from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails",
-                                },
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingModuleContentDetails.quizDetails",
-                                    preserveNullAndEmptyArrays: true,
+                                    as: "questions",
                                 },
                             },
                             {
                                 $lookup: {
                                     from: "answerchoices",
-                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    localField: "questions.choices",
                                     foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails.choices",
+                                    as: "questionChoices",
+                                },
+                            },
+                            {
+                                $addFields: {
+                                    "trainingModuleContentDetails.quizDetails": {
+                                        $ifNull: [
+                                            {
+                                                $map: {
+                                                    input: { $ifNull: ["$questions", []] },
+                                                    as: "question",
+                                                    in: {
+                                                        _id: "$$question._id",
+                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                        choices: {
+                                                            $filter: {
+                                                                input: { $ifNull: ["$questionChoices", []] },
+                                                                as: "choice",
+                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                            },
+                                                        },
+                                                        answerKey: "$$question.answerKey",
+                                                        questionType: "$$question.questionType",
+                                                        points: "$$question.points",
+                                                        negativePoints: "$$question.negativePoints",
+                                                    },
+                                                },
+                                            },
+                                            [],
+                                        ],
+                                    },
                                 },
                             },
                             {
@@ -575,6 +631,7 @@ module.exports.queries = {
                 },
             ]);
 
+
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
@@ -604,6 +661,7 @@ module.exports.queries = {
                     return acc;
 
                 }, 0);
+
 
                 return {
                     ...trainingDetail,
