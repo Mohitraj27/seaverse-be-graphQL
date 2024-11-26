@@ -421,9 +421,8 @@ module.exports.mutations = {
         try {
 
             const existingUser = await User.findOne({ email });
-
             if (!existingUser) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw  CustomError(ErrorName.NOT_FOUND);
             }
 
             const token = generateRandomString(10);
@@ -468,6 +467,7 @@ module.exports.mutations = {
 
         } catch (error) {
             console.error(error);
+            throw new Error(error.message)
         }
 
     },
