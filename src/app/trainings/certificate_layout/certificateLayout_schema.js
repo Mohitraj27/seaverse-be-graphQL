@@ -28,6 +28,10 @@ module.exports = {
         message : String
         logos : [MultiMediaInfo]
     }
+    type certificateLayoutOutputForDelete {
+        success : Boolean,
+        message : String
+    }
     type CertificateLayout {
         id: ID
         layout: String
@@ -48,5 +52,6 @@ module.exports = {
 `,
     mutations: `
     createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
+    deleteLogoFromCertificateLayout(layoutId : ID! , logoIndex:Int!):certificateLayoutOutputForDelete
 `,
 };
