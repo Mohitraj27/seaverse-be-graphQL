@@ -230,8 +230,8 @@ module.exports = {
             
     `,
     queries: `
-        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:TrainingProgressStatusEnum,search: String):LearningPlanResponse!
-        getLearningPlan(id: ID!,status:TrainingProgressStatusEnum,search: String): LearningPlan
+        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
+        getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum],search: String): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `

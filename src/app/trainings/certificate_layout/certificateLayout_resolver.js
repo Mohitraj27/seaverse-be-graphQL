@@ -169,5 +169,55 @@ module.exports.mutations = {
                 message: error.message || "An unexpected error occurred. Please try again later.",
             };
         }
-    },    
+    }, 
+    deleteLogosFromCertificateLayout: async ({ layoutId, logoIndexes }, context) => {
+        try {
+            const { role, userId, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+    
+            if (
+                !SubRoleHelper.hasPermission({
+                    currentRole: role,
+                    currentPermissions: userPermissions,
+                    requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
+                    requiredAll: false,
+                    restrictOrganizationManager: isOrganizationManager,
+                })
+            ) {
+                throw CustomError(ErrorName.FORBIDDEN);
+            }
+    
+            if (!subscriberId) {
+                throw CustomError(ErrorName.FORBIDDEN);
+            }
+    
+            const existingLayout = await certificateLayout.findById(layoutId);
+            if (!existingLayout) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Certificate layout not found for the provided ID");
+            }
+    
+            if (!Array.isArray(logoIndexes) || logoIndexes.some(index => typeof index !== 'number' || index < 0 || index >= existingLayout.logos.length)) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Invalid logo indexes");
+            }
+    
+            logoIndexes.sort((a, b) => b - a);
+    
+            logoIndexes.forEach(logoIndex => {
+                existingLayout.logos.splice(logoIndex, 1);
+            });
+    
+            await existingLayout.save();
+    
+            return {
+                success: true,
+                message: "Logos deleted successfully.",
+                logos: existingLayout.logos,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message || "An unexpected error occurred. Please try again later.",
+            };
+        }
+    },
+           
 };
