@@ -137,6 +137,7 @@ module.exports = {
             progressPercentage: Float
             completedModules : Int
             totalModules : Int
+            status:String
             updatedAt: String
         }
         type overAllProgress {
