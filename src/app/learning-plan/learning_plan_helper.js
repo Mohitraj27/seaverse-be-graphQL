@@ -134,8 +134,10 @@ const createLearningPlanHelper = async (input, context) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (input.status !== "DRAFT") {
-            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status === "ACTIVE" || input.status === "INACTIVE") {
+            if (!input.selectCourses || input.selectCourses.length === 0) {
+                errorList.push(errorMessages.SELECT_COURSES_REQUIRED);
+            }
         }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
             ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
@@ -221,8 +223,7 @@ const createLearningPlanHelper = async (input, context) => {
             updatedBy: input.updatedBy
         });
         await newLearningPlan.save();
-
-        if (newLearningPlan.assignedLearnerIDs.length > 0) {
+        if (newLearningPlan.assignedLearnerIDs.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
                 users: newLearningPlan?.assignedLearnerIDs,
@@ -242,8 +243,10 @@ const updateLearningPlanHelper = async (id, input, context) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (input.status !== "DRAFT") {
-            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status === "ACTIVE" || input.status === "INACTIVE") {
+            if (!input.selectCourses || input.selectCourses.length === 0) {
+                errorList.push(errorMessages.SELECT_COURSES_REQUIRED);
+            }
         }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
             ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
@@ -352,7 +355,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
         existingLearningPlan.status = input.status || existingLearningPlan.status;
         await existingLearningPlan.save();
-        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers) {
+        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
                 users: existingLearningPlan?.assignedLearnerIDs,
