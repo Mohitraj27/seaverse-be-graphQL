@@ -185,7 +185,7 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
-    getLearningPlans: async ({ filterInput, pageInput }, context) => {
+    getLearningPlans: async ({ filterInput, pageInput ,status,search}, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
@@ -433,7 +433,7 @@ module.exports.queries = {
                 { $limit: parsedLimit }
             ]);
             for (const learningPlan of learningPlans) {
-                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
+                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
             return {
@@ -492,7 +492,61 @@ module.exports.queries = {
                             {
                                 $project: {
                                     _id: 1,
-
+                                    UID: 1,
+                                    trainingCategories: 1,
+                                    trainingSubCategories: 1,
+                                    title: 1,
+                                    description: 1,
+                                    instructions: 1,
+                                    overview: 1,
+                                    feedback: 1,
+                                    feedbackContent: 1,
+                                    images: 1,
+                                    price: 1,
+                                    durationHours: 1,
+                                    certificateValidity: 1,
+                                    targetAudienceId: 1,
+                                    courseType: 1,
+                                    enableFreeFlow: 1,
+                                    unlockOn: 1,
+                                    status: 1,
+                                    trainingModuleContents: 1,
+                                    courseId: 1,
+                                    course_validity: 1,
+                                    courseLevel: 1,
+                                    hideCourseProgress: 1,
+                                    allowMultipleAttempts: 1,
+                                    attemptFlexibility: 1,
+                                    attemptType: 1,
+                                    setLimitAttempt: 1,
+                                    disableFurtherAttemptsOnPass: 1,
+                                    lockModulesBetweenAttempts: 1,
+                                    setTimeLimitForModule: 1,
+                                    approvalStatus: 1,
+                                    certifications: 1,
+                                    bannerImage: 1,
+                                    appliedAt: 1,
+                                    approvedAt: 1,
+                                    rejectedAt: 1,
+                                    isActive: 1,
+                                    createdBy: 1,
+                                    isDeleted: 1,
+                                    createdAt: 1,
+                                    trainingModules: 1,
+                                    scorm: 1,
+                                    groupTrainingModule: 1,
+                                    skills: 1,
+                                    userFeedback: 1,
+                                    managerFeedback: 1,
+                                    setFrequency: 1,
+                                    enableEmailNotification: 1,
+                                    setReminder: 1,
+                                    setFrequencyDate: 1,
+                                    manadatoryModules: 1,
+                                    classroomModule: 1,
+                                    authorName: 1,
+                                    isOrdered: 1,
+                                    coverImage: 1,
                                 },
                             },
                         ],
@@ -537,14 +591,17 @@ module.exports.queries = {
                         _id: 1,
                         title: 1,
                         targetAudience: 1,
+                        groupIDs: 1,
+                        userObjectIds: 1,
                         status: 1,
                         audienceSelection: 1,
+                        conditionType: 1,
                         isDeleted: 1,
-                        assignedLearnerIDs: 1,
                         createdAt: 1,
                         updatedAt: 1,
-                        conditionType: 1,
                         selectCourses: 1,
+                        assignedLearnerIDs: 1,
+                        conditionalCustomFields: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",

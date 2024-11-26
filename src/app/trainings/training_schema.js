@@ -236,6 +236,17 @@ module.exports = {
             status: Int
             message: String
         }
+        input updateContentDetailInput {
+            contentId: ID!
+            contentStatus: String
+            duration: Int
+            progressPercentage: Float
+        }
+        input updateTrainingProgressInput {
+            overallId: ID!
+            trainingModule: ID!
+            contentDetails: [updateContentDetailInput!]!
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
@@ -247,6 +258,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
-        syncOfflineDataAndUpdateProgress: offlineSyncRes
+        syncOfflineDataAndUpdateProgress(input: [updateTrainingProgressInput!]!): offlineSyncRes!
     `,
 };

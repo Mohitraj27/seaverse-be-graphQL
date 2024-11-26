@@ -62,6 +62,7 @@ const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const NotificationEvent = require("../../notifications/notification_event.json");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
+const { Notification } = require("../../notifications/notification_model");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
@@ -1506,20 +1507,6 @@ module.exports.mutations = {
 
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
-
-                await EmployeeHelper.sendNotificationOnBULK({
-                    subscriber: subscriberId,
-                    action: "BULK IMPORT",
-                    createdBy: userId,
-                    uploadedBy: userId,
-                    isError: true,
-                    description: `${errors[0]}`,
-                    notificationType: 'BULK_IMPORT',
-                    status: "FAILED"
-                })
-
-
-
                 throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
             }
 
@@ -1629,6 +1616,7 @@ module.exports.mutations = {
 
             if (!savedUser) throw CustomError(ErrorName.FAILED);
 
+
             let employeeUpdate = {
                 subscriber: subscriberId,
                 user: savedUser,
@@ -1655,13 +1643,78 @@ module.exports.mutations = {
 
             if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
             const vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
-             
+
             invitationList.push({
                 userData: savedUser,
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
+            const learningPlans = await LearningPlan.find();
+            function filterLearningPlans(learningPlans, conditions) {
+                const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
 
+                return learningPlans?.filter(plan => {
+                    const { conditionType, conditionalCustomFields } = plan;
+
+                    let matches = conditionalCustomFields.map(field => {
+                        const { type_of_Field, valueOfField, isOrIsNot } = field;
+
+                        switch (type_of_Field) {
+                            case "DESIGNATION":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(designationID)
+                                    : !valueOfField.includes(designationID);
+
+                            case "VESSEL":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselID)
+                                    : !valueOfField.includes(vesselID);
+
+                            case "VESSEL_TYPE":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselTypeID)
+                                    : !valueOfField.includes(vesselTypeID);
+
+                            case "CURRENT_STATUS":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(currentStatus)
+                                    : !valueOfField.includes(currentStatus);
+
+                            default:
+                                return false;
+                        }
+                    });
+
+                    if (conditionType === "MATCH_ANY_CONDITION") {
+                        return matches.some(match => match === true);
+                    }
+
+                    if (conditionType === "MATCH_ALL_CONDITION") {
+                        return matches.every(match => match === true);
+                    }
+
+                    return false;
+                });
+            }
+
+            
+
+            const conditions = {
+                designationID: input.empDesignation,
+                vesselID: savedUserVessel.vessel,
+                vesselTypeID: vessel?.typeOfVessel?._id,
+                currentStatus: savedUserVessel.vesselStatus
+            };
+
+            const filteredPlans = filterLearningPlans(learningPlans, conditions);
+
+
+            if (filteredPlans?.length > 0) {
+                await LearningPlan.updateMany(
+                    { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                );
+            }
             const mailOptions = {
                 from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
                 to: savedUser.email,
@@ -1739,13 +1792,13 @@ module.exports.mutations = {
                             <h1>Welcome to SeaVerse!</h1>
                         </div>
                         <div class="content">
-                            <p>Dear <strong>${ savedUser.firstName }</strong>,</p>
+                            <p>Dear <strong>${savedUser.firstName}</strong>,</p>
                             <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
                             <p>To get started, log in with these details:</p>
-                            <p><strong>Email:</strong> ${ savedUser.email }</p>
+                            <p><strong>Email:</strong> ${savedUser.email}</p>
                             <p><strong>Temporary Password:</strong> ${generatePassword}</p>
                             <p><em>Please set a new password upon your first login for security.</em></p>
-                            <a href="https://web.squadramedia.site/login" target="_blank" class="cta-button">Web Access</a>
+                            <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank" class="cta-button">Web Access</a>
                             <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
                             <ul>
                                 <li>
@@ -1782,7 +1835,7 @@ module.exports.mutations = {
             return savedEmployees;
         });
 
-        if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 

@@ -453,6 +453,37 @@ module.exports.queries = {
                                 },
                             },
                             {
+                                $addFields: {
+                                    "trainingModuleContentDetails.quizDetails": {
+                                        $ifNull: [
+                                            {
+                                                $map: {
+                                                    input: { $ifNull: ["$questions", []] },
+                                                    as: "question",
+                                                    in: {
+                                                        _id: "$$question._id",
+                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                        choices: {
+                                                            $filter: {
+                                                                input: { $ifNull: ["$questionChoices", []] },
+                                                                as: "choice",
+                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                            },
+                                                        },
+                                                        answerKey: "$$question.answerKey",
+                                                        questionType: "$$question.questionType",
+                                                        points: "$$question.points",
+                                                        negativePoints: "$$question.negativePoints",
+                                                    },
+                                                },
+                                            },
+                                            [],
+                                        ],
+                                    },
+                                },
+                            },
+                            {
                                 $group: {
                                     _id: "$_id",
                                     trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -489,21 +520,46 @@ module.exports.queries = {
                                     from: "questions",
                                     localField: "trainingModuleContentDetails.quiz",
                                     foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails",
-                                },
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingModuleContentDetails.quizDetails",
-                                    preserveNullAndEmptyArrays: true,
+                                    as: "questions",
                                 },
                             },
                             {
                                 $lookup: {
                                     from: "answerchoices",
-                                    localField: "trainingModuleContentDetails.quizDetails.choices",
+                                    localField: "questions.choices",
                                     foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails.choices",
+                                    as: "questionChoices",
+                                },
+                            },
+                            {
+                                $addFields: {
+                                    "trainingModuleContentDetails.quizDetails": {
+                                        $ifNull: [
+                                            {
+                                                $map: {
+                                                    input: { $ifNull: ["$questions", []] },
+                                                    as: "question",
+                                                    in: {
+                                                        _id: "$$question._id",
+                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                        choices: {
+                                                            $filter: {
+                                                                input: { $ifNull: ["$questionChoices", []] },
+                                                                as: "choice",
+                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                            },
+                                                        },
+                                                        answerKey: "$$question.answerKey",
+                                                        questionType: "$$question.questionType",
+                                                        points: "$$question.points",
+                                                        negativePoints: "$$question.negativePoints",
+                                                    },
+                                                },
+                                            },
+                                            [],
+                                        ],
+                                    },
                                 },
                             },
                             {
@@ -575,6 +631,7 @@ module.exports.queries = {
                 },
             ]);
 
+
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
@@ -602,7 +659,9 @@ module.exports.queries = {
 
                     acc += moduleDurationInSeconds;
                     return acc;
+
                 }, 0);
+
 
                 return {
                     ...trainingDetail,
@@ -652,20 +711,6 @@ module.exports.mutations = {
             const alreadyEnrolledEmails = [];
             const notEnrolledEmails = [];
 
-            for (let email of input.users) {
-                if (!Validator.isEmail(email)) {
-                    invalidEmails.push(email);
-                }
-            }
-            if (!input.users) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
-            }
-
-            let existingTraining = null;
-            if (input.training) {
-                existingTraining = await OverallTrainingProgress.find({ training: input.training });
-            }
-
             if (input.users && input.users.length > 0) {
                 for (let email of input.users) {
                     if (!Validator.isEmail(email)) {
@@ -678,6 +723,16 @@ module.exports.mutations = {
                     }
                 }
             }
+
+            if (!input.users) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
+            }
+            const inputUserIds = await User.find({ email: { $in: input.users } }).select("_id");
+            let existingTraining = null;
+            if (input.training) {
+                existingTraining = await OverallTrainingProgress.find({ training: input.training, user: { $in: inputUserIds } });
+            }
+
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
@@ -697,7 +752,11 @@ module.exports.mutations = {
                 }
 
                 if (verifiedUsers.invalidEmails.length > 0) {
-                    invalidEmails.push(...verifiedUsers.invalidEmails);
+                    verifiedUsers.invalidEmails.forEach(email => {
+                        if (!invalidEmails.includes(email)) {
+                            invalidEmails.push(email);
+                        }
+                    });
                 }
 
                 if (input.type === "ENROLL") {

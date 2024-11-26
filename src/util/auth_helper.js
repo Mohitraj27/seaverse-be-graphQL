@@ -11,6 +11,9 @@ const requiresRole = role => resolver => {
     if (isFunction(resolver))
         return (_, args, context = {}) => {
             context.resolverName = resolver.name;
+            if (resolver.name === 'forgetPassword') {
+                return resolver(args, context);
+            }
             if (!context.user) {
                 console.log(`auth_helper:requiresRole:UNAUTHORIZED:${context.resolverName}`);
                 throw CustomError(ErrorName.UNAUTHORIZED);

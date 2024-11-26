@@ -221,15 +221,18 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
         for (let user of inputUsers) {
             const existEmail = await User.findOne({ email: user.email });
             if (!Validator.isEmail(user.email)) {
-                invalidEmails.push(user.email)
+                if (!invalidEmails.includes(user.email)) {
+                    invalidEmails.push(user.email)
+                }
             } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
             } else if (!existEmail) {
-                invalidEmails.push(user.email)
+                if (!invalidEmails.includes(user.email)) {
+                    invalidEmails.push(user.email)
+                }
             } else {
                 remainingUsers.push(user);
             }
-
         }
 
         const userObjectIds = remainingUsers.map(user => user._id);
