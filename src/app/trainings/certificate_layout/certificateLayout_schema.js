@@ -52,6 +52,6 @@ module.exports = {
 `,
     mutations: `
     createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
-    deleteLogoFromCertificateLayout(layoutId : ID! , logoIndex:Int!):certificateLayoutOutputForDelete
+    deleteLogosFromCertificateLayout(layoutId : ID! , logoIndexes:[Int]!):certificateLayoutOutputForDelete
 `,
 };

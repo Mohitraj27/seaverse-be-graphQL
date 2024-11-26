@@ -170,7 +170,7 @@ module.exports.mutations = {
             };
         }
     }, 
-    deleteLogoFromCertificateLayout: async ({ layoutId, logoIndex }, context) => {
+    deleteLogosFromCertificateLayout: async ({ layoutId, logoIndexes }, context) => {
         try {
             const { role, userId, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
     
@@ -195,17 +195,21 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Certificate layout not found for the provided ID");
             }
     
-            if (typeof logoIndex !== 'number' || logoIndex < 0 || logoIndex >= existingLayout.logos.length) {
-                throw CustomError(ErrorName.VALIDATION_ERROR, "Invalid logo index");
+            if (!Array.isArray(logoIndexes) || logoIndexes.some(index => typeof index !== 'number' || index < 0 || index >= existingLayout.logos.length)) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Invalid logo indexes");
             }
     
-            existingLayout.logos.splice(logoIndex, 1);
+            logoIndexes.sort((a, b) => b - a);
+    
+            logoIndexes.forEach(logoIndex => {
+                existingLayout.logos.splice(logoIndex, 1);
+            });
     
             await existingLayout.save();
     
             return {
                 success: true,
-                message: "Logo deleted successfully.",
+                message: "Logos deleted successfully.",
                 logos: existingLayout.logos,
             };
         } catch (error) {
@@ -214,5 +218,6 @@ module.exports.mutations = {
                 message: error.message || "An unexpected error occurred. Please try again later.",
             };
         }
-    },       
+    },
+           
 };
