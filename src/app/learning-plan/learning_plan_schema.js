@@ -24,11 +24,11 @@ module.exports = {
         enum GroupTypeEnum {
             ${Object.keys(groupTypeEnums).join(" ")}
         }
-         enum TrainingProgressStatusEnum {
+        enum TrainingProgressStatusEnum {
              NOT_STARTED
              IN_PROGRESS
              COMPLETED
-         }   
+        }   
          enum lastModifiedEnum {
             TODAY
             YESTERDAY
@@ -54,7 +54,7 @@ module.exports = {
             isOrIsNot: String!
             groupIDs: [ID!]
         }
-          type groupTypeRes {
+        type groupTypeRes {
             _id: ID
             groupType: GroupTypeEnum
             groupIDs: [ID!]
@@ -129,22 +129,22 @@ module.exports = {
             authorName: String
             isOrdered: Boolean
         }
-      type learnerData {
-        _id: ID
-       firstName: String
-       lastName: String
-       email: String
-       progressPercentage: Float
-       completedModules : Int
-       totalModules : Int
-       updatedAt: String
-     
-      }
+        type learnerData {
+            _id: ID
+            firstName: String
+            lastName: String
+            email: String
+            progressPercentage: Float
+            completedModules : Int
+            totalModules : Int
+            updatedAt: String
+        }
         type overAllProgress {
-          participantsCompleted: Int
-        learningPlan:ID
-        averageProgress:Float
-        users:[learnerData]
+            participantsCompleted: Int
+            learningPlan:ID
+            averageProgress:Float
+            users:[learnerData]
+            overallTrainingprogressStatus: [TrainingProgressStatusEnum]
         }
         type LearningPlan {
             _id: ID
@@ -186,17 +186,15 @@ module.exports = {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
         }
-            input pageInput {
-                limit: Int
-                skip: Int
-            }
+        input pageInput {
+            limit: Int
+            skip: Int
+        }
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
             audienceSelection: [String!]
-            lastModified: lastModifiedEnum
-           
-             
+            lastModified: lastModifiedEnum  
         }
         input LearningPlanInput {
             title: String
@@ -232,7 +230,7 @@ module.exports = {
             
     `,
     queries: `
-        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput):LearningPlanResponse!
+        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:TrainingProgressStatusEnum,search: String):LearningPlanResponse!
         getLearningPlan(id: ID!,status:TrainingProgressStatusEnum,search: String): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,

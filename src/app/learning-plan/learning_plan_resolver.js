@@ -185,7 +185,7 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
-    getLearningPlans: async ({ filterInput, pageInput }, context) => {
+    getLearningPlans: async ({ filterInput, pageInput ,status,search}, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
@@ -433,7 +433,7 @@ module.exports.queries = {
                 { $limit: parsedLimit }
             ]);
             for (const learningPlan of learningPlans) {
-                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
+                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
             return {
