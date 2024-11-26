@@ -202,8 +202,8 @@ module.exports.queries = {
                 queryConditions.title = { $regex: filterInput.title, $options: "i" };
             }
 
-            if (filterInput?.status) {
-                queryConditions.status = filterInput.status;
+            if (filterInput?.status && Array.isArray(filterInput.status)) {
+                queryConditions.status = { $in: filterInput.status };  
             }
             if (filterInput?.audienceSelection) {
                 queryConditions.audienceSelection = {
@@ -453,7 +453,9 @@ module.exports.queries = {
                 _id: id,
                 isDeleted: false,
             };
-
+            if (queryConditions?.status && Array.isArray(queryConditions.status)) {
+                queryConditions.status = { $in: queryConditions.status };  
+            }
             const learningPlan = await LearningPlan.aggregate([
                 { $match: queryConditions },
                 {
