@@ -30,6 +30,16 @@ module.exports = {
             firstName: String
             lastName: String
         }
+        type QuizDetails {
+            _id: ID!
+            lang: String
+            value: String
+            choices: [AnswerChoice]
+            answerKey: [String]
+            questionType: String
+            points: Int
+            negativePoints: Int
+        }
         type TrainingModuleContent {
             _id: ID
             UID: String
@@ -64,7 +74,7 @@ module.exports = {
             createdBy: UserData
             updatedBy: UserData
             featuredInCourses: Int
-            quizDetails: QuestionNew
+            quizDetails: [QuizDetails]
             progressPercentage: Int
             lastAccessedDuration: Int
             trainingModuleContentDetails: [TrainingModuleContent]
