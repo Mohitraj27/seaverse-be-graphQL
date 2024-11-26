@@ -787,6 +787,9 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
         }
         const pipeline =  [
             {
+                $match: matchCriteria,
+            },
+            {
                 $lookup: {
                     from: "users",
                     localField: "user",
@@ -851,6 +854,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             });
         }
+     
+
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
 
         return groupedProgress?.[0] || [];
