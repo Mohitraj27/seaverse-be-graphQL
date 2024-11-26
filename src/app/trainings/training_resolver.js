@@ -35,7 +35,7 @@ const { TrainingContentBridge } = require("./training_content_bridge/training_co
 const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
-const { populate } = require("../contact-support/contact_support_model");
+const { populate, validate } = require("../contact-support/contact_support_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -153,6 +153,9 @@ module.exports.mutations = {
 
         const moduleContentIds = [];
 
+        if (!input.authorName) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
+        if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
@@ -182,11 +185,14 @@ module.exports.mutations = {
                     );
             }
 
-            const savedTrainingModuleIDs = savedTrainingModule.result.upserted.map(item => item._id)
+            const savedTrainingModuleIDs = savedTrainingModule?.result?.upserted?.map(item => item._id)
 
-            input.trainingModules.forEach((trainingModule, index) => {
-                if (!trainingModule._id && savedTrainingModuleIDs[index]) {
-                    trainingModule._id = savedTrainingModuleIDs[index];
+            input.trainingModules?.forEach((trainingModule, index) => {
+                if (!trainingModule._id) {
+                    const newId = savedTrainingModuleIDs.shift();
+                    if (newId) {
+                        trainingModule._id = newId;
+                    }
                 }
             });
 
@@ -247,10 +253,10 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-
+        const message = input._id ? `Training updated successfully` : `Training created successfully`;
         return {
             status: 1,
-            message: "Training created successfully",
+            message: message,
             trainingId: savedTraining._id,
             trainingName: savedTraining.title[0].value,
         };
@@ -432,36 +438,30 @@ module.exports.mutations = {
 
         return savedTraining;
     },
-    syncOfflineDataAndUpdateProgress: async (_, context) => {
+    syncOfflineDataAndUpdateProgress: async (input, context) => {
 
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
-
-        const input = [
-            {
-                overallId: "673b4c7b4e2e6e365028678b",
-                trainingModule: "673b32cee826bf6a20cfe157",
-                contentDetails: [
-                    {
-                        contentId: "672b0c6c4cdb99219b24fd09",
-                        contentStatus: 'COMPLETED',
-                        playerSettings: {}
-                    },
-                    {
-                        contentId: "67348588c0d4bf51b6053c39",
-                        contentStatus: 'IN_PROGRESS',
-                        playerSettings: {}
-                    }
-                ]
-            }
-        ]
+        const { role, userId, userInfo } = AuthUser(context);
 
         try {
 
-            if (!subscriberId || !userId) throw CustomError(ErrorName.NOT_FOUND);
-
+            if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            const validationRes = await TrainingHelper.validateTrainingProgress(input, userId);
+            const validateAndUpdateErrors = await TrainingHelper.validateAndUpdateContentData(input);
+
+            if (validateAndUpdateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateAndUpdateErrors[0]);
+            }
+
+            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input);
+
+            if (updateTrainingProgress) {
+                return {
+                    status: 1,
+                    message: "Progress updated successfully!"
+                };
+            }
+
 
         } catch (error) {
             throw Error(error.message);
