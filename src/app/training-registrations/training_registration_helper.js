@@ -28,7 +28,7 @@ const LogType = require("../logs/log_type.json");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const { TrainingModuleContent } = require("../trainings/training_modules/training_module_contents/training_module_content_model")
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
-
+const {TrainingContentBridge} = require("../trainings/training_content_bridge/training_content_model")
 
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -273,59 +273,78 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
 
     let trainingProgressData;
-    const existingProgressRecords = await OverallTrainingProgress.find({
-        training: { $in: trainings.map(training => training._id) },
-        user: { $in: users.map(user => user._id) }
-    });
-
-    const trainingModules = await TrainingModule.find({
-        training: { $in: trainings.map(training => training._id) }
-    });
-    const trainingModulesMap = trainingModules.reduce((result, trainingModule) => {
-        if (!result[trainingModule.training]) {
-            result[trainingModule.training] = [];
-        }
-        result[trainingModule.training].push({
-            moduleId: trainingModule._id,
-            contentIds: trainingModule.trainingModuleContents || []
+    try {
+        const existingProgressRecords = await OverallTrainingProgress.find({
+            training: { $in: trainings.map(training => training._id) },
+            user: { $in: users.map(user => user._id) }
         });
-        return result;
-    }, {});
-    const existingProgressSet = new Set(
-        existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
-    );
 
-    const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
-        users.map(user => {
-            const progressKey = `${training.toString()}-${user._id.toString()}`;
+        const existingProgressSet = new Set(
+            existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
+        );
 
-            if (existingProgressSet.has(progressKey)) {
-                return null;
+        const trainingContentBridges = await TrainingContentBridge.find({
+            training: { $in: trainings.map(training => training._id) }
+        });
+
+        const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
+            const trainingId = bridge.training.toString();
+            const moduleId = bridge.trainingModule.toString();
+            const contentId = bridge.trainingContent.toString();
+
+            if (!result[trainingId]) {
+                result[trainingId] = [];
             }
 
-            const contentData = trainingModulesMap[training] || [];
-            const totalTrainingModules = contentData.length;
+            const existingModule = result[trainingId].find(module => module.moduleId === moduleId);
 
-            return {
-                learningPlan: learningPlanId ? learningPlanId : null,
-                training: training,
-                user: user._id,
-                trainingRegistration: registrationId,
-                subscriberId: subscriberId.toString(),
-                status: 'NOT_STARTED',
-                isEnrolled: true,
-                progressPercentage: 0.0,
-                completedModules: 0,
-                contentData: contentData,
-                totalTrainingModules: totalTrainingModules,
-                startDate: null,
-                endDate: null,
-            };
-        })
-    ).filter(entry => entry !== null);
+            if (existingModule) {
+                existingModule.contentIds.push(contentId);
+            } else {
+                result[trainingId].push({
+                    moduleId: moduleId,
+                    contentIds: [contentId] 
+                });
+            }
 
-    if (newProgressEntries.length > 0) {
-        trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+            return result;
+        }, {});
+
+
+        const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
+            users.map(user => {
+                const progressKey = `${training.toString()}-${user._id.toString()}`;
+
+                if ( existingProgressSet.has(progressKey)) {
+                    return null; 
+                }
+
+                const contentData = trainingModulesMap[training] || [];
+                const totalTrainingModules = contentData.length;
+
+                return {
+                    learningPlan: learningPlanId ? learningPlanId : null,
+                    training: training,
+                    user: user._id,
+                    trainingRegistration: registrationId,
+                    subscriberId: subscriberId.toString(),
+                    status: 'NOT_STARTED',
+                    isEnrolled: true,
+                    progressPercentage: 0.0,
+                    completedModules: 0,
+                    contentData: contentData, 
+                    totalTrainingModules: totalTrainingModules,
+                    startDate: null,
+                    endDate: null,
+                };
+            })
+        ).filter(entry => entry !== null);
+
+        if (newProgressEntries.length > 0) {
+            trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+        }
+    } catch (error) {
+        throw Error(error.message);
     }
 
     return trainingProgressData;
