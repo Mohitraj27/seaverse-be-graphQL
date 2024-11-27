@@ -413,7 +413,7 @@ module.exports.mutations = {
             
             const { role, userId } = AuthUser(context);
 
-            if (role !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
+            // if (role !== Role.ADMIN) throw CustomError(ErrorName.FORBIDDEN);
 
             const filteredQuestionAnswers =
                 questionAnswers?.filter(el => {

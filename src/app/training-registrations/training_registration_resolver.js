@@ -213,7 +213,9 @@ module.exports.queries = {
         );
     },
     myCourses: async ({ filterInput = {} }, context) => {
+
         const { userId, subscriberId } = AuthUser(context);
+
         try {
             let filterConditions = {
                 user: ObjectId(userId),
