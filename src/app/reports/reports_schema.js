@@ -77,6 +77,7 @@ module.exports = {
             name : String
             isRegistered : Boolean
             EmployeeId : String
+            email : String
             designation : String
             vesselName : String
             lastSeen : String
