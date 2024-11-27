@@ -224,7 +224,6 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         let s3PresignedUrl = "";
 
-        // Export feature
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
             const worksheet = XLSX.utils.json_to_sheet(data);
