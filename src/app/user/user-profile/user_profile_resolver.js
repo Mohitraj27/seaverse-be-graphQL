@@ -56,7 +56,14 @@ module.exports.queries = {
             if (existingUser.avatar) {
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
-
+            const employeeData = await Employee.findOne({ user: userId }).lean().populate({
+                path: "empDesignation",
+                select: "_id name",
+            });
+            if (employeeData && employeeData.empDesignation) {
+                employeeData.designation = employeeData.empDesignation.name;
+            }
+            existingUser.employee = employeeData || null;
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {
