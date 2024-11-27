@@ -916,12 +916,35 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     updateEmployees: async ({ id, input, userId, subscriberId, role }, context) => {
-
-        const employeeFilterConditions = { subscriber: subscriberId };
+        const employeeFilterConditions = {subscriber:subscriberId} ; 
         employeeFilterConditions.user = id;
-        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user })
+        
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel",populate:({path:"currentVessel",select:"name isActive"}) })
             .lean();
+
+
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
+         
+        if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
+               
+          await UserVessel.updateMany(
+                {user:existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel,isActive: true },
+                { isActive: false }
+            );
+             await UserVessel.create({
+                user: existingEmployee?.user?._id,
+                vessel: input?.user?.currentVessel,
+                vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
+            })
+        }
+        else{
+            await UserVessel.findOneAndUpdate(
+                { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
+                { vesselStatus: input?.user?.vesselStatus }
+            );
+        }
+
+
 
         await UserHelper.updateUser(
             {
@@ -1395,7 +1418,7 @@ module.exports = {
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
-        let userCount=0;
+        let userCount = 0;
 
         const existingUsers = await User.find({
             $or: [
