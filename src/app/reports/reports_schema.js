@@ -98,8 +98,10 @@ module.exports = {
         input learnerMainReportFilter {
             isRegistered : Boolean
             isDeleted : Boolean
-            vesselName : String
-            name : String
+            search : String
+            vesselTypes : [ID]
+            vesselIds : [ID]
+            designations : [ID]
         } 
         input singleLearnerReportInput {
             learnerId : ID
@@ -108,8 +110,9 @@ module.exports = {
             export : Boolean
         }
         input singleLearnerReportFilter{
-            courseStatus:String
+            courseStatuses:[String]
             dateRange : filterDateRange
+            title :String
         }
         input filterDateRange {
             startDate: String
