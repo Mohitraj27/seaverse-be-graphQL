@@ -296,7 +296,7 @@ module.exports = {
                 });
             }
 
-            updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations);
+            updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations, { session});
         }
 
         return updateTrainingBridge;
