@@ -110,8 +110,9 @@ module.exports = {
             export : Boolean
         }
         input singleLearnerReportFilter{
-            courseStatus:String
+            courseStatuses:[String]
             dateRange : filterDateRange
+            title :String
         }
         input filterDateRange {
             startDate: String
