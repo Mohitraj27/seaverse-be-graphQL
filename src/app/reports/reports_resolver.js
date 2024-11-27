@@ -25,33 +25,57 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
-            if (filterInput.name) {
+            const searchString = filterInput.search || ''; 
+            if (searchString.trim() !== '') {
+                const regexSearch = new RegExp(searchString.trim(), 'i'); 
+
                 matchStage.push({
                     $match: {
                         $or: [
-                            { firstName: { $regex: filterInput.name, $options: 'i' } },
-                            { lastName: { $regex: filterInput.name, $options: 'i' } },
-                        ],
+                            { 'userInfo.firstName': { $regex: regexSearch } },
+                            { 'userInfo.lastName': { $regex: regexSearch } },
+                            { 'employeeDesignation.name': { $regex: regexSearch } },
+                            { 'userInfo.email': { $regex: regexSearch } },
+                            { 'vesselDetails.name': { $regex: regexSearch } },
+                            { 'vesselDetails.typeOfVessel': { $regex: regexSearch } }
+                        ]
+                    }
+                });
+            }
+
+            if (filterInput.vesselTypes && Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselDetails.typeOfVessel': { $in: filterInput.vesselTypes },
+                    },
+                });
+            }
+
+            if (filterInput.vesselIds && Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselDetails._id': { $in: filterInput.vesselIds },
+                    },
+                });
+            }
+
+            if (filterInput.designations && Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'employeeDesignation._id': { $in: filterInput.designations },
                     },
                 });
             }
 
             if (filterInput.isRegistered !== undefined) {
-                matchStage.push({ $match: { 'userInfo.isRegistered': filterInput.isRegistered } });
+                matchStage.push({
+                    $match: { 'userInfo.isRegistered': filterInput.isRegistered },
+                });
             }
 
             if (filterInput.isDeleted !== undefined) {
-                matchStage.push({ $match: { 'userInfo.isDeleted': filterInput.isDeleted } });
-            }
-
-            if (filterInput.vesselName) {
                 matchStage.push({
-                    $match: {
-                        'vesselDetails.name': {
-                            $regex: filterInput.vesselName,
-                            $options: 'i',
-                        },
-                    },
+                    $match: { 'userInfo.isDeleted': filterInput.isDeleted },
                 });
             }
 
@@ -130,13 +154,27 @@ const getMainLearnersReport = async ({ input }, context) => {
             },
             {
                 $lookup: {
+                    from: "vesseltypes",
+                    localField: "vesselDetails.typeOfVessel",
+                    foreignField: "_id",
+                    as: "vesselTypeInfo"
+                }
+            },
+            {
+                $unwind:
+                {
+                    path: "$vesselTypeInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
                     from: 'overalltrainingprogresses',
                     localField: 'user',
                     foreignField: 'user',
                     as: 'trainingProgresses',
                 },
             },
-            ...matchStage,
             {
                 $addFields: {
                     coursesCount: { $size: '$trainingProgresses' },
@@ -149,6 +187,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     },
                 },
             },
+            ...matchStage,
             {
                 $project: {
                     name: {
@@ -185,6 +224,7 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         let s3PresignedUrl = "";
 
+        // Export feature
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
             const worksheet = XLSX.utils.json_to_sheet(data);
@@ -205,6 +245,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 employeesData
             };
         }
+
         return {
             employeesData
         };
