@@ -410,7 +410,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 {
                     "$project": {
                         "courseName": {
-                            "$arrayElemAt": ["$trainingInfo.title.value", 0] // Extract course name
+                            "$arrayElemAt": ["$trainingInfo.title.value", 0] 
                         },
                         "createdAt": 1,
                         "completionDate": 1,
