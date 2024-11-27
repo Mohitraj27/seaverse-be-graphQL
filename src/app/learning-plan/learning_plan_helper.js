@@ -783,8 +783,7 @@ const getUsersAndCount = async (input) => {
 
 const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '') => {
     try {
-        const matchCriteria = { learningPlan: learningPlanId };
-
+        const matchCriteria = { learningPlan: {$in:[learningPlanId]} };
         if (status && Array.isArray(status) && status.length > 0) {
             matchCriteria.status = { $in: status };
         }
@@ -860,7 +859,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
      
 
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
-
         return groupedProgress?.[0] || [];
     } catch (error) {
         throw new Error(error.message);
