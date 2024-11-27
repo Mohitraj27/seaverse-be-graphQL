@@ -437,9 +437,41 @@ module.exports.mutations = {
 
         return savedTraining;
     },
-    syncOfflineDataAndUpdateProgress: async (input, context) => {
+    syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
 
         const { role, userId, userInfo } = AuthUser(context);
+
+        // Don't delete this comment
+        // mutation SyncOfflineDataAndUpdateProgress {
+        //     syncOfflineDataAndUpdateProgress(
+                // input: [
+                //     {
+                //         overallId: "67444963f3c17951648754bd"
+                //         trainingModules: [
+                //             {
+                //                 moduleId: "67444901f3c17951648754af"
+                //                 contentDetails: [
+                //                     {
+                //                         contentId: "673dcbfb4476163738844efe"
+                //                         contentStatus: "COMPLETED"
+                //                         duration: 650
+                //                         progressPercentage: 56.0
+                //                         questionAnswers: [
+                //                              { questionId: "673478513e1b316d40577950", answer: "2" },
+                //                              { questionId: "673478513e1b316d4057795b", answer: "2" }
+                //                         ]
+                //                     },
+                //                 ]
+                //             }
+                //         ]
+                //     }
+                // ]
+        //     ) {
+        //         status
+        //         message
+        //     }
+        // }
+        // Don't delete this comment
 
         try {
 
@@ -452,7 +484,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED, validateAndUpdateErrors[0]);
             }
 
-            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input);
+            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
                 return {

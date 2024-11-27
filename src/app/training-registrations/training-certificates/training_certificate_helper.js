@@ -15,7 +15,7 @@ const { TrainingProgress } = require("../training-progress/training_progress_mod
 const { Training } = require("../../trainings/training_model");
 const { v4: uuidv4 } = require('uuid');
 
-const generateTrainingCertificateNumber  =  async ({ subscriberId, userId, session  }) => {
+const generateTrainingCertificateNumber = async ({ subscriberId, userId, session }) => {
     const currentYear = CurrentDateTime().utcDateTimeObj.year();
 
     const savedCounter = await CounterHelper.updateCounter({
@@ -31,8 +31,8 @@ const generateTrainingCertificateNumber  =  async ({ subscriberId, userId, sessi
         .padStart(6, "0")}`;
 }
 
-const generateSVCertificateId  =  async () => {
-    const uuid = uuidv4().replace(/-/g, '').toUpperCase();  
+const generateSVCertificateId = async () => {
+    const uuid = uuidv4().replace(/-/g, '').toUpperCase();
     const certNumber = `SV-${uuid.substring(0, 8)}`;
     return certNumber;
 }
@@ -57,7 +57,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                         value: `Certificate has been generated for ${notificationData.userId.firstName} ${notificationData.userId.lastName} for completing ${trainingTitle} `,
                     },
                 ],
-                userMessage:[
+                userMessage: [
                     {
                         lang: "en",
                         value: `Your certificate has been generated for completing ${trainingTitle} `,
@@ -65,7 +65,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAdmin: true,
-                notifiers: notificationData.userIds?notificationData.userIds:[],
+                notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
                     {
@@ -116,31 +116,31 @@ const sendCertificateGenerationNotification = async notificationsData => {
 
 
 module.exports = {
-    generateCertificate: async (input,context) => {
+    generateCertificate: async (input, context) => {
         try {
             const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager } = AuthUser(context);
-    
+
             if (!input.trainingRegistrationId) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
             }
-    
+
             const setCertificateLayout = "0";
-    
+
             const existingCertificate = await TrainingCertificate.findOne({
                 trainingRegistration: input.trainingRegistrationId,
                 user: userId
             });
-    
+
             if (existingCertificate) {
                 throw CustomError(ErrorName.ALREADY_EXIST, "Certificate already exists for this user and training registration.");
             }
-    
-    
+
+
             const existingProgressData = await OverallTrainingProgress.findOne({
                 trainingRegistration: input.trainingRegistrationId,
                 user: userId,
             });
-    
+
             if (!existingProgressData) {
                 throw CustomError(ErrorName.NOT_FOUND, "Training Registration Not Found");
             }
@@ -148,11 +148,11 @@ module.exports = {
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: existingProgressData.training._id,
             });
-    
+
             if (!selectedCertificateLayout) {
                 throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
             }
-    
+
             const firstContentInfo = await TrainingProgress.findOne({
                 trainingRegistration: existingProgressData.trainingRegistration._id,
                 user: userId,
@@ -160,12 +160,12 @@ module.exports = {
             });
 
             const selectedCourse = await Training.findOne({
-                _id : existingProgressData.training?._id
+                _id: existingProgressData.training?._id
             })
             if (!selectedCourse) {
                 throw CustomError(ErrorName.NOT_FOUND, "course not found");
             }
-            
+
 
             const startDate = firstContentInfo.createdAt;
 
@@ -175,8 +175,8 @@ module.exports = {
             const expiresAt = certificateValidity && completedAt
                 ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
                 : undefined;
-            
-            const userName = `${existingProgressData.user?.firstName ?? ""} ${existingProgressData.user?.lastName?? ""}`
+
+            const userName = `${existingProgressData.user?.firstName ?? ""} ${existingProgressData.user?.lastName ?? ""}`
             const certificateNumber = await generateSVCertificateId();
             const certificateData = {
                 subscriber: subscriberId,
@@ -194,21 +194,118 @@ module.exports = {
                 certificateLayout: selectedCertificateLayout._id,
                 additionalData: input.additionalData || [],
             };
-    
+
             const savedTrainingCertificate = await TrainingCertificate.create(certificateData);
-    
+
             if (!savedTrainingCertificate) {
                 throw CustomError(ErrorName.FAILED, "Failed to generate certificate");
             }
-    
+
             return savedTrainingCertificate;
-    
+
         } catch (error) {
             throw error;
         }
+    },
+    generateCertificateBulk: async (registrationsForCertificates, session) => {
+        try {
+            
+            const existingCertificates = await TrainingCertificate.find({
+                trainingRegistration: { $in: registrationsForCertificates },
+            }).session(session).lean();
+
+            const existingCertMap = new Map(
+                existingCertificates.map(cert => [cert.trainingRegistration.toString(), cert])
+            );
+
+            const progressData = await OverallTrainingProgress.find({
+                trainingRegistration: { $in: registrationsForCertificates },
+            })
+                .populate('user')
+                .populate('training')
+                .session(session)
+                .lean();
+
+            const progressMap = new Map(
+                progressData.map(doc => [doc.trainingRegistration.toString(), doc])
+            );
+
+            const trainingIds = [...new Set(progressData.map(doc => doc.training._id.toString()))];
+
+            const certificateLayouts = await certificateLayout.find({
+                training: { $in: trainingIds },
+            }).session(session).lean();
+            
+            const layoutMap = new Map(
+                certificateLayouts.map(layout => [layout.training.toString(), layout])
+            );
+
+            const trainingModuleContentIds = progressData
+                .map(doc => doc.trainingModuleContentIds[0])
+                .filter(Boolean);
+
+            const firstContentInfos = await TrainingProgress.find({
+                trainingModuleContent: { $in: trainingModuleContentIds },
+                trainingRegistration: { $in: registrationsForCertificates },
+            })
+                .session(session)
+                .lean();
+
+            const contentInfoMap = new Map(
+                firstContentInfos.map(content => [content.trainingRegistration.toString(), content])
+            );
+
+            const certificatesToCreate = [];
+
+            for (const trainingRegistrationId of registrationsForCertificates) {
+
+                if (existingCertMap.has(trainingRegistrationId)) continue;
+
+                const progress = progressMap.get(trainingRegistrationId);
+                if (!progress) continue;
+
+                const layout = layoutMap.get(progress.training._id.toString());
+                if (!layout) continue;
+
+                const firstContentInfo = contentInfoMap.get(trainingRegistrationId);
+
+                const startDate = firstContentInfo?.createdAt;
+                const certificateValidity = progress.training?.certificateValidity;
+                const completedAt = CurrentDateTime()?.utcDateTime;
+                const expiresAt = certificateValidity
+                    ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
+                    : undefined;
+
+                const certificateNumber = await generateSVCertificateId();
+
+                certificatesToCreate.push({
+                    subscriber: progress.subscriber,
+                    trainingRegistration: trainingRegistrationId,
+                    training: progress.training._id,
+                    certificateLayout: layout._id,
+                    user: progress.user._id,
+                    trainingCertificateValidity: certificateValidity,
+                    status: 'COMPLETED',
+                    certificateNumber,
+                    startDate,
+                    completedAt,
+                    generatedAt: completedAt,
+                    expiresAt,
+                    additionalData: [],
+                });
+            }
+
+            if (certificatesToCreate.length > 0) {
+                await TrainingCertificate.insertMany(certificatesToCreate, { session });
+            }
+
+            return {
+                message: 'Certificates generated successfully',
+                count: certificatesToCreate.length,
+            };
+
+        } catch (error) {
+            console.error(error);
+        }
     }
-    
-    
-    ,
-    
 };
