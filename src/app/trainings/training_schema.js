@@ -236,16 +236,21 @@ module.exports = {
             status: Int
             message: String
         }
-        input updateContentDetailInput {
+        input UpdateContentDetailInput {
             contentId: ID!
             contentStatus: String
             duration: Int
             progressPercentage: Float
+            playerSettings: JSON
+            questionAnswers: [QuestionAnswerInput!]
         }
-        input updateTrainingProgressInput {
+        input UpdateTrainingModuleInput {
+            moduleId: ID!
+            contentDetails: [UpdateContentDetailInput!]!
+        }
+        input UpdateTrainingProgressInput {
             overallId: ID!
-            trainingModule: ID!
-            contentDetails: [updateContentDetailInput!]!
+            trainingModules: [UpdateTrainingModuleInput!]!
         }
     `,
     queries: `
@@ -258,6 +263,6 @@ module.exports = {
         updateTrainingStatus(input: UpdateTrainingStatusInput!): creationRes!
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
-        syncOfflineDataAndUpdateProgress(input: [updateTrainingProgressInput!]!): offlineSyncRes!
+        syncOfflineDataAndUpdateProgress(input: [UpdateTrainingProgressInput!]!): offlineSyncRes!
     `,
 };

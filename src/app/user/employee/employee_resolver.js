@@ -671,11 +671,11 @@ module.exports.queries = {
                     foreignField: "user",
                     as: "userVessels",
                     pipeline: [
-                        // {
-                        //     $match: {
-                        //         isActive: true,
-                        //     },
-                        // },
+                        {
+                            $match: {
+                                isActive: true,
+                            },
+                        },
                         {
                             $lookup: {
                                 from: "vessels",
@@ -735,6 +735,14 @@ module.exports.queries = {
                                 path: "$vesselDetails",
                                 preserveNullAndEmptyArrays: true,
                             },
+                        },
+                        {
+                            $sort: {
+                                updatedAt: -1, 
+                            },
+                        },
+                        {
+                            $limit: 1, 
                         },
                     ],
                 },
@@ -1841,7 +1849,7 @@ module.exports.mutations = {
 
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
-            employee: savedEmployees[0],
+            employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
@@ -1864,25 +1872,25 @@ module.exports.mutations = {
 
         const employeeFilterConditions = { subscriber: subscriberId };
 
-        if (context.platform === Role.ADMIN) {
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: [
-                        Permission.UPDATE_EMPLOYEE,
-                        Permission.ENABLE_DISABLE_EMPLOYEE,
-                    ],
-                    requiredAll: false,
-                    restrictOrganizationManager: isOrganizationManager,
-                }) &&
-                id.toString() !== employeeId.toString()
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
-            }
-        } else {
-            throw CustomError(ErrorName.FORBIDDEN);
-        }
+        // if (context.platform === Role.ADMIN) {
+        //     if (
+        //         !SubRoleHelper.hasPermission({
+        //             currentRole: role,
+        //             currentPermissions: userPermissions,
+        //             requiredPermission: [
+        //                 Permission.UPDATE_EMPLOYEE,
+        //                 Permission.ENABLE_DISABLE_EMPLOYEE,
+        //             ],
+        //             requiredAll: false,
+        //             restrictOrganizationManager: isOrganizationManager,
+        //         }) &&
+        //         id.toString() !== employeeId.toString()
+        //     ) {
+        //         throw CustomError(ErrorName.FORBIDDEN);
+        //     }
+        // } else {
+        //     throw CustomError(ErrorName.FORBIDDEN);
+        // }
 
         const savedEmployee = await EmployeeHelper.updateEmployees(
             {

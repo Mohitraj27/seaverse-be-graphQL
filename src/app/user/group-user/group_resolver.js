@@ -118,7 +118,7 @@ module.exports.queries = {
 
             default:
                 const allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
-                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId,skip,limit);
+                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
 
                 const allGroups = [...allAutosynced, ...allCustom];
 
@@ -323,7 +323,13 @@ module.exports.queries = {
             if (groupKind === "CUSTOMGROUP") {
                 const selectedGroup = await Group.findOne({ _id: groupId }).select('groupType').lean();
                 if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND);
-                members = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
+                customGroupMembers = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
+
+                members = await User.find({ _id: { $in: customGroupMembers.map(member => member._id) } })
+                    .select('_id firstName lastName email isRegistered')
+                    .lean();
+
+                totalCount = members.length;
             } else if (groupKind === "MEMBER") {
                 const groupData = await Group.aggregate([
                     {
@@ -380,7 +386,12 @@ module.exports.queries = {
                 totalCount = totalMembers;
 
             } else {
-                members = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
+                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
+                members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
+                    .select('_id firstName lastName email isRegistered')
+                    .lean();
+
+                totalCount = members.length;
             }
 
             paginatedMembers = members.slice(skip, skip + limit);
@@ -393,7 +404,22 @@ module.exports.queries = {
             console.error('Error fetching group members:', error);
             throw new Error('Error fetching group members');
         }
-    }
+    },
+
+    getGroupNames: async ({ groupId }, context) => {
+        const { subscriberId } = AuthUser(context);
+
+        if (!groupId) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Group Id is required");
+        }
+
+        const groupData = await GroupMember.find({ group: groupId, subscriber: subscriberId, isDeleted: { $ne: true } });
+
+        return {
+            status: true,
+            groups: groupData,
+        };
+    },
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => {

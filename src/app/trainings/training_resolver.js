@@ -36,6 +36,7 @@ const { TrainingProgress } = require("../training-registrations/training-progres
 const { TrainingRegistration } = require("../training-registrations/training_registration_model");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const { populate, validate } = require("../contact-support/contact_support_model");
+const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -104,6 +105,7 @@ module.exports.queries = {
             .populate("targetAudienceId")
             .populate({
                 path: "trainingModules",
+                match: { isDeleted: { $ne: true } },
                 options: { sort: { displayPosition: 1 } },
             });
 
@@ -111,6 +113,7 @@ module.exports.queries = {
 
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
+            isDeleted: false,
         })
             .populate({
                 path: 'trainingContent',
@@ -139,6 +142,12 @@ module.exports.queries = {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
 
+        const selectedCertificateLayout = await certificateLayout.findOne({
+            training: id,
+        });
+
+        training.isCertificate = selectedCertificateLayout ? true : false;
+
         return training;
     },
 
@@ -152,14 +161,35 @@ module.exports.mutations = {
 
         const moduleContentIds = [];
 
-        if (!input.authorName) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
+        if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
         if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+        if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
 
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
             );
         }
+
+        const convertToSeconds = duration => {
+            const [hours, minutes, seconds] = duration.split(":").map(Number);
+            return hours * 3600 + minutes * 60 + seconds;
+        };
+        
+        let totalDurationSeconds = 0;
+
+        if (input.trainingModules?.length) {
+            for (const module of input.trainingModules) {
+                for (const content of module.trainingModuleContents || []) {
+                    const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
+                    const duration = trainingContent?.duration || "00:00:00";
+                    totalDurationSeconds += convertToSeconds(duration);
+                }
+            }
+        }
+
+        const totalDuration = Math.round(totalDurationSeconds / 60);
+        input.durationHours = totalDuration;
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -208,13 +238,21 @@ module.exports.mutations = {
                 );
             }
 
-
             if (input.deletedTrainingModules?.length) {
                 await TrainingModule.updateMany(
                     {
                         _id: { $in: input.deletedTrainingModules },
                         subscriber: subscriberId,
                         training: savedTraining._id,
+                    },
+                    { isDeleted: true },
+                    { lean: true, session }
+                );
+
+                await TrainingContentBridge.updateMany(
+                    {
+                        training: savedTraining._id,
+                        trainingModule: { $in: input.deletedTrainingModules },
                     },
                     { isDeleted: true },
                     { lean: true, session }
@@ -437,9 +475,41 @@ module.exports.mutations = {
 
         return savedTraining;
     },
-    syncOfflineDataAndUpdateProgress: async (input, context) => {
+    syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
 
         const { role, userId, userInfo } = AuthUser(context);
+
+        // Don't delete this comment
+        // mutation SyncOfflineDataAndUpdateProgress {
+        //     syncOfflineDataAndUpdateProgress(
+                // input: [
+                //     {
+                //         overallId: "67444963f3c17951648754bd"
+                //         trainingModules: [
+                //             {
+                //                 moduleId: "67444901f3c17951648754af"
+                //                 contentDetails: [
+                //                     {
+                //                         contentId: "673dcbfb4476163738844efe"
+                //                         contentStatus: "COMPLETED"
+                //                         duration: 650
+                //                         progressPercentage: 56.0
+                //                         questionAnswers: [
+                //                              { questionId: "673478513e1b316d40577950", answer: "2" },
+                //                              { questionId: "673478513e1b316d4057795b", answer: "2" }
+                //                         ]
+                //                     },
+                //                 ]
+                //             }
+                //         ]
+                //     }
+                // ]
+        //     ) {
+        //         status
+        //         message
+        //     }
+        // }
+        // Don't delete this comment
 
         try {
 
@@ -452,7 +522,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED, validateAndUpdateErrors[0]);
             }
 
-            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input);
+            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
                 return {
