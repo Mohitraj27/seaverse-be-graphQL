@@ -56,7 +56,14 @@ module.exports.queries = {
             if (existingUser.avatar) {
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
-
+            const employeeData = await Employee.findOne({ user: userId }).lean().populate({
+                path: "empDesignation",
+                select: "_id name",
+            });
+            if (employeeData && employeeData.empDesignation) {
+                employeeData.designation = employeeData.empDesignation.name;
+            }
+            existingUser.employee = employeeData || null;
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {
@@ -421,9 +428,8 @@ module.exports.mutations = {
         try {
 
             const existingUser = await User.findOne({ email });
-
             if (!existingUser) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw  CustomError(ErrorName.NOT_FOUND);
             }
 
             const token = generateRandomString(10);
@@ -468,6 +474,7 @@ module.exports.mutations = {
 
         } catch (error) {
             console.error(error);
+            throw new Error(error.message)
         }
 
     },

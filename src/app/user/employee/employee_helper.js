@@ -1394,9 +1394,8 @@ module.exports = {
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
-
         const adminUser = await User.findById(userId);
-
+        let userCount=0;
 
         const existingUsers = await User.find({
             $or: [
@@ -1445,6 +1444,7 @@ module.exports = {
 
 
         for (const user of users) {
+            console.log(vesselMap.get(user.imoNumber)?.id, "vesselMap.get(user.imoNumber)?.id");
 
 
             const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
@@ -1508,12 +1508,12 @@ module.exports = {
 
                     let password = generateRandomString(16);
 
-
                     inserts.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
+                        currentVessel: vesselMap.get(user.imoNumber)?.id,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
@@ -1604,6 +1604,7 @@ module.exports = {
 
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+            userCount = allUpdatedUsers?.length || 0;
             const automateLearningPlanIds = [];
 
             //  dont remove this code we need it for automate learning plan  
@@ -1747,6 +1748,7 @@ module.exports = {
 
         const createImportLog = await ImportLog.create({
             subscriber: subscriberId,
+            usersCount: userCount,
             uploadedBy: userId,
             fileName: newFileName,
             filePath: { url: saveCSV },
