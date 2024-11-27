@@ -1903,12 +1903,12 @@ module.exports.mutations = {
             context
         );
 
-        // EmployeeHelper.sendNotificationOnCRUD({
-        //     subscriber: subscriberId,
-        //     employee: savedEmployee,
-        //     createdBy: userInfo,
-        //     action: "UPDATED",
-        // });
+        EmployeeHelper.sendNotificationOnCRUD({
+            subscriber: subscriberId,
+            employee: savedEmployee,
+            createdBy: userInfo,
+            action: "UPDATED",
+        });
 
         return savedEmployee;
     },
