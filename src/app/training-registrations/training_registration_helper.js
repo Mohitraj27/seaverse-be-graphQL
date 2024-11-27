@@ -310,11 +310,6 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             return result;
         }, {});
 
-        const progressKeysToSkip = new Set(
-            users.flatMap(user => 
-                trainings.map(training => `${training._id.toString()}-${user._id.toString()}`)
-            )
-        );
 
         const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
             users.map(user => {
@@ -349,8 +344,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
         }
     } catch (error) {
-        console.error('Error during training progress creation:', error);
-        throw error; 
+        throw Error(error.message);
     }
 
     return trainingProgressData;
