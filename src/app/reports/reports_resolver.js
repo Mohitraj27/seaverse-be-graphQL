@@ -749,6 +749,12 @@ const getSingleCourseEnrollmentReport = async ({ input }, context) => {
                     }
                 },
                 {
+                    $unwind: {
+                        path: "$trainingInfo",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "user",
@@ -908,6 +914,7 @@ const getSingleCourseEnrollmentReport = async ({ input }, context) => {
                         completionDate: 1,
                         status: 1,
                         updatedAt: 1,
+                        trainingTitle : "$trainingInfo.title",
                         firstName: "$userInfo.firstName",
                         lastName: "$userInfo.lastName",
                         email: '$userInfo.email',
@@ -943,14 +950,16 @@ const getSingleCourseEnrollmentReport = async ({ input }, context) => {
             ]
 
         );
-
+        console.log(data[0].trainingTitle);
         if (data.length > 0) {
 
             const coursesData = data.map(item => ({
                 _id: item._id,
                 learnerName: (item?.firstName ? item.firstName : "") +" "+(item?.lastName ? item.lastName : ""),
                 employeeId: item.empId ? item.empId : null,
+                trainingTitle : item?.trainingTitle,
                 designation: item?.designation,
+                email: item?.email,
                 status: item?.status,
                 currentVessel : item.vesselName,
                 vesselType : item.vesselType,

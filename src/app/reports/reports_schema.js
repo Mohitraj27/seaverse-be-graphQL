@@ -187,6 +187,8 @@ module.exports = {
         type singleCourseEnrollmentReport {
             _id :ID
             learnerName : String
+            trainingTitle : [LocalisedData] 
+            email : String
             employeeId : String
             designation : String
             status : String
