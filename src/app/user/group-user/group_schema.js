@@ -65,6 +65,7 @@ module.exports = {
             members: [ID]
             groups: [groupsInGroup]
             description: String
+            deleteMembersOrGroups: [ID]
         }
         type GroupList {
             status : String

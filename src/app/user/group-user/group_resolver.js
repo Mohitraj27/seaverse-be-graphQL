@@ -343,6 +343,9 @@ module.exports.queries = {
                             as: 'members',
                             pipeline: [
                                 {
+                                    $match: { isDeleted: { $ne: true } }
+                                },
+                                {
                                     $lookup: {
                                         from: 'users',
                                         localField: 'member',
@@ -529,7 +532,6 @@ module.exports.mutations = {
             if (input.description) groupUpdateData.description = input.description;
             if (input.groupType) groupUpdateData.groupType = input.groupType;
             if (input.members && input.members.length === 0) {
-                // groupUpdateData.members = input.members;
                 groupUpdateData.memberCount = input.members.length;
             }
 
@@ -654,6 +656,36 @@ module.exports.mutations = {
 
             return savedGroupName;
         });
+
+        if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
+            if (input.groupType === "GROUP") {
+                await GroupMember.updateMany(
+                    {
+                        _id: { $in: input.deleteMembersOrGroups },
+                        group: savedGroup._id
+                    },
+                    {
+                        $set: {
+                            isDeleted: true,
+                        },
+                    }
+                );
+            }
+
+            if (input.groupType === "MEMBER") {
+                await GroupMember.updateMany(
+                    {
+                        group: savedGroup._id,
+                        member: { $in: input.deleteMembersOrGroups },
+                    },
+                    {
+                        $set: {
+                            isDeleted: true,
+                        },
+                    }
+                );
+            }
+        }
 
         LogHelper.logActivity({
             subscriber: subscriberId,
