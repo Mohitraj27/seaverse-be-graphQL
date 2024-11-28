@@ -104,7 +104,7 @@ module.exports = {
             designations : [ID]
         } 
         input singleLearnerReportInput {
-            learnerId : ID
+            learnerId : ID!
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean
@@ -120,6 +120,8 @@ module.exports = {
         }
         type singleLearnersReport {
             courseName : [String]
+            firstName : String
+            lastName : String
             duration : [Int]
             createdAt : String
             completionDate : String

@@ -372,6 +372,12 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
                 },
                 {
+                    "$unwind": {
+                        "path": "$userInfo",
+                        "preserveNullAndEmptyArrays": true
+                    }
+                },
+                {
                     "$lookup": {
                         "from": "trainingprogress",
                         "localField": "training",
@@ -416,12 +422,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         "completionDate": 1,
                         "status": 1,
                         "updatedAt": 1,
-                        "firstName": {
-                            "$arrayElemAt": ["$userInfo.firstName", 0]
-                        },
-                        "lastName": {
-                            "$arrayElemAt": ["$userInfo.lastName", 0]
-                        },
+                        "firstName": "$userInfo.firstName",
+                        "lastName": "$userInfo.lastName",
                         "quizPercentage": {
                             "$ifNull": ["$quizevaluationInfo.percentage", null]
                         },
