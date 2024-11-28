@@ -28,7 +28,7 @@ const LogType = require("../logs/log_type.json");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const { TrainingModuleContent } = require("../trainings/training_modules/training_module_contents/training_module_content_model")
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
-const {TrainingContentBridge} = require("../trainings/training_content_bridge/training_content_model")
+const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -303,7 +303,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             } else {
                 result[trainingId].push({
                     moduleId: moduleId,
-                    contentIds: [contentId] 
+                    contentIds: [contentId]
                 });
             }
 
@@ -315,8 +315,8 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             users.map(user => {
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
-                if ( existingProgressSet.has(progressKey)) {
-                    return null; 
+                if (existingProgressSet.has(progressKey)) {
+                    return null;
                 }
 
                 const contentData = trainingModulesMap[training] || [];
@@ -332,7 +332,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                     isEnrolled: true,
                     progressPercentage: 0.0,
                     completedModules: 0,
-                    contentData: contentData, 
+                    contentData: contentData,
                     totalTrainingModules: totalTrainingModules,
                     startDate: null,
                     endDate: null,
@@ -409,6 +409,19 @@ const getCustomGroupUsers = (async (groups) => {
 
 });
 
+const combineTrainingModules = (data) => {
+
+    const firstData = data[0];
+
+    data.forEach(item => {
+        if (firstData._id == item._id) {
+            firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
+        }
+    });
+    
+    return [firstData];
+}
+
 module.exports = {
     enrolUserVerificationHelper,
     createTrainingProgressHelper,
@@ -416,6 +429,7 @@ module.exports = {
     getCustomGroupUsers,
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
+    combineTrainingModules,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
