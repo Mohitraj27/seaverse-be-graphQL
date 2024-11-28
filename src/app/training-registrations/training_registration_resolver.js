@@ -404,6 +404,151 @@ module.exports.queries = {
 
             if (fetchOverallTrainingProgress.contentData) {
 
+                const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
+                    { $match: { _id: input } },
+                    {
+                        $lookup: {
+                            from: "trainings",
+                            localField: "training",
+                            foreignField: "_id",
+                            as: "training",
+                        },
+                    },
+                    { $unwind: "$training" },
+                    {
+                        $lookup: {
+                            from: "trainingmodules",
+                            localField: "training._id",
+                            foreignField: "training",
+                            as: "trainingModules",
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$contentData",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingprogresses",
+                            let: { moduleId: "$contentData.moduleId", contentIds: "$contentData.contentIds" },
+                            pipeline: [
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                { $eq: ["$trainingModule", "$$moduleId"] },
+                                                { $in: ["$trainingModuleContent", "$$contentIds"] },
+                                            ],
+                                        },
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingModuleContent",
+                                        foreignField: "_id",
+                                        as: "trainingModuleContentDetails",
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$trainingModuleContentDetails",
+                                        preserveNullAndEmptyArrays: true,
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "questions",
+                                        localField: "trainingModuleContentDetails.quiz",
+                                        foreignField: "_id",
+                                        as: "questions",
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "answerchoices",
+                                        localField: "questions.choices",
+                                        foreignField: "_id",
+                                        as: "questionChoices",
+                                    },
+                                },
+                                {
+                                    $addFields: {
+                                        "trainingModuleContentDetails.quizDetails": {
+                                            $map: {
+                                                input: { $ifNull: ["$questions", []] },
+                                                as: "question",
+                                                in: {
+                                                    _id: "$$question._id",
+                                                    lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                    value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                    choices: {
+                                                        $filter: {
+                                                            input: { $ifNull: ["$questionChoices", []] },
+                                                            as: "choice",
+                                                            cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                        },
+                                                    },
+                                                    answerKey: "$$question.answerKey",
+                                                    questionType: "$$question.questionType",
+                                                    points: "$$question.points",
+                                                    negativePoints: "$$question.negativePoints",
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                                {
+                                    $group: {
+                                        _id: "$trainingModule",
+                                        trainingContent: { $first: "$trainingContent" },
+                                        trainingModule: { $first: "$trainingModule" },
+                                        trainingModuleContentDetails: {
+                                            $push: "$trainingModuleContentDetails",
+                                        },
+                                    },
+                                },
+                            ],
+                            as: "progressDetails",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            trainingModules: {
+                                $map: {
+                                    input: "$trainingModules",
+                                    as: "module",
+                                    in: {
+                                        $mergeObjects: [
+                                            "$$module",
+                                            {
+                                                trainingModuleContents: {
+                                                    $filter: {
+                                                        input: "$progressDetails",
+                                                        as: "content",
+                                                        cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    {
+                        $project: {
+                            progressDetails: 0,
+                        },
+                    },
+                ]);
+
+                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+            } else {
+
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
                     {
@@ -416,410 +561,119 @@ module.exports.queries = {
                     },
                     { $unwind: "$training" },
                     {
-                        $unwind: {
-                            path: "$contentData",
-                            preserveNullAndEmptyArrays: true,
+                        $lookup: {
+                            from: "trainingmodules",
+                            localField: "training._id",
+                            foreignField: "training",
+                            as: "trainingModules",
                         },
                     },
                     {
                         $lookup: {
-                            from: "trainingModules",
-                            localField: "contentData.moduleId",
-                            foreignField: "_id",
-                            as: "trainingModuleDetails",
+                            from: "trainingcontentbridges",
+                            let: { moduleIds: "$trainingModules._id" },
+                            pipeline: [
+                                { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingContent",
+                                        foreignField: "_id",
+                                        as: "trainingModuleContentDetails",
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$trainingModuleContentDetails",
+                                        preserveNullAndEmptyArrays: true,
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "questions",
+                                        localField: "trainingModuleContentDetails.quiz",
+                                        foreignField: "_id",
+                                        as: "questions",
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "answerchoices",
+                                        localField: "questions.choices",
+                                        foreignField: "_id",
+                                        as: "questionChoices",
+                                    },
+                                },
+                                {
+                                    $addFields: {
+                                        "trainingModuleContentDetails.quizDetails": {
+                                            $map: {
+                                                input: { $ifNull: ["$questions", []] },
+                                                as: "question",
+                                                in: {
+                                                    _id: "$$question._id",
+                                                    lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                    value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                    choices: {
+                                                        $filter: {
+                                                            input: { $ifNull: ["$questionChoices", []] },
+                                                            as: "choice",
+                                                            cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                        },
+                                                    },
+                                                    answerKey: "$$question.answerKey",
+                                                    questionType: "$$question.questionType",
+                                                    points: "$$question.points",
+                                                    negativePoints: "$$question.negativePoints",
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                                {
+                                    $group: {
+                                        _id: "$_id",
+                                        trainingContent: { $first: "$trainingContent" },
+                                        trainingModule: { $first: "$trainingModule" },
+                                        trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
+                                    },
+                                },
+                            ],
+                            as: "trainingContentsFallback",
                         },
                     },
                     {
-                        $unwind: {
-                            path: "$moduleData",
-                            preserveNullAndEmptyArrays: true,
-                        },
-                    },
-                    {
-                        $lookup: {
-                            from: "trainingModuleContents",
-                            localField: "contentData.contentIds",
-                            foreignField: "_id",
-                            as: "contentDetails",
-                        },
-                    },
-                    {
-                        $group: {
-                            _id: "$_id",
-                            modules: {
-                                $push: {
-                                    moduleData: "$moduleData",
-                                    contentDetails: "$contentDetails",
+                        $addFields: {
+                            trainingModules: {
+                                $map: {
+                                    input: "$trainingModules",
+                                    as: "module",
+                                    in: {
+                                        $mergeObjects: [
+                                            "$$module",
+                                            {
+                                                trainingModuleContents: {
+                                                    $filter: {
+                                                        input: "$trainingContentsFallback",
+                                                        as: "content",
+                                                        cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
                                 },
                             },
                         },
                     },
                     {
                         $project: {
-                            _id: 1,
-                            modules: 1,
+                            trainingContentsFallback: 0,
                         },
                     },
-                    // {
-                    //     $lookup: {
-                    //         from: "trainingmodulecontents",
-                    //         localField: "contentData.contentIds",
-                    //         foreignField: "_id",
-                    //         as: "trainingModuleContentDetails",
-                    //     },
-                    // },
-                    // {
-                    //     $lookup: {
-                    //         from: "questions",
-                    //         localField: "trainingModuleContentDetails.quiz",
-                    //         foreignField: "_id",
-                    //         as: "questions",
-                    //     },
-                    // },
-                    // {
-                    //     $lookup: {
-                    //         from: "answerchoices",
-                    //         localField: "questions.choices",
-                    //         foreignField: "_id",
-                    //         as: "questionChoices",
-                    //     },
-                    // },
-                    // {
-                    //     $addFields: {
-                    //         "trainingModuleContentDetails.quizDetails": {
-                    //             $map: {
-                    //                 input: { $ifNull: ["$questions", []] },
-                    //                 as: "question",
-                    //                 in: {
-                    //                     _id: "$$question._id",
-                    //                     lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-                    //                     value: { $arrayElemAt: ["$$question.question.value", 0] },
-                    //                     choices: {
-                    //                         $filter: {
-                    //                             input: { $ifNull: ["$questionChoices", []] },
-                    //                             as: "choice",
-                    //                             cond: { $in: ["$$choice._id", "$$question.choices"] },
-                    //                         },
-                    //                     },
-                    //                     answerKey: "$$question.answerKey",
-                    //                     questionType: "$$question.questionType",
-                    //                     points: "$$question.points",
-                    //                     negativePoints: "$$question.negativePoints",
-                    //                 },
-                    //             },
-                    //         },
-                    //     },
-                    // },
-                    // {
-                    //     $group: {
-                    //         _id: "$contentData.moduleId",
-                    //         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
-                    //     },
-                    // },
-                    // {
-                    //     $addFields: {
-                    //         trainingModules: {
-                    //             $map: {
-                    //                 input: "$trainingModules",
-                    //                 as: "module",
-                    //                 in: {
-                    //                     $mergeObjects: [
-                    //                         "$$module",
-                    //                         {
-                    //                             trainingModuleContents: {
-                    //                                 $filter: {
-                    //                                     input: "$trainingModuleContentDetails",
-                    //                                     as: "content",
-                    //                                     cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
-                    //                                 },
-                    //                             },
-                    //                         },
-                    //                     ],
-                    //                 },
-                    //             },
-                    //         },
-                    //     },
-                    // },
-                    // {
-                    //     $project: {
-                    //         trainingContentsFallback: 0,
-                    //     },
-                    // },
                 ]);
 
-                // trainingDetails = await OverallTrainingProgress.aggregate([
-                //     { $match: { _id: input } },
-                //     {
-                //         $lookup: {
-                //             from: "trainings",
-                //             localField: "training",
-                //             foreignField: "_id",
-                //             as: "training",
-                //         },
-                //     },
-                //     { $unwind: "$training" },
-                //     {
-                //         $lookup: {
-                //             from: "trainingmodules",
-                //             localField: "training._id",
-                //             foreignField: "training",
-                //             as: "trainingModules",
-                //         },
-                //     },
-                //     {
-                //         $addFields: {
-                //             contentDataMapped: {
-                //                 $map: {
-                //                     input: "$contentData",
-                //                     as: "content",
-                //                     in: {
-                //                         moduleId: "$$content.moduleId",
-                //                         contentIds: "$$content.contentIds",
-                //                     },
-                //                 },
-                //             },
-                //         },
-                //     },
-                //     {
-                //         $lookup: {
-                //             from: "trainingmodulecontents",
-                //             localField: "contentDataMapped.contentIds",
-                //             foreignField: "_id",
-                //             as: "trainingModuleContentDetails"
-                //         }
-                //     },
-                //     // {
-                //     //     $lookup: {
-                //     //         from: "trainingmodulecontents",
-                //     //         let: { contentData: "$contentDataMapped" },
-                //     //         pipeline: [
-                //     //             {
-                //     //                 $match: {
-                //     //                     $expr: {
-                //     //                         $in: [
-                //     //                             "$_id",
-                //     //                             {
-                //     //                                 $reduce: {
-                //     //                                     input: "$$contentData",
-                //     //                                     initialValue: [],
-                //     //                                     in: {
-                //     //                                         $concatArrays: ["$$value", "$$this.contentIds"],
-                //     //                                     },
-                //     //                                 },
-                //     //                             },
-                //     //                         ],
-                //     //                     },
-                //     //                 },
-                //     //             },
-                //     //         ],
-                //     //         as: "trainingModuleContentDetails",
-                //     //     },
-                //     // },
-                //     {
-                //         $lookup: {
-                //             from: "questions",
-                //             localField: "trainingModuleContentDetails.quiz",
-                //             foreignField: "_id",
-                //             as: "questions",
-                //         },
-                //     },
-                //     {
-                //         $lookup: {
-                //             from: "answerchoices",
-                //             localField: "questions.choices",
-                //             foreignField: "_id",
-                //             as: "questionChoices",
-                //         },
-                //     },
-                //     {
-                //         $addFields: {
-                //             trainingModules: {
-                //                 $map: {
-                //                     input: "$trainingModules",
-                //                     as: "module",
-                //                     in: {
-                //                         $mergeObjects: [
-                //                             "$$module",
-                //                             {
-                //                                 trainingModuleContents: {
-                //                                     $filter: {
-                //                                         input: "$trainingModuleContentDetails",
-                //                                         as: "contentDetail",
-                //                                         cond: { $eq: ["$$contentDetail.trainingModule", "$$module._id"] },
-                //                                     },
-                //                                 },
-                //                             },
-                //                         ],
-                //                     },
-                //                 },
-                //             },
-                //             "trainingModuleContentDetails.quizDetails": {
-                //                 $map: {
-                //                     input: { $ifNull: ["$questions", []] },
-                //                     as: "question",
-                //                     in: {
-                //                         _id: "$$question._id",
-                //                         lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-                //                         value: { $arrayElemAt: ["$$question.question.value", 0] },
-                //                         choices: {
-                //                             $filter: {
-                //                                 input: { $ifNull: ["$questionChoices", []] },
-                //                                 as: "choice",
-                //                                 cond: { $in: ["$$choice._id", "$$question.choices"] },
-                //                             },
-                //                         },
-                //                         answerKey: "$$question.answerKey",
-                //                         questionType: "$$question.questionType",
-                //                         points: "$$question.points",
-                //                         negativePoints: "$$question.negativePoints",
-                //                     },
-                //                 },
-                //             },
-                //         },
-                //     },
-                //     // {
-                //     //     $project: {
-                //     //         contentDataMapped: 0,
-                //     //         trainingModuleContentDetails: 0,
-                //     //         questions: 0,
-                //     //         questionChoices: 0,
-                //     //     },
-                //     // },
-                // ]);
-
-            } else {
-
             }
-            // trainingDetails = await OverallTrainingProgress.aggregate([
-            //     { $match: { _id: input } },
-            //     {
-            //         $lookup: {
-            //             from: "trainings",
-            //             localField: "training",
-            //             foreignField: "_id",
-            //             as: "training",
-            //         },
-            //     },
-            //     { $unwind: "$training" },
-            //     {
-            //         $lookup: {
-            //             from: "trainingmodules",
-            //             localField: "training._id",
-            //             foreignField: "training",
-            //             as: "trainingModules",
-            //         },
-            //     },
-            //     {
-            //         $lookup: {
-            //             from: "trainingcontentbridges",
-            //             let: { moduleIds: "$trainingModules._id" },
-            //             pipeline: [
-            //                 { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
-            //                 {
-            //                     $lookup: {
-            //                         from: "trainingmodulecontents",
-            //                         localField: "trainingContent",
-            //                         foreignField: "_id",
-            //                         as: "trainingModuleContentDetails",
-            //                     },
-            //                 },
-            //                 {
-            //                     $unwind: {
-            //                         path: "$trainingModuleContentDetails",
-            //                         preserveNullAndEmptyArrays: true,
-            //                     },
-            //                 },
-            //                 {
-            //                     $lookup: {
-            //                         from: "questions",
-            //                         localField: "trainingModuleContentDetails.quiz",
-            //                         foreignField: "_id",
-            //                         as: "questions",
-            //                     },
-            //                 },
-            //                 {
-            //                     $lookup: {
-            //                         from: "answerchoices",
-            //                         localField: "questions.choices",
-            //                         foreignField: "_id",
-            //                         as: "questionChoices",
-            //                     },
-            //                 },
-            //                 {
-            //                     $addFields: {
-            //                         "trainingModuleContentDetails.quizDetails": {
-            //                             $map: {
-            //                                 input: { $ifNull: ["$questions", []] },
-            //                                 as: "question",
-            //                                 in: {
-            //                                     _id: "$$question._id",
-            //                                     lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-            //                                     value: { $arrayElemAt: ["$$question.question.value", 0] },
-            //                                     choices: {
-            //                                         $filter: {
-            //                                             input: { $ifNull: ["$questionChoices", []] },
-            //                                             as: "choice",
-            //                                             cond: { $in: ["$$choice._id", "$$question.choices"] },
-            //                                         },
-            //                                     },
-            //                                     answerKey: "$$question.answerKey",
-            //                                     questionType: "$$question.questionType",
-            //                                     points: "$$question.points",
-            //                                     negativePoints: "$$question.negativePoints",
-            //                                 },
-            //                             },
-            //                         },
-            //                     },
-            //                 },
-            //                 {
-            //                     $group: {
-            //                         _id: "$_id",
-            //                         trainingContent: { $first: "$trainingContent" },
-            //                         trainingModule: { $first: "$trainingModule" },
-            //                         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
-            //                     },
-            //                 },
-            //             ],
-            //             as: "trainingContentsFallback",
-            //         },
-            //     },
-            //     {
-            //         $addFields: {
-            //             trainingModules: {
-            //                 $map: {
-            //                     input: "$trainingModules",
-            //                     as: "module",
-            //                     in: {
-            //                         $mergeObjects: [
-            //                             "$$module",
-            //                             {
-            //                                 trainingModuleContents: {
-            //                                     $filter: {
-            //                                         input: "$trainingContentsFallback",
-            //                                         as: "content",
-            //                                         cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
-            //                                     },
-            //                                 },
-            //                             },
-            //                         ],
-            //                     },
-            //                 },
-            //             },
-            //         },
-            //     },
-            //     {
-            //         $project: {
-            //             trainingContentsFallback: 0,
-            //         },
-            //     },
-            // ]);
-
-            console.log('trainingDetails');
-            console.log(JSON.stringify(trainingDetails, null, 2));
-
-            console.log('trainingDetailsShort');
-            console.log(trainingDetails);
-
 
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
