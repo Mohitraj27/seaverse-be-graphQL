@@ -205,6 +205,8 @@ module.exports = {
             vesselId : ID
             imoNumber : String
             vesselName : String
+            typeOfVessel : String
+            companyName : String
             ownerName : String
             onboardedCount : Int
             progress : Int

@@ -1179,6 +1179,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 $project: {
                     vesselName: "$name",
                     imoNumber: 1,
+                    companyName:1,
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     ownerName: 1,
@@ -1195,6 +1196,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     _id: "$_id",
                     vesselName: { $first: "$vesselName" },
                     imoNumber: { $first: "$imoNumber" },
+                    companyName: { $first: "$companyName" },
                     vesselId: { $first: "$vesselId" },
                     typeOfVessel: { $first: "$typeOfVessel" },
                     ownerName: { $first: "$ownerName" },
