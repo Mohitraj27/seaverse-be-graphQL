@@ -461,6 +461,7 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, ses
                         groupType,
                         groupData: data.id,
                         groupName: data.groupName,
+                        isDeleted: false,
                     },
                 },
                 upsert: true,
