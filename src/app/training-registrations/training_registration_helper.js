@@ -382,7 +382,7 @@ const getCustomGroupUsers = (async (groups) => {
     const users = [];
     const groupIds = groups.map(group => group.groupId);
 
-    const getGroups = await GroupMember.find({ group: { $in: groupIds } });
+    const getGroups = await GroupMember.find({ group: { $in: groupIds }, isDeleted: false });
 
     if (getGroups.length > 0) {
 
