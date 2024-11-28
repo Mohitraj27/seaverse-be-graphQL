@@ -950,7 +950,6 @@ const getSingleCourseEnrollmentReport = async ({ input }, context) => {
             ]
 
         );
-        console.log(data[0].trainingTitle);
         if (data.length > 0) {
 
             const coursesData = data.map(item => ({
