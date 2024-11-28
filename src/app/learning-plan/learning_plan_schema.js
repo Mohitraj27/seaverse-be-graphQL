@@ -150,10 +150,10 @@ module.exports = {
         type LearningPlan {
             _id: ID
             title: String!
-            selectCourses: [courseDetails!]!
+            selectCourses: [courseDetails!]
             targetAudience: TargetAudienceEnum
             groupIDs: [groupTypeRes]
-            userObjectIds: [ID]
+            userObjectIds: [userObjectDetails]
             status: LearningPlanStatus!
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
@@ -165,6 +165,12 @@ module.exports = {
             createdAt: String
             updatedAt: String
             overallProgress: overAllProgress
+        }
+        type userObjectDetails {
+            _id: ID
+            firstName: String
+            lastName: String
+            email: String
         }
         type DeleteLearningPlanResponse {
             success: Boolean!

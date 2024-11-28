@@ -185,11 +185,11 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
-    getLearningPlans: async ({ filterInput, pageInput ,status,search}, context) => {
+    getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 10);
+        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
@@ -203,7 +203,7 @@ module.exports.queries = {
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
-                queryConditions.status = { $in: filterInput.status };  
+                queryConditions.status = { $in: filterInput.status };
             }
             if (filterInput?.audienceSelection) {
                 queryConditions.audienceSelection = {
@@ -259,16 +259,16 @@ module.exports.queries = {
                 { $match: queryConditions },
                 {
                     $lookup: {
-                        from: "groups", 
-                        localField: "groupIDs", 
-                        foreignField: "_id", 
-                        as: "groupDetails"  
+                        from: "groups",
+                        localField: "groupIDs",
+                        foreignField: "_id",
+                        as: "groupDetails"
                     }
                 },
                 {
                     $unwind: {
                         path: "$groupDetails",
-                        preserveNullAndEmptyArrays: true 
+                        preserveNullAndEmptyArrays: true
                     }
                 },
                 {
@@ -454,10 +454,18 @@ module.exports.queries = {
                 isDeleted: false,
             };
             if (queryConditions?.status && Array.isArray(queryConditions.status)) {
-                queryConditions.status = { $in: queryConditions.status };  
+                queryConditions.status = { $in: queryConditions.status };
             }
             const learningPlan = await LearningPlan.aggregate([
                 { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userObjectIds",
+                        foreignField: "_id",
+                        as: "userObjectIds"
+                    }
+                },
                 {
                     $lookup: {
                         from: "users",
