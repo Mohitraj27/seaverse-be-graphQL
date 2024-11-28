@@ -189,7 +189,7 @@ module.exports.queries = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
+        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 20);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);

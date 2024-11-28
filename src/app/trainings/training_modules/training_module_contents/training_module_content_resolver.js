@@ -39,7 +39,7 @@ module.exports.queries = {
             filterConditions['title.value'] = { $regex: search, $options: "i" };
         }
         const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? 50;
+        const limitContent = pageInput?.limit ?? 20;
 
         const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
@@ -117,7 +117,7 @@ module.exports.queries = {
             ]),
             {
                 offset: skip,
-                limitContent,
+                limit: limitContent,
                 sort: { createdAt: "descending" },
                 customLabels: {
                     docs: "contents",
@@ -136,7 +136,10 @@ module.exports.queries = {
             };
         }
 
-        return contents;
+        return {
+            contents: contents.contents,
+            totalCount: contents.contents.length,
+        };
     },
     getTrainingModuleContent: async ({ id }, context) => {
         const { subscriberId } = AuthUser(context);
