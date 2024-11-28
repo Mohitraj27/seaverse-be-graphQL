@@ -1,5 +1,6 @@
 const { Schema, Model, ObjectId, AggregatePaginate, Moment } = require("../../tools");
 const { LocalisedDataSchema } = require("../../util/localised_data_schema");
+const notificationiconEnum = require("./notification_icon.json");
 const notificationSchema = new Schema(
     {
         subscriber: {
@@ -78,6 +79,11 @@ const notificationSchema = new Schema(
             },
             expires: 60,
         },
+        icon:{
+            type:String,
+            default:"STABLE",
+            enum: Object.values(notificationiconEnum),
+        }
     },
     { timestamps: true }
 );
