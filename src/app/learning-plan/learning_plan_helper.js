@@ -223,7 +223,7 @@ const createLearningPlanHelper = async (input, context) => {
             updatedBy: input.updatedBy
         });
         await newLearningPlan.save();
-        if (newLearningPlan.assignedLearnerIDs.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
+        if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
                 users: newLearningPlan?.assignedLearnerIDs,
