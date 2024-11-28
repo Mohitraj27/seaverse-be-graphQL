@@ -48,7 +48,7 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
-
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -154,6 +154,59 @@ const sendCourseInvitationMail = async ({ userData, trainingRegistrationId }) =>
         htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
     });
 };
+const sendDeleteNotification = async (notificationsData) => {
+    if (notificationsData?.length) {
+        const notifications = [];
+
+        for (const notificationData of notificationsData) {
+            const employeeName = `${notificationData.deletedEmployee?.user?.firstName} ${notificationData.deletedEmployee?.user?.lastName}`;
+            const employeeEmail = notificationData.deletedEmployee?.user?.email;
+
+            const notification = {
+                subscriber: notificationData.subscriber,
+                title: [{ lang: "en", value: `Employee Deleted` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${notificationData.createdBy.firstName}.`,
+                    },
+                ],
+                notificationType: "EMPLOYEE_DELETED",
+                notifyAdmin: true,
+                notifiers: [], 
+                employeeNotifiers: [],
+                affected: [
+                    {
+                        targetRef: "Employee",
+                        target: notificationData.deletedEmployee._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "DELETED_EMPLOYEE_INFO",
+                        infoData: {
+                            _id: notificationData.deletedEmployee._id,
+                            name: employeeName,
+                            email: employeeEmail,
+                        },
+                    },
+                    {
+                        infoType: "DELETER_INFO",
+                        infoData: {
+                            _id: notificationData.createdBy._id,
+                            firstName: notificationData.createdBy.firstName,
+                            lastName: notificationData.createdBy.lastName,
+                        },
+                    },
+                ],
+                icon: notificationiconEnum.STABLE,
+                createdBy: notificationData.createdBy,
+            };
+            notifications.push(notification);
+        }
+        await NotificationHelper.createNotification(notifications);
+    }
+};
 
 const sendEnrollmentNotification = async notificationsData => {
     if (notificationsData?.length) {
@@ -221,6 +274,7 @@ const sendEnrollmentNotification = async notificationsData => {
                         },
                     },
                 ],
+                icon: notificationiconEnum.STABLE,
                 createdBy: notificationData.createdBy,
             };
 
@@ -289,8 +343,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
         };
 
         const createdNotification = await Notification.create(notification);
-        console.log(createdNotification);
-
+     
         if (createdNotification) await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
 
     } catch (error) {
@@ -906,6 +959,7 @@ module.exports = {
     sendInvitationMail,
     sendCourseInvitationMail,
     sendEnrollmentNotification,
+    sendDeleteNotification,
     sendNotificationOnCRUD,
     sendNotificationOnBULK,
     generateUserUID,
@@ -1467,8 +1521,7 @@ module.exports = {
 
 
         for (const user of users) {
-            console.log(vesselMap.get(user.imoNumber)?.id, "vesselMap.get(user.imoNumber)?.id");
-
+          
 
             const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
 

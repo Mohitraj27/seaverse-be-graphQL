@@ -1891,7 +1891,11 @@ module.exports.mutations = {
         // } else {
         //     throw CustomError(ErrorName.FORBIDDEN);
         // }
+        const currentEmployee = await User.findById(id);
 
+        if (!currentEmployee) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
         const savedEmployee = await EmployeeHelper.updateEmployees(
             {
                 id: id,
@@ -1902,6 +1906,37 @@ module.exports.mutations = {
             },
             context
         );
+        const updatedFields = Object.keys(input).reduce((changes, key) => {
+            if (currentEmployee[key] !== input[key]) {
+                changes[key] = {
+                    oldValue: currentEmployee[key],
+                    newValue: input[key],
+                };
+            }
+            return changes;
+        }, {});
+    
+        const notificationData = [
+            {
+                subscriber: subscriberId,
+                trainingRegistration: {
+                    _id: savedEmployee._id, 
+                    employee: savedEmployee, 
+                },
+                userIds: [savedEmployee.user?._id], 
+                action: "UPDATED",
+                createdBy: userInfo,
+            },
+        ];
+    
+        notificationData[0].additionalInfo = [
+            {
+                infoType: "UPDATED_FIELDS",
+                infoData: updatedFields,
+            },
+        ];
+    
+        EmployeeHelper.sendEnrollmentNotification(notificationData);
 
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
@@ -1948,8 +1983,17 @@ module.exports.mutations = {
             };
         });
 
+        const notificationsData = [
+            {
+                subscriber: subscriberId,
+                deletedEmployee: deletedEmployee,
+                createdBy: userInfo,
+            },
+        ];
+        await EmployeeHelper.sendDeleteNotification(notificationsData);
+    
         if (!deletedEmployee) throw CustomError(ErrorName.FAILED);
-
+    
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: deletedEmployee,
