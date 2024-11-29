@@ -142,13 +142,6 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-
-        const selectedCertificateLayout = await certificateLayout.findOne({
-            training: id,
-        });
-
-        training.isCertificate = selectedCertificateLayout ? true : false;
-
         return training;
     },
 
@@ -161,11 +154,11 @@ module.exports.mutations = {
             AuthUser(context);
 
         const moduleContentIds = [];
-
-        if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
-        if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
-        if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
-
+        if (!input._id) {
+            if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
+            if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+            if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
+        }    
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
