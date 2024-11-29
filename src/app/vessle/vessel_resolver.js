@@ -146,17 +146,18 @@ module.exports.queries = {
                 subscriber: subscriberId,
                 isDeleted: { $ne: true }
             });
-            let message
-            if (vessel) {
-                message = 'IMO number already exist.';
-            } else {
-                message = 'IMO number is valid.';
-            }
 
-            return {
-                status: true,
-                message: message
-            };
+            if (vessel) {
+                return {
+                    status: false,
+                    message : 'IMO number already exist.'
+                };
+            } else {
+                return {
+                    status: true,
+                    message : 'IMO number is valid.'
+                };
+            }
         } catch (error) {
             throw Error(error.message);
         }
