@@ -225,6 +225,7 @@ module.exports.queries = {
         try {
             let filterConditions = {
                 user: ObjectId(userId),
+                isEnrolled: true,
             }
 
             if (filterInput?.search) {
