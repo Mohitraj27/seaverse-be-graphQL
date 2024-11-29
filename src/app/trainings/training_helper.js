@@ -21,6 +21,7 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const TrainingCertificateHelper = require("../training-registrations/training-certificates/training_certificate_helper");
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -203,6 +204,7 @@ const generateCourseId = (courseType) => {
 // };
 
 const validateAndUpdateContentData = async (input) => {
+
     const overallIds = input.map((item) => item.overallId);
     let overallDocs;
 
@@ -212,12 +214,50 @@ const validateAndUpdateContentData = async (input) => {
         }).lean();
     }
 
+    // get training ids from overalltrainingprogress
+    const trainingIds = overallDocs.map((doc) => doc.training);
+
+    if (!overallDocs.contentData || overallDocs.contentData.length == 0) {
+
+        if (trainingIds.length > 0) {
+            const fetchModuleContents = await TrainingContentBridge.find({
+                training: { $in: trainingIds },
+            })
+
+            if (fetchModuleContents.length > 0) {
+
+                const bulkOperations = [];
+                fetchModuleContents.forEach((content) => {
+                    bulkOperations.push({
+                        updateOne: {
+                            filter: { _id: content.training },
+                            update: {
+                                status: "IN_PROGRESS",
+                                $push: {
+                                    contentData: {
+                                        moduleId: content.trainingModule,
+                                        contentIds: [content.trainingContent],
+                                    },
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
+                });
+
+            }
+        }
+
+    }
+
+
     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
 
     const errors = [];
     const missingOverallEntries = [];
 
     for (const item of input) {
+
         const { overallId, trainingModules } = item;
 
         const overallDoc = overallMap.get(overallId.toString());
@@ -242,6 +282,8 @@ const validateAndUpdateContentData = async (input) => {
 
             if (!matchingModuleData) {
 
+
+
                 missingOverallEntries.push({
                     updateOne: {
                         filter: { _id: overallId },
@@ -262,6 +304,7 @@ const validateAndUpdateContentData = async (input) => {
             }
 
             for (const content of contentDetails) {
+
                 const { contentId } = content;
 
                 const isContentPresent = matchingModuleData.contentIds
@@ -276,6 +319,7 @@ const validateAndUpdateContentData = async (input) => {
                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
                     });
                 }
+
             }
         }
     }
