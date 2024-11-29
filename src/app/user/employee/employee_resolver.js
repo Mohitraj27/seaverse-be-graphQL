@@ -2309,11 +2309,32 @@ module.exports.mutations = {
     },
 
     exportUserToCsv: async ({ input }, context) => {
-        const { role, userId, subscriberId } = AuthUser(context);
+        const { role, userId, subscriberId, userInfo } = AuthUser(context);
         if (!role || role !== "ADMIN") {
             throw CustomError(ErrorName.FORBIDDEN);
         }
+        const notifications = [];
+        const exportStartTime = new Date();
+    
         try {
+            const inProgressNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `User Export In Progress` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                    },
+                ],
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS,
+            };
+            notifications.push(inProgressNotification);
+            await NotificationHelper.createNotification(notifications);
             const userIds = input.ids;
             const users = await User.find({ _id: { $in: userIds } }).lean();
             if (!users.length) {
@@ -2368,6 +2389,25 @@ module.exports.mutations = {
                     type_of_export: 'USER_EXPORT'
                 });
                 await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Export Successful` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `The export user process completed successfully. You can download the file from the link: ${s3PresignedUrl}.`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
                     message: "User Export successful",
