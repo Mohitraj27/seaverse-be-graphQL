@@ -106,7 +106,6 @@ module.exports.queries = {
 
      
         const {  trainings } = result[0];
-        console.log(trainings,"trainings")
         return {
             totalCount:trainings.length,
             trainings,
