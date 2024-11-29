@@ -30,6 +30,7 @@ module.exports = {
             createdBy: User
             createdAt: String
             updatedAt: String
+            icon: String
         }
         type NotificationList {
             notifications: [Notification]

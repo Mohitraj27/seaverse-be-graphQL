@@ -43,7 +43,7 @@ module.exports.queries = {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0;
-          let  limit = pageInput?.limit ?? 50;
+          let  limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { createdAt: "descending" };
@@ -89,7 +89,7 @@ module.exports.queries = {
      
         const {  trainings } = result[0];
         return {
-            totalCount:limit,
+            totalCount:trainings.length,
             trainings,
         };
     },
