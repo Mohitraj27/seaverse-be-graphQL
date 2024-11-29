@@ -88,7 +88,7 @@ module.exports.queries = {
             {
                 $match: {
                     'userInfo': { $ne: null },
-                    'userInfo.isDeleted': { $ne: true } 
+                    'userInfo.isDeleted': { $ne: true }
                 }
             },
             {
@@ -550,8 +550,11 @@ module.exports.queries = {
                         },
                     },
                 ]);
-                
-                trainingDetails = TrainingRegistrationHelper.combineTrainingModule
+
+                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+                console.log('trainingDetails');
+                console.log(JSON.stringify(trainingDetails, null, 2));
 
             } else {
 
@@ -685,7 +688,6 @@ module.exports.queries = {
                 ]);
 
             }
-
 
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
