@@ -2296,6 +2296,55 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
+            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
+            const adminNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: adminNotificationMessage,
+                    },
+                ],
+                notificationType: NotificationType.SUBROLE_ASSIGNED,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: users.map(user => ({
+                    targetRef: "User",
+                    target: user._id,
+                })),
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            };
+    
+            const userNotifications = usersToUpdate.map(user => ({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `You have been assigned the subrole "${validSubRole.name}".`,
+                    },
+                ],
+                notificationType: NotificationType.SUBROLE_ASSIGNED,
+                notifyAdmin: false,
+                notifiers: [user._id],
+                employeeNotifiers: [user._id],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: user._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            }));
+    
+            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+    
             return {
                 success: true,
                 message: "Subrole successfully assigned to all learners",
