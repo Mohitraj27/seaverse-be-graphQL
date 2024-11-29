@@ -171,7 +171,7 @@ const sendDeleteNotification = async (notificationsData) => {
                         value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${notificationData.createdBy.firstName}.`,
                     },
                 ],
-                notificationType: "EMPLOYEE_DELETED",
+                notificationType: NotificationType.EMPLOYEE_DELETED,
                 notifyAdmin: true,
                 notifiers: [], 
                 employeeNotifiers: [],
@@ -207,6 +207,42 @@ const sendDeleteNotification = async (notificationsData) => {
         await NotificationHelper.createNotification(notifications);
     }
 };
+const notifyEmployeeStatusChange = async ( notificationsData  ) => {
+    if (notificationsData?.length) {
+        const notifications = [];
+        for (const notificationData of notificationsData) {
+            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName}`;
+            const employeeEmail = notificationData.employee?.user?.email;
+
+            const notification = {
+                subscriber: notificationData.subscriber,
+                title: [{ lang: "en", value: `Employee Status Updated` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been successfully marked as ${notificationData.type} by ${notificationData.updatedBy.firstName}.`,
+                    },
+                ],
+                notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
+                notifyAdmin: true,
+                notifiers: [], 
+                employeeNotifiers: [],
+                affected: [
+                    {
+                        targetRef: "Employee",
+                        target: notificationData.employee._id,
+                    },
+                ],
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: notificationData.updatedBy,
+            };
+            notifications.push(notification);
+        }
+        await NotificationHelper.createNotification(notifications);
+    }
+};
+
 
 const sendEnrollmentNotification = async notificationsData => {
     if (notificationsData?.length) {
@@ -960,6 +996,7 @@ module.exports = {
     sendCourseInvitationMail,
     sendEnrollmentNotification,
     sendDeleteNotification,
+    notifyEmployeeStatusChange,
     sendNotificationOnCRUD,
     sendNotificationOnBULK,
     generateUserUID,

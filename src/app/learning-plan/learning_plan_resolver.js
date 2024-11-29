@@ -189,7 +189,7 @@ module.exports.queries = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 20);
+        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
@@ -430,7 +430,8 @@ module.exports.queries = {
                 }
                 ,
                 { $skip: parsedSkip },
-                { $limit: parsedLimit }
+                { $limit: parsedLimit },
+                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
