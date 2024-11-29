@@ -64,6 +64,9 @@ const NotificationEvent = require("../../notifications/notification_event.json")
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const { Notification } = require("../../notifications/notification_model");
 
+const NotificationType = require("../../notifications/notification_type.json");
+const NotificationHelper = require("../../notifications/notification_helper");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {};
     if (vesselStatus && vesselStatus.length > 0) {
@@ -1034,57 +1037,97 @@ module.exports.queries = {
         const emails = emailInput.email;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         let messages = [];
-
-        for (const email of emails) {
-            if (!emailRegex.test(email)) {
-                throw CustomError(ErrorName.INVALID_EMAIL, `Invalid email format: ${email}`);
-            }
-
-            let currentUserData = await User.findOne({ email: email });
-            if (!currentUserData) {
-                throw CustomError(ErrorName.NOT_FOUND, `No user data found for email: ${email}`);
-            }
-            let html = ``;
-            if (currentUserData.isResetPasswordDialog) {
-                html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                <p>Welcome</p>
-                <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                Get ready for a great career journey with our Learning Management System</div>
-                <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                    Click Here
-                </a>
-                </div>`;
-            } else {
-                const generatePassword = generateRandomString(10);
-                currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
-                try {
-                    await currentUserData.save();
-                } catch {
-                    throw CustomError(ErrorName.FAILED, "Failed to create new dummy password");
+        const notifications = [];
+        await Promise.all(
+            emails.map(async (email) => {
+                if (!emailRegex.test(email)) {
+                    messages.push(`Invalid email format: ${email}`);
+                    return;
                 }
-                html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                <p>Welcome</p>
-                <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                Get ready for a great career journey with our Learning Management System</div>
-                <h4>User Name: ${currentUserData.email}</h4>
-                <h4>Temporary Password: ${generatePassword}</h4>
-                <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                    Click Here
-                </a>
-                </div>`;
-            }
+    
+                let currentUserData = await User.findOne({ email: email });
+                if (!currentUserData) {
+                    messages.push(`No user data found for email: ${email}`);
+                    return;
+                }
+    
+                let html = ``;
+                if (currentUserData.isResetPasswordDialog) {
+                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                    <p>Welcome</p>
+                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                    Get ready for a great career journey with our Learning Management System</div>
+                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                        Click Here
+                    </a>
+                    </div>`;
+                } else {
+                    const generatePassword = generateRandomString(10);
+                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                    try {
+                        await currentUserData.save();
+                    } catch {
+                        messages.push(`Failed to create new dummy password for ${email}`);
+                        return;
+                    }
+                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                    <p>Welcome</p>
+                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                    Get ready for a great career journey with our Learning Management System</div>
+                    <h4>User Name: ${currentUserData.email}</h4>
+                    <h4>Temporary Password: ${generatePassword}</h4>
+                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                        Click Here
+                    </a>
+                    </div>`;
+                }
+    
             try {
                 await SendEmail({
                     receiverEmail: email,
                     subject: "Registration Invitation",
                     htmlContent: html,
                 });
-                messages.push(`Email sent successfully to ${email}`);
-            } catch (error) {
+                messages.push(`Welcome mail sent to ${email}`);
+               
+            } 
+            catch (error) {
                 messages.push(`Unable to send Welcome mail to ${email}`);
             }
+            notifications.push({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `Welcome Email Sent` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                    },
+                ],
+                notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: currentUserData._id,
+                    },
+                ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+                status:"SENT"
+            });
+            
+            
+        })
+    );
+        if (notifications.length > 0 ) {
+            try {
+                await NotificationHelper.createNotification(notifications);
+            } catch (error) {
+                messages.push(`Failed to create notifications.`);
+            }
         }
-
         return messages;
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
