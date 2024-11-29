@@ -65,7 +65,9 @@ const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const { Notification } = require("../../notifications/notification_model");
 
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {};
+    const userVesselFilter = {
+        isActive: true,
+    };
     if (vesselStatus && vesselStatus.length > 0) {
         userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
@@ -598,6 +600,7 @@ module.exports.queries = {
                 filterInput.vesselType,
                 filterInput.vesselObjectId
             );
+            console.log(filterInput.vesselStatus, userIdsByVesselStatus);
             if (userIdsByVesselStatus.length > 0) {
                 filterConditions.user = { $in: userIdsByVesselStatus };
             }
