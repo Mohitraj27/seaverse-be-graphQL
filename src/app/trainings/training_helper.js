@@ -21,6 +21,7 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const TrainingCertificateHelper = require("../training-registrations/training-certificates/training_certificate_helper");
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -203,6 +204,7 @@ const generateCourseId = (courseType) => {
 // };
 
 const validateAndUpdateContentData = async (input) => {
+
     const overallIds = input.map((item) => item.overallId);
     let overallDocs;
 
@@ -212,12 +214,49 @@ const validateAndUpdateContentData = async (input) => {
         }).lean();
     }
 
+    const trainingIds = overallDocs.map((doc) => doc.training);
+
+    if (!overallDocs.contentData || overallDocs.contentData.length == 0) {
+
+        if (trainingIds.length > 0) {
+            const fetchModuleContents = await TrainingContentBridge.find({
+                training: { $in: trainingIds },
+            })
+
+            if (fetchModuleContents.length > 0) {
+
+                const bulkOperations = [];
+                fetchModuleContents.forEach((content) => {
+                    bulkOperations.push({
+                        updateOne: {
+                            filter: { _id: content.training },
+                            update: {
+                                status: "IN_PROGRESS",
+                                $push: {
+                                    contentData: {
+                                        moduleId: content.trainingModule,
+                                        contentIds: [content.trainingContent],
+                                    },
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
+                });
+
+            }
+        }
+
+    }
+
+
     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
 
     const errors = [];
     const missingOverallEntries = [];
 
     for (const item of input) {
+
         const { overallId, trainingModules } = item;
 
         const overallDoc = overallMap.get(overallId.toString());
@@ -242,6 +281,8 @@ const validateAndUpdateContentData = async (input) => {
 
             if (!matchingModuleData) {
 
+
+
                 missingOverallEntries.push({
                     updateOne: {
                         filter: { _id: overallId },
@@ -262,6 +303,7 @@ const validateAndUpdateContentData = async (input) => {
             }
 
             for (const content of contentDetails) {
+
                 const { contentId } = content;
 
                 const isContentPresent = matchingModuleData.contentIds
@@ -276,6 +318,7 @@ const validateAndUpdateContentData = async (input) => {
                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
                     });
                 }
+
             }
         }
     }
@@ -445,17 +488,24 @@ const updateTrainingProgress = async (input, userId) => {
 
     });
 
-    // const evaluationData = input.flatMap(overall =>
-    //     overall.trainingModules.flatMap(module =>
-    //         module.contentDetails.filter(content => content.questionAnswers && content.questionAnswers.length > 0)
-    //             .map(content => ({
-    //                 contentId: content.contentId,
-    //                 trainingModuleId: module.moduleId,
-    //                 trainingId: overall.overallId,
-    //                 questionAnswers: content.questionAnswers
-    //             }))
-    //     )
-    // );
+    const evaluationData = input.flatMap(overall =>
+        overall.trainingModules.flatMap(module =>
+            module.contentDetails.filter(content => content.questionAnswers && content.questionAnswers.length > 0)
+                .map(content => ({
+                    contentId: content.contentId,
+                    trainingModuleId: module.moduleId,
+                    overallId: overall.overallId,
+                    questionAnswers: content.questionAnswers
+                }))
+        )
+    );
+
+    let errors = [];
+    const quizResults = await quizEvaluationBulk(evaluationData, userId, errors);
+
+    if (errors.length > 0) {
+        console.log(errors[0]);
+    }
 
     const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -472,15 +522,39 @@ const updateTrainingProgress = async (input, userId) => {
     return { updatedCount: bulkOps.length };
 };
 
-const quizEvaluationBulk = async (evaluationData) => {
+const quizEvaluationBulk = async (evaluationData, userId, errors) => {
     try {
 
-        // First, collect the necessary data in bulk to avoid multiple queries inside the loop
+        const overallIds = evaluationData.map(data => data.trainingId);
+
+        if (overallIds.length == 0) {
+            errors.push("No overallId found in evaluationData");
+            return;
+        }
+
+        const overallTrainingProgress = await OverallTrainingProgress.find({
+            _id: { $in: overallIds }
+        }).lean();
+
+        if (!overallTrainingProgress) {
+            errors.push("Overall training progress data not found!");
+            return;
+        }
+
+        const overallIdToTrainingIdMap = overallTrainingProgress.reduce((acc, doc) => {
+            acc[doc._id.toString()] = doc.training.toString();
+            return acc;
+        }, {});
+
         const contentIds = evaluationData.map(data => data.contentId);
         const trainingModuleIds = evaluationData.map(data => data.trainingModuleId);
-        const trainingIds = evaluationData.map(data => data.trainingId);
+        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.trainingId]);
 
-        // Fetch all the required training module contents in one go
+        if (contentIds.length == 0 || trainingModuleIds.length == 0 || trainingIds.length == 0) {
+            errors.push("No contentId, trainingModuleId or trainingId found in evaluationData");
+            return;
+        }
+
         const trainingModuleContents = await TrainingModuleContent.find({
             _id: { $in: contentIds }
         }).populate({
@@ -497,11 +571,14 @@ const quizEvaluationBulk = async (evaluationData) => {
         }).lean();
 
         if (!trainingModuleContents || !trainings || !trainingModules) {
-            throw CustomError(ErrorName.NOT_FOUND);
+            errors.push("No contentId, trainingModuleId or trainingId found");
+            return;
         }
 
         const results = [];
+
         for (const data of evaluationData) {
+
             const { contentId, trainingModuleId, trainingId, questionAnswers } = data;
 
             const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
@@ -530,6 +607,7 @@ const quizEvaluationBulk = async (evaluationData) => {
             }) || [];
 
             const questionResults = trainingModuleContent.quiz.map(question => {
+
                 const userAnswer = filteredQuestionAnswers?.find(
                     ans => ans.questionId.toString() === question._id.toString()
                 );
@@ -603,7 +681,6 @@ const quizEvaluationBulk = async (evaluationData) => {
 
     } catch (error) {
         console.error("Error evaluating quiz in bulk:", error);
-        throw new Error(error.message);
     }
 };
 

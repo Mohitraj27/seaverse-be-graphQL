@@ -609,7 +609,7 @@ module.exports.queries = {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                 offset: skip,
                 limit,
-                sort: { createdAt: "descending" },
+                sort: { updatedAt: -1 },
                 customLabels: {
                     docs: "employees",
                     totalDocs: "totalCount",
@@ -871,7 +871,10 @@ module.exports.queries = {
                 : []),
         ]);
 
-        return result;
+        return {
+            employees: result.employees,
+            totalCount: result.employees.length,
+        }
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions } = AuthUser(context);
@@ -1144,12 +1147,12 @@ module.exports.queries = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-                const emailExists = await User.findOne({ email: { $regex: `^${input.email}$`, $options: 'i' } });
+                const emailExists = await User.findOne({ email: { $regex: `^${input.email}$`, $options: 'i' }, isDeleted: false });
                 if (emailExists) {
                     messages.push("This email Id already exists in the system with another employee.");
                 }
             } else if (input.civilIdOrPassport) {
-                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' } });
+                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
                     messages.push("Another user already exists with this employee Id");
                 }

@@ -276,24 +276,6 @@ module.exports = {
                         });
                     }
                 });
-
-                existingContentBridges?.forEach(doc => {
-                    const key = `${doc.trainingModule}_${doc.trainingContent}`;
-                    if (doc.trainingModule?.toString() === moduleId?.toString() &&
-                        !module.trainingModuleContents?.includes(doc.trainingContent?.toString()) &&
-                        doc.isDeleted === false) {
-                        trainingContentBridgeBulkOperations.push({
-                            updateOne: {
-                                filter: {
-                                    training: input.training,
-                                    trainingModule: moduleId,
-                                    trainingContent: doc.trainingContent,
-                                },
-                                update: { $set: { isDeleted: true } },
-                            },
-                        });
-                    }
-                });
             }
 
             updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations, { session});

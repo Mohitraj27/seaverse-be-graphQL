@@ -46,7 +46,7 @@ module.exports.queries = {
           let  limit = pageInput?.limit ?? 50;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
-        let sortOrder = { createdAt: "descending" };
+        let sortOrder = { updatedAt: -1 };
         if (filterInput) {
 
             if (filterInput.search) {
@@ -66,14 +66,15 @@ module.exports.queries = {
 
             if (filterInput.status) filterConditions.status = filterInput.status;
             if (filterInput.dateFilter === -1) {
-                sortOrder = { createdAt: "descending" };
+                sortOrder = { updatedAt: "descending" };
             } else {
-                sortOrder = { createdAt: "ascending" };
+                sortOrder = { updatedAt: "ascending" };
             }
         }
 
         const result = await Training.aggregate([
             { $match: filterConditions },
+            { $sort: sortOrder },
             {
                 $facet: {
                     trainings: [{ $skip: skip }, { $limit: limit }],
@@ -89,7 +90,7 @@ module.exports.queries = {
      
         const {  trainings } = result[0];
         return {
-            totalCount:limit,
+            totalCount:trainings.length,
             trainings,
         };
     },
