@@ -685,6 +685,17 @@ module.exports.mutations = {
                         },
                     }
                 );
+                await Group.updateOne(
+                    { _id: savedGroup._id },
+                    {
+                        $pull: {
+                            members: { $in: input.deleteMembersOrGroups },
+                        },
+                        $inc: {
+                            memberCount: -input.deleteMembersOrGroups.length,
+                        },
+                    }
+                );
             }
         }
 

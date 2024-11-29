@@ -86,6 +86,12 @@ module.exports.queries = {
                 }
             },
             {
+                $match: {
+                    'userInfo': { $ne: null },
+                    'userInfo.isDeleted': { $ne: true }
+                }
+            },
+            {
                 $match: input?.search
                     ? {
                         $or: [
@@ -118,7 +124,7 @@ module.exports.queries = {
 
         const formattedResults = results.map(group => ({
             learningPlanName: group._id.learningPlanName,
-            users: group.users
+            users: group.users,
         }));
 
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
@@ -393,246 +399,292 @@ module.exports.queries = {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
             }
 
-            const trainingDetails = await OverallTrainingProgress.aggregate([
-                { $match: { _id: input } },
-                {
-                    $lookup: {
-                        from: "trainings",
-                        localField: "training",
-                        foreignField: "_id",
-                        as: "training",
+            const fetchOverallTrainingProgress = await OverallTrainingProgress.findOne({ _id: input })
+                .populate("training").lean();
+
+            if (!fetchOverallTrainingProgress) {
+                throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            }
+
+            let trainingDetails;
+
+            if (fetchOverallTrainingProgress.contentData && fetchOverallTrainingProgress.contentData.length > 0) {
+
+                const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
+                    { $match: { _id: input } },
+                    {
+                        $lookup: {
+                            from: "trainings",
+                            localField: "training",
+                            foreignField: "_id",
+                            as: "training",
+                        },
                     },
-                },
-                { $unwind: "$training" },
-                {
-                    $lookup: {
-                        from: "trainingmodules",
-                        localField: "training._id",
-                        foreignField: "training",
-                        as: "trainingModules",
+                    { $unwind: "$training" },
+                    {
+                        $lookup: {
+                            from: "trainingmodules",
+                            localField: "training._id",
+                            foreignField: "training",
+                            as: "trainingModules",
+                        },
                     },
-                },
-                {
-                    $lookup: {
-                        from: "trainingprogresses",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingModuleContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingModuleContentDetails",
-                                    preserveNullAndEmptyArrays: true,
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "questions",
-                                    localField: "trainingModuleContentDetails.quiz",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails",
-                                },
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingModuleContentDetails.quizDetails",
-                                    preserveNullAndEmptyArrays: true,
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "answerchoices",
-                                    localField: "trainingModuleContentDetails.quizDetails.choices",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails.quizDetails.choices",
-                                },
-                            },
-                            {
-                                $addFields: {
-                                    "trainingModuleContentDetails.quizDetails": {
-                                        $ifNull: [
-                                            {
-                                                $map: {
-                                                    input: { $ifNull: ["$questions", []] },
-                                                    as: "question",
-                                                    in: {
-                                                        _id: "$$question._id",
-                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
-                                                        choices: {
-                                                            $filter: {
-                                                                input: { $ifNull: ["$questionChoices", []] },
-                                                                as: "choice",
-                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
-                                                            },
-                                                        },
-                                                        answerKey: "$$question.answerKey",
-                                                        questionType: "$$question.questionType",
-                                                        points: "$$question.points",
-                                                        negativePoints: "$$question.negativePoints",
-                                                    },
-                                                },
-                                            },
-                                            [],
-                                        ],
+                    {
+                        $unwind: {
+                            path: "$contentData",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingprogresses",
+                            let: { moduleId: "$contentData.moduleId", contentIds: "$contentData.contentIds" },
+                            pipeline: [
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                { $eq: ["$trainingModule", "$$moduleId"] },
+                                                { $in: ["$trainingModuleContent", "$$contentIds"] },
+                                            ],
+                                        },
                                     },
                                 },
-                            },
-                            {
-                                $group: {
-                                    _id: "$_id",
-                                    trainingModuleContent: { $first: "$trainingModuleContent" },
-                                    trainingModule: { $first: "$trainingModule" },
-                                    trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
-                                },
-                            },
-                        ],
-                        as: "trainingProgresses",
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "trainingcontentbridges",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingModuleContentDetails",
-                                    preserveNullAndEmptyArrays: true,
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "questions",
-                                    localField: "trainingModuleContentDetails.quiz",
-                                    foreignField: "_id",
-                                    as: "questions",
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "answerchoices",
-                                    localField: "questions.choices",
-                                    foreignField: "_id",
-                                    as: "questionChoices",
-                                },
-                            },
-                            {
-                                $addFields: {
-                                    "trainingModuleContentDetails.quizDetails": {
-                                        $ifNull: [
-                                            {
-                                                $map: {
-                                                    input: { $ifNull: ["$questions", []] },
-                                                    as: "question",
-                                                    in: {
-                                                        _id: "$$question._id",
-                                                        lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-                                                        value: { $arrayElemAt: ["$$question.question.value", 0] },
-                                                        choices: {
-                                                            $filter: {
-                                                                input: { $ifNull: ["$questionChoices", []] },
-                                                                as: "choice",
-                                                                cond: { $in: ["$$choice._id", "$$question.choices"] },
-                                                            },
-                                                        },
-                                                        answerKey: "$$question.answerKey",
-                                                        questionType: "$$question.questionType",
-                                                        points: "$$question.points",
-                                                        negativePoints: "$$question.negativePoints",
-                                                    },
-                                                },
-                                            },
-                                            [],
-                                        ],
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingModuleContent",
+                                        foreignField: "_id",
+                                        as: "trainingModuleContentDetails",
                                     },
                                 },
-                            },
-                            {
-                                $group: {
-                                    _id: "$_id",
-                                    trainingContent: { $first: "$trainingContent" },
-                                    trainingModule: { $first: "$trainingModule" },
-                                    trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
+                                {
+                                    $unwind: {
+                                        path: "$trainingModuleContentDetails",
+                                        preserveNullAndEmptyArrays: true,
+                                    },
                                 },
-                            },
-                        ],
-                        as: "trainingContentsFallback",
-                    },
-                },
-                {
-                    $addFields: {
-                        trainingModules: {
-                            $map: {
-                                input: "$trainingModules",
-                                as: "module",
-                                in: {
-                                    $mergeObjects: [
-                                        "$$module",
-                                        {
-                                            trainingModuleContents: {
-                                                $cond: {
-                                                    if: {
-                                                        $eq: [
-                                                            {
-                                                                $size: {
-                                                                    $filter: {
-                                                                        input: "$trainingProgresses",
-                                                                        as: "progress",
-                                                                        cond: { $eq: ["$$progress.trainingModule", "$$module._id"] },
-                                                                    },
-                                                                },
-                                                            },
-                                                            0,
-                                                        ],
-                                                    },
-                                                    then: {
+                                {
+                                    $lookup: {
+                                        from: "questions",
+                                        localField: "trainingModuleContentDetails.quiz",
+                                        foreignField: "_id",
+                                        as: "questions",
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "answerchoices",
+                                        localField: "questions.choices",
+                                        foreignField: "_id",
+                                        as: "questionChoices",
+                                    },
+                                },
+                                {
+                                    $addFields: {
+                                        "trainingModuleContentDetails.quizDetails": {
+                                            $map: {
+                                                input: { $ifNull: ["$questions", []] },
+                                                as: "question",
+                                                in: {
+                                                    _id: "$$question._id",
+                                                    lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                    value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                    choices: {
                                                         $filter: {
-                                                            input: "$trainingContentsFallback",
-                                                            as: "content",
-                                                            cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                            input: { $ifNull: ["$questionChoices", []] },
+                                                            as: "choice",
+                                                            cond: { $in: ["$$choice._id", "$$question.choices"] },
                                                         },
                                                     },
-                                                    else: {
-                                                        $filter: {
-                                                            input: "$trainingProgresses",
-                                                            as: "progress",
-                                                            cond: { $eq: ["$$progress.trainingModule", "$$module._id"] },
-                                                        },
-                                                    },
+                                                    answerKey: "$$question.answerKey",
+                                                    questionType: "$$question.questionType",
+                                                    points: "$$question.points",
+                                                    negativePoints: "$$question.negativePoints",
                                                 },
                                             },
                                         },
-                                    ],
+                                    },
+                                },
+                                {
+                                    $group: {
+                                        _id: "$trainingModule",
+                                        trainingContent: { $first: "$trainingContent" },
+                                        trainingModule: { $first: "$trainingModule" },
+                                        trainingModuleContentDetails: {
+                                            $push: "$trainingModuleContentDetails",
+                                        },
+                                    },
+                                },
+                            ],
+                            as: "progressDetails",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            trainingModules: {
+                                $map: {
+                                    input: "$trainingModules",
+                                    as: "module",
+                                    in: {
+                                        $mergeObjects: [
+                                            "$$module",
+                                            {
+                                                trainingModuleContents: {
+                                                    $filter: {
+                                                        input: "$progressDetails",
+                                                        as: "content",
+                                                        cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
                                 },
                             },
                         },
                     },
-                },
-                {
-                    $project: {
-                        trainingProgresses: 0,
-                        trainingContentsFallback: 0,
+                    {
+                        $project: {
+                            progressDetails: 0,
+                        },
                     },
-                },
-            ]);
+                ]);
 
+                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+            } else {
+
+                trainingDetails = await OverallTrainingProgress.aggregate([
+                    { $match: { _id: input } },
+                    {
+                        $lookup: {
+                            from: "trainings",
+                            localField: "training",
+                            foreignField: "_id",
+                            as: "training",
+                        },
+                    },
+                    { $unwind: "$training" },
+                    {
+                        $lookup: {
+                            from: "trainingmodules",
+                            localField: "training._id",
+                            foreignField: "training",
+                            as: "trainingModules",
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingcontentbridges",
+                            let: { moduleIds: "$trainingModules._id" },
+                            pipeline: [
+                                { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingContent",
+                                        foreignField: "_id",
+                                        as: "trainingModuleContentDetails",
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$trainingModuleContentDetails",
+                                        preserveNullAndEmptyArrays: true,
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "questions",
+                                        localField: "trainingModuleContentDetails.quiz",
+                                        foreignField: "_id",
+                                        as: "questions",
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "answerchoices",
+                                        localField: "questions.choices",
+                                        foreignField: "_id",
+                                        as: "questionChoices",
+                                    },
+                                },
+                                {
+                                    $addFields: {
+                                        "trainingModuleContentDetails.quizDetails": {
+                                            $ifNull: [
+                                                {
+                                                    $map: {
+                                                        input: { $ifNull: ["$questions", []] },
+                                                        as: "question",
+                                                        in: {
+                                                            _id: "$$question._id",
+                                                            lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                            value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                            choices: {
+                                                                $filter: {
+                                                                    input: { $ifNull: ["$questionChoices", []] },
+                                                                    as: "choice",
+                                                                    cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                                },
+                                                            },
+                                                            answerKey: "$$question.answerKey",
+                                                            questionType: "$$question.questionType",
+                                                            points: "$$question.points",
+                                                            negativePoints: "$$question.negativePoints",
+                                                        },
+                                                    },
+                                                },
+                                                [],
+                                            ],
+                                        },
+                                    },
+                                },
+                                {
+                                    $group: {
+                                        _id: "$trainingModule",
+                                        trainingContent: { $first: "$trainingContent" },
+                                        trainingModule: { $first: "$trainingModule" },
+                                        trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
+                                    },
+                                },
+                            ],
+                            as: "trainingContentsFallback",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            trainingModules: {
+                                $map: {
+                                    input: "$trainingModules",
+                                    as: "module",
+                                    in: {
+                                        $mergeObjects: [
+                                            "$$module",
+                                            {
+                                                trainingModuleContents: {
+                                                    $filter: {
+                                                        input: "$trainingContentsFallback",
+                                                        as: "content",
+                                                        cond: { $eq: ["$$content.trainingModule", "$$module._id"] },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    {
+                        $project: {
+                            trainingContentsFallback: 0,
+                        },
+                    },
+                ]);
+
+            }
 
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");

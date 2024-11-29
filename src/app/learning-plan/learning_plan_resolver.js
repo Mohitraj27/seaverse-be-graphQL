@@ -430,7 +430,8 @@ module.exports.queries = {
                 }
                 ,
                 { $skip: parsedSkip },
-                { $limit: parsedLimit }
+                { $limit: parsedLimit },
+                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);

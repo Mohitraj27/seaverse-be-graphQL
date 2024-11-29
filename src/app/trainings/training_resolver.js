@@ -46,7 +46,7 @@ module.exports.queries = {
           let  limit = pageInput?.limit ?? 50;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
-        let sortOrder = { createdAt: "descending" };
+        let sortOrder = { updatedAt: -1 };
         if (filterInput) {
 
             if (filterInput.search) {
@@ -66,14 +66,15 @@ module.exports.queries = {
 
             if (filterInput.status) filterConditions.status = filterInput.status;
             if (filterInput.dateFilter === -1) {
-                sortOrder = { createdAt: "descending" };
+                sortOrder = { updatedAt: "descending" };
             } else {
-                sortOrder = { createdAt: "ascending" };
+                sortOrder = { updatedAt: "ascending" };
             }
         }
 
         const result = await Training.aggregate([
             { $match: filterConditions },
+            { $sort: sortOrder },
             {
                 $facet: {
                     trainings: [{ $skip: skip }, { $limit: limit }],
@@ -89,7 +90,7 @@ module.exports.queries = {
      
         const {  trainings } = result[0];
         return {
-            totalCount:limit,
+            totalCount:trainings.length,
             trainings,
         };
     },
@@ -141,13 +142,6 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-
-        const selectedCertificateLayout = await certificateLayout.findOne({
-            training: id,
-        });
-
-        training.isCertificate = selectedCertificateLayout ? true : false;
-
         return training;
     },
 
@@ -160,11 +154,11 @@ module.exports.mutations = {
             AuthUser(context);
 
         const moduleContentIds = [];
-
-        if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
-        if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
-        if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
-
+        if (!input._id) {
+            if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
+            if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+            if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
+        }    
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
