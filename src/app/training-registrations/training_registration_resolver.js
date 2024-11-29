@@ -607,32 +607,37 @@ module.exports.queries = {
                                 {
                                     $addFields: {
                                         "trainingModuleContentDetails.quizDetails": {
-                                            $map: {
-                                                input: { $ifNull: ["$questions", []] },
-                                                as: "question",
-                                                in: {
-                                                    _id: "$$question._id",
-                                                    lang: { $arrayElemAt: ["$$question.question.lang", 0] },
-                                                    value: { $arrayElemAt: ["$$question.question.value", 0] },
-                                                    choices: {
-                                                        $filter: {
-                                                            input: { $ifNull: ["$questionChoices", []] },
-                                                            as: "choice",
-                                                            cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                            $ifNull: [
+                                                {
+                                                    $map: {
+                                                        input: { $ifNull: ["$questions", []] },
+                                                        as: "question",
+                                                        in: {
+                                                            _id: "$$question._id",
+                                                            lang: { $arrayElemAt: ["$$question.question.lang", 0] },
+                                                            value: { $arrayElemAt: ["$$question.question.value", 0] },
+                                                            choices: {
+                                                                $filter: {
+                                                                    input: { $ifNull: ["$questionChoices", []] },
+                                                                    as: "choice",
+                                                                    cond: { $in: ["$$choice._id", "$$question.choices"] },
+                                                                },
+                                                            },
+                                                            answerKey: "$$question.answerKey",
+                                                            questionType: "$$question.questionType",
+                                                            points: "$$question.points",
+                                                            negativePoints: "$$question.negativePoints",
                                                         },
                                                     },
-                                                    answerKey: "$$question.answerKey",
-                                                    questionType: "$$question.questionType",
-                                                    points: "$$question.points",
-                                                    negativePoints: "$$question.negativePoints",
                                                 },
-                                            },
+                                                [],
+                                            ],
                                         },
                                     },
                                 },
                                 {
                                     $group: {
-                                        _id: "$_id",
+                                        _id: "$trainingModule",
                                         trainingContent: { $first: "$trainingContent" },
                                         trainingModule: { $first: "$trainingModule" },
                                         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
@@ -674,6 +679,7 @@ module.exports.queries = {
                 ]);
 
             }
+
 
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
