@@ -40,6 +40,7 @@ const { Training } = require("../../trainings/training_model");
 const {
     COMPLETED,
 } = require("@rusticisoftware/scormcloud-api-v2-client-javascript/src/rustici-software-cloud-v2/rustici-software-cloud-v2-model/RegistrationCompletion");
+const { extractTrainingContentData } = require("../training_registration_helper");
 
 const sendCourseCompletionMail = async data => {
     try {
@@ -343,21 +344,7 @@ module.exports = {
                     currentOverallTrainingProgress.completedModules = input.completedModules;
                 }
                 if (!currentOverallTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
-                const contentIdExists =
-                    currentOverallTrainingProgress.trainingModuleContentIds.includes(
-                        currentExistingTrainingModuleContent._id
-                    );
-                const moduleIdExists =
-                    currentOverallTrainingProgress.trainingModuleIds.includes(
-                        input.currentTrainingModuleId
-                    );
-
-                if (!contentIdExists) {
-                    currentOverallTrainingProgress.trainingModuleContentIds.push(
-                        currentExistingTrainingModuleContent._id
-                    );
-                }
-
+               
                 currentExistingTrainingProgress.updatedBy = userId;
 
                 if (input.currentTrainingModuleContentQuestionAnswers) {
@@ -494,8 +481,12 @@ module.exports = {
                 const quizContent =
                     nextExistingTrainingModuleContent?.quizContent?.quiz ??
                     nextExistingTrainingModuleContent?.quiz;
-                if(currentOverallTrainingProgress.status === OverallProgressStatus.NOT_STARTED){
+                if (currentOverallTrainingProgress.status === OverallProgressStatus.NOT_STARTED) {
+                    currentOverallTrainingProgress.status = OverallProgressStatus.IN_PROGRESS
                     notificationTrainingRegistrationStatus = OverallProgressStatus.IN_PROGRESS
+                    const contentInfo = await extractTrainingContentData([currentOverallTrainingProgress.training]);
+                    currentOverallTrainingProgress.contentData = contentInfo.trainingModulesMap;
+                    currentOverallTrainingProgress.totalTrainingModules = contentInfo.trainingTotalModules;
                 }
                 nextTrainingProgressUpdateData = {
                     subscriber: subscriberId,
