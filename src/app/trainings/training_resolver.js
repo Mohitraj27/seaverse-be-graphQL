@@ -43,10 +43,10 @@ module.exports.queries = {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0;
-          let  limit = pageInput?.limit ?? 20;
+          let  limit = pageInput?.limit ?? 50;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
-        let sortOrder = { createdAt: "descending" };
+        let sortOrder = { updatedAt: -1 };
         if (filterInput) {
 
             if (filterInput.search) {
@@ -66,14 +66,15 @@ module.exports.queries = {
 
             if (filterInput.status) filterConditions.status = filterInput.status;
             if (filterInput.dateFilter === -1) {
-                sortOrder = { createdAt: "descending" };
+                sortOrder = { updatedAt: "descending" };
             } else {
-                sortOrder = { createdAt: "ascending" };
+                sortOrder = { updatedAt: "ascending" };
             }
         }
 
         const result = await Training.aggregate([
             { $match: filterConditions },
+            { $sort: sortOrder },
             {
                 $facet: {
                     trainings: [{ $skip: skip }, { $limit: limit }],
