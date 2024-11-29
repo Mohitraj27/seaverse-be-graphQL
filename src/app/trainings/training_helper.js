@@ -214,40 +214,40 @@ const validateAndUpdateContentData = async (input) => {
         }).lean();
     }
 
-    // const trainingIds = overallDocs.map((doc) => doc.training);
+    const trainingIds = overallDocs.map((doc) => doc.training);
 
-    // if (!overallDocs.contentData || overallDocs.contentData.length == 0) {
+    if (!overallDocs.contentData || overallDocs.contentData.length == 0) {
 
-    //     if (trainingIds.length > 0) {
-    //         const fetchModuleContents = await TrainingContentBridge.find({
-    //             training: { $in: trainingIds },
-    //         })
+        if (trainingIds.length > 0) {
+            const fetchModuleContents = await TrainingContentBridge.find({
+                training: { $in: trainingIds },
+            })
 
-    //         if (fetchModuleContents.length > 0) {
+            if (fetchModuleContents.length > 0) {
 
-    //             const bulkOperations = [];
-    //             fetchModuleContents.forEach((content) => {
-    //                 bulkOperations.push({
-    //                     updateOne: {
-    //                         filter: { _id: content.training },
-    //                         update: {
-    //                             status: "IN_PROGRESS",
-    //                             $push: {
-    //                                 contentData: {
-    //                                     moduleId: content.trainingModule,
-    //                                     contentIds: [content.trainingContent],
-    //                                 },
-    //                             },
-    //                         },
-    //                         upsert: true,
-    //                     },
-    //                 });
-    //             });
+                const bulkOperations = [];
+                fetchModuleContents.forEach((content) => {
+                    bulkOperations.push({
+                        updateOne: {
+                            filter: { _id: content.training },
+                            update: {
+                                status: "IN_PROGRESS",
+                                $push: {
+                                    contentData: {
+                                        moduleId: content.trainingModule,
+                                        contentIds: [content.trainingContent],
+                                    },
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
+                });
 
-    //         }
-    //     }
+            }
+        }
 
-    // }
+    }
 
 
     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
