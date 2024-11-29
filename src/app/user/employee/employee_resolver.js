@@ -868,7 +868,10 @@ module.exports.queries = {
                 : []),
         ]);
 
-        return result;
+        return {
+            employees: result.employees,
+            totalCount: result.employees.length,
+        }
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions } = AuthUser(context);
