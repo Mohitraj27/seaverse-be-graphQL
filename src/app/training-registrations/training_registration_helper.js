@@ -287,11 +287,11 @@ const extractTrainingContentData = async (trainings) => {
 
         if (existingModule) {
 
-            existingModule.contentIds.push(mongoose.Types.ObjectId(contentId)); 
+            existingModule.contentIds.push(mongoose.Types.ObjectId(contentId));
         } else {
 
             result.push({
-                moduleId: ObjectId(moduleId), 
+                moduleId: ObjectId(moduleId),
                 contentIds: [ObjectId(contentId)]
             });
         }
@@ -299,7 +299,7 @@ const extractTrainingContentData = async (trainings) => {
         return result;
     }, []);
     const trainingTotalModules = trainingModulesMap.length
-    return {trainingModulesMap , trainingTotalModules};
+    return { trainingModulesMap, trainingTotalModules };
 };
 
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
@@ -415,11 +415,15 @@ const combineTrainingModules = (data) => {
     const firstData = data[0];
 
     data.forEach(item => {
-        if (firstData._id == item._id) {
-            firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
+
+        if (firstData.trainingModules.length > 1) {
+            if (firstData._id == item._id) {
+                firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
+            }
         }
+
     });
-    
+
     return [firstData];
 }
 

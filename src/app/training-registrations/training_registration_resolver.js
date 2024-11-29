@@ -550,8 +550,8 @@ module.exports.queries = {
                         },
                     },
                 ]);
-
-                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+                
+                trainingDetails = TrainingRegistrationHelper.combineTrainingModule
 
             } else {
 
