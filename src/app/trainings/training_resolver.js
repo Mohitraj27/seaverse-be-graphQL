@@ -77,18 +77,36 @@ module.exports.queries = {
             { $sort: sortOrder },
             {
                 $facet: {
-                    trainings: [{ $skip: skip }, { $limit: limit }],
+                    trainings: [
+                        { $skip: skip },
+                        { $limit: limit },
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "updatedBy",
+                                foreignField: "_id",
+                                as: "createdByDetails",
+                            },
+                        },
+                        {
+                            $addFields: {
+                                createdBy: { $arrayElemAt: ["$createdByDetails", 0] }, 
+                            },
+                        },
+                        { $project: { createdByDetails: 0 } }, 
+                    ],
                 },
             },
             {
                 $project: {
-                    totalCount: { $arrayElemAt: ["$totalCount.count", 0] },
                     trainings: 1,
                 },
             },
         ]);
+
      
         const {  trainings } = result[0];
+        console.log(trainings,"trainings")
         return {
             totalCount:trainings.length,
             trainings,
