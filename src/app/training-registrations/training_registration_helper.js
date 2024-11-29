@@ -272,27 +272,27 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 });
 
 const extractTrainingContentData = async (trainings) => {
-    // Fetching all the training content bridges for the given trainings
+
     const trainingContentBridges = await TrainingContentBridge.find({
         training: { $in: trainings.map(training => training._id) }
     });
 
-    // Create an array of modules with their respective content IDs
+
     const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
         const moduleId = bridge.trainingModule.toString();
         const contentId = bridge.trainingContent.toString();
 
-        // Find the module in the result array
+
         const existingModule = result.find(module => module.moduleId === moduleId);
 
         if (existingModule) {
-            // If the module already exists, push the contentId into contentIds
-            existingModule.contentIds.push(mongoose.Types.ObjectId(contentId)); // Convert to ObjectId
+
+            existingModule.contentIds.push(mongoose.Types.ObjectId(contentId)); 
         } else {
-            // If the module doesn't exist, create a new module object
+
             result.push({
-                moduleId: ObjectId(moduleId), // Convert to ObjectId
-                contentIds: [ObjectId(contentId)] // Convert to ObjectId
+                moduleId: ObjectId(moduleId), 
+                contentIds: [ObjectId(contentId)]
             });
         }
 
