@@ -11,7 +11,7 @@ const requiresRole = role => resolver => {
     if (isFunction(resolver))
         return (_, args, context = {}) => {
             context.resolverName = resolver.name;
-            if (resolver.name === 'forgetPassword') {
+            if (resolver.name === 'forgetPassword' || resolver.name === 'verifyResetPassword' || resolver.name === 'newPasswordAfterReset') {
                 return resolver(args, context);
             }
             if (!context.user) {
