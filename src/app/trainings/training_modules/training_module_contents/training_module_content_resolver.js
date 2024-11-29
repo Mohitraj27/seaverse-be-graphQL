@@ -39,7 +39,7 @@ module.exports.queries = {
             filterConditions['title.value'] = { $regex: search, $options: "i" };
         }
         const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? 20;
+        const limitContent = pageInput?.limit ?? 50;
 
         const contents = await TrainingModuleContent.aggregatePaginate(
             TrainingModuleContent.aggregate([
@@ -118,7 +118,7 @@ module.exports.queries = {
             {
                 offset: skip,
                 limit: limitContent,
-                sort: { createdAt: "descending" },
+                sort: { updatedAt: -1 },
                 customLabels: {
                     docs: "contents",
                     totalDocs: "totalCount",

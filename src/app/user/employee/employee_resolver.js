@@ -606,7 +606,7 @@ module.exports.queries = {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                 offset: skip,
                 limit,
-                sort: { createdAt: "descending" },
+                sort: { updatedAt: -1 },
                 customLabels: {
                     docs: "employees",
                     totalDocs: "totalCount",
