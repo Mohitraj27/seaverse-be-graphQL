@@ -408,7 +408,7 @@ module.exports.queries = {
 
             let trainingDetails;
 
-            if (fetchOverallTrainingProgress.contentData) {
+            if (fetchOverallTrainingProgress.contentData && fetchOverallTrainingProgress.contentData.length > 0) {
 
                 const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
