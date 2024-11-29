@@ -1280,6 +1280,18 @@ const changeRegisterEmployees = async ({ input }, context) => {
     );
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
+            const users = await User.find({
+                _id: { $in: input.users },
+                subscriber: subscriberId,
+            });
+            const notificationsData = users.map((user) => ({
+                subscriber: subscriberId,
+                employee: { user }, 
+                updatedBy: userInfo, 
+                type: input.type, 
+            }));
+            await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
