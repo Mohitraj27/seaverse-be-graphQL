@@ -600,7 +600,6 @@ module.exports.queries = {
                 filterInput.vesselType,
                 filterInput.vesselObjectId
             );
-            console.log(filterInput.vesselStatus, userIdsByVesselStatus);
             if (userIdsByVesselStatus.length > 0) {
                 filterConditions.user = { $in: userIdsByVesselStatus };
             }
@@ -1256,13 +1255,12 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
     if (input.users.length <= 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length === 1) {
-        const user = await User.findOne({ _id: input.users[0], subscriber: subscriberId });
+    if (input.users.length >0) {
+        const user = await User.findOne({ _id: input.users?.[0] });
         if (input.type === "Registered" && user.isRegistered) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
         } else if (input.type === "Unregistered" && !user.isRegistered) {
