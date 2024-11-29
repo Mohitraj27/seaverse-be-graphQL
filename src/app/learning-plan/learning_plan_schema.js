@@ -52,7 +52,7 @@ module.exports = {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]!  
             isOrIsNot: String!
-            groupIDs: [ID!]
+            groupIDs: [groupTypeRes!]
         }
         type groupTypeRes {
             _id: ID
