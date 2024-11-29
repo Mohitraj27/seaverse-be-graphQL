@@ -284,17 +284,22 @@ module.exports.queries = {
         const { subscriberId } = AuthUser(context);
 
         const users = await User.aggregate([
-            { $match: { subscriber: subscriberId, isDeleted: false } },
+            { $match: { isRegistered: true, isDeleted: false } },
             ...(search
-                ? [
-                    {
-                        $match: { firstName: { $regex: search, $options: 'i' } },
-                    },
-                ]
-                : []),
+            ? [
+                {
+                $match: {
+                    $or: [
+                    { firstName: { $regex: search, $options: 'i' } },
+                    { lastName: { $regex: search, $options: 'i' } },
+                    ],
+                },
+                },
+            ]
+            : []),
         ]);
 
-        const autoSyncedGroups = await getAutoSyncedGroups(subscriberId);
+        const autoSyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
         let filteredAutoSyncedGroups = autoSyncedGroups;
 
         if (search) {
