@@ -86,6 +86,12 @@ module.exports.queries = {
                 }
             },
             {
+                $match: {
+                    'userInfo': { $ne: null },
+                    'userInfo.isDeleted': { $ne: true } 
+                }
+            },
+            {
                 $match: input?.search
                     ? {
                         $or: [
@@ -118,7 +124,7 @@ module.exports.queries = {
 
         const formattedResults = results.map(group => ({
             learningPlanName: group._id.learningPlanName,
-            users: group.users
+            users: group.users,
         }));
 
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
