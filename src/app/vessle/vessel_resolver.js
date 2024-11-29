@@ -101,7 +101,7 @@ module.exports.queries = {
                 {
                     offset: skip,
                     limit,
-                    sort: { createdAt: "descending" },
+                    sort: { updatedAt: -1 },
                     customLabels: {
                         docs: "vessels",
                         totalDocs: "totalCount",
