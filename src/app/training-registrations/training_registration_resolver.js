@@ -553,9 +553,6 @@ module.exports.queries = {
 
                 trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
 
-                console.log('trainingDetails');
-                console.log(JSON.stringify(trainingDetails, null, 2));
-
             } else {
 
                 trainingDetails = await OverallTrainingProgress.aggregate([
