@@ -68,7 +68,9 @@ const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {};
+    const userVesselFilter = {
+        isActive: true,
+    };
     if (vesselStatus && vesselStatus.length > 0) {
         userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
@@ -1296,13 +1298,12 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
     if (input.users.length <= 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length === 1) {
-        const user = await User.findOne({ _id: input.users[0], subscriber: subscriberId });
+    if (input.users.length >0) {
+        const user = await User.findOne({ _id: input.users?.[0] });
         if (input.type === "Registered" && user.isRegistered) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
         } else if (input.type === "Unregistered" && !user.isRegistered) {
