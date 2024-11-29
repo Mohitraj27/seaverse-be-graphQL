@@ -37,7 +37,7 @@ module.exports = {
             trainingRegistrationId: ID
             trainingRegistrationSortedTrainingModules: [TrainingRegistrationSortedTrainingModuleInput]
             trainingRegistrationStatus: TrainingRegistrationStatus
-            trainingRegistrationProgressPercentage: Float
+            trainingRegistrationProgressPercentage: Int
             currentTrainingModuleContentId: ID
             currentTrainingModuleContentStatus: TrainingProgressStatus
             currentTrainingModuleContentLastAccessedItem: String
