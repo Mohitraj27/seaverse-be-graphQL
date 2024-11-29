@@ -23,128 +23,81 @@ module.exports.queries = {
             let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
 
             if (filterInput?.isActive !== undefined) {
-                filterConditions.isActive = filterInput?.isActive ? true : false;
+                filterConditions.isActive = filterInput?.isActive;
             }
 
-            if (filterInput?.vesselName && filterInput?.vesselName.length > 0) {
-                filterConditions = {
-                    ...filterConditions,
-                    name: {
-                        $in: filterInput.vesselName.map(
-                            name => new RegExp(".*" + name + ".*", "i")
-                        ),
-                    },
+            if (filterInput?.vesselName?.length > 0) {
+                filterConditions.name = {
+                    $in: filterInput.vesselName.map(name => new RegExp(".*" + name + ".*", "i")),
                 };
             }
 
-            if (filterInput?.vesselNameAndImoNumber && filterInput?.vesselNameAndImoNumber.length > 0) {
-                filterConditions = {
-                    ...filterConditions,
-                    $or: [
-                        {
-                            name: {
-                                $in: filterInput.vesselNameAndImoNumber.map(
-                                    name => new RegExp(".*" + name + ".*", "i")
-                                ),
-                            },
+            if (filterInput?.vesselNameAndImoNumber?.length > 0) {
+                filterConditions.$or = [
+                    {
+                        name: {
+                            $in: filterInput.vesselNameAndImoNumber.map(name => new RegExp(".*" + name + ".*", "i")),
                         },
-                        {
-                            imoNumber: {
-                                $in: filterInput.vesselNameAndImoNumber.map(
-                                    imoNumber => new RegExp(".*" + imoNumber + ".*", "i")
-                                ),
-                            },
+                    },
+                    {
+                        imoNumber: {
+                            $in: filterInput.vesselNameAndImoNumber.map(imo => new RegExp(".*" + imo + ".*", "i")),
                         },
-                    ],
+                    },
+                ];
+            }
+
+            if (filterInput?.companyName?.length > 0) {
+                filterConditions.companyName = {
+                    $in: filterInput.companyName.map(companyName => new RegExp(".*" + companyName + ".*", "i")),
                 };
             }
 
-            if (filterInput?.companyName && filterInput?.companyName.length > 0) {
-                filterConditions = {
-                    ...filterConditions,
-                    companyName: {
-                        $in: filterInput.companyName.map(
-                            companyName => new RegExp(".*" + companyName + ".*", "i")
-                        ),
-                    },
-                };
-            }
-
-            if (filterInput?.ownerName) {
-                filterConditions = {
-                    ...filterConditions,
-                    ownerName: {
-                        $in: filterInput.ownerName.map(
-                            ownerName => new RegExp(".*" + ownerName + ".*", "i")
-                        ),
-                    },
+            if (filterInput?.ownerName?.length > 0) {
+                filterConditions.ownerName = {
+                    $in: filterInput.ownerName.map(ownerName => new RegExp(".*" + ownerName + ".*", "i")),
                 };
             }
 
             if (filterInput?.search) {
-                filterConditions = {
-                    ...filterConditions,
-                    $or: [
-                        {
-                            "name": {
-                                $regex: ".*" + filterInput.search + ".*",
-                                $options: "i",
-                            },
-                        },
-                        {
-                            "imoNumber": {
-                                $regex: ".*" + filterInput.search + ".*",
-                                $options: "i",
-                            },
-                        },
-                        {
-                            "companyName": {
-                                $regex: ".*" + filterInput.search + ".*",
-                                $options: "i",
-                            },
-                        },
-                        {
-                            "ownerName": {
-                                $regex: ".*" + filterInput.search + ".*",
-                                $options: "i",
-                            },
-                        },
-                    ],
-                };
+                filterConditions.$or = [
+                    { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { ownerName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                ];
             }
 
-            return Vessel.aggregatePaginate(
-                Vessel.aggregate([
-                    { $match: filterConditions },
-                    {
-                        $lookup: {
-                            from: "vesseltypes",
-                            localField: "typeOfVessel",
-                            foreignField: "_id",
-                            as: "typeOfVessel",
-                            pipeline: [{ $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }],
+            const pipeline = [
+                { $match: filterConditions },
+                {
+                    $lookup: {
+                        from: "vesseltypes",
+                        localField: "typeOfVessel",
+                        foreignField: "_id",
+                        as: "typeOfVessel",
+                        pipeline: [
+                            { $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } },
+                        ],
+                    },
+                },
+                { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+            ];
+
+            if (filterInput?.vesselType?.length > 0) {
+                pipeline.push({
+                    $match: {
+                        "typeOfVessel.name": {
+                            $in: filterInput.vesselType.map(
+                                vesselType => new RegExp(".*" + vesselType + ".*", "i")
+                            ),
                         },
                     },
-                    { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
-                    {
-                        $match: filterInput?.vesselType && filterInput.vesselType.length > 0
-                            ? {
-                                "typeOfVessel.name": {
-                                    $in: filterInput.vesselType.map(
-                                        vesselType => new RegExp(".*" + vesselType + ".*", "i")
-                                    )
-                                },
-                            }
-                            : {},
-                    },
-                    {
-                        $match: filterInput?.vesselType
-                            ? {
-                                "typeOfVessel.name": { $regex: ".*" + filterInput.vesselType + ".*", $options: "i" },
-                            }
-                            : {},
-                    },
-                ]),
+                });
+            }
+
+            const vessels = await Vessel.aggregatePaginate(
+                Vessel.aggregate(pipeline),
                 {
                     offset: skip,
                     limit,
@@ -158,6 +111,12 @@ module.exports.queries = {
                     allowDiskUse: true,
                 }
             );
+
+            return {
+                vessels: vessels.vessels,
+                totalCount: vessels.vessels.length,
+            };
+
         } catch (error) {
             throw Error(error.message);
         }
@@ -187,14 +146,18 @@ module.exports.queries = {
                 subscriber: subscriberId,
                 isDeleted: { $ne: true }
             });
-            if (vessel) {
-                throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
-            }
 
-            return {
-                status: true,
-                message: 'IMO number is valid'
-            };
+            if (vessel) {
+                return {
+                    status: false,
+                    message : 'IMO number already exist.'
+                };
+            } else {
+                return {
+                    status: true,
+                    message : 'IMO number is valid.'
+                };
+            }
         } catch (error) {
             throw Error(error.message);
         }
@@ -349,15 +312,15 @@ module.exports.mutations = {
 
             const vessels = await Vessel.find({ _id: { $in: ids } });
 
-           
+
             await Vessel.updateMany(
                 { _id: { $in: ids } },
                 { $set: { isDeleted: true, updatedBy: userId } }
             );
 
-           
+
             for (const vessel of vessels) {
-                if (!vessel) continue; 
+                if (!vessel) continue;
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
