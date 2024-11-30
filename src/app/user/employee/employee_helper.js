@@ -1014,7 +1014,6 @@ module.exports = {
         const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName",populate:({path:"currentVessel",select:"name isActive"}) })
             .lean();
 
-        console.log(existingEmployee,"existingEmployee");
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
          
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
@@ -1043,6 +1042,23 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Your Vessel has been Updated`, 
+                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                notificationType: NotificationType.USER_VESSEL_UPDATE,
+                notifyAdmin: false,
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: existingEmployee?.user?._id,
+                    },
+                ],
+                notifiers: [ existingEmployee?.user?._id ],
+                employeeNotifiers: [ existingEmployee?.user?._id ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            }); 
         }
         else{
             await UserVessel.findOneAndUpdate(
@@ -1066,6 +1082,23 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Your Vessel has been Updated`, 
+                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                notificationType: NotificationType.USER_VESSEL_UPDATE,
+                notifyAdmin: false,
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: existingEmployee?.user?._id,
+                    },
+                ],
+                notifiers: [ existingEmployee?.user?._id ],
+                employeeNotifiers: [ existingEmployee?.user?._id ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
         }
 
 

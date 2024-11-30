@@ -55,7 +55,6 @@ module.exports = {
         
         if (notifications.length > 0) {
             try {
-                console.log(notifications);
                  this.createNotification(notifications);
             } catch (error) {
                 console.error("Failed to create notifications:", error);
