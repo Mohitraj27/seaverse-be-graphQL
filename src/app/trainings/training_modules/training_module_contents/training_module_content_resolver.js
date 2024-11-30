@@ -1059,7 +1059,7 @@ module.exports.mutations = {
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
-                    {
+                    {   
                         targetRef: "TrainingModuleContent",
                         target: savedContent._id,
                     },
@@ -1223,7 +1223,7 @@ module.exports.mutations = {
     },
     pushLatestContent: async ({ id }, context) => {
 
-        const { subscriberId } = AuthUser(context);
+        const { subscriberId ,userInfo, userId} = AuthUser(context);
 
         if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
@@ -1264,7 +1264,23 @@ module.exports.mutations = {
             { _id: id, subscriber: subscriberId },
             { $set: { isPublished: false } }
         );
-
+        const impactedCoursesCount = bridgesToUpdate.length;
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Content Successfully Pushed to the Courses`,
+            messageValue: `The content titled ${inputContent.title[0]?.value} has been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.CONTENT_PUSHED,
+            notifyAdmin: true,
+            affected: [
+                {
+                    targetRef: "TrainingModuleContent",
+                    target: inputContent._id,
+                },
+            ],
+            status: 'SENT',
+            icon: notificationiconEnum.SUCCESS,
+            createdBy: userId,
+        });
         return {
             status: 1,
             message: "New content pushed to lessons successfully.",
