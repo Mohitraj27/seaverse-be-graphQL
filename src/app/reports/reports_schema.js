@@ -163,6 +163,7 @@ module.exports = {
         }
         input singleCourseReportInput {
             courseId : ID!
+            reportType : String
             pageInput: PageInput
             filter : singleCourseReportFilter
             export : Boolean
@@ -200,6 +201,14 @@ module.exports = {
             timeSpent : Int
             quizPercentage : Int
             isPassed :Boolean
+            modules : [moduleQuizInfo]
+            
+        }
+        type  moduleQuizInfo {
+            moduleName: [LocalisedData]
+            percentage : String
+            hasQuiz : Boolean
+            isPassed : Boolean
         }
         type mainVesselReportData {
             vesselId : ID
@@ -219,7 +228,7 @@ module.exports = {
         getTrainingMatrixReports(pageInput: PageInput, filterInput: TrainingMatrixReportFilterInput): TrainingMatrixReportsList!
         getMainLearnersReport(input :learnerMainReportInput ):learnerMainReportResponse
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
-        getSingleCourseEnrollmentReport(input: singleCourseReportInput):singleCourseReportOutput
+        getSingleCourseReport(input: singleCourseReportInput):singleCourseReportOutput
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
         getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
     `,
