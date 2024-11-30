@@ -21,6 +21,7 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const TrainingCertificateHelper = require("../training-registrations/training-certificates/training_certificate_helper");
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -114,98 +115,120 @@ const generateCourseId = (courseType) => {
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
 
-const validateSyncOfflineData = async (input, errors) => {
+const validateSyncOfflineData = async (data) => {
 
-    const overallIds = input.map((item) => item.overallId);
+    let overallIds = data.map((item) => item.overallId);
+    let errors = [];
 
-    let overallDocs = [];
+    let overallProgresses = [];
     if (overallIds.length > 0) {
-        overallDocs = await OverallTrainingProgress.find({
+        overallProgresses = await OverallTrainingProgress.find({
             _id: { $in: overallIds },
         }).lean();
     }
 
-    if (overallDocs.length == 0) {
+    if (overallProgresses.length == 0) {
         errors.push(`Training not found`);
         return;
     }
 
-    const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
+    const overallProgressMap = new Map(
+        overallProgresses.map((doc) => [doc._id.toString(), doc])
+    );
 
-    const missingOverallEntries = [];
+    const moduleContentPairs = new Map();
 
-    for (const item of input) {
+    for (const entry of data) {
 
-        const { overallId, trainingModule, contentDetails } = item;
+        const { overallId, trainingModules } = entry;
+        const overallProgress = overallProgressMap.get(overallId.toString());
 
-        const overallDoc = overallMap.get(overallId.toString());
-
-        if (!overallDoc) {
-            errors.push(`Training not found in contentData`);
-            break;
-        }
-
-        let matchingContentData;
-        if (overallDoc) {
-            matchingContentData = overallDoc.contentData?.find(
-                (data) => data.moduleId.toString() == trainingModule.toString()
-            );
-        }
-
-        if (!matchingContentData) {
-
-            missingOverallEntries.push({
-                updateOne: {
-                    filter: { _id: overallId },
-                    update: {
-                        status: "IN_PROGRESS",
-                        $push: {
-                            contentData: {
-                                moduleId: trainingModule,
-                                contentIds: contentDetails.map((content) => content.contentId),
-                            },
-                        },
-                    },
-                    upsert: true,
-                },
-            });
-
+        if (!overallProgress) {
+            errors.push(`Overall ID ${overallId} not found.`);
             continue;
         }
 
-        if (matchingContentData) {
+        for (const module of trainingModules) {
 
-            for (const content of contentDetails) {
+            console.log('module');
+            console.log(module);
 
-                const missingContentIds = contentDetails
-                    .map((content) => content.contentId.toString())
-                    .filter(
-                        (contentId) =>
-                            !matchingContentData.contentIds.map((id) => id.toString()).includes(contentId)
-                    );
+            const { moduleId, contentDetails } = module;
 
-                if (missingContentIds.length > 0) {
-                    errors.push({
-                        overallId,
-                        contentId: content.contentId,
-                        error: `Content ID ${content.contentId} not found in contentIds for the module`,
-                    });
-                    continue;
+            const contentDataMatch = overallProgress.contentData?.find(
+                (content) => content.moduleId.toString() == moduleId
+            );
+
+            console.log('contentDataMatch');
+            console.log(contentDataMatch.contentIds);
+            console.log(typeof contentDataMatch);
+
+            for (const { contentId } of contentDetails) {
+
+                console.log('contentId');
+                console.log(contentId);
+                console.log(typeof contentId);
+
+                const contentIdString = ObjectId(contentId);
+
+                console.log('contentDataMatch.contentIds');
+                const contentDatasArray = Array.from(contentDataMatch.contentIds);
+
+                console.log(contentDatasArray.includes(contentId));
+
+                console.log(typeof contentDatasArray);
+
+                if (
+                    !contentDataMatch ||
+                    !contentDatasArray.contentIds.includes(contentIdString)
+                ) {
+
+                    // console.log('contentDataMatch');
+                    // console.log(contentDataMatch);
+
+                    const key = `${moduleId}-${contentId}`;
+                    if (!moduleContentPairs.has(key)) {
+                        moduleContentPairs.set(key, { moduleId, contentId });
+                    }
                 }
+
             }
 
         }
+
     }
 
-    if (missingOverallEntries.length > 0) {
-        await OverallTrainingProgress.bulkWrite(missingOverallEntries);
+    if (moduleContentPairs.size > 0) {
+
+        const queries = Array.from(moduleContentPairs.values());
+        const trainingContentBridges = await TrainingContentBridge.find({
+            $or: queries.map(({ moduleId, contentId }) => ({
+                trainingModule: moduleId,
+                trainingContent: contentId,
+            })),
+        }).lean();
+
+        const foundPairs = new Set(
+            trainingContentBridges.map(
+                (doc) => `${doc.moduleId}-${doc.contentId}`
+            )
+        );
+
+        for (const [key, { moduleId, contentId }] of moduleContentPairs) {
+
+            if (!foundPairs.has(key)) {
+                errors.push(
+                    `Missing content ID ${contentId} for module ${moduleId}`
+                );
+            }
+        }
     }
 
     return errors;
 
 }
 
-const validateAndUpdateContentData = async (input) => {
+const addDataToOverallTrainingProgress = async (input, errors) => {
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -221,97 +244,174 @@ const validateAndUpdateContentData = async (input) => {
         return;
     }
 
-    const getTrainingIds = overallDocs.map((doc) => doc.training);
+    const overallDocsWithNoContentData = overallDocs.filter((doc) => !doc.contentData || doc.contentData.length == 0);
 
-    if(getTrainingIds.length == 0) {
-        errors.push(`Training couldn't found`);
-        return;
-    }
+    if (overallDocsWithNoContentData.length > 0) {
 
-    c
+        const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
-
-    const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
-
-    const errors = [];
-    const missingOverallEntries = [];
-
-    for (const item of input) {
-
-        const { overallId, trainingModules } = item;
-
-        const overallDoc = overallMap.get(overallId.toString());
-
-        if (!overallDoc) {
-            errors.push({
-                overallId,
-                error: `Training not found for overallId`,
-            });
-            break;
+        if (trainingIds.length == 0) {
+            errors.push(`Training couldn't found`);
+            return;
         }
 
-        for (const trainingModule of trainingModules) {
-            const { moduleId, contentDetails } = trainingModule;
+        const fetchTrainingContents = await TrainingContentBridge.find({
+            training: { $in: trainingIds },
+        }).lean();
 
-            let matchingModuleData;
-            if (overallDoc) {
-                matchingModuleData = overallDoc.contentData?.find(
-                    (data) => data.moduleId.toString() == moduleId
-                );
-            }
+        if (fetchTrainingContents.length == 0) {
+            errors.push(`Training content not found`);
+            return;
+        }
 
-            if (!matchingModuleData) {
+        let contentDataMap = new Map();
 
-                missingOverallEntries.push({
-                    updateOne: {
-                        filter: { _id: overallId },
-                        update: {
-                            status: "IN_PROGRESS",
-                            $push: {
-                                contentData: {
-                                    moduleId,
-                                    contentIds: contentDetails.map((content) => content.contentId),
-                                },
-                            },
-                        },
-                        upsert: true,
-                    },
-                });
+        let bulkOperations = [];
 
-                continue;
-            }
+        for (const doc of overallDocsWithNoContentData) {
 
-            for (const content of contentDetails) {
+            const matchingContents = fetchTrainingContents.filter(
+                (content) => content.training.toString() === doc.training.toString()
+            );
 
-                const { contentId } = content;
+            if (matchingContents.length > 0) {
 
-                const isContentPresent = matchingModuleData.contentIds
-                    .map((id) => id.toString())
-                    .includes(contentId.toString());
+                for (const content of matchingContents) {
+                    const moduleId = content.trainingModule.toString();
+                    const contentId = content.trainingContent.toString();
 
-                if (!isContentPresent) {
-                    errors.push({
-                        overallId,
-                        moduleId,
-                        contentId,
-                        error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
-                    });
+                    if (!contentDataMap.has(moduleId)) {
+                        contentDataMap.set(moduleId, []);
+                    }
+                    contentDataMap.get(moduleId).push(contentId);
                 }
 
+                const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
+                    moduleId,
+                    contentIds,
+                }));
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: doc._id },
+                        update: { $set: { status: "IN_PROGRESS", contentData } },
+                    },
+                });
             }
         }
+
+        if (bulkOperations.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkOperations);
+        }
+
     }
 
-    if (missingOverallEntries.length > 0) {
-        await OverallTrainingProgress.bulkWrite(missingOverallEntries);
-    }
+}
 
-    return errors;
-};
+// const validateAndUpdateContentData = async (input) => {
 
-const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRegMap, overallDocs, session) => {
+//     const overallIds = input.map((item) => item.overallId);
 
-    if (updateTrainingProgress && trainingRegMap && overallDocs) {
+//     let overallDocs = [];
+//     if (overallIds.length > 0) {
+//         overallDocs = await OverallTrainingProgress.find({
+//             _id: { $in: overallIds },
+//         }).lean();
+//     }
+
+//     if (overallDocs.length == 0) {
+//         errors.push(`Training not found`);
+//         return;
+//     }
+
+//     const getTrainingIds = overallDocs.map((doc) => doc.training);
+
+//     if (getTrainingIds.length == 0) {
+//         errors.push(`Training couldn't found`);
+//         return;
+//     }
+
+//     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
+
+//     const errors = [];
+//     const missingOverallEntries = [];
+
+//     for (const item of input) {
+
+//         const { overallId, trainingModules } = item;
+
+//         const overallDoc = overallMap.get(overallId.toString());
+
+//         if (!overallDoc) {
+//             errors.push({
+//                 overallId,
+//                 error: `Training not found for overallId`,
+//             });
+//             break;
+//         }
+
+//         for (const trainingModule of trainingModules) {
+//             const { moduleId, contentDetails } = trainingModule;
+
+//             let matchingModuleData;
+//             if (overallDoc) {
+//                 matchingModuleData = overallDoc.contentData?.find(
+//                     (data) => data.moduleId.toString() == moduleId
+//                 );
+//             }
+
+//             if (!matchingModuleData) {
+
+//                 missingOverallEntries.push({
+//                     updateOne: {
+//                         filter: { _id: overallId },
+//                         update: {
+//                             status: "IN_PROGRESS",
+//                             $push: {
+//                                 contentData: {
+//                                     moduleId,
+//                                     contentIds: contentDetails.map((content) => content.contentId),
+//                                 },
+//                             },
+//                         },
+//                         upsert: true,
+//                     },
+//                 });
+
+//                 continue;
+//             }
+
+//             for (const content of contentDetails) {
+
+//                 const { contentId } = content;
+
+//                 const isContentPresent = matchingModuleData.contentIds
+//                     .map((id) => id.toString())
+//                     .includes(contentId.toString());
+
+//                 if (!isContentPresent) {
+//                     errors.push({
+//                         overallId,
+//                         moduleId,
+//                         contentId,
+//                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
+//                     });
+//                 }
+
+//             }
+//         }
+//     }
+
+//     if (missingOverallEntries.length > 0) {
+//         await OverallTrainingProgress.bulkWrite(missingOverallEntries);
+//     }
+
+//     return errors;
+// };
+
+const validateAndGenerateCertificate = async (trainingRegMap, overallDocs, session) => {
+
+    if (trainingRegMap && overallDocs) {
 
         const trainingRegistrationIds = overallDocs
             .map((doc) => trainingRegMap.get(doc._id.toString()))
@@ -322,12 +422,17 @@ const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRe
         }).lean();
 
         const trainingProgressMap = new Map();
+
         allTrainingProgresses.forEach((progress) => {
+
             const trainingRegistrationStr = progress.trainingRegistration.toString();
+
             if (!trainingProgressMap.has(trainingRegistrationStr)) {
                 trainingProgressMap.set(trainingRegistrationStr, []);
             }
+
             trainingProgressMap.get(trainingRegistrationStr).push(progress);
+
         });
 
         const registrationsForCertificates = [];
@@ -356,9 +461,12 @@ const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRe
             }
         }
 
-        // if (registrationsForCertificates.length > 0) {
-        //     await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
-        // }
+        console.log('registrationsForCertificates');
+        console.log(registrationsForCertificates);
+
+        if (registrationsForCertificates.length > 0) {
+            await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
+        }
 
     }
 
@@ -369,7 +477,6 @@ const updateTrainingProgress = async (input, userId) => {
     const overallIds = input.map((item) => item.overallId);
 
     if (overallIds.length == 0) return;
-
 
     const overallDocs = await OverallTrainingProgress.find({
         _id: { $in: overallIds },
@@ -435,7 +542,7 @@ const updateTrainingProgress = async (input, userId) => {
                             filter: { _id: existingProgress._id },
                             update: {
                                 $set: {
-                                    contentStatus: content.contentStatus,
+                                    status: content.contentStatus,
                                     lastAccessedDuration: content.duration,
                                     progressPercentage: content.progressPercentage,
                                     playerSettings: content.playerSettings,
@@ -452,11 +559,10 @@ const updateTrainingProgress = async (input, userId) => {
                                 trainingRegistration,
                                 trainingModule: module.moduleId,
                                 trainingModuleContent: ObjectId(content.contentId),
-                                contentStatus: content.contentStatus,
+                                status: content.contentStatus,
                                 lastAccessedDuration: content.duration,
                                 progressPercentage: content.progressPercentage,
                                 playerSettings: content.playerSettings,
-                                status: "IN_PROGRESS",
                             },
                         },
                     });
@@ -479,14 +585,18 @@ const updateTrainingProgress = async (input, userId) => {
         )
     );
 
-    let errors = [];
-    const quizResults = await quizEvaluationBulk(evaluationData, userId, errors);
-
-    if (errors.length > 0) {
-        console.log(errors[0]);
-    }
-
     const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+
+        let quizErrors = [];
+        if (evaluationData) {
+            quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
+        }
+
+        if (quizErrors.length > 0) {
+            errors.push(quizErrors[0]);
+            return;
+        }
+
 
         let updateTrainingProgress;
         if (bulkOps.length > 0) {
@@ -494,6 +604,7 @@ const updateTrainingProgress = async (input, userId) => {
         }
 
         // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
+        const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
 
     });
 
@@ -501,10 +612,13 @@ const updateTrainingProgress = async (input, userId) => {
     return { updatedCount: bulkOps.length };
 };
 
-const quizEvaluationBulk = async (evaluationData, userId, errors) => {
+const quizEvaluationBulk = async (evaluationData, userId, session) => {
+
     try {
 
-        const overallIds = evaluationData.map(data => data.trainingId);
+        let errors = [];
+
+        const overallIds = evaluationData.map(data => data.overallId);
 
         if (overallIds.length == 0) {
             errors.push("No overallId found in evaluationData");
@@ -520,6 +634,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
             return;
         }
 
+
         const overallIdToTrainingIdMap = overallTrainingProgress.reduce((acc, doc) => {
             acc[doc._id.toString()] = doc.training.toString();
             return acc;
@@ -527,7 +642,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 
         const contentIds = evaluationData.map(data => data.contentId);
         const trainingModuleIds = evaluationData.map(data => data.trainingModuleId);
-        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.trainingId]);
+        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.overallId]);
 
         if (contentIds.length == 0 || trainingModuleIds.length == 0 || trainingIds.length == 0) {
             errors.push("No contentId, trainingModuleId or trainingId found in evaluationData");
@@ -554,11 +669,15 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
             return;
         }
 
-        const results = [];
+        let results = [];
+
+        let quizEvaluations = [];
 
         for (const data of evaluationData) {
 
-            const { contentId, trainingModuleId, trainingId, questionAnswers } = data;
+            const { contentId, trainingModuleId, overallId, questionAnswers } = data;
+
+            const trainingId = overallIdToTrainingIdMap[overallId];
 
             const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
             const trainingModule = trainingModules.find(module => module._id.toString() === trainingModuleId.toString());
@@ -637,7 +756,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 
             isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
 
-            const quizEvaluation = new QuizEvaluation({
+            const quizEvaluationData = {
                 contentId,
                 trainingModuleId,
                 trainingId,
@@ -650,13 +769,15 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
                 skippedQuestions,
                 isPassed,
                 attendedQuestions: questionResults,
-            });
+            };
 
-            await quizEvaluation.save();
-            results.push(quizEvaluation);
+            quizEvaluations.push(quizEvaluationData);
+
         }
 
-        return results;
+        results = await QuizEvaluation.insertMany(quizEvaluations, { session });
+
+        return errors;
 
     } catch (error) {
         console.error("Error evaluating quiz in bulk:", error);
@@ -666,7 +787,8 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 module.exports = {
     uploadTrainingImages,
     updateTrainingProgress,
-    validateAndUpdateContentData,
+    addDataToOverallTrainingProgress,
+    validateSyncOfflineData,
     generateTrainingUID,
     uploadCertificateTrainingImages,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {

@@ -43,7 +43,7 @@ module.exports.queries = {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0;
-          let  limit = pageInput?.limit ?? 50;
+        let limit = pageInput?.limit ?? 50;
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { updatedAt: -1 };
@@ -90,10 +90,10 @@ module.exports.queries = {
                         },
                         {
                             $addFields: {
-                                createdBy: { $arrayElemAt: ["$createdByDetails", 0] }, 
+                                createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
                             },
                         },
-                        { $project: { createdByDetails: 0 } }, 
+                        { $project: { createdByDetails: 0 } },
                     ],
                 },
             },
@@ -104,10 +104,10 @@ module.exports.queries = {
             },
         ]);
 
-     
-        const {  trainings } = result[0];
+
+        const { trainings } = result[0];
         return {
-            totalCount:trainings.length,
+            totalCount: trainings.length,
             trainings,
         };
     },
@@ -175,7 +175,7 @@ module.exports.mutations = {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
             if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
             if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
-        }    
+        }
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
                 { training: input.training, trainingModule: { $in: input.trainingModules } }
@@ -186,7 +186,7 @@ module.exports.mutations = {
             const [hours, minutes, seconds] = duration.split(":").map(Number);
             return hours * 3600 + minutes * 60 + seconds;
         };
-        
+
         let totalDurationSeconds = 0;
 
         if (input.trainingModules?.length) {
@@ -493,28 +493,28 @@ module.exports.mutations = {
         // Don't delete this comment
         // mutation SyncOfflineDataAndUpdateProgress {
         //     syncOfflineDataAndUpdateProgress(
-                // input: [
-                //     {
-                //         overallId: "67444963f3c17951648754bd"
-                //         trainingModules: [
-                //             {
-                //                 moduleId: "67444901f3c17951648754af"
-                //                 contentDetails: [
-                //                     {
-                //                         contentId: "673dcbfb4476163738844efe"
-                //                         contentStatus: "COMPLETED"
-                //                         duration: 650
-                //                         progressPercentage: 56.0
-                //                         questionAnswers: [
-                //                              { questionId: "673478513e1b316d40577950", answer: "2" },
-                //                              { questionId: "673478513e1b316d4057795b", answer: "2" }
-                //                         ]
-                //                     },
-                //                 ]
-                //             }
-                //         ]
-                //     }
-                // ]
+        // input: [
+        //     {
+        //         overallId: "67444963f3c17951648754bd"
+        //         trainingModules: [
+        //             {
+        //                 moduleId: "67444901f3c17951648754af"
+        //                 contentDetails: [
+        //                     {
+        //                         contentId: "673dcbfb4476163738844efe"
+        //                         contentStatus: "COMPLETED"
+        //                         duration: 650
+        //                         progressPercentage: 56.0
+        //                         questionAnswers: [
+        //                              { questionId: "673478513e1b316d40577950", answer: "2" },
+        //                              { questionId: "673478513e1b316d4057795b", answer: "2" }
+        //                         ]
+        //                     },
+        //                 ]
+        //             }
+        //         ]
+        //     }
+        // ]
         //     ) {
         //         status
         //         message
@@ -528,10 +528,16 @@ module.exports.mutations = {
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
             // const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
-            const validateAndUpdateErrors = await TrainingHelper.validateAndUpdateContentData(input);
 
-            if (validateAndUpdateErrors.length > 0) {
-                throw CustomError(ErrorName.FAILED, validateAndUpdateErrors[0]);
+            // if (validateErrors.length > 0) {
+            //     throw CustomError(ErrorName.FAILED, validateErrors[0]);
+            // }
+
+            let syncContentErrors = [];
+            const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
+
+            if (syncContentErrors.length > 0) {
+                console.log(syncContentErrors[0]);
             }
 
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
