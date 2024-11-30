@@ -68,7 +68,9 @@ const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {};
+    const userVesselFilter = {
+        isActive: true,
+    };
     if (vesselStatus && vesselStatus.length > 0) {
         userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
@@ -1296,13 +1298,12 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
     if (input.users.length <= 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length === 1) {
-        const user = await User.findOne({ _id: input.users[0], subscriber: subscriberId });
+    if (input.users.length >0) {
+        const user = await User.findOne({ _id: input.users?.[0] });
         if (input.type === "Registered" && user.isRegistered) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
         } else if (input.type === "Unregistered" && !user.isRegistered) {
@@ -1362,6 +1363,9 @@ const manageRole = async ({ input }, context) => {
     }
 
     let updateUserRole;
+    let operationType;
+    let notificationMessage = "";
+    let affectedUsers = [];
     if (input.change === "Assign") {
         if (!input.assignType) throw CustomError(ErrorName.ASSIGNTYPE_ERROR);
 
@@ -1369,6 +1373,8 @@ const manageRole = async ({ input }, context) => {
             { _id: { $in: input.users }, superAdmin: false },
             { $set: { role: input.assignType } }
         );
+        operationType = `Assigned role ${input.assignType}`;
+        notificationMessage = `Your role has been updated to ${input.assignType}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -1377,6 +1383,8 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "AUTHOR" },
                 { $set: { role: "EMPLOYEE" } }
             );
+            operationType = "Removed role as AUTHOR";
+            notificationMessage = "Your role has been changed to EMPLOYEE.";
         }
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
@@ -1384,15 +1392,68 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
                 { $set: { subRoles: [] } }
             );
+            operationType = "Removed subroles for LEARNER";
+            notificationMessage = "Your subroles have been removed.";
         }
     } else if (input.change === "Delete") {
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        operationType = "Deleted users";
+        notificationMessage = "Your account has been deleted.";
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
     if (updateUserRole) {
         if (updateUserRole.n > 0) {
+            affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
+
+            const adminNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `Role Management Operation Successful` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `${userInfo.firstName} ${userInfo.lastName} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: affectedUsers.map(user => ({
+                    targetRef: "User",
+                    target: user._id,
+                })),
+                status:"SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            };
+
+            const userNotifications = affectedUsers.map(user => ({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Role Management Update" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: notificationMessage,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: false,
+                notifiers: [user._id],
+                employeeNotifiers: [user._id],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: user._id,
+                    },
+                ],
+                status:"SENT",
+                icon: notificationiconEnum.INFO,
+                createdBy: userInfo,
+            }));
+
+            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -2309,7 +2370,7 @@ module.exports.mutations = {
                         value: adminNotificationMessage,
                     },
                 ],
-                notificationType: NotificationType.SUBROLE_ASSIGNED,
+                notificationType: NotificationType.ROLE_MANAGEMENT,
                 notifyAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
@@ -2331,7 +2392,7 @@ module.exports.mutations = {
                         value: `You have been assigned the subrole "${validSubRole.name}".`,
                     },
                 ],
-                notificationType: NotificationType.SUBROLE_ASSIGNED,
+                notificationType: NotificationType.ROLE_MANAGEMENT,
                 notifyAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
