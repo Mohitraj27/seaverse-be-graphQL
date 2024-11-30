@@ -157,6 +157,7 @@ module.exports.mutations = {
                     additionalData,
                 });
                 await newCertificateLayout.save();
+                await Training.findByIdAndUpdate({_id : training},{$set: {isCertificate : true}})
                 return {
                     success: true,
                     message: "Certificate layout created successfully.",

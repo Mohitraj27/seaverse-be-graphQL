@@ -28,7 +28,7 @@ const LogType = require("../logs/log_type.json");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const { TrainingModuleContent } = require("../trainings/training_modules/training_module_contents/training_module_content_model")
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
-const {TrainingContentBridge} = require("../trainings/training_content_bridge/training_content_model")
+const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -270,6 +270,38 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
     }
 
 });
+
+const extractTrainingContentData = async (trainings) => {
+
+    const trainingContentBridges = await TrainingContentBridge.find({
+        training: { $in: trainings.map(training => training._id) }
+    });
+
+
+    const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
+        const moduleId = bridge.trainingModule.toString();
+        const contentId = bridge.trainingContent.toString();
+
+
+        const existingModule = result.find(module => module.moduleId === moduleId);
+
+        if (existingModule) {
+
+            existingModule.contentIds.push(mongoose.Types.ObjectId(contentId));
+        } else {
+
+            result.push({
+                moduleId: ObjectId(moduleId),
+                contentIds: [ObjectId(contentId)]
+            });
+        }
+
+        return result;
+    }, []);
+    const trainingTotalModules = trainingModulesMap.length
+    return { trainingModulesMap, trainingTotalModules };
+};
+
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
 
     let trainingProgressData;
@@ -283,44 +315,13 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
         );
 
-        const trainingContentBridges = await TrainingContentBridge.find({
-            training: { $in: trainings.map(training => training._id) }
-        });
-
-        const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
-            const trainingId = bridge.training.toString();
-            const moduleId = bridge.trainingModule.toString();
-            const contentId = bridge.trainingContent.toString();
-
-            if (!result[trainingId]) {
-                result[trainingId] = [];
-            }
-
-            const existingModule = result[trainingId].find(module => module.moduleId === moduleId);
-
-            if (existingModule) {
-                existingModule.contentIds.push(contentId);
-            } else {
-                result[trainingId].push({
-                    moduleId: moduleId,
-                    contentIds: [contentId] 
-                });
-            }
-
-            return result;
-        }, {});
-
-
         const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
             users.map(user => {
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
-                if ( existingProgressSet.has(progressKey)) {
-                    return null; 
+                if (existingProgressSet.has(progressKey)) {
+                    return null;
                 }
-
-                const contentData = trainingModulesMap[training] || [];
-                const totalTrainingModules = contentData.length;
 
                 return {
                     learningPlan: learningPlanId ? learningPlanId : null,
@@ -332,8 +333,8 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                     isEnrolled: true,
                     progressPercentage: 0.0,
                     completedModules: 0,
-                    contentData: contentData, 
-                    totalTrainingModules: totalTrainingModules,
+                    contentData: [],
+                    totalTrainingModules: 0,
                     startDate: null,
                     endDate: null,
                 };
@@ -409,6 +410,23 @@ const getCustomGroupUsers = (async (groups) => {
 
 });
 
+const combineTrainingModules = (data) => {
+
+    const firstData = data[0];
+
+    data.forEach(item => {
+
+        if (firstData.trainingModules.length > 1) {
+            if (firstData._id == item._id) {
+                firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
+            }
+        }
+
+    });
+
+    return [firstData];
+}
+
 module.exports = {
     enrolUserVerificationHelper,
     createTrainingProgressHelper,
@@ -416,6 +434,8 @@ module.exports = {
     getCustomGroupUsers,
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
+    combineTrainingModules,
+    extractTrainingContentData,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);

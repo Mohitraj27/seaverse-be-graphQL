@@ -206,6 +206,7 @@ module.exports = {
             {
                 $match: matchStage,
             },
+            { $sort: { updatedAt : -1 } },
             {
                 $lookup: {
                     from: 'groupmembers',

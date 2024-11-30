@@ -117,8 +117,8 @@ module.exports.queries = {
             ]),
             {
                 offset: skip,
-                limitContent,
-                sort: { createdAt: "descending" },
+                limit: limitContent,
+                sort: { updatedAt: -1 },
                 customLabels: {
                     docs: "contents",
                     totalDocs: "totalCount",
@@ -136,7 +136,10 @@ module.exports.queries = {
             };
         }
 
-        return contents;
+        return {
+            contents: contents.contents,
+            totalCount: contents.contents.length,
+        };
     },
     getTrainingModuleContent: async ({ id }, context) => {
         const { subscriberId } = AuthUser(context);

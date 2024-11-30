@@ -49,7 +49,6 @@ const NotificationEvent = require("../../notifications/notification_event.json")
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-const createNotificationhelper = require("../../notifications/notification_helper");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1012,14 +1011,14 @@ module.exports = {
         const employeeFilterConditions = {subscriber:subscriberId} ; 
         employeeFilterConditions.user = id;
         
-        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel",populate:({path:"currentVessel",select:"name isActive"}) })
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName",populate:({path:"currentVessel",select:"name isActive"}) })
             .lean();
 
-
+        console.log(existingEmployee,"existingEmployee");
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
          
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
-               
+            
           await UserVessel.updateMany(
                 {user:existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel,isActive: true },
                 { isActive: false }
@@ -1029,10 +1028,10 @@ module.exports = {
                 vessel: input?.user?.currentVessel,
                 vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
             })
-            await createNotificationhelper({
+            await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${input?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -1050,16 +1049,18 @@ module.exports = {
                 { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
                 { vesselStatus: input?.user?.vesselStatus }
             );
-            await createNotificationhelper({
+
+            await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${input?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
                     {
                         targetRef: "User",
-                        target: currentUserData._id,
+                        target: existingEmployee?.user?._id,
                     },
                 ],
                 icon: notificationiconEnum.SUCCESS,
