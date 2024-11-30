@@ -455,7 +455,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId,userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
 
@@ -512,7 +512,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Content Status Updated`,
-                messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the user.`,
+                messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
                 notifyAdmin: true,
                 affected: [
