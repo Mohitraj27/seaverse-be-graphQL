@@ -11,7 +11,9 @@ const { User } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
-
+const NotificationHelper = require("../notifications/notification_helper");
+const NotificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -394,6 +396,7 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             let vessel
+            const updatedVessels = [];
             for (let id of ids) {
                 vessel = await Vessel.findOne({ _id: id });
                 if (!vessel) {
@@ -404,7 +407,11 @@ module.exports.mutations = {
                 vessel.updatedBy = userId;
 
                 await vessel.save();
-
+                updatedVessels.push({
+                    id: vessel._id,
+                    name: vessel.name,
+                    isActive: vessel.isActive,
+                });
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.VESSEL_LOG,
@@ -425,7 +432,43 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
             }
-
+            if (updatedVessels.length > 0) {
+                const vesselNames = updatedVessels.map(v => v.name).join(", ");
+                const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
+    
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Vessel Status Updated Successfully`,
+                    messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                    notifyAdmin: true,
+                    affected: updatedVessels.map(v => ({
+                        targetRef: "Vessel",
+                        target: v.id,
+                    })),
+                    status:"SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+    
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Vessels have been Updated`,
+                    messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                    notifyAdmin: false,
+                    affected: updatedVessels.map(v => ({
+                        targetRef: "Vessel",
+                        target: v.id,
+                    })),
+                    notifiers: updatedVessels.map(v => v.id),
+                    employeeNotifiers: updatedVessels.map(v => v.id),   
+                    icon: notificationiconEnum.SUCCESS,
+                    status:"SENT",
+                    createdBy: userInfo,
+                });
+            }
+    
             return {
                 success: true,
                 message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
