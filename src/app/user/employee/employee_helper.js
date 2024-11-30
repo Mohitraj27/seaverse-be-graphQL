@@ -1916,7 +1916,6 @@ module.exports = {
                         users.push(formatedData);
                     }
 
-
                 });
 
                 parser.on("end", async () => {

@@ -517,6 +517,7 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
+            // const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
             const validateAndUpdateErrors = await TrainingHelper.validateAndUpdateContentData(input);
 
             if (validateAndUpdateErrors.length > 0) {

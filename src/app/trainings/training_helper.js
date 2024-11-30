@@ -114,104 +114,122 @@ const generateCourseId = (courseType) => {
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
 
-//     const overallIds = input.map((item) => item.overallId);
-//     let overallDocs;
-//     if (overallIds.length > 0) {
-//         overallDocs = await OverallTrainingProgress.find({
-//             _id: { $in: overallIds },
-//         }).lean();
-//     }
-
-//     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
-
-//     const errors = [];
-//     const missingOverallEntries = [];
-
-//     for (const item of input) {
-
-//         const { overallId, trainingModule, contentDetails } = item;
-
-//         const overallDoc = overallMap.get(overallId.toString());
-
-//         if (!overallDoc) {
-//             errors.push({
-//                 overallId,
-//                 error: `Training not found in contentData`,
-//             });
-//             continue;
-//         }
-
-//         let matchingContentData;
-//         if (overallDoc) {
-//             matchingContentData = overallDoc.contentData?.find(
-//                 (data) => data.moduleId.toString() == trainingModule
-//             );
-//         }
-
-//         if (!matchingContentData) {
-
-//             missingOverallEntries.push({
-//                 updateOne: {
-//                     filter: { _id: overallId },
-//                     update: {
-//                         status: "IN_PROGRESS",
-//                         $push: {
-//                             contentData: {
-//                                 moduleId: trainingModule,
-//                                 contentIds: contentDetails.map((content) => content.contentId),
-//                             },
-//                         },
-//                     },
-//                     upsert: true,
-//                 },
-//             });
-
-//             continue;
-//         }
-
-//         if (matchingContentData) {
-//             for (const content of contentDetails) {
-
-//                 console.log('content');
-//                 console.log(content);
-
-//                 const missingContentIds = contentDetails
-//                     .map((content) => content.contentId.toString())
-//                     .filter(
-//                         (contentId) =>
-//                             !matchingContentData.contentIds.map((id) => id.toString()).includes(contentId)
-//                     );
-
-//                 if (missingContentIds.length > 0) {
-//                     errors.push({
-//                         overallId,
-//                         contentId: content.contentId,
-//                         error: `Content ID ${content.contentId} not found in contentIds for the module`,
-//                     });
-//                     continue;
-//                 }
-//             }
-//         }
-
-//     }
-
-//     if (missingOverallEntries.length > 0) {
-//         await OverallTrainingProgress.bulkWrite(missingOverallEntries);
-//     }
-
-//     return errors;
-// };
-
-const validateAndUpdateContentData = async (input) => {
+const validateSyncOfflineData = async (input, errors) => {
 
     const overallIds = input.map((item) => item.overallId);
-    let overallDocs;
 
+    let overallDocs = [];
     if (overallIds.length > 0) {
         overallDocs = await OverallTrainingProgress.find({
             _id: { $in: overallIds },
         }).lean();
     }
+
+    if (overallDocs.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
+
+    const missingOverallEntries = [];
+
+    for (const item of input) {
+
+        const { overallId, trainingModule, contentDetails } = item;
+
+        const overallDoc = overallMap.get(overallId.toString());
+
+        if (!overallDoc) {
+            errors.push(`Training not found in contentData`);
+            break;
+        }
+
+        let matchingContentData;
+        if (overallDoc) {
+            matchingContentData = overallDoc.contentData?.find(
+                (data) => data.moduleId.toString() == trainingModule.toString()
+            );
+        }
+
+        if (!matchingContentData) {
+
+            missingOverallEntries.push({
+                updateOne: {
+                    filter: { _id: overallId },
+                    update: {
+                        status: "IN_PROGRESS",
+                        $push: {
+                            contentData: {
+                                moduleId: trainingModule,
+                                contentIds: contentDetails.map((content) => content.contentId),
+                            },
+                        },
+                    },
+                    upsert: true,
+                },
+            });
+
+            continue;
+        }
+
+        if (matchingContentData) {
+
+            for (const content of contentDetails) {
+
+                const missingContentIds = contentDetails
+                    .map((content) => content.contentId.toString())
+                    .filter(
+                        (contentId) =>
+                            !matchingContentData.contentIds.map((id) => id.toString()).includes(contentId)
+                    );
+
+                if (missingContentIds.length > 0) {
+                    errors.push({
+                        overallId,
+                        contentId: content.contentId,
+                        error: `Content ID ${content.contentId} not found in contentIds for the module`,
+                    });
+                    continue;
+                }
+            }
+
+        }
+    }
+
+    if (missingOverallEntries.length > 0) {
+        await OverallTrainingProgress.bulkWrite(missingOverallEntries);
+    }
+
+    return errors;
+
+}
+
+const validateAndUpdateContentData = async (input) => {
+
+    const overallIds = input.map((item) => item.overallId);
+
+    let overallDocs = [];
+    if (overallIds.length > 0) {
+        overallDocs = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
+
+    if (overallDocs.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const getTrainingIds = overallDocs.map((doc) => doc.training);
+
+    if(getTrainingIds.length == 0) {
+        errors.push(`Training couldn't found`);
+        return;
+    }
+
+    c
+
 
     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
 
@@ -229,7 +247,7 @@ const validateAndUpdateContentData = async (input) => {
                 overallId,
                 error: `Training not found for overallId`,
             });
-            continue;
+            break;
         }
 
         for (const trainingModule of trainingModules) {
@@ -474,7 +492,7 @@ const updateTrainingProgress = async (input, userId) => {
         if (bulkOps.length > 0) {
             updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps, { session });
         }
-        
+
         // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
 
     });

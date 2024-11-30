@@ -418,7 +418,7 @@ const combineTrainingModules = (data) => {
 
         if (firstData.trainingModules.length > 1) {
             if (firstData._id == item._id) {
-                firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
+                firstData.trainingModules = [...item.trainingModules];
             }
         }
 
