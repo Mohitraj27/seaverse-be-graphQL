@@ -559,7 +559,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Deleted`,
-                    messageValue: `The training module content ${content.title} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
                     notifyAdmin: true,
                     affected: [
