@@ -8,7 +8,9 @@ const { Moment } = require("../../tools");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
-
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const NotificationType = require("../notifications/notification_type.json");
+const NotificationHelper = require("../notifications/notification_helper")
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -37,6 +39,22 @@ module.exports.mutations = {
                         infoData: JSON.stringify(result),
                     },
                 ],
+                createdBy: userInfo,
+            });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Learning Plan Created`,
+                messageValue: `Learning plan "${result.learningPlan.title[0]?.value}" has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_CREATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: result.learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return result.learningPlan;
