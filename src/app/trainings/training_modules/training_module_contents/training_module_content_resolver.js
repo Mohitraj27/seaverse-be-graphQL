@@ -833,7 +833,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo} = AuthUser(context);
         try {
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
@@ -918,7 +918,7 @@ module.exports.mutations = {
             };
             let isUpdated = false;
             let isMediaUpdated = false;
-
+            let updatedFields = [];
             const fieldsToCheck = [
                 "title",
                 "description",
@@ -1052,6 +1052,26 @@ module.exports.mutations = {
                     { new: true, setDefaultsOnInsert: true, runValidators: true }
                 );
             }
+            const updatedFieldsMessage = updatedFields.length > 0
+            ? `Updated fields: ${updatedFields.join(', ')}.`
+            : 'No fields were updated.';
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Training Module Content Updated`,
+                messageValue: `Training Module Content  ${updatedFieldsMessage}, Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                status:'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+    
             return {
                 success: true,
                 message: "Content updated successfully.",
