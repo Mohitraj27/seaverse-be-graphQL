@@ -522,9 +522,9 @@ module.exports.mutations = {
     },
 
     deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
-
+        const successfullyDeleted = [];
         for (const id of ids) {
             try {
                 const content = await TrainingModuleContent.findOne({
@@ -546,6 +546,7 @@ module.exports.mutations = {
                 content.updatedBy = userId;
                 content.modifiedDate = new Date();
                 await content.save();
+                successfullyDeleted.push(content);
             } catch (error) {
                 invalidDeletes.push({
                     id,
@@ -553,7 +554,26 @@ module.exports.mutations = {
                 });
             }
         }
-
+        if (successfullyDeleted.length > 0) {
+            for (const content of successfullyDeleted) {
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Training Module Content Deleted`,
+                    messageValue: `The training module content ${content.title} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: content._id,
+                        },
+                    ],
+                    status: 'SENT',
+                    icon: notificationiconEnum.WARNING,
+                    createdBy: userId,
+                });
+            }
+        }
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
