@@ -44,7 +44,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result.learningPlan.title[0]?.value}" has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
