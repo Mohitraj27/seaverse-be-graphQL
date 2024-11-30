@@ -1052,13 +1052,10 @@ module.exports.mutations = {
                     { new: true, setDefaultsOnInsert: true, runValidators: true }
                 );
             }
-            const updatedFieldsMessage = updatedFields.length > 0
-            ? `Updated fields: ${updatedFields.join(', ')}.`
-            : 'No fields were updated.';
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
-                messageValue: `Training Module Content  ${updatedFieldsMessage}, Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
