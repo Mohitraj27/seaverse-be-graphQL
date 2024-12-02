@@ -412,7 +412,6 @@ module.exports.queries = {
             let trainingDetails;
 
             if (fetchOverallTrainingProgress.contentData && fetchOverallTrainingProgress.contentData.length > 0) {
-
                 const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
                     {
                         $match: {
@@ -473,7 +472,7 @@ module.exports.queries = {
                                 {
                                     $lookup: {
                                         from: "trainingmodulecontents",
-                                        localField: "trainingContent",
+                                        localField: "trainingModuleContent",
                                         foreignField: "_id",
                                         as: "trainingModuleContentDetails"
                                     }
@@ -556,7 +555,12 @@ module.exports.queries = {
                                 {
                                     $group: {
                                         _id: "$trainingModule",
-                                        trainingContent: { $first: "$trainingContent" },
+                                        status: { $first: "$status" },
+                                        progressPercentage: { $first: "$progressPercentage" },
+                                        lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        playerSettings: { $first: "$playerSettings" },
+                                        quizAttempts: { $first: "$quizAttempts" },
+                                        trainingModuleContent: { $first: "$trainingModuleContent" },
                                         trainingModule: { $first: "$trainingModule" },
                                         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
                                     },
@@ -615,16 +619,8 @@ module.exports.queries = {
                         }
                     }
                 ]);
-
-                console.log("trainingDetailsFetched", trainingDetailsFetched);
-
                 trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
-
-                console.log(trainingDetails);
-                
-
             } else {
-
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
                     {
@@ -753,28 +749,23 @@ module.exports.queries = {
                         },
                     },
                 ]);
-
             }
 
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
 
-            const processedTrainingDetails = trainingDetails.map((trainingDetail) => {
-
+            const processedTrainingDetails = trainingDetails.map(trainingDetail => {
                 const moduleCount = trainingDetail.trainingModules.length;
 
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
-
                     const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
                         if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
-                            content.trainingModuleContentDetails.forEach((detail) => {
-
+                            content.trainingModuleContentDetails.forEach(detail => {
                                 const durationParts = (detail.duration || "00:00:00").split(":");
                                 const hours = parseInt(durationParts[0], 10) || 0;
                                 const minutes = parseInt(durationParts[1], 10) || 0;
                                 const seconds = parseInt(durationParts[2], 10) || 0;
-
                                 moduleAcc += (hours * 3600) + (minutes * 60) + seconds;
                             });
                         }
@@ -782,15 +773,33 @@ module.exports.queries = {
                     }, 0);
 
                     acc += moduleDurationInSeconds;
-                    return acc;
 
+                    const progressPercentages = module.trainingModuleContents.map(content => content.progressPercentage || 0);
+                    const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
+                    const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
+
+                    module.progressPercentage = averageProgress.toFixed(2);
+
+                    const statuses = module.trainingModuleContents.map(content => content.status);
+                    if (statuses.every(status => status === "COMPLETED")) {
+                        module.status = "COMPLETED";
+                    } else if (statuses.every(status => status === "NOT_STARTED")) {
+                        module.status = "NOT_STARTED";
+                    } else {
+                        module.status = "IN_PROGRESS";
+                    }
+
+                    return acc;
                 }, 0);
 
+                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
+                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
 
                 return {
                     ...trainingDetail,
                     totalDuration,
-                    moduleCount
+                    moduleCount,
+                    progressPercentage: overallProgress.toFixed(2)
                 };
             });
 
@@ -815,10 +824,10 @@ module.exports.mutations = {
             messageValue: `A new training registration has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
             notificationType: NotificationType.TRAINING_REGISTRATION_CREATED,
             notifyAdmin: false,
-            notifiers:[
+            notifiers: [
                 userId
             ],
-            employeeNotifiers:[userId],
+            employeeNotifiers: [userId],
             affected: [],
             status: 'SENT',
             icon: notificationiconEnum.SUCCESS,
