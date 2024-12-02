@@ -163,6 +163,7 @@ module.exports = {
         }
         input singleCourseReportInput {
             courseId : ID!
+            reportType : String
             pageInput: PageInput
             filter : singleCourseReportFilter
             export : Boolean
@@ -200,6 +201,14 @@ module.exports = {
             timeSpent : Int
             quizPercentage : Int
             isPassed :Boolean
+            modules : [moduleQuizInfo]
+            
+        }
+        type  moduleQuizInfo {
+            moduleName: [LocalisedData]
+            percentage : String
+            hasQuiz : Boolean
+            isPassed : Boolean
         }
         type mainVesselReportData {
             vesselId : ID
@@ -211,16 +220,43 @@ module.exports = {
             onboardedCount : Int
             progress : Int
         }
+        input customReportInput {
+            dateRange : filterDateRange!
+            courseIds : [ID]
+            courseStatus: [String]
+            vesselType : [ID]
+            vesselName : [ID]
+            designation :[ID]
+            learnerStatus : [String]
+            reportType : String!
+        }
+        type customReportGenerated{
+            status : Boolean
+            fileName : String
+            filePath : String
+            message : String
+        }
+        type customReortLogOutput{
+            _id : ID
+            from : String
+            to : String
+            generatedAt: String
+            generatedBy : String
+            filePath : MultiMediaInfo
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
         getQuizReports(pageInput: PageInput, filterInput: QuizReportFilterInput): QuizReportsList!
         getFeedbackReports(pageInput: PageInput, filterInput: FeedbackReportFilterInput): FeedbackReportsList!
         getTrainingMatrixReports(pageInput: PageInput, filterInput: TrainingMatrixReportFilterInput): TrainingMatrixReportsList!
+
         getMainLearnersReport(input :learnerMainReportInput ):learnerMainReportResponse
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
-        getSingleCourseEnrollmentReport(input: singleCourseReportInput):singleCourseReportOutput
+        getSingleCourseReport(input: singleCourseReportInput):singleCourseReportOutput
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
         getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
+        generateCustomReport(input: customReportInput!): customReportGenerated
+        getCustomReportLogs(pageInput : PageInput):[customReortLogOutput]
     `,
 };

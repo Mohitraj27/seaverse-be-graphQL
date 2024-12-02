@@ -20,6 +20,10 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
+        overallTrainingProgress : {
+            type : ObjectId,
+            ref : "OverallTrainingProgress"
+        },
         trainingRegistration: {
             type: ObjectId,
             ref: "TrainingRegistration",

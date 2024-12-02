@@ -41,7 +41,9 @@ const aws_helper = require("../../util/aws_helper");
 const { TrainingContentBridge } = require("../../app/trainings/training_content_bridge/training_content_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { v4: uuidv4 } = require('uuid');
-
+const NotificationHelper = require("../notifications/notification_helper");
+const NotificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -806,6 +808,22 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `New Training Registration`,
+            messageValue: `A new training registration has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.TRAINING_REGISTRATION_CREATED,
+            notifyAdmin: false,
+            notifiers:[
+                userId
+            ],
+            employeeNotifiers:[userId],
+            affected: [],
+            status: 'SENT',
+            icon: notificationiconEnum.SUCCESS,
+            createdBy: userInfo,
+        });
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
     verifyRegistrationEmails: async ({ input }, context) => {
