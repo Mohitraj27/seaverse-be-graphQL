@@ -492,6 +492,7 @@ module.exports = {
                     subscriber: subscriberId,
                     user: userId,
                     trainingRegistration: input.trainingRegistrationId,
+                    overallTrainingProgress : currentOverallTrainingProgress._id,
                     training : currentOverallTrainingProgress.training,
                     trainingModuleContentId: input.nextTrainingModuleContentId,
                     trainingModule: input.nextTrainingModuleId,
