@@ -75,8 +75,11 @@ module.exports = {
             updatedBy: UserData
             featuredInCourses: Int
             quizDetails: [QuizDetails]
-            progressPercentage: Int
+            progressPercentage: String
             lastAccessedDuration: Int
+            playerSettings: [JSON]
+            quizAttempts: [String]
+            status: String
             trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {

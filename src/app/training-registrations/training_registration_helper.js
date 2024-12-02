@@ -412,19 +412,31 @@ const getCustomGroupUsers = (async (groups) => {
 
 const combineTrainingModules = (data) => {
 
-    const firstData = data[0];
+    const mergedData = {};
 
     data.forEach(item => {
+        const { _id, trainingModules, ...rest } = item;
 
-        if (firstData.trainingModules.length > 1) {
-            if (firstData._id == item._id) {
-                firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
-            }
+        if (!mergedData[_id]) {
+            mergedData[_id] = { _id, ...rest, trainingModules: [] };
         }
 
+        Object.keys(rest).forEach(key => {
+            if (!mergedData[_id][key] && rest[key] !== undefined) {
+                mergedData[_id][key] = rest[key];
+            }
+        });
+
+        mergedData[_id].trainingModules.push(...trainingModules);
+    });
+    Object.keys(mergedData).forEach(id => {
+        mergedData[id].trainingModules = Array.from(
+            new Set(mergedData[id].trainingModules.map(JSON.stringify))
+        ).map(JSON.parse);
     });
 
-    return [firstData];
+    return Object.values(mergedData);
+
 }
 
 module.exports = {
