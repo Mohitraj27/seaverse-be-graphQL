@@ -75,10 +75,12 @@ module.exports = {
         type learnerMainReportData {
             _id : ID
             name : String
+            learnerId : ID
             isRegistered : Boolean
             EmployeeId : String
             email : String
             designation : String
+            designationId : ID
             vesselName : String
             vesselId :ID
             vesselTypeName : String
