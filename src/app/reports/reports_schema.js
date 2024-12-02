@@ -79,6 +79,7 @@ module.exports = {
             EmployeeId : String
             email : String
             designation : String
+            designationId : ID
             vesselName : String
             vesselId :ID
             vesselTypeName : String
