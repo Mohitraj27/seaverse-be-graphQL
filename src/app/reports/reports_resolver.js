@@ -15,9 +15,11 @@ const {
 } = require("../training-registrations/training-registration-invoices/training_registration_invoice_model");
 
 const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
-
+const NotificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const NotificationHelper = require("../notifications/notification_helper");
 const getMainLearnersReport = async ({ input }, context) => {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId , userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -237,6 +239,16 @@ const getMainLearnersReport = async ({ input }, context) => {
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Learners Report Exported Successfully`,
+                    messageValue: `The learners report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
             }
             return {
                 filePath: s3PresignedUrl,
@@ -249,12 +261,22 @@ const getMainLearnersReport = async ({ input }, context) => {
             employeesData
         };
     } catch (err) {
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Learners Report Export Failed`,
+            messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+            notificationType: NotificationType.REPORT_EXPORT_FAILED,
+            notifyAdmin: true,
+            status: 'FAILED',
+            icon: notificationiconEnum.ERROR,
+            createdBy: userInfo,
+        });
         throw Error(err.message);
     }
 };
 
 const getSingleLearnerReport = async ({ input }, context) => {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId , userInfo} = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -470,6 +492,16 @@ const getSingleLearnerReport = async ({ input }, context) => {
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Learners Report Exported Successfully`,
+                    messageValue: `The learners report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
             }
             return {
                 filePath: s3PresignedUrl,
@@ -484,6 +516,16 @@ const getSingleLearnerReport = async ({ input }, context) => {
             learnerData,
         };
     } catch (err) {
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Learners Report Export Failed`,
+            messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+            notificationType: NotificationType.REPORT_EXPORT_FAILED,
+            notifyAdmin: true,
+            status: 'FAILED',
+            icon: notificationiconEnum.ERROR,
+            createdBy: userInfo,
+        });
         throw Error(err.message);
     }
 };
