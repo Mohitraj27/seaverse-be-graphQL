@@ -80,6 +80,9 @@ module.exports = {
             email : String
             designation : String
             vesselName : String
+            vesselId :ID
+            vesselTypeName : String
+            vesselTypeId : ID
             lastSeen : String
             coursesCount : Int 
             averageProgressPercentage : Int
