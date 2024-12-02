@@ -745,7 +745,7 @@ module.exports.mutations = {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `New Training Registration`,
-            messageValue: `A new training registration has been successfully created for ${input.trainingTitle} by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `A new training registration has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
             notificationType: NotificationType.TRAINING_REGISTRATION_CREATED,
             notifyAdmin: false,
             notifiers:[
