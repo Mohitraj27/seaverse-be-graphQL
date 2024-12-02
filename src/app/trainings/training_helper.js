@@ -150,41 +150,22 @@ const validateSyncOfflineData = async (data) => {
 
         for (const module of trainingModules) {
 
-            console.log('module');
-            console.log(module);
-
             const { moduleId, contentDetails } = module;
 
             const contentDataMatch = overallProgress.contentData?.find(
                 (content) => content.moduleId.toString() == moduleId
             );
 
-            console.log('contentDataMatch');
-            console.log(contentDataMatch.contentIds);
-            console.log(typeof contentDataMatch);
-
             for (const { contentId } of contentDetails) {
-
-                console.log('contentId');
-                console.log(contentId);
-                console.log(typeof contentId);
 
                 const contentIdString = ObjectId(contentId);
 
-                console.log('contentDataMatch.contentIds');
                 const contentDatasArray = Array.from(contentDataMatch.contentIds);
-
-                console.log(contentDatasArray.includes(contentId));
-
-                console.log(typeof contentDatasArray);
 
                 if (
                     !contentDataMatch ||
                     !contentDatasArray.contentIds.includes(contentIdString)
                 ) {
-
-                    // console.log('contentDataMatch');
-                    // console.log(contentDataMatch);
 
                     const key = `${moduleId}-${contentId}`;
                     if (!moduleContentPairs.has(key)) {
