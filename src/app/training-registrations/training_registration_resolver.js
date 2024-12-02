@@ -1173,7 +1173,7 @@ module.exports.mutations = {
     },
 
     resetModules: async ({ input }, context) => {
-        const { subscriberId } = AuthUser(context);
+        const { subscriberId, userInfo } = AuthUser(context);
 
         try {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
@@ -1204,6 +1204,40 @@ module.exports.mutations = {
                     }
                 );
             }
+            const trainingData = await Training.findById(input.training);
+            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+
+            const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
+
+            await Promise.all(userIds.map(async (userId) => {
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Course has been reset`,
+                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
+                    notificationType: NotificationType.COURSE_MODULES_RESET,
+                    notifyAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+            }));
+
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Course Reset Notification`,
+                messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
+                notificationType: NotificationType.COURSE_MODULES_RESET,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: [],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
 
             return {
                 status: true,
