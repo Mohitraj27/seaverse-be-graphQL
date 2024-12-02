@@ -228,7 +228,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             vesselTypeName : item.vesselTypeName,
             vesselTypeId : item.vesselTypeId,
             CoursesCount: item.coursesCount,
-            AverageProgressPercentage: item?.averageProgressPercentage ?parseInt(averageProgressPercentage):0,
+            AverageProgressPercentage: item?.averageProgressPercentage ?parseInt(item.averageProgressPercentage):0,
         }));
 
         let s3PresignedUrl = "";
