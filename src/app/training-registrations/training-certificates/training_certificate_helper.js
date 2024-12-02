@@ -221,7 +221,7 @@ module.exports = {
     },
     generateCertificateBulk: async (registrationsForCertificates, session) => {
         try {
-            
+
             const existingCertificates = await TrainingCertificate.find({
                 trainingRegistration: { $in: registrationsForCertificates },
             }).session(session).lean();
@@ -247,14 +247,16 @@ module.exports = {
             const certificateLayouts = await certificateLayout.find({
                 training: { $in: trainingIds },
             }).session(session).lean();
-            
+
             const layoutMap = new Map(
                 certificateLayouts.map(layout => [layout.training.toString(), layout])
             );
 
-            const trainingModuleContentIds = progressData
-                .map(doc => doc.trainingModuleContentIds[0])
-                .filter(Boolean);
+            const trainingModuleContentIds = [];
+
+            trainingModuleContentIds.push(progressData
+                .flatMap(item => item.contentData)
+                .flatMap(item => item.contentIds));
 
             const firstContentInfos = await TrainingProgress.find({
                 trainingModuleContent: { $in: trainingModuleContentIds },
