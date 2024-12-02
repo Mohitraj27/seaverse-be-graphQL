@@ -75,6 +75,7 @@ module.exports = {
         type learnerMainReportData {
             _id : ID
             name : String
+            learnerId : ID
             isRegistered : Boolean
             EmployeeId : String
             email : String
