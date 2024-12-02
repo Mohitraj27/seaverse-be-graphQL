@@ -2022,6 +2022,7 @@ module.exports.mutations = {
                 userId: userId,
                 subscriberId: subscriberId,
                 role: role,
+                userInfo: userInfo,
             },
             context
         );
