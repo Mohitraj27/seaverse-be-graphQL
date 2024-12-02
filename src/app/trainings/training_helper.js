@@ -461,9 +461,6 @@ const validateAndGenerateCertificate = async (trainingRegMap, overallDocs, sessi
             }
         }
 
-        console.log('registrationsForCertificates');
-        console.log(registrationsForCertificates);
-
         if (registrationsForCertificates.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
         }
@@ -503,6 +500,7 @@ const updateTrainingProgress = async (input, userId) => {
                 });
             });
         }
+
     });
 
     trainingProgressDocs = await TrainingProgress.find({
@@ -573,6 +571,110 @@ const updateTrainingProgress = async (input, userId) => {
 
     });
 
+
+    // Save remaining content to trainingprogresses
+    // overallIds, trainingRegMap, overallTrainingMap
+
+    const overallTrainingMap = new Map(
+        overallDocs.map((doc) => [doc._id.toString(), doc.training])
+    );
+
+    // Get training Module IDs
+    const trainingModules = await TrainingModule.find({ training: { $in: overallTrainingMap.values() } }).select('_id trainingId');
+    let trainingModuleIds = trainingModules.map((mod) => mod._id.toString());
+
+    const trainingModuleMap = trainingModules.reduce((acc, mod) => {
+        const trainingId = mod.training.toString();
+        if (!acc[trainingId]) acc[trainingId] = [];
+        acc[trainingId].push(mod._id.toString());
+        return acc;
+    }, {});
+
+    const overallModuleMap = {};
+    overallIds.forEach(overallId => {
+        const trainingId = overallTrainingMap[overallId];
+        overallModuleMap[overallId] = trainingModuleMap[trainingId] || [];
+    });
+
+    const trainingModuleContents = await TrainingContentBridge.find({
+        trainingModule: { $in: trainingModuleIds }
+    }).select('trainingContent');
+
+    const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
+        const { trainingModuleId, _id } = doc;
+        if (!acc[trainingModuleId]) {
+            acc[trainingModuleId] = [];
+        }
+        acc[trainingModuleId].push(_id.toString());
+        return acc;
+    }, {});
+
+    const trainingModuleContentIds = trainingModuleContents.map((item) => item.trainingContent);
+
+    const existingProgresses = await TrainingProgress.find({
+        trainingRegistration: { $in: overallIds.map(id => overallReg[id]) },
+        overallTrainingProgress: { $in: overallIds },
+        trainingModule: { $in: trainingModuleIds },
+        trainingModuleContent: { $in: Object.values(trainingModuleContentMap).flat() },
+    }).select('trainingId trainingModuleContentId');
+
+    const existingSet = new Set(
+        existingProgresses.map(
+            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}`
+        )
+    );
+
+    const newProgresses = [];
+
+    overallIds.forEach(overallId => {
+
+        const training = overallTrainingMap[overallId];
+        const trainingRegistration = trainingRegMap[overallId];
+
+        const moduleIds = trainingModules
+            .filter(mod => mod.training.toString() == training)
+            .map(mod => mod._id.toString());
+
+        moduleIds.forEach(trainingModule => {
+            const contentIds = trainingModuleContentMap[trainingModule] || [];
+            contentIds.forEach(trainingModuleContent => {
+                const key = `${training}_${trainingModuleContent}`;
+                if (!existingSet.has(key)) {
+                    newProgresses.push({
+                        training,
+                        trainingModule,
+                        trainingModuleContent,
+                        trainingRegistration
+                    });
+                }
+            });
+        });
+
+    });
+
+    if (newProgresses.length > 0) {
+        await TrainingProgress.insertMany(newProgresses);
+    }
+
+    // overallIds.forEach(overallId => {
+
+    //     const trainingId = overallTrainingMap[overallId];
+    //     const trainingRegistrationId = trainingRegMap[overallId];
+    //     const trainingModuleId = overallModuleMap[overallId];
+
+    //     const key = `${trainingId}_${trainingModuleContent}`;
+    //     if (!existingSet.has(key)) {
+    //         newProgresses.push({
+    //             trainingModuleContent: trainingModuleContentId,
+    //             trainingModule: trainingModuleId,
+    //             trainingRegistration: trainingRegistrationId
+    //         });
+    //     };
+
+    // });
+
+
+
     const evaluationData = input.flatMap(overall =>
         overall.trainingModules.flatMap(module =>
             module.contentDetails.filter(content => content.questionAnswers && content.questionAnswers.length > 0)
@@ -592,7 +694,7 @@ const updateTrainingProgress = async (input, userId) => {
             quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
         }
 
-        if (quizErrors.length > 0) {
+        if (quizErrors && quizErrors.length > 0) {
             errors.push(quizErrors[0]);
             return;
         }
@@ -604,7 +706,7 @@ const updateTrainingProgress = async (input, userId) => {
         }
 
         // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
-        const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
+        // const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
 
     });
 
