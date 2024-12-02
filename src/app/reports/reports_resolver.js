@@ -1801,6 +1801,77 @@ const generateCustomReport = async ({ input }, context) => {
 }
 
 
+const getCustomReportLogs = async ({pageInput},context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+    try {
+        const data = await Export.aggregate(
+            [
+                {
+                    '$unwind': {
+                        'path': '$additionalData',
+                        'preserveNullAndEmptyArrays': true
+                    }
+                }, {
+                    '$unwind': {
+                        'path': '$additionalData.value.dateRange',
+                        'preserveNullAndEmptyArrays': true
+                    }
+                }, {
+                    '$lookup': {
+                        'from': 'users',
+                        'localField': 'createdBy',
+                        'foreignField': '_id',
+                        'as': 'usersInfo'
+                    }
+                }, {
+                    '$unwind': {
+                        'path': '$usersInfo',
+                        'preserveNullAndEmptyArrays': true
+                    }
+                }, {
+                    '$project': {
+                        'from': '$additionalData.value.dateRange.startDate',
+                        'to': '$additionalData.value.dateRange.endDate',
+                        'createdAt': 1,
+                        'filePath': 1,
+                        'generatedBy': {
+                            '$concat': [
+                                {
+                                    '$ifNull': [
+                                        '$usersInfo.firstName', ''
+                                    ]
+                                }, ' ', {
+                                    '$ifNull': [
+                                        '$usersInfo.lastName', ''
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        )
+
+        if (data.length > 0) {
+            const customReportLogs = data.map(item => ({
+                _id: item._id,
+                generatedBy: item?.generatedBy,
+                generatedAt: new Date(item?.createdAt).toLocaleString(),
+                from: new Date(item?.from).toLocaleString(),
+                to: new Date(item?.to).toLocaleString(),
+                filePath: {url: item?.filePath},
+            }));
+            return customReportLogs
+        }
+
+        return []
+
+    } catch (error) {
+        throw new Error(error.message)
+    }
+}
+
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
@@ -1808,6 +1879,7 @@ module.exports.queries = {
     getSingleCourseReport,
     getVesselMainReport,
     generateCustomReport,
+    getCustomReportLogs,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 
