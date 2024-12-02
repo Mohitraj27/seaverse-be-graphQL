@@ -236,6 +236,14 @@ module.exports = {
             filePath : String
             message : String
         }
+        type customReortLogOutput{
+            _id : ID
+            from : String
+            to : String
+            generatedAt: String
+            generatedBy : String
+            filePath : MultiMediaInfo
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -249,5 +257,6 @@ module.exports = {
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
         getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
+        getCustomReportLogs(pageInput : PageInput):[customReortLogOutput]
     `,
 };
