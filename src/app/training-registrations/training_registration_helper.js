@@ -645,7 +645,8 @@ module.exports = {
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,});
+                    createdBy: userInfo,
+                });
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
