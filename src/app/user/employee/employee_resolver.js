@@ -1605,7 +1605,8 @@ module.exports.mutations = {
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
-
+            const existingEmployeNumbers=await User.find({ isDeleted: false }).lean();
+            const employeeNumbers=existingEmployeNumbers.map(user => user.civilIdOrPassport);
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
@@ -1622,6 +1623,7 @@ module.exports.mutations = {
                 createReadStream,
                 empIds,
                 emails,
+                employeeNumbers,
                 designationNames,
                 imoNumbers,
                 vesselStatus,
