@@ -531,7 +531,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 };
 
 const getMainCoursesReport = async ({ input }, context) => {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -696,6 +696,16 @@ const getMainCoursesReport = async ({ input }, context) => {
                 coursesData,
             };
         }
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Courses Report Exported Successfully`,
+            messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
+            notifyAdmin: true,
+            status: 'SENT',
+            createdBy: userInfo,
+            icon: notificationiconEnum.SUCCESS
+        });
         return {
             coursesData,
         };
@@ -705,7 +715,7 @@ const getMainCoursesReport = async ({ input }, context) => {
     }
 };
 const getSingleCourseReport = async ({ input }, context) => {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId , userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -1037,6 +1047,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                         coursesData,
                     };
                 }
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Enrollment Report Exported Successfully`,
+                    messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
                 return {
                     coursesData,
                 };
@@ -1291,6 +1311,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                         coursesData,
                     };
                 }
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Quiz Report Exported Successfully`,
+                    messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
                 return {
                     coursesData,
                 };
