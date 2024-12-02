@@ -538,6 +538,7 @@ const updateTrainingProgress = async (input, userId) => {
                                 trainingRegistration,
                                 trainingModule: module.moduleId,
                                 trainingModuleContent: ObjectId(content.contentId),
+                                overallTrainingProgress: item.overallId,
                                 status: content.contentStatus,
                                 lastAccessedDuration: content.duration,
                                 progressPercentage: content.progressPercentage,
