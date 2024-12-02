@@ -8,7 +8,9 @@ const { Moment } = require("../../tools");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
-
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const NotificationType = require("../notifications/notification_type.json");
+const NotificationHelper = require("../notifications/notification_helper")
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -37,6 +39,22 @@ module.exports.mutations = {
                         infoData: JSON.stringify(result),
                     },
                 ],
+                createdBy: userInfo,
+            });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Learning Plan Created`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_CREATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: result.learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return result.learningPlan;
@@ -87,6 +105,26 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+            await Promise.all(
+                updatedPlans.map(plan =>
+                    NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Learning Plan Status Updated`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
+                        notifyAdmin: true,
+                        affected: [
+                            {
+                                targetRef: "LearningPlan",
+                                target: plan._id,
+                            },
+                        ],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    })
+                )
+            );
             return {
                 success: true,
                 message: `Updated ${updatedLearningPlans.nModified} Learning Plans to status ${newStatus}.`,
@@ -134,6 +172,22 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learning Plan Deleted`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_DELETED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Learning Plan  deleted successfully.'
@@ -176,6 +230,22 @@ module.exports.mutations = {
                         infoData: JSON.stringify(learningPlan),
                     },
                 ],
+                createdBy: userInfo,
+            });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learning Plan Updated`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_UPDATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: result.learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return learningPlan;
