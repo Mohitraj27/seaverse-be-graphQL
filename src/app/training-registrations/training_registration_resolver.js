@@ -749,6 +749,7 @@ module.exports.queries = {
                         },
                     },
                 ]);
+
             }
 
             if (trainingDetails.length === 0) {
@@ -756,6 +757,8 @@ module.exports.queries = {
             }
 
             const processedTrainingDetails = trainingDetails.map(trainingDetail => {
+
+                const moduleProgressArray = [];
                 const moduleCount = trainingDetail.trainingModules.length;
 
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
@@ -780,6 +783,8 @@ module.exports.queries = {
 
                     module.progressPercentage = averageProgress.toFixed(2);
 
+                    moduleProgressArray.push(module.progressPercentage);
+
                     const statuses = module.trainingModuleContents.map(content => content.status);
                     if (statuses.every(status => status === "COMPLETED")) {
                         module.status = "COMPLETED";
@@ -792,14 +797,14 @@ module.exports.queries = {
                     return acc;
                 }, 0);
 
-                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
-                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
+                const sum = moduleProgressArray.reduce((acc, val) => acc + parseFloat(val), 0);
+                const progressPercentage = sum / moduleProgressArray.length;
 
                 return {
                     ...trainingDetail,
                     totalDuration,
                     moduleCount,
-                    progressPercentage: overallProgress.toFixed(2)
+                    progressPercentage: parseFloat(progressPercentage.toFixed(2))
                 };
             });
 
