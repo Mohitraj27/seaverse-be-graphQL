@@ -680,14 +680,7 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
         errors.push(`Duplicate EmployeeID found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
         return errors;
     } else {
-        const empNumber = row["EmployeeID"]?.toLowerCase(); 
-
-        if (employeeNumbers.some(name => name?.toLowerCase() === empNumber)) {
-            errors.push(`EmployeeID already exists in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
-            return errors;
-        } else {
-            empIds.add(row["EmployeeID"]); 
-        }
+        empIds.add(row["EmployeeID"]);
     }
 
 
