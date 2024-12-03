@@ -244,7 +244,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
         if (existingTrainings) {
             existingTrainings.forEach(training => {
-                if (userObjectIdStrings.includes(training.user.toString())) {
+                if (userObjectIdStrings.includes(training.user.toString()) && training.isEnrolled === true) {
                     alreadyEnrolledUserIds.push(training.user.toString());
                 } else {
                     notEnrolledUserIds.push(training.user.toString());
