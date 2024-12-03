@@ -502,9 +502,12 @@ const updateTrainingProgress = async (input, userId) => {
 
     const bulkOps = [];
 
+    let overallProgressPercentageMap = new Map();
+
     input.forEach((item) => {
 
         const trainingRegistration = trainingRegMap.get(item.overallId.toString());
+
 
         if (!trainingRegistration) return;
 
@@ -513,6 +516,12 @@ const updateTrainingProgress = async (input, userId) => {
             module.contentDetails.forEach((content) => {
                 const progressKey = `${trainingRegistration}_${content.contentId}`;
                 const existingProgress = trainingProgressMap?.get(progressKey);
+
+                if (overallProgressPercentageMap.has(item.overallId)) {
+                    overallProgressPercentageMap.get(item.overallId).push(content.progressPercentage);
+                } else {
+                    overallProgressPercentageMap.set(item.overallId, [content.progressPercentage]);
+                }
 
                 if (existingProgress) {
 
@@ -655,9 +664,32 @@ const updateTrainingProgress = async (input, userId) => {
 
     const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
+        let updatedTrainingProgress;
         if (newProgresses.length > 0) {
-            await TrainingProgress.insertMany(newProgresses);
+            updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses);
         }
+
+        if (overallProgressPercentageMap) {
+            let bulkOperations = [];
+            overallProgressPercentageMap.forEach((percentages, overallId) => {
+
+                const total = percentages.reduce((sum, value) => sum + value, 0);
+                const average = total / percentages.length;
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: overallId },
+                        update: { $set: { progressPercentage: average } },
+                    },
+                });
+
+            });
+
+            if (bulkOperations.length > 0) {
+                await OverallTrainingProgress.bulkWrite(bulkOperations);
+            }
+        }
+
 
         let quizErrors = [];
         if (evaluationData) {
