@@ -44,6 +44,7 @@ const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
+const courseCompletion = require("../email-template/courseCompletion");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1145,8 +1146,10 @@ module.exports.mutations = {
                 }
             );
 
-            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } });
-
+            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
+                path: 'user',
+                select: 'firstName lastName email'
+            });;
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
@@ -1167,8 +1170,9 @@ module.exports.mutations = {
                         { path: "user", select: "firstName lastName email" }
                     ];
 
-                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate(populate);
-
+                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
+                        { path: "user", select: "firstName lastName email" }
+                    ]);;
                     const existingCertificate = await TrainingCertificate.findOne({
                         trainingRegistration: progressUser.trainingRegistration,
                         user: progressUser.user
@@ -1209,6 +1213,18 @@ module.exports.mutations = {
                     }
                 })
             );
+            const emailContent = courseCompletion({
+                firstName: overallTrainingProgressUsers[0].user.firstName,
+                trainingTitle: trainingData.title[0]?.value,
+                durationHours: trainingData.durationHours,
+                certificateLink: `https://example.com/certificates`,  
+                courseImageUrl: `https://example.com/certificates`  
+            });
+            sendEmail({
+                receiverEmail: overallTrainingProgressUsers[0].user.email,
+                subject: `Congratulations on Completing the ${trainingData.title[0]?.value} Course!`,
+                htmlContent: emailContent,
+            });
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,

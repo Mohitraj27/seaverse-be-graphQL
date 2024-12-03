@@ -30,7 +30,7 @@ const { TrainingModuleContent } = require("../trainings/training_modules/trainin
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
-
+const courseEnrollment = require("../email-template/courseEnrollment");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -616,15 +616,12 @@ module.exports = {
                         if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
                         users.forEach(user => {
+                            const emailContent = courseEnrollment(user);
                             sendEmail({
                                 receiverEmail: user.email,
                                 subject: "Course Enrollment",
-                                htmlContent:
-                                    `<div div style="width: 600px; margin: 0 auto; text-align: center" >
-                                        <p>Hello ${user.firstName}</p>
-                                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">You are assigned to a new course</div>
-                                    </div > `
-                            })
+                                htmlContent: emailContent,
+                            });
                         })
 
                         return savedTrainingRegistration;
