@@ -252,6 +252,10 @@ module.exports = {
             overallId: ID!
             trainingModules: [UpdateTrainingModuleInput!]!
         }
+        type startOverRes {
+            status: Int
+            message: String
+        }
     `,
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
@@ -264,5 +268,6 @@ module.exports = {
         approveOrRejectTraining(id: ID!, approvalStatus: ApprovalStatus!): Training!
         submitTrainingForApproval(id: ID!): Training!
         syncOfflineDataAndUpdateProgress(input: [UpdateTrainingProgressInput!]!): offlineSyncRes!
+        startOverTraining(overallId: ID!): startOverRes!
     `,
 };

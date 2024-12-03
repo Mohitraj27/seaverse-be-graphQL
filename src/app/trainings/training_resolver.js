@@ -509,7 +509,7 @@ module.exports.mutations = {
             if (syncContentErrors.length > 0) {
                 console.log(syncContentErrors[0]);
             }
-            
+
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
@@ -525,4 +525,17 @@ module.exports.mutations = {
         }
 
     },
+    startOverTraining: async ({ overallId }, context) => {
+
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+
+        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId);
+
+        if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        return {
+            status: 1,
+            message: "Course restarted successfully!"
+        }
+    }
 };

@@ -33,7 +33,7 @@ const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
-const { create } = require("lodash");
+const { create, filter } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
 const path = require('path');
@@ -226,7 +226,7 @@ module.exports.queries = {
 
         try {
             let filterConditions = {
-                user: ObjectId(userId),
+                user:filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
             }
 
@@ -749,6 +749,7 @@ module.exports.queries = {
                         },
                     },
                 ]);
+
             }
 
             if (trainingDetails.length === 0) {
@@ -756,6 +757,8 @@ module.exports.queries = {
             }
 
             const processedTrainingDetails = trainingDetails.map(trainingDetail => {
+
+                const moduleProgressArray = [];
                 const moduleCount = trainingDetail.trainingModules.length;
 
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
@@ -780,6 +783,8 @@ module.exports.queries = {
 
                     module.progressPercentage = averageProgress.toFixed(2);
 
+                    moduleProgressArray.push(module.progressPercentage);
+
                     const statuses = module.trainingModuleContents.map(content => content.status);
                     if (statuses.every(status => status === "COMPLETED")) {
                         module.status = "COMPLETED";
@@ -792,14 +797,14 @@ module.exports.queries = {
                     return acc;
                 }, 0);
 
-                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
-                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
+                const sum = moduleProgressArray.reduce((acc, val) => acc + parseFloat(val), 0);
+                const progressPercentage = sum / moduleProgressArray.length;
 
                 return {
                     ...trainingDetail,
                     totalDuration,
                     moduleCount,
-                    progressPercentage: overallProgress.toFixed(2)
+                    progressPercentage: parseFloat(progressPercentage.toFixed(2))
                 };
             });
 
