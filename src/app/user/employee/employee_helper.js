@@ -647,7 +647,7 @@ const deleteUsers = async (users, errors) => {
 
 }
 
-const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames,  imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -682,6 +682,8 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
     } else {
         empIds.add(row["EmployeeID"]);
     }
+
+
 
     if (!row["Designation"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
@@ -739,7 +741,7 @@ function mapCSVRowToUser(row) {
         lastName: row["LastName"] ?? "",
         email: row["Email"]?.toLowerCase(),
         designation: row["Designation"]?.toLowerCase(),
-        civilIdOrPassport: row["EmployeeID"],
+        civilIdOrPassport: row["EmployeeID"]?.toLowerCase(),
         imoNumber: row["VesselIMONumber"],
         vesselStatus: row["Status"],
         imoNumber: row["VesselIMONumber"],
@@ -1940,7 +1942,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames ,imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
@@ -1960,7 +1962,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {

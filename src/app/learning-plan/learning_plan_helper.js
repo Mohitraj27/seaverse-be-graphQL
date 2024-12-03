@@ -23,6 +23,7 @@ const roles = require("../../util/role.json");
 const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validRoles = Object.values(roles);
+const { Moment } = require("../../tools");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -781,13 +782,50 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '') => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity) => {
     try {
-        const matchCriteria = { learningPlan: {$in:[learningPlanId]} };
+        const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+        let activityFilter;
         if (status && Array.isArray(status) && status.length > 0) {
             matchCriteria.status = { $in: status };
         }
-        const pipeline =  [
+        let startDate, endDate;
+        if (lastActivity) {
+            const today = Moment();
+            switch (lastActivity) {
+                case "TODAY":
+                    startDate = today.startOf("day").toDate();
+                    endDate = today.endOf("day").toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, "day").startOf("day").toDate();
+                    endDate = today.subtract(1, "day").endOf("day").toDate();
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, "year").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                default:
+                    break;
+            }
+        }
+        const pipeline = [
             {
                 $match: matchCriteria,
             },
@@ -796,13 +834,17 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     from: "users",
                     localField: "user",
                     foreignField: "_id",
-                    as: "userDetails"
+                    as: "userDetails",
+                    pipeline: [
+                        ...(lastActivity && startDate && endDate
+                            ? [{ $match: { lastLoginAt: { $gte: startDate, $lte: endDate } } }]
+                            : [])
+                    ]
                 }
             },
             {
-                $unwind: "$userDetails"  
+                $unwind: "$userDetails"
             },
-           
             {
                 $group: {
                     _id: "$learningPlan",
@@ -813,7 +855,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
                             userDetails: "$userDetails",
-                            status: "$status" 
+                            status: "$status"
                         }
                     },
                     overallTrainingprogressStatus: { $addToSet: "$status" }
@@ -845,7 +887,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             }
         ];
-        if(search != null && search){
+        if (search != null && search) {
             pipeline.push({
                 $match: {
                     $or: [
@@ -856,7 +898,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             });
         }
-     
+
 
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
         return groupedProgress?.[0] || [];
