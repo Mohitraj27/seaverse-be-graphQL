@@ -515,7 +515,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, search }, context) => {
+    getLearningPlan: async ({ id, status, lastActivity, search }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -702,7 +702,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity);
 
             return detailedPlan;
         } catch (error) {
