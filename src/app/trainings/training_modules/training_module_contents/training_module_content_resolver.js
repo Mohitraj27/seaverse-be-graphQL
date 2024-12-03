@@ -601,7 +601,7 @@ module.exports.mutations = {
 
     createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         try {
-            const { userId, subscriberId } = AuthUser(context);
+            const { userId, subscriberId, userInfo } = AuthUser(context);
 
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
