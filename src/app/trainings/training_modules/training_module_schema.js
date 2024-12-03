@@ -7,6 +7,8 @@ module.exports = {
             description: [LocalisedData]
             displayPosition: Int
             isActive: Boolean
+            progressPercentage: String
+            status: String
             trainingModuleContents: [TrainingModuleContent]
         }
         input TrainingModuleInput {

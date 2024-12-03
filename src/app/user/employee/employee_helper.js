@@ -647,7 +647,7 @@ const deleteUsers = async (users, errors) => {
 
 }
 
-const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames,  imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -680,8 +680,17 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
         errors.push(`Duplicate EmployeeID found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
         return errors;
     } else {
-        empIds.add(row["EmployeeID"]);
+        const empNumber = row["EmployeeID"]?.toLowerCase(); 
+
+        if (employeeNumbers.some(name => name?.toLowerCase() === empNumber)) {
+            errors.push(`EmployeeID already exists in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
+            return errors;
+        } else {
+            empIds.add(row["EmployeeID"]); 
+        }
     }
+
+
 
     if (!row["Designation"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
@@ -739,7 +748,7 @@ function mapCSVRowToUser(row) {
         lastName: row["LastName"] ?? "",
         email: row["Email"]?.toLowerCase(),
         designation: row["Designation"]?.toLowerCase(),
-        civilIdOrPassport: row["EmployeeID"],
+        civilIdOrPassport: row["EmployeeID"]?.toLowerCase(),
         imoNumber: row["VesselIMONumber"],
         vesselStatus: row["Status"],
         imoNumber: row["VesselIMONumber"],
@@ -1011,14 +1020,13 @@ module.exports = {
         const employeeFilterConditions = {subscriber:subscriberId} ; 
         employeeFilterConditions.user = id;
         
-        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel",populate:({path:"currentVessel",select:"name isActive"}) })
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName",populate:({path:"currentVessel",select:"name isActive"}) })
             .lean();
-
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
          
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
-               
+            
           await UserVessel.updateMany(
                 {user:existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel,isActive: true },
                 { isActive: false }
@@ -1031,7 +1039,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${input?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -1043,27 +1051,63 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Your Vessel has been Updated`, 
+                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                notificationType: NotificationType.USER_VESSEL_UPDATE,
+                notifyAdmin: false,
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: existingEmployee?.user?._id,
+                    },
+                ],
+                notifiers: [ existingEmployee?.user?._id ],
+                employeeNotifiers: [ existingEmployee?.user?._id ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            }); 
         }
         else{
             await UserVessel.findOneAndUpdate(
                 { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
                 { vesselStatus: input?.user?.vesselStatus }
             );
+
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${input?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
                     {
                         targetRef: "User",
-                        target: currentUserData._id,
+                        target: existingEmployee?.user?._id,
                     },
                 ],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Your Vessel has been Updated`, 
+                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                notificationType: NotificationType.USER_VESSEL_UPDATE,
+                notifyAdmin: false,
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: existingEmployee?.user?._id,
+                    },
+                ],
+                notifiers: [ existingEmployee?.user?._id ],
+                employeeNotifiers: [ existingEmployee?.user?._id ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
         }
 
 
@@ -1905,7 +1949,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames ,imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
@@ -1925,7 +1969,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
@@ -1946,7 +1990,6 @@ module.exports = {
                         const formatedData = mapCSVRowToUser(row);
                         users.push(formatedData);
                     }
-
 
                 });
 

@@ -17,7 +17,9 @@ const ScromHelper = require("../../scrom_helper")
 const PptxGenJS = require('pptxgenjs');
 const pdfParse = require('pdf-parse');
 const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
-
+const NotificationHelper = require("../../../notifications/notification_helper");
+const NotificationType = require("../../../notifications/notification_type.json");
+const notificationiconEnum = require("../../../notifications/notification_icon.json");
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -453,7 +455,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId,userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
 
@@ -507,6 +509,22 @@ module.exports.mutations = {
             await content.save();
 
             updatedContents.push(content);
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Content Status Updated`,
+                messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: content._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userId,
+            });
         }
 
         return {
@@ -520,9 +538,9 @@ module.exports.mutations = {
     },
 
     deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
-
+        const successfullyDeleted = [];
         for (const id of ids) {
             try {
                 const content = await TrainingModuleContent.findOne({
@@ -544,6 +562,7 @@ module.exports.mutations = {
                 content.updatedBy = userId;
                 content.modifiedDate = new Date();
                 await content.save();
+                successfullyDeleted.push(content);
             } catch (error) {
                 invalidDeletes.push({
                     id,
@@ -551,7 +570,26 @@ module.exports.mutations = {
                 });
             }
         }
-
+        if (successfullyDeleted.length > 0) {
+            for (const content of successfullyDeleted) {
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Training Module Content Deleted`,
+                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: content._id,
+                        },
+                    ],
+                    status: 'SENT',
+                    icon: notificationiconEnum.WARNING,
+                    createdBy: userId,
+                });
+            }
+        }
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
@@ -613,7 +651,7 @@ module.exports.mutations = {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
             }
-
+            let contentTypeNotification = '';
             if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
                     data: thumbnail,
@@ -622,6 +660,7 @@ module.exports.mutations = {
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 input.thumbnail = thumbnailUrl;
+                contentTypeNotification = 'Thumbnail'
             }
 
             if (video) {
@@ -632,6 +671,7 @@ module.exports.mutations = {
                     uploadType: UploadHelper.uploadType.trainingContentVideo,
                 });
                 input.videos = [{ url: videoUrl }];
+                contentTypeNotification = 'Video';
             }
 
             if (audio) {
@@ -642,6 +682,7 @@ module.exports.mutations = {
                     uploadType: UploadHelper.uploadType.trainingContentAudio,
                 });
                 input.audios = [{ url: audioUrl }];
+                contentTypeNotification = 'Audio';
             }
 
             if (image) {
@@ -652,6 +693,7 @@ module.exports.mutations = {
                     uploadType: UploadHelper.uploadType.trainingContentImage,
                 });
                 input.images = [{ url: imageUrl }];
+                contentTypeNotification = 'Image';
             }
 
             if (file) {
@@ -662,6 +704,7 @@ module.exports.mutations = {
                     uploadType: UploadHelper.uploadType.trainingContentFile,
                 });
                 input.files = [{ url: fileUrl }];
+                contentTypeNotification = 'Document';
             }
 
             const contentData = {
@@ -681,6 +724,23 @@ module.exports.mutations = {
             });
 
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Training Module Content Created`,
+                messageValue: `A new ${contentTypeNotification} has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                status:'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+    
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -773,7 +833,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo} = AuthUser(context);
         try {
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
@@ -858,7 +918,7 @@ module.exports.mutations = {
             };
             let isUpdated = false;
             let isMediaUpdated = false;
-
+            let updatedFields = [];
             const fieldsToCheck = [
                 "title",
                 "description",
@@ -992,6 +1052,23 @@ module.exports.mutations = {
                     { new: true, setDefaultsOnInsert: true, runValidators: true }
                 );
             }
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Training Module Content Updated`,
+                messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                notifyAdmin: true,
+                affected: [
+                    {   
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                status:'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+    
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1146,7 +1223,7 @@ module.exports.mutations = {
     },
     pushLatestContent: async ({ id }, context) => {
 
-        const { subscriberId } = AuthUser(context);
+        const { subscriberId ,userInfo, userId} = AuthUser(context);
 
         if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
@@ -1187,7 +1264,23 @@ module.exports.mutations = {
             { _id: id, subscriber: subscriberId },
             { $set: { isPublished: false } }
         );
-
+        const impactedCoursesCount = bridgesToUpdate.length;
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Content Successfully Pushed to the Courses`,
+            messageValue: `The content titled ${inputContent.title[0]?.value} has been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.CONTENT_PUSHED,
+            notifyAdmin: true,
+            affected: [
+                {
+                    targetRef: "TrainingModuleContent",
+                    target: inputContent._id,
+                },
+            ],
+            status: 'SENT',
+            icon: notificationiconEnum.SUCCESS,
+            createdBy: userId,
+        });
         return {
             status: 1,
             message: "New content pushed to lessons successfully.",

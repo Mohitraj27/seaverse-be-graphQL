@@ -14,7 +14,7 @@ const { OverallTrainingProgress } = require("../overall-course-progress/overall_
 const { TrainingProgress } = require("../training-progress/training_progress_model");
 const { Training } = require("../../trainings/training_model");
 const { v4: uuidv4 } = require('uuid');
-
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 const generateTrainingCertificateNumber = async ({ subscriberId, userId, session }) => {
     const currentYear = CurrentDateTime().utcDateTimeObj.year();
 
@@ -118,7 +118,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
 module.exports = {
     generateCertificate: async (input, context) => {
         try {
-            const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager } = AuthUser(context);
+            const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager, userInfo } = AuthUser(context);
 
             if (!input.trainingRegistrationId) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
@@ -200,7 +200,19 @@ module.exports = {
             if (!savedTrainingCertificate) {
                 throw CustomError(ErrorName.FAILED, "Failed to generate certificate");
             }
-
+            
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Certificate Generated Successfully`,
+                messageValue: `Congratulations! Your certificate for completing the course ${selectedCourse.title} has been successfully generated.`,
+                notificationType: NotificationType.CERTIFICATE_GENERATED_SUCCESS,
+                notifyAdmin: false, 
+                notifiers: [userId],
+                employeeNotifiers: [userId],
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS
+            });
             return savedTrainingCertificate;
 
         } catch (error) {
@@ -209,7 +221,7 @@ module.exports = {
     },
     generateCertificateBulk: async (registrationsForCertificates, session) => {
         try {
-            
+
             const existingCertificates = await TrainingCertificate.find({
                 trainingRegistration: { $in: registrationsForCertificates },
             }).session(session).lean();
@@ -235,14 +247,16 @@ module.exports = {
             const certificateLayouts = await certificateLayout.find({
                 training: { $in: trainingIds },
             }).session(session).lean();
-            
+
             const layoutMap = new Map(
                 certificateLayouts.map(layout => [layout.training.toString(), layout])
             );
 
-            const trainingModuleContentIds = progressData
-                .map(doc => doc.trainingModuleContentIds[0])
-                .filter(Boolean);
+            const trainingModuleContentIds = [];
+
+            trainingModuleContentIds.push(progressData
+                .flatMap(item => item.contentData)
+                .flatMap(item => item.contentIds));
 
             const firstContentInfos = await TrainingProgress.find({
                 trainingModuleContent: { $in: trainingModuleContentIds },

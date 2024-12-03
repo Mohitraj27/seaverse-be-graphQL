@@ -29,6 +29,7 @@ const { OverallTrainingProgress } = require("./overall-course-progress/overall_p
 const { TrainingModuleContent } = require("../trainings/training_modules/training_module_contents/training_module_content_model")
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
+const notificationiconEnum = require("../notifications/notification_icon.json");
 
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -412,19 +413,31 @@ const getCustomGroupUsers = (async (groups) => {
 
 const combineTrainingModules = (data) => {
 
-    const firstData = data[0];
+    const mergedData = {};
 
     data.forEach(item => {
+        const { _id, trainingModules, ...rest } = item;
 
-        if (firstData.trainingModules.length > 1) {
-            if (firstData._id == item._id) {
-                firstData.trainingModules = [...firstData.trainingModules, ...item.trainingModules];
-            }
+        if (!mergedData[_id]) {
+            mergedData[_id] = { _id, ...rest, trainingModules: [] };
         }
 
+        Object.keys(rest).forEach(key => {
+            if (!mergedData[_id][key] && rest[key] !== undefined) {
+                mergedData[_id][key] = rest[key];
+            }
+        });
+
+        mergedData[_id].trainingModules.push(...trainingModules);
+    });
+    Object.keys(mergedData).forEach(id => {
+        mergedData[id].trainingModules = Array.from(
+            new Set(mergedData[id].trainingModules.map(JSON.stringify))
+        ).map(JSON.parse);
     });
 
-    return [firstData];
+    return Object.values(mergedData);
+
 }
 
 module.exports = {
@@ -617,16 +630,35 @@ module.exports = {
                         return savedTrainingRegistration;
                     }
                 );
-
-                EmployeeHelper.sendEnrollmentNotification([
-                    {
-                        subscriber: subscriberId,
-                        trainingRegistration: savedTrainingRegistration,
-                        createdBy: userInfo,
-                        userIds: userIds,
-                        action: "enroll"
-                    },
-                ]);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `New Course has been enrolled to you`,
+                    messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                    notifyAdmin: false,
+                    notifiers:[
+                        userId
+                    ],
+                    employeeNotifiers:[userId],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+        
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `New Course Enrollment`,
+                    messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                    notifyAdmin: true,
+                    notifiers:[],
+                    employeeNotifiers:[],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -725,15 +757,35 @@ module.exports = {
                     }
                 );
 
-                EmployeeHelper.sendEnrollmentNotification([
-                    {
-                        subscriber: subscriberId,
-                        trainingRegistration: unenrollTrainingRegistration,
-                        createdBy: userInfo,
-                        userIds: userIds,
-                        action: "unenroll"
-                    },
-                ]);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `A Course has been unenrolled to you`,
+                    messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_UNENROLLMENT,
+                    notifyAdmin: false,
+                    notifiers:[
+                        userId
+                    ],
+                    employeeNotifiers:[userId],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+        
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Course Unenrollment`,
+                    messageValue: `A  Course Unenrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_UNENROLLMENT,
+                    notifyAdmin: true,
+                    notifiers:[],
+                    employeeNotifiers:[],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
 
                 return {
                     message: "Course unenrollment successful!",

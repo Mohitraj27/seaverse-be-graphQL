@@ -22,9 +22,13 @@ const exportSchema = new Schema({
     },
     type_of_export: {
         type: String,
-        enum: ['USER_EXPORT'],
+        enum: ['USER_EXPORT','CUSTOM_REPORT_EXPORT'],
         required: true,
-    }
+    },
+    additionalData: [{
+        key: { type: String, required: true },
+        value: { type: Schema.Types.Mixed, required: true }
+    }]
 }, { timestamps: true });  
 
 const Export = mongoose.model('Export', exportSchema);

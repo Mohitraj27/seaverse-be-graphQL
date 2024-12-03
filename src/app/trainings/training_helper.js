@@ -21,6 +21,7 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const TrainingCertificateHelper = require("../training-registrations/training-certificates/training_certificate_helper");
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -114,12 +115,201 @@ const generateCourseId = (courseType) => {
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
 
+const validateSyncOfflineData = async (data) => {
+
+    let overallIds = data.map((item) => item.overallId);
+    let errors = [];
+
+    let overallProgresses = [];
+    if (overallIds.length > 0) {
+        overallProgresses = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
+
+    if (overallProgresses.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const overallProgressMap = new Map(
+        overallProgresses.map((doc) => [doc._id.toString(), doc])
+    );
+
+    const moduleContentPairs = new Map();
+
+    for (const entry of data) {
+
+        const { overallId, trainingModules } = entry;
+        const overallProgress = overallProgressMap.get(overallId.toString());
+
+        if (!overallProgress) {
+            errors.push(`Overall ID ${overallId} not found.`);
+            continue;
+        }
+
+        for (const module of trainingModules) {
+
+            const { moduleId, contentDetails } = module;
+
+            const contentDataMatch = overallProgress.contentData?.find(
+                (content) => content.moduleId.toString() == moduleId
+            );
+
+            for (const { contentId } of contentDetails) {
+
+                const contentIdString = ObjectId(contentId);
+
+                const contentDatasArray = Array.from(contentDataMatch.contentIds);
+
+                if (
+                    !contentDataMatch ||
+                    !contentDatasArray.contentIds.includes(contentIdString)
+                ) {
+
+                    const key = `${moduleId}-${contentId}`;
+                    if (!moduleContentPairs.has(key)) {
+                        moduleContentPairs.set(key, { moduleId, contentId });
+                    }
+                }
+
+            }
+
+        }
+
+    }
+
+    if (moduleContentPairs.size > 0) {
+
+        const queries = Array.from(moduleContentPairs.values());
+        const trainingContentBridges = await TrainingContentBridge.find({
+            $or: queries.map(({ moduleId, contentId }) => ({
+                trainingModule: moduleId,
+                trainingContent: contentId,
+            })),
+        }).lean();
+
+        const foundPairs = new Set(
+            trainingContentBridges.map(
+                (doc) => `${doc.moduleId}-${doc.contentId}`
+            )
+        );
+
+        for (const [key, { moduleId, contentId }] of moduleContentPairs) {
+
+            if (!foundPairs.has(key)) {
+                errors.push(
+                    `Missing content ID ${contentId} for module ${moduleId}`
+                );
+            }
+        }
+    }
+
+    return errors;
+
+}
+
+const addDataToOverallTrainingProgress = async (input, errors) => {
+
+    const overallIds = input.map((item) => item.overallId);
+
+    let overallDocs = [];
+    if (overallIds.length > 0) {
+        overallDocs = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
+
+    if (overallDocs.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const overallDocsWithNoContentData = overallDocs.filter((doc) => !doc.contentData || doc.contentData.length == 0);
+
+    if (overallDocsWithNoContentData.length > 0) {
+
+        const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
+
+        if (trainingIds.length == 0) {
+            errors.push(`Training couldn't found`);
+            return;
+        }
+
+        const fetchTrainingContents = await TrainingContentBridge.find({
+            training: { $in: trainingIds },
+        }).lean();
+
+        if (fetchTrainingContents.length == 0) {
+            errors.push(`Training content not found`);
+            return;
+        }
+
+        let contentDataMap = new Map();
+
+        let bulkOperations = [];
+
+        for (const doc of overallDocsWithNoContentData) {
+
+            const matchingContents = fetchTrainingContents.filter(
+                (content) => content.training.toString() === doc.training.toString()
+            );
+
+            if (matchingContents.length > 0) {
+
+                for (const content of matchingContents) {
+                    const moduleId = content.trainingModule.toString();
+                    const contentId = content.trainingContent.toString();
+
+                    if (!contentDataMap.has(moduleId)) {
+                        contentDataMap.set(moduleId, []);
+                    }
+                    contentDataMap.get(moduleId).push(contentId);
+                }
+
+                const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
+                    moduleId,
+                    contentIds,
+                }));
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: doc._id },
+                        update: { $set: { status: "IN_PROGRESS", contentData } },
+                    },
+                });
+            }
+        }
+
+        if (bulkOperations.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkOperations);
+        }
+
+    }
+
+}
+
+// const validateAndUpdateContentData = async (input) => {
+
 //     const overallIds = input.map((item) => item.overallId);
-//     let overallDocs;
+
+//     let overallDocs = [];
 //     if (overallIds.length > 0) {
 //         overallDocs = await OverallTrainingProgress.find({
 //             _id: { $in: overallIds },
 //         }).lean();
+//     }
+
+//     if (overallDocs.length == 0) {
+//         errors.push(`Training not found`);
+//         return;
+//     }
+
+//     const getTrainingIds = overallDocs.map((doc) => doc.training);
+
+//     if (getTrainingIds.length == 0) {
+//         errors.push(`Training couldn't found`);
+//         return;
 //     }
 
 //     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
@@ -129,70 +319,68 @@ const generateCourseId = (courseType) => {
 
 //     for (const item of input) {
 
-//         const { overallId, trainingModule, contentDetails } = item;
+//         const { overallId, trainingModules } = item;
 
 //         const overallDoc = overallMap.get(overallId.toString());
 
 //         if (!overallDoc) {
 //             errors.push({
 //                 overallId,
-//                 error: `Training not found in contentData`,
+//                 error: `Training not found for overallId`,
 //             });
-//             continue;
+//             break;
 //         }
 
-//         let matchingContentData;
-//         if (overallDoc) {
-//             matchingContentData = overallDoc.contentData?.find(
-//                 (data) => data.moduleId.toString() == trainingModule
-//             );
-//         }
+//         for (const trainingModule of trainingModules) {
+//             const { moduleId, contentDetails } = trainingModule;
 
-//         if (!matchingContentData) {
+//             let matchingModuleData;
+//             if (overallDoc) {
+//                 matchingModuleData = overallDoc.contentData?.find(
+//                     (data) => data.moduleId.toString() == moduleId
+//                 );
+//             }
 
-//             missingOverallEntries.push({
-//                 updateOne: {
-//                     filter: { _id: overallId },
-//                     update: {
-//                         status: "IN_PROGRESS",
-//                         $push: {
-//                             contentData: {
-//                                 moduleId: trainingModule,
-//                                 contentIds: contentDetails.map((content) => content.contentId),
+//             if (!matchingModuleData) {
+
+//                 missingOverallEntries.push({
+//                     updateOne: {
+//                         filter: { _id: overallId },
+//                         update: {
+//                             status: "IN_PROGRESS",
+//                             $push: {
+//                                 contentData: {
+//                                     moduleId,
+//                                     contentIds: contentDetails.map((content) => content.contentId),
+//                                 },
 //                             },
 //                         },
+//                         upsert: true,
 //                     },
-//                     upsert: true,
-//                 },
-//             });
+//                 });
 
-//             continue;
-//         }
+//                 continue;
+//             }
 
-//         if (matchingContentData) {
 //             for (const content of contentDetails) {
 
-//                 console.log('content');
-//                 console.log(content);
+//                 const { contentId } = content;
 
-//                 const missingContentIds = contentDetails
-//                     .map((content) => content.contentId.toString())
-//                     .filter(
-//                         (contentId) =>
-//                             !matchingContentData.contentIds.map((id) => id.toString()).includes(contentId)
-//                     );
+//                 const isContentPresent = matchingModuleData.contentIds
+//                     .map((id) => id.toString())
+//                     .includes(contentId.toString());
 
-//                 if (missingContentIds.length > 0) {
+//                 if (!isContentPresent) {
 //                     errors.push({
 //                         overallId,
-//                         contentId: content.contentId,
-//                         error: `Content ID ${content.contentId} not found in contentIds for the module`,
+//                         moduleId,
+//                         contentId,
+//                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
 //                     });
-//                     continue;
 //                 }
+
 //             }
 //         }
-
 //     }
 
 //     if (missingOverallEntries.length > 0) {
@@ -202,98 +390,9 @@ const generateCourseId = (courseType) => {
 //     return errors;
 // };
 
-const validateAndUpdateContentData = async (input) => {
+const validateAndGenerateCertificate = async (trainingRegMap, overallDocs, session) => {
 
-    const overallIds = input.map((item) => item.overallId);
-    let overallDocs;
-
-    if (overallIds.length > 0) {
-        overallDocs = await OverallTrainingProgress.find({
-            _id: { $in: overallIds },
-        }).lean();
-    }
-
-    const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
-
-    const errors = [];
-    const missingOverallEntries = [];
-
-    for (const item of input) {
-
-        const { overallId, trainingModules } = item;
-
-        const overallDoc = overallMap.get(overallId.toString());
-
-        if (!overallDoc) {
-            errors.push({
-                overallId,
-                error: `Training not found for overallId`,
-            });
-            continue;
-        }
-
-        for (const trainingModule of trainingModules) {
-            const { moduleId, contentDetails } = trainingModule;
-
-            let matchingModuleData;
-            if (overallDoc) {
-                matchingModuleData = overallDoc.contentData?.find(
-                    (data) => data.moduleId.toString() == moduleId
-                );
-            }
-
-            if (!matchingModuleData) {
-
-                missingOverallEntries.push({
-                    updateOne: {
-                        filter: { _id: overallId },
-                        update: {
-                            status: "IN_PROGRESS",
-                            $push: {
-                                contentData: {
-                                    moduleId,
-                                    contentIds: contentDetails.map((content) => content.contentId),
-                                },
-                            },
-                        },
-                        upsert: true,
-                    },
-                });
-
-                continue;
-            }
-
-            for (const content of contentDetails) {
-
-                const { contentId } = content;
-
-                const isContentPresent = matchingModuleData.contentIds
-                    .map((id) => id.toString())
-                    .includes(contentId.toString());
-
-                if (!isContentPresent) {
-                    errors.push({
-                        overallId,
-                        moduleId,
-                        contentId,
-                        error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
-                    });
-                }
-
-            }
-        }
-    }
-
-    if (missingOverallEntries.length > 0) {
-        await OverallTrainingProgress.bulkWrite(missingOverallEntries);
-    }
-
-    return errors;
-};
-
-const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRegMap, overallDocs, session) => {
-
-    if (updateTrainingProgress && trainingRegMap && overallDocs) {
+    if (trainingRegMap && overallDocs) {
 
         const trainingRegistrationIds = overallDocs
             .map((doc) => trainingRegMap.get(doc._id.toString()))
@@ -304,12 +403,17 @@ const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRe
         }).lean();
 
         const trainingProgressMap = new Map();
+
         allTrainingProgresses.forEach((progress) => {
+
             const trainingRegistrationStr = progress.trainingRegistration.toString();
+
             if (!trainingProgressMap.has(trainingRegistrationStr)) {
                 trainingProgressMap.set(trainingRegistrationStr, []);
             }
+
             trainingProgressMap.get(trainingRegistrationStr).push(progress);
+
         });
 
         const registrationsForCertificates = [];
@@ -338,9 +442,9 @@ const validateAndGenerateCertificate = async (updateTrainingProgress, trainingRe
             }
         }
 
-        // if (registrationsForCertificates.length > 0) {
-        //     await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
-        // }
+        if (registrationsForCertificates.length > 0) {
+            await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
+        }
 
     }
 
@@ -351,7 +455,6 @@ const updateTrainingProgress = async (input, userId) => {
     const overallIds = input.map((item) => item.overallId);
 
     if (overallIds.length == 0) return;
-
 
     const overallDocs = await OverallTrainingProgress.find({
         _id: { $in: overallIds },
@@ -378,6 +481,7 @@ const updateTrainingProgress = async (input, userId) => {
                 });
             });
         }
+
     });
 
     trainingProgressDocs = await TrainingProgress.find({
@@ -417,7 +521,7 @@ const updateTrainingProgress = async (input, userId) => {
                             filter: { _id: existingProgress._id },
                             update: {
                                 $set: {
-                                    contentStatus: content.contentStatus,
+                                    status: content.contentStatus,
                                     lastAccessedDuration: content.duration,
                                     progressPercentage: content.progressPercentage,
                                     playerSettings: content.playerSettings,
@@ -434,11 +538,11 @@ const updateTrainingProgress = async (input, userId) => {
                                 trainingRegistration,
                                 trainingModule: module.moduleId,
                                 trainingModuleContent: ObjectId(content.contentId),
-                                contentStatus: content.contentStatus,
+                                overallTrainingProgress: item.overallId,
+                                status: content.contentStatus,
                                 lastAccessedDuration: content.duration,
                                 progressPercentage: content.progressPercentage,
                                 playerSettings: content.playerSettings,
-                                status: "IN_PROGRESS",
                             },
                         },
                     });
@@ -448,6 +552,94 @@ const updateTrainingProgress = async (input, userId) => {
         });
 
     });
+
+    let updateTrainingProgress;
+    if (bulkOps.length > 0) {
+        updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps);
+    }
+
+    const overallTrainingMap = new Map(
+        overallDocs.map((doc) => [doc._id.toString(), doc.training])
+    );
+
+    const arrayOfTrainingIds = [...overallTrainingMap.values()];
+
+    const trainingModules = await TrainingModule.find({ training: { $in: arrayOfTrainingIds } });
+
+    let trainingModuleIds = trainingModules.map((mod) => mod._id.toString());
+
+    const trainingModuleMap = trainingModules.reduce((acc, mod) => {
+        const trainingId = mod.training.toString();
+        if (!acc[trainingId]) acc[trainingId] = [];
+        acc[trainingId].push(mod._id.toString());
+        return acc;
+    }, {});
+
+    let overallModuleMap = {};
+    overallIds.forEach(overallId => {
+        const trainingId = overallTrainingMap.get(overallId.toString());
+        overallModuleMap[overallId] = trainingModuleMap[trainingId] || [];
+    });
+
+    const trainingModuleContents = await TrainingContentBridge.find({
+        trainingModule: { $in: trainingModuleIds }
+    });
+
+    const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
+        const { trainingModule, trainingContent } = doc;
+
+        if (!acc[trainingModule]) {
+            acc[trainingModule] = [];
+        }
+        acc[trainingModule].push(trainingContent.toString());
+        return acc;
+    }, {});
+
+    const trainingModuleContentIds = trainingModuleContents.map((item) => item.trainingContent);
+
+    const existingProgresses = await TrainingProgress.find({
+        trainingRegistration: { $in: overallIds.map(id => trainingRegMap.get(id.toString())) },
+        overallTrainingProgress: { $in: overallIds },
+        trainingModule: { $in: trainingModuleIds },
+        trainingModuleContent: { $in: Object.values(trainingModuleContentMap).flat() },
+    });
+
+    const existingSet = new Set(
+        existingProgresses.map(
+            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}`
+        )
+    );
+
+    const newProgresses = [];
+
+    overallIds.forEach(overallId => {
+
+        const training = overallTrainingMap.get(overallId.toString());
+
+        const trainingRegistration = trainingRegMap.get(overallId.toString());
+
+        const moduleIds = trainingModules
+            .filter(mod => mod.training.toString() == training)
+            .map(mod => mod._id.toString());
+
+        moduleIds.forEach(trainingModule => {
+            const contentIds = trainingModuleContentMap[trainingModule] || [];
+            contentIds.forEach(trainingModuleContent => {
+                const key = `${overallId}_${trainingModuleContent}`;
+                if (!existingSet.has(key)) {
+                    newProgresses.push({
+                        training,
+                        trainingModule,
+                        trainingModuleContent,
+                        trainingRegistration,
+                        overallTrainingProgress: overallId
+                    });
+                }
+            });
+        });
+
+    });
+
 
     const evaluationData = input.flatMap(overall =>
         overall.trainingModules.flatMap(module =>
@@ -461,21 +653,24 @@ const updateTrainingProgress = async (input, userId) => {
         )
     );
 
-    let errors = [];
-    const quizResults = await quizEvaluationBulk(evaluationData, userId, errors);
-
-    if (errors.length > 0) {
-        console.log(errors[0]);
-    }
-
     const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
-        let updateTrainingProgress;
-        if (bulkOps.length > 0) {
-            updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps, { session });
+        if (newProgresses.length > 0) {
+            await TrainingProgress.insertMany(newProgresses);
         }
-        
+
+        let quizErrors = [];
+        if (evaluationData) {
+            quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
+        }
+
+        if (quizErrors && quizErrors.length > 0) {
+            errors.push(quizErrors[0]);
+            return;
+        }
+
         // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
+        // const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
 
     });
 
@@ -483,10 +678,13 @@ const updateTrainingProgress = async (input, userId) => {
     return { updatedCount: bulkOps.length };
 };
 
-const quizEvaluationBulk = async (evaluationData, userId, errors) => {
+const quizEvaluationBulk = async (evaluationData, userId, session) => {
+
     try {
 
-        const overallIds = evaluationData.map(data => data.trainingId);
+        let errors = [];
+
+        const overallIds = evaluationData.map(data => data.overallId);
 
         if (overallIds.length == 0) {
             errors.push("No overallId found in evaluationData");
@@ -502,6 +700,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
             return;
         }
 
+
         const overallIdToTrainingIdMap = overallTrainingProgress.reduce((acc, doc) => {
             acc[doc._id.toString()] = doc.training.toString();
             return acc;
@@ -509,7 +708,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 
         const contentIds = evaluationData.map(data => data.contentId);
         const trainingModuleIds = evaluationData.map(data => data.trainingModuleId);
-        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.trainingId]);
+        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.overallId]);
 
         if (contentIds.length == 0 || trainingModuleIds.length == 0 || trainingIds.length == 0) {
             errors.push("No contentId, trainingModuleId or trainingId found in evaluationData");
@@ -536,11 +735,15 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
             return;
         }
 
-        const results = [];
+        let results = [];
+
+        let quizEvaluations = [];
 
         for (const data of evaluationData) {
 
-            const { contentId, trainingModuleId, trainingId, questionAnswers } = data;
+            const { contentId, trainingModuleId, overallId, questionAnswers } = data;
+
+            const trainingId = overallIdToTrainingIdMap[overallId];
 
             const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
             const trainingModule = trainingModules.find(module => module._id.toString() === trainingModuleId.toString());
@@ -619,7 +822,7 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 
             isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
 
-            const quizEvaluation = new QuizEvaluation({
+            const quizEvaluationData = {
                 contentId,
                 trainingModuleId,
                 trainingId,
@@ -632,13 +835,15 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
                 skippedQuestions,
                 isPassed,
                 attendedQuestions: questionResults,
-            });
+            };
 
-            await quizEvaluation.save();
-            results.push(quizEvaluation);
+            quizEvaluations.push(quizEvaluationData);
+
         }
 
-        return results;
+        results = await QuizEvaluation.insertMany(quizEvaluations, { session });
+
+        return errors;
 
     } catch (error) {
         console.error("Error evaluating quiz in bulk:", error);
@@ -648,7 +853,8 @@ const quizEvaluationBulk = async (evaluationData, userId, errors) => {
 module.exports = {
     uploadTrainingImages,
     updateTrainingProgress,
-    validateAndUpdateContentData,
+    addDataToOverallTrainingProgress,
+    validateSyncOfflineData,
     generateTrainingUID,
     uploadCertificateTrainingImages,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {

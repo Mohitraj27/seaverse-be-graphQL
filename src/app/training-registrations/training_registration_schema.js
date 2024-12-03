@@ -63,12 +63,12 @@ module.exports = {
             mandatoryModules: Int
             completedModules: Int
             isComplete: Boolean
-            status: Status
             retryCount: Int
             progressPercentage: Int
             isEnrolled: Boolean
             moduleCount: Int
             totalDuration: Int
+            status: String
             trainingModules: [TrainingModule]
         }
         type TrainingRegistrationList {
