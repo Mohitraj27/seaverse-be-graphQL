@@ -187,6 +187,7 @@ module.exports = {
         input myCourseFilterInput {
             search: String
             status: Status
+            employeeId: ID
         }
         type myCoursesRes {
             status: Boolean

@@ -33,7 +33,7 @@ const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
-const { create } = require("lodash");
+const { create, filter } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
 const path = require('path');
@@ -41,9 +41,9 @@ const aws_helper = require("../../util/aws_helper");
 const { TrainingContentBridge } = require("../../app/trainings/training_content_bridge/training_content_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { v4: uuidv4 } = require('uuid');
+const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
-const notificationiconEnum = require("../notifications/notification_icon.json");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -226,7 +226,7 @@ module.exports.queries = {
 
         try {
             let filterConditions = {
-                user: ObjectId(userId),
+                user:filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
             }
 
@@ -823,21 +823,6 @@ module.exports.queries = {
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
-        await NotificationHelper.createNotificationhelper({
-            subscriber: subscriberId,
-            titleValue: `New Training Registration`,
-            messageValue: `A new training registration has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
-            notificationType: NotificationType.TRAINING_REGISTRATION_CREATED,
-            notifyAdmin: false,
-            notifiers: [
-                userId
-            ],
-            employeeNotifiers: [userId],
-            affected: [],
-            status: 'SENT',
-            icon: notificationiconEnum.SUCCESS,
-            createdBy: userInfo,
-        });
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
     verifyRegistrationEmails: async ({ input }, context) => {
@@ -1142,7 +1127,7 @@ module.exports.mutations = {
     },
 
     markAsCompleted: async ({ input }, context) => {
-        const { subscriberId } = AuthUser(context);
+        const { subscriberId , userInfo, userId} = AuthUser(context);
         try {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
@@ -1229,7 +1214,36 @@ module.exports.mutations = {
                     }
                 })
             );
-
+            await Promise.all(input.userIds.map(async (userId) => {
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Course Completed`,
+                    messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
+                    notificationType: NotificationType.COURSE_COMPLETION,
+                    notifyAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+            }));
+    
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Course Completion Notification`,
+                messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
+                notificationType: NotificationType.COURSE_COMPLETION,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: [],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+    
             return {
                 status: true,
                 message: "Marked as completed successfully"
@@ -1240,7 +1254,7 @@ module.exports.mutations = {
     },
 
     resetModules: async ({ input }, context) => {
-        const { subscriberId } = AuthUser(context);
+        const { subscriberId, userInfo } = AuthUser(context);
 
         try {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
@@ -1271,6 +1285,40 @@ module.exports.mutations = {
                     }
                 );
             }
+            const trainingData = await Training.findById(input.training);
+            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+
+            const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
+
+            await Promise.all(userIds.map(async (userId) => {
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Course has been reset`,
+                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
+                    notificationType: NotificationType.COURSE_MODULES_RESET,
+                    notifyAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+            }));
+
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Course Reset Notification`,
+                messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
+                notificationType: NotificationType.COURSE_MODULES_RESET,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: [],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
 
             return {
                 status: true,
