@@ -241,7 +241,7 @@ module.exports = {
             filePath : String
             message : String
         }
-        type customReortLogOutput{
+        type customReportLogOutput{
             _id : ID
             from : String
             to : String
@@ -249,6 +249,20 @@ module.exports = {
             generatedBy : String
             filePath : MultiMediaInfo
         }
+
+        input mainVesselReportInput {
+            filterInput: vesselReportFilter   
+            pageInput: PageInput       
+            export: Boolean 
+        }
+
+        input vesselReportFilter {
+          ownerName : [String]
+          companyName : [String]
+          vesselTypeIds : [ID]
+          vesselNameIds : [ID]
+        }
+
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -260,8 +274,8 @@ module.exports = {
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
         getSingleCourseReport(input: singleCourseReportInput):singleCourseReportOutput
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
-        getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
+        getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
-        getCustomReportLogs(pageInput : PageInput):[customReortLogOutput]
+        getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
     `,
 };
