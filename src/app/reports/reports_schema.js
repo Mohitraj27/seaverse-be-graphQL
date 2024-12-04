@@ -87,7 +87,7 @@ module.exports = {
             vesselTypeId : ID
             lastSeen : String
             coursesCount : Int 
-            averageProgressPercentage : Int
+            averageProgressPercentage : Float
             isDeleted : Boolean
         }
         type learnerMainReportResponse {
@@ -223,7 +223,7 @@ module.exports = {
             companyName : String
             ownerName : String
             onboardedCount : Int
-            progress : Int
+            progress : Float
         }
         input customReportInput {
             dateRange : filterDateRange!
