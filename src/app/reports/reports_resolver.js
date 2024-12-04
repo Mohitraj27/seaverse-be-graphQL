@@ -1374,14 +1374,40 @@ const getVesselMainReport = async ({ input }, context) => {
                 });
             }
 
-            if (filterInput.ownerName) {
+            if (filterInput.ownerName && Array.isArray(filterInput.ownerName) && filterInput.ownerName.length > 0) {
                 matchStage.push({
                     $match: {
-                        'ownerName': { $regex: filterInput.ownerName, $options: 'i' },
+                        'ownerName': {
+                            $in: filterInput.ownerName.map(name => new RegExp(name, 'i'))
+                        }
+                    },
+                });
+            }
+            if (filterInput.companyName && Array.isArray(filterInput.companyName) && filterInput.companyName.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'companyName': {
+                            $in: filterInput.companyName.map(name => new RegExp(name, 'i'))
+                        }
                     },
                 });
             }
 
+            if (filterInput.vesselTypeIds && Array.isArray(filterInput.vesselTypeIds) && filterInput.vesselTypeIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselTypeId': { $in: filterInput.vesselTypeIds },
+                    },
+                });
+            }
+
+            if (filterInput.vesselNameIds && Array.isArray(filterInput.vesselNameIds) && filterInput.vesselNameIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        '_id': { $in: filterInput.vesselNameIds },
+                    },
+                });
+            }
             const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
             const limit = input.pageInput?.pageSize || 0;
 
@@ -1442,6 +1468,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     companyName: 1,
                     ownerName: 1,
                     vesselType: "$vesselTypesInfo.name",
+                    vesselTypeId: "$vesselTypesInfo._id",
                     onboardedUsers: {
                         $ifNull: [
                             {
@@ -1520,9 +1547,10 @@ const getVesselMainReport = async ({ input }, context) => {
                 $project: {
                     vesselName: "$name",
                     imoNumber: 1,
-                    companyName:1,
+                    companyName: 1,
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
+                    vesselTypeId: "$vesselTypeId",
                     ownerName: 1,
                     onboardedCount: {
                         $size: {
@@ -1536,6 +1564,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 $group: {
                     _id: "$_id",
                     vesselName: { $first: "$vesselName" },
+                    vesselTypeId: { $first: "$vesselTypeId" },
                     imoNumber: { $first: "$imoNumber" },
                     companyName: { $first: "$companyName" },
                     vesselId: { $first: "$vesselId" },
