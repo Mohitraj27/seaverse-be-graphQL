@@ -1,6 +1,6 @@
 const { Schema, Model, ObjectId, AggregatePaginate, Moment } = require("../../tools");
 const { LocalisedDataSchema } = require("../../util/localised_data_schema");
-
+const notificationiconEnum = require("./notification_icon.json");
 const notificationSchema = new Schema(
     {
         subscriber: {
@@ -14,6 +14,7 @@ const notificationSchema = new Schema(
         },
         title: [LocalisedDataSchema],
         message: [LocalisedDataSchema],
+        userMessage: [LocalisedDataSchema],
         notificationType: {
             type: String,
             uppercase: true,
@@ -36,7 +37,7 @@ const notificationSchema = new Schema(
         ],
         affected: [
             {
-                targetRef: String, 
+                targetRef: String,
                 target: {
                     type: ObjectId,
                     refPath: "affected.targetRef",
@@ -66,6 +67,11 @@ const notificationSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        isError:Boolean,
+        status: {
+            type: String,
+            default: null
+        },
         autoDeleteAt: {
             type: Date,
             default: function () {
@@ -73,14 +79,15 @@ const notificationSchema = new Schema(
             },
             expires: 60,
         },
+        icon:{
+            type:String,
+            default:"STABLE",
+            enum: Object.values(notificationiconEnum),
+        }
     },
     { timestamps: true }
 );
-
 notificationSchema.index({ subscriber: 1, notificationType: "text" });
-
 notificationSchema.index({ createdAt: -1 });
-
 notificationSchema.plugin(AggregatePaginate);
-
 module.exports.Notification = Model("Notification", notificationSchema);

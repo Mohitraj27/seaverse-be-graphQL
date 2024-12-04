@@ -51,7 +51,11 @@ const AwsHelper = require("../util/aws_helper");
 const { ContactSupportResolver } = require('../app/contact-support');
 const { UserVesselResolver } = require('../app/user/user-vessel-bridge');
 const { QuestionResolver } = require('../app/trainings/training_modules/training_module_contents/question');
-
+const { LearningPlanResolver } = require("../app/learning-plan");
+const { CertificateLayoutResolver } = require("../app/trainings/certificate_layout");
+const { ContentZipResolver } = require("../app/trainings/compress_to_zip");
+const { CompanyResolver } = require("../app/vessle/company");
+const { OwnerResolver } = require("../app/vessle/owner");
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -126,7 +130,7 @@ module.exports = {
         ...AuthHelper.requiresLogin(ReportResolver.queries),
         ...AuthHelper.requiresLogin(SubscriberProfileResolver.queries),
         ...AuthHelper.requiresLogin(TrainingAttendanceResolver.queries),
-
+        ...AuthHelper.requiresLogin(CertificateLayoutResolver.queries),
         ...AuthHelper.requiresLogin(QuizContentResolver.queries),
         ...AuthHelper.requiresLogin(QuizAttemptResolver.queries),
         ...AuthHelper.requiresEmployee(DesignationResolver.queries),
@@ -135,7 +139,9 @@ module.exports = {
         ...AuthHelper.requiresAdmin(TrainingModuleContentResolver.queries),
         ...AuthHelper.requiresAdmin(VesselTypeResolver.queries),
         ...AuthHelper.requiresAdmin(VesselResolver.queries),
-        ...AuthHelper.requiresAdmin(VesselResolver.queries),
+        ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
+        ...AuthHelper.requiresAdmin(CompanyResolver.queries),
+        ...AuthHelper.requiresAdmin(OwnerResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -170,10 +176,15 @@ module.exports = {
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselTypeResolver.mutations),
         ...AuthHelper.requiresAdmin(VesselResolver.mutations),
-        ...AuthHelper.requiresLogin(ContactSupportResolver.mutations),
-        ...AuthHelper.requiresAdmin(VesselResolver.mutations),
+        ...AuthHelper.simplify(ContactSupportResolver.mutations),
         ...AuthHelper.requiresAdmin(UserVesselResolver.mutations),
         ...AuthHelper.requiresAdmin(QuestionResolver.mutations),
+        ...AuthHelper.requiresAdmin(LearningPlanResolver.mutations),
+        ...AuthHelper.requiresAdmin(CertificateLayoutResolver.mutations),
+        ...AuthHelper.requiresLogin(ContentZipResolver.mutations),
+        ...AuthHelper.requiresAdmin(CompanyResolver.mutations),
+        ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
+        ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

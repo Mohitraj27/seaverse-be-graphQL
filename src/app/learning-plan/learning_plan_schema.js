@@ -24,11 +24,11 @@ module.exports = {
         enum GroupTypeEnum {
             ${Object.keys(groupTypeEnums).join(" ")}
         }
-         enum TrainingProgressStatusEnum {
+        enum TrainingProgressStatusEnum {
              NOT_STARTED
              IN_PROGRESS
              COMPLETED
-         }   
+        }   
          enum lastModifiedEnum {
             TODAY
             YESTERDAY
@@ -52,6 +52,12 @@ module.exports = {
             type_of_Field: TypeOfConditionalCustomFieldEnum!
             valueOfField: [String!]!  
             isOrIsNot: String!
+            groupIDs: [groupTypeRes!]
+        }
+        type groupTypeRes {
+            _id: ID
+            groupType: GroupTypeEnum
+            groupIDs: [ID!]
         }
         type LocalizedField {
             _id: ID
@@ -123,30 +129,31 @@ module.exports = {
             authorName: String
             isOrdered: Boolean
         }
-      type learnerData {
-        _id: ID
-       firstName: String
-       lastName: String
-       email: String
-       progressPercentage: Float
-       completedModules : Int
-       totalModules : Int
-       updatedAt: String
-     
-      }
+        type learnerData {
+            _id: ID
+            firstName: String
+            lastName: String
+            email: String
+            progressPercentage: Float
+            completedModules : Int
+            totalModules : Int
+            status:String
+            updatedAt: String
+        }
         type overAllProgress {
-          participantsCompleted: Int
-        learningPlan:ID
-        averageProgress:Float
-        users:[learnerData]
+            participantsCompleted: Int
+            learningPlan:ID
+            averageProgress:Float
+            users:[learnerData]
+            overallTrainingprogressStatus: [TrainingProgressStatusEnum]
         }
         type LearningPlan {
             _id: ID
             title: String!
-            selectCourses: [courseDetails!]!
+            selectCourses: [courseDetails!]
             targetAudience: TargetAudienceEnum
-            groupIDs: [ID]
-            userObjectIds: [ID]
+            groupIDs: [groupTypeRes]
+            userObjectIds: [userObjectDetails]
             status: LearningPlanStatus!
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
@@ -158,6 +165,12 @@ module.exports = {
             createdAt: String
             updatedAt: String
             overallProgress: overAllProgress
+        }
+        type userObjectDetails {
+            _id: ID
+            firstName: String
+            lastName: String
+            email: String
         }
         type DeleteLearningPlanResponse {
             success: Boolean!
@@ -180,17 +193,15 @@ module.exports = {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
         }
-            input pageInput {
-                limit: Int
-                skip: Int
-            }
+        input pageInput {
+            limit: Int
+            skip: Int
+        }
         input LearningPlanFilterInput {
             title: String
             status: LearningPlanStatus
             audienceSelection: [String!]
-            lastModified: lastModifiedEnum
-           
-             
+            lastModified: lastModifiedEnum  
         }
         input LearningPlanInput {
             title: String
@@ -226,8 +237,8 @@ module.exports = {
             
     `,
     queries: `
-        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput):LearningPlanResponse!
-        getLearningPlan(id: ID!,status:TrainingProgressStatusEnum,search: String): LearningPlan
+        getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
+        getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `

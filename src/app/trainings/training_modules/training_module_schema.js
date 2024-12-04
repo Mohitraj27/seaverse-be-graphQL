@@ -7,6 +7,8 @@ module.exports = {
             description: [LocalisedData]
             displayPosition: Int
             isActive: Boolean
+            progressPercentage: String
+            status: String
             trainingModuleContents: [TrainingModuleContent]
         }
         input TrainingModuleInput {
@@ -22,7 +24,7 @@ module.exports = {
             """
             Use this input only with createOrUpdateTraining mutation 
             """
-            trainingModuleContents: [TrainingModuleContentInput]
+            trainingModuleContents: [ID]
         }
     `,
     mutations: `

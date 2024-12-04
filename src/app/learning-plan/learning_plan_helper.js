@@ -23,6 +23,7 @@ const roles = require("../../util/role.json");
 const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validRoles = Object.values(roles);
+const { Moment } = require("../../tools");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -134,8 +135,10 @@ const createLearningPlanHelper = async (input, context) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (input.status !== "DRAFT") {
-            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status === "ACTIVE" || input.status === "INACTIVE") {
+            if (!input.selectCourses || input.selectCourses.length === 0) {
+                errorList.push(errorMessages.SELECT_COURSES_REQUIRED);
+            }
         }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
             ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
@@ -221,8 +224,7 @@ const createLearningPlanHelper = async (input, context) => {
             updatedBy: input.updatedBy
         });
         await newLearningPlan.save();
-
-        if (newLearningPlan.assignedLearnerIDs.length > 0) {
+        if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
                 users: newLearningPlan?.assignedLearnerIDs,
@@ -242,8 +244,10 @@ const updateLearningPlanHelper = async (id, input, context) => {
     try {
         if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
         if (!input.targetAudience) { errorList.push(errorMessages.TARGET_AUDIENCE_REQUIRED); }
-        if (input.status !== "DRAFT") {
-            if (!input.selectCourses) { errorList.push(errorMessages.SELECT_COURSES_REQUIRED); }
+        if (input.status === "ACTIVE" || input.status === "INACTIVE") {
+            if (!input.selectCourses || input.selectCourses.length === 0) {
+                errorList.push(errorMessages.SELECT_COURSES_REQUIRED);
+            }
         }
         if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
             ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
@@ -352,7 +356,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
         existingLearningPlan.status = input.status || existingLearningPlan.status;
         await existingLearningPlan.save();
-        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers) {
+        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
                 users: existingLearningPlan?.assignedLearnerIDs,
@@ -778,38 +782,68 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId, status, search = '') => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity) => {
     try {
-        const matchCriteria = { learningPlan: learningPlanId };
-
-        if (status !== null) {
-            matchCriteria.status = status;
+        const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+        let activityFilter;
+        if (status && Array.isArray(status) && status.length > 0) {
+            matchCriteria.status = { $in: status };
         }
-
-        const groupedProgress = await OverallTrainingProgress.aggregate([
+        let startDate, endDate;
+        if (lastActivity) {
+            const today = Moment();
+            switch (lastActivity) {
+                case "TODAY":
+                    startDate = today.startOf("day").toDate();
+                    endDate = today.endOf("day").toDate();
+                    break;
+                case "YESTERDAY":
+                    startDate = today.subtract(1, "day").startOf("day").toDate();
+                    endDate = today.subtract(1, "day").endOf("day").toDate();
+                    break;
+                case "LAST_7_DAYS":
+                    startDate = today.subtract(7, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_30_DAYS":
+                    startDate = today.subtract(30, "days").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_3_MONTHS":
+                    startDate = today.subtract(3, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_6_MONTHS":
+                    startDate = today.subtract(6, "months").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                case "LAST_YEAR":
+                    startDate = today.subtract(1, "year").startOf("day").toDate();
+                    endDate = Moment().endOf("day").toDate();
+                    break;
+                default:
+                    break;
+            }
+        }
+        const pipeline = [
             {
-                $match: matchCriteria
+                $match: matchCriteria,
             },
             {
                 $lookup: {
                     from: "users",
                     localField: "user",
                     foreignField: "_id",
-                    as: "userDetails"
-                }
-            },
-            {
-                $unwind: "$userDetails"  
-            },
-           
-            {
-                $match: {
-                    $or: [
-                        { "userDetails.firstName": { $regex: search, $options: 'i' } },
-                        { "userDetails.lastName": { $regex: search, $options: 'i' } },
-                        { "userDetails.email": { $regex: search, $options: 'i' } }
+                    as: "userDetails",
+                    pipeline: [
+                        ...(lastActivity && startDate && endDate
+                            ? [{ $match: { lastLoginAt: { $gte: startDate, $lte: endDate } } }]
+                            : [])
                     ]
                 }
+            },
+            {
+                $unwind: "$userDetails"
             },
             {
                 $group: {
@@ -820,10 +854,11 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
-                            totalModules: { $ifNull: [{ $size: "$trainingModuleIds" }, 0] },
-                            userDetails: "$userDetails"
+                            userDetails: "$userDetails",
+                            status: "$status"
                         }
-                    }
+                    },
+                    overallTrainingprogressStatus: { $addToSet: "$status" }
                 }
             },
             {
@@ -843,14 +878,29 @@ const getLearningPlanAverageProgress = async (learningPlanId, status, search = '
                                 email: "$$user.userDetails.email",
                                 firstName: "$$user.userDetails.firstName",
                                 lastName: "$$user.userDetails.lastName",
-                                updatedAt: "$$user.userDetails.updatedAt"
+                                updatedAt: "$$user.userDetails.updatedAt",
+                                status: "$$user.status"
                             }
                         }
-                    }
+                    },
+                    overallTrainingprogressStatus: 1
                 }
             }
-        ]);
+        ];
+        if (search != null && search) {
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { "userDetails.firstName": { $regex: search, $options: 'i' } },
+                        { "userDetails.lastName": { $regex: search, $options: 'i' } },
+                        { "userDetails.email": { $regex: search, $options: 'i' } }
+                    ]
+                }
+            });
+        }
 
+
+        const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
         return groupedProgress?.[0] || [];
     } catch (error) {
         throw new Error(error.message);

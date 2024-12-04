@@ -8,7 +8,9 @@ const { Moment } = require("../../tools");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
-
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const NotificationType = require("../notifications/notification_type.json");
+const NotificationHelper = require("../notifications/notification_helper")
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -37,6 +39,22 @@ module.exports.mutations = {
                         infoData: JSON.stringify(result),
                     },
                 ],
+                createdBy: userInfo,
+            });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Learning Plan Created`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_CREATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: result.learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return result.learningPlan;
@@ -87,6 +105,26 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+            await Promise.all(
+                updatedPlans.map(plan =>
+                    NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Learning Plan Status Updated`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
+                        notifyAdmin: true,
+                        affected: [
+                            {
+                                targetRef: "LearningPlan",
+                                target: plan._id,
+                            },
+                        ],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    })
+                )
+            );
             return {
                 success: true,
                 message: `Updated ${updatedLearningPlans.nModified} Learning Plans to status ${newStatus}.`,
@@ -134,6 +172,22 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learning Plan Deleted`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_DELETED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Learning Plan  deleted successfully.'
@@ -178,6 +232,22 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learning Plan Updated`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.LEARNING_PLAN_UPDATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "LearningPlan",
+                        target: result.learningPlan._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return learningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -185,11 +255,11 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
-    getLearningPlans: async ({ filterInput, pageInput }, context) => {
+    getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 10);
+        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
@@ -202,8 +272,8 @@ module.exports.queries = {
                 queryConditions.title = { $regex: filterInput.title, $options: "i" };
             }
 
-            if (filterInput?.status) {
-                queryConditions.status = filterInput.status;
+            if (filterInput?.status && Array.isArray(filterInput.status)) {
+                queryConditions.status = { $in: filterInput.status };
             }
             if (filterInput?.audienceSelection) {
                 queryConditions.audienceSelection = {
@@ -257,6 +327,20 @@ module.exports.queries = {
             const learningPlans = await LearningPlan.aggregate([
 
                 { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "groups",
+                        localField: "groupIDs",
+                        foreignField: "_id",
+                        as: "groupDetails"
+                    }
+                },
+                {
+                    $unwind: {
+                        path: "$groupDetails",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
                 {
                     $lookup: {
                         from: "users",
@@ -401,6 +485,7 @@ module.exports.queries = {
                         updatedAt: 1,
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
+                        conditionalCustomFields: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -415,10 +500,11 @@ module.exports.queries = {
                 }
                 ,
                 { $skip: parsedSkip },
-                { $limit: parsedLimit }
+                { $limit: parsedLimit },
+                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
-                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id);
+                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
             return {
@@ -429,7 +515,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, search }, context) => {
+    getLearningPlan: async ({ id, status, lastActivity, search }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -438,9 +524,19 @@ module.exports.queries = {
                 _id: id,
                 isDeleted: false,
             };
-
+            if (queryConditions?.status && Array.isArray(queryConditions.status)) {
+                queryConditions.status = { $in: queryConditions.status };
+            }
             const learningPlan = await LearningPlan.aggregate([
                 { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userObjectIds",
+                        foreignField: "_id",
+                        as: "userObjectIds"
+                    }
+                },
                 {
                     $lookup: {
                         from: "users",
@@ -477,7 +573,61 @@ module.exports.queries = {
                             {
                                 $project: {
                                     _id: 1,
-
+                                    UID: 1,
+                                    trainingCategories: 1,
+                                    trainingSubCategories: 1,
+                                    title: 1,
+                                    description: 1,
+                                    instructions: 1,
+                                    overview: 1,
+                                    feedback: 1,
+                                    feedbackContent: 1,
+                                    images: 1,
+                                    price: 1,
+                                    durationHours: 1,
+                                    certificateValidity: 1,
+                                    targetAudienceId: 1,
+                                    courseType: 1,
+                                    enableFreeFlow: 1,
+                                    unlockOn: 1,
+                                    status: 1,
+                                    trainingModuleContents: 1,
+                                    courseId: 1,
+                                    course_validity: 1,
+                                    courseLevel: 1,
+                                    hideCourseProgress: 1,
+                                    allowMultipleAttempts: 1,
+                                    attemptFlexibility: 1,
+                                    attemptType: 1,
+                                    setLimitAttempt: 1,
+                                    disableFurtherAttemptsOnPass: 1,
+                                    lockModulesBetweenAttempts: 1,
+                                    setTimeLimitForModule: 1,
+                                    approvalStatus: 1,
+                                    certifications: 1,
+                                    bannerImage: 1,
+                                    appliedAt: 1,
+                                    approvedAt: 1,
+                                    rejectedAt: 1,
+                                    isActive: 1,
+                                    createdBy: 1,
+                                    isDeleted: 1,
+                                    createdAt: 1,
+                                    trainingModules: 1,
+                                    scorm: 1,
+                                    groupTrainingModule: 1,
+                                    skills: 1,
+                                    userFeedback: 1,
+                                    managerFeedback: 1,
+                                    setFrequency: 1,
+                                    enableEmailNotification: 1,
+                                    setReminder: 1,
+                                    setFrequencyDate: 1,
+                                    manadatoryModules: 1,
+                                    classroomModule: 1,
+                                    authorName: 1,
+                                    isOrdered: 1,
+                                    coverImage: 1,
                                 },
                             },
                         ],
@@ -522,14 +672,17 @@ module.exports.queries = {
                         _id: 1,
                         title: 1,
                         targetAudience: 1,
+                        groupIDs: 1,
+                        userObjectIds: 1,
                         status: 1,
                         audienceSelection: 1,
+                        conditionType: 1,
                         isDeleted: 1,
-                        assignedLearnerIDs: 1,
                         createdAt: 1,
                         updatedAt: 1,
-                        conditionType: 1,
                         selectCourses: 1,
+                        assignedLearnerIDs: 1,
+                        conditionalCustomFields: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -549,7 +702,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity);
 
             return detailedPlan;
         } catch (error) {

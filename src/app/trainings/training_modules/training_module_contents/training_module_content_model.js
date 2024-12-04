@@ -2,7 +2,6 @@ const { uuid } = require("uuidv4");
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../../tools");
 const { LocalisedDataSchema } = require("../../../../util/localised_data_schema");
 const { QuizSchema } = require("../../../quizzes/quiz_content_model");
-const training_helper = require("../../training_helper");
 
 const trainingModuleContentSchema = new Schema(
     {
@@ -146,6 +145,10 @@ const trainingModuleContentSchema = new Schema(
             default: Date.now,
         },
         isUpdated: {
+            type: Boolean,
+            default: false,
+        },
+        isPublished: {
             type: Boolean,
             default: false,
         },

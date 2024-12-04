@@ -28,6 +28,10 @@ module.exports = {
         message : String
         logos : [MultiMediaInfo]
     }
+    type certificateLayoutOutputForDelete {
+        success : Boolean,
+        message : String
+    }
     type CertificateLayout {
         id: ID
         layout: String
@@ -44,9 +48,10 @@ module.exports = {
 
 `,
     queries:`
-    getCertificateLayoutByTrainingId(trainingId:ID):CertificateLayout
+    getCertificateLayoutByTrainingId(trainingId:ID!):CertificateLayout
 `,
     mutations: `
     createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
+    deleteLogosFromCertificateLayout(layoutId : ID! , logoIndexes:[Int]!):certificateLayoutOutputForDelete
 `,
 };

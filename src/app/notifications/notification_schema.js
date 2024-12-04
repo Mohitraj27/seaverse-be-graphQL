@@ -26,9 +26,11 @@ module.exports = {
             employeeNotifiers: [Employee]
             affected: [NotificationAffected]
             additionalInfo: [NotificationAdditionalInfo]
+            status: String
             createdBy: User
             createdAt: String
             updatedAt: String
+            icon: String
         }
         type NotificationList {
             notifications: [Notification]

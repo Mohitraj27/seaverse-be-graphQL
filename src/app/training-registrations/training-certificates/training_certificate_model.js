@@ -1,5 +1,6 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools");
 const { LocalisedDataSchema } = require("../../../util/localised_data_schema");
+const Types  = require('mongoose');
 
 const trainingCertificateSchema = new Schema(
     {
@@ -28,54 +29,58 @@ const trainingCertificateSchema = new Schema(
             type: ObjectId,
             ref: "Branch",
         },
-        employee: {
+        user: {
             type: ObjectId,
-            ref: "Employee",
+            ref: "User",
             index: true,
         },
-        trainer: {
-            type: ObjectId,
-            ref: "Employee",
-        },
-        supervisor: {
-            type: ObjectId,
-            ref: "Employee",
-        },
         subscriberLogo: String,
-        employeeName: {
+        userName: {
             type: String,
             trim: true,
         },
-        employeeUID: {
+        userUID: {
             type: String,
             trim: true,
         },
-        employeeDesignation: {
+        userDesignation: {
             type: String,
             trim: true,
         },
-        employeeCivilIdOrPassport: {
+        userCivilIdOrPassport: {
             type: String,
             trim: true,
         },
-        employeeNo: {
+        userNo: {
             type: String,
             trim: true,
         },
-        employeeRigNumber: {
+        userRigNumber: {
             type: String,
             trim: true,
         },
-        employeeEmail: {
+        userEmail: {
             type: String,
             trim: true,
         },
-        employeeAvatar: String,
         organizationName: [LocalisedDataSchema],
+        issuedBy: {
+            type: String,
+            trim: true,
+        },
+        authoringTitle:{
+            type: String,
+            trim: true,
+        },
         trainerName: {
             type: String,
             trim: true,
         },
+        title: {
+            type: [LocalisedDataSchema],
+            required: true,
+        },
+        certificateReference:[LocalisedDataSchema],
         trainerSignature: String,
         trainingTitle: [LocalisedDataSchema],
         trainingDescription: [LocalisedDataSchema],
@@ -126,6 +131,14 @@ const trainingCertificateSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        certificateLayout:{
+            type : ObjectId,
+            ref : "certificateLayout"
+        },
+        additionalData: [{
+            key: { type: String, required: true },
+            value: { type: Types.Mixed, required: true }
+        }]
     },
     { timestamps: true }
 );

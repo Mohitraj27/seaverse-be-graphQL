@@ -57,8 +57,17 @@ module.exports.mutations = {
                 additionalData,
             } = input;
     
-            let logosInput = logos ? logos : [];
+            let logosInput = logos ? [...logos] : [];
             let logoKeys = [];
+    
+            let existingLayout;
+            if (id) {
+                existingLayout = await certificateLayout.findById(id);
+                if (!existingLayout) {
+                    throw CustomError(ErrorName.VALIDATION_ERROR, "Certificate layout not found for the provided ID");
+                }
+                logosInput = existingLayout.logos || [];
+            }
     
             if (logoImage1) {
                 const logo = await UploadHelper.uploadImage({
@@ -67,10 +76,13 @@ module.exports.mutations = {
                     fileName: `certificate-layout-logo1_${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
-                logosInput.push({ url: logo });
+                if (logosInput[0]) {
+                    logosInput[0].url = logo;
+                } else {
+                    logosInput[0] = { url: logo };
+                }
                 logoKeys.push(logo);
             }
-    
             if (logoImage2) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage2,
@@ -78,7 +90,11 @@ module.exports.mutations = {
                     fileName: `certificate-layout-logo2_${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
-                logosInput.push({ url: logo });
+                if (logosInput[1]) {
+                    logosInput[1].url = logo;
+                } else {
+                    logosInput[1] = { url: logo };
+                }
                 logoKeys.push(logo);
             }
     
@@ -89,7 +105,11 @@ module.exports.mutations = {
                     fileName: `certificate-layout-logo3_${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
-                logosInput.push({ url: logo });
+                if (logosInput[2]) {
+                    logosInput[2].url = logo;
+                } else {
+                    logosInput[2] = { url: logo };
+                }
                 logoKeys.push(logo);
             }
     
@@ -106,13 +126,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
             }
     
-    
             if (id) {
-                const existingLayout = await certificateLayout.findById(id);
-                if (!existingLayout) {
-                    throw CustomError(ErrorName.VALIDATION_ERROR, "Certificate layout not found for the provided ID");
-                }
-    
                 existingLayout.layout = layout;
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
@@ -129,8 +143,9 @@ module.exports.mutations = {
                     logos: logosInput,
                 };
             } else {
-                const oldCertificateLayout = await certificateLayout.findOne({training : ObjectId(training)});
-                if(oldCertificateLayout)throw new Error('a layout already exists for this trainng');
+                const oldCertificateLayout = await certificateLayout.findOne({ training: ObjectId(training) });
+                if (oldCertificateLayout) throw new Error('A layout already exists for this training');
+    
                 const newCertificateLayout = new certificateLayout({
                     layout,
                     training,
@@ -142,6 +157,7 @@ module.exports.mutations = {
                     additionalData,
                 });
                 await newCertificateLayout.save();
+                await Training.findByIdAndUpdate({_id : training},{$set: {isCertificate : true}})
                 return {
                     success: true,
                     message: "Certificate layout created successfully.",
@@ -154,5 +170,55 @@ module.exports.mutations = {
                 message: error.message || "An unexpected error occurred. Please try again later.",
             };
         }
+    }, 
+    deleteLogosFromCertificateLayout: async ({ layoutId, logoIndexes }, context) => {
+        try {
+            const { role, userId, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+    
+            if (
+                !SubRoleHelper.hasPermission({
+                    currentRole: role,
+                    currentPermissions: userPermissions,
+                    requiredPermission: [Permission.CREATE_TRAINING_REGISTRATION],
+                    requiredAll: false,
+                    restrictOrganizationManager: isOrganizationManager,
+                })
+            ) {
+                throw CustomError(ErrorName.FORBIDDEN);
+            }
+    
+            if (!subscriberId) {
+                throw CustomError(ErrorName.FORBIDDEN);
+            }
+    
+            const existingLayout = await certificateLayout.findById(layoutId);
+            if (!existingLayout) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Certificate layout not found for the provided ID");
+            }
+    
+            if (!Array.isArray(logoIndexes) || logoIndexes.some(index => typeof index !== 'number' || index < 0 || index >= existingLayout.logos.length)) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Invalid logo indexes");
+            }
+    
+            logoIndexes.sort((a, b) => b - a);
+    
+            logoIndexes.forEach(logoIndex => {
+                existingLayout.logos.splice(logoIndex, 1);
+            });
+    
+            await existingLayout.save();
+    
+            return {
+                success: true,
+                message: "Logos deleted successfully.",
+                logos: existingLayout.logos,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message || "An unexpected error occurred. Please try again later.",
+            };
+        }
     },
+           
 };

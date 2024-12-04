@@ -1,7 +1,7 @@
 const { ObjectId } = require("../../tools");
-const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../util");
+const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper } = require("../../util");
 const mongoose = require('mongoose');
- 
+
 const { Training } = require("./training_model");
 
 const NotificationHelper = require("../notifications/notification_helper");
@@ -14,28 +14,35 @@ const { TargetAudience } = require("./targetAudience/targetAudienceModel");
 const { User } = require("../user/user_model");
 const { Group } = require("../user/group-user");
 const { ClassroomModule } = require("./Classroom_module/Classroom_model");
-const uploadTrainingImages = async ({ images, folderName }) => {
-    const trainingImages = [];
+const { TrainingRegistration } = require("../training-registrations/training_registration_model");
+const { TrainingModule } = require("./training_modules/training_module_model");
+const { TrainingProgress } = require("../training-registrations/training-progress/training_progress_model");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const TrainingCertificateHelper = require("../training-registrations/training-certificates/training_certificate_helper");
+const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
+const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
+const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 
-    for (const item of images) {
-        item._id = item._id ?? ObjectId();
 
-        const savedItem = await UploadHelper.uploadImage({
-            data: item.url,
-            folderName: folderName ?? "training-image",
-            fileName: `image_${item._id}_${Date.now()}`,
-            uploadType: UploadHelper.uploadType.trainingImage,
-        });
+const uploadTrainingImages = async ({ coverImage, folderName }) => {
 
-        if (savedItem) {
-            trainingImages.push({
-                _id: item._id,
-                url: savedItem,
-            });
-        }
+    coverImage._id = coverImage._id ?? ObjectId();
+
+    const savedItem = await UploadHelper.uploadImage({
+        data: coverImage,
+        folderName: folderName ?? "cover-image",
+        fileName: `image_${coverImage._id}_${Date.now()}`,
+        uploadType: UploadHelper.uploadType.trainingImage,
+    });
+
+    if (savedItem) {
+        coverImage = {
+            _id: coverImage._id,
+            url: savedItem,
+        };
     }
 
-    return trainingImages;
+    return coverImage;
 };
 
 const uploadCertificateTrainingImages = async ({ images, folderName }) => {
@@ -61,28 +68,26 @@ const uploadCertificateTrainingImages = async ({ images, folderName }) => {
 
     return trainingCertificateImage;
 }
-const uploadTrainingBannerImage = async ({ images, folderName }) => {
-    const trainingBannerImage = [];
+const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
 
-    for(const item of images){
-        item._id = item._id ?? ObjectId();
+    bannerImage._id = bannerImage._id ?? ObjectId();
 
-        const savedItem = await UploadHelper.uploadImage({
-            data: item.url,
-            folderName: folderName ?? "training-banner-image",
-            fileName: `image_${item._id}_${Date.now()}`,
-            uploadType: UploadHelper.uploadType.trainingBannerImage,
-        });
+    const savedItem = await UploadHelper.uploadImage({
+        data: bannerImage,
+        folderName: folderName ?? "training-banner-image",
+        fileName: `image_${bannerImage._id}_${Date.now()}`,
+        uploadType: UploadHelper.uploadType.trainingBannerImage,
+    });
 
-        if(savedItem){
-            trainingBannerImage.push({
-                _id: item._id,
-                url: savedItem,
-            });
-        }
+    if (savedItem) {
+        bannerImage = {
+            _id: bannerImage._id,
+            url: savedItem,
+        };
     }
-    return trainingBannerImage;
-} 
+
+    return bannerImage;
+}
 const generateTrainingUID = async ({ subscriberId, session }) => {
     const savedCounter = await CounterHelper.updateCounter({
         subscriberId,
@@ -97,8 +102,8 @@ const generateTrainingUID = async ({ subscriberId, session }) => {
 const generateCourseId = (courseType) => {
     const date = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0"); 
-    const day = String(date.getDate()).padStart(2, "0"); 
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     const formattedDate = `${year}${month}${day}`;
     const typeCodes = {
         "SELF_LEARNING": "S",
@@ -106,73 +111,866 @@ const generateCourseId = (courseType) => {
         "VIRTUAL_TYPE": "V"
     }
     const typeCode = typeCodes[courseType];
-    const randomIdentifier = Math.floor(1000 + Math.random() * 9000); 
+    const randomIdentifier = Math.floor(1000 + Math.random() * 9000);
     return `Course-${formattedDate}-${typeCode}-${randomIdentifier}`;
 };
-module.exports = {
-    uploadTrainingImages,
-    generateTrainingUID,
-    uploadCertificateTrainingImages,
-    createOrUpdateTraining: async ({ input, session }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
 
-        if (!input.courseType || !Object.keys(CourseType).includes(input.courseType)) {
-            throw CustomError(ErrorName.INVALID_COURSE_TYPE);
+const validateSyncOfflineData = async (data) => {
+
+    let overallIds = data.map((item) => item.overallId);
+    let errors = [];
+
+    let overallProgresses = [];
+    if (overallIds.length > 0) {
+        overallProgresses = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
+
+    if (overallProgresses.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const overallProgressMap = new Map(
+        overallProgresses.map((doc) => [doc._id.toString(), doc])
+    );
+
+    const moduleContentPairs = new Map();
+
+    for (const entry of data) {
+
+        const { overallId, trainingModules } = entry;
+        const overallProgress = overallProgressMap.get(overallId.toString());
+
+        if (!overallProgress) {
+            errors.push(`Overall ID ${overallId} not found.`);
+            continue;
         }
-        
-        const validateCourseId = (courseId, courseType) => {
-            const date = new Date();
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, "0");
-            const day = String(date.getDate()).padStart(2, "0");
-            const formattedDate = `${year}${month}${day}`;
-            const typeCodes = {
-                "SELF_LEARNING": "S",
-                "CLASSROOM": "C",
-                "VIRTUAL_TYPE": "V"
-            };
-            const typeCode = typeCodes[courseType];
-            const regex = new RegExp(`^Course-${formattedDate}-${typeCode}-\\d{4}$`);
-            return regex.test(courseId);
-        };
 
-        const validateObjectIds = async (objectIds, model, field) => {
-            if (!objectIds || !objectIds.length) return;
-            const uniqueIds = new Set();
-            for (const id of objectIds) {
-                if (uniqueIds.has(id.toString())) {
-                    throw CustomError(ErrorName.DUPLICATE_TARGET_AUDIENCE_OBJECT_ID,`Duplicate ${field} ID ${id} found.`);
+        for (const module of trainingModules) {
+
+            const { moduleId, contentDetails } = module;
+
+            const contentDataMatch = overallProgress.contentData?.find(
+                (content) => content.moduleId.toString() == moduleId
+            );
+
+            for (const { contentId } of contentDetails) {
+
+                const contentIdString = ObjectId(contentId);
+
+                const contentDatasArray = Array.from(contentDataMatch.contentIds);
+
+                if (
+                    !contentDataMatch ||
+                    !contentDatasArray.contentIds.includes(contentIdString)
+                ) {
+
+                    const key = `${moduleId}-${contentId}`;
+                    if (!moduleContentPairs.has(key)) {
+                        moduleContentPairs.set(key, { moduleId, contentId });
+                    }
                 }
-                uniqueIds.add(id.toString());
-                const exists = await model.findOne({ _id: mongoose.Types.ObjectId(id) });
-                if (!exists) {
-                    throw CustomError(ErrorName.INVALID_TARGET_AUDIENCE_ID, `${field} with ID ${id} not found.`);
+
+            }
+
+        }
+
+    }
+
+    if (moduleContentPairs.size > 0) {
+
+        const queries = Array.from(moduleContentPairs.values());
+        const trainingContentBridges = await TrainingContentBridge.find({
+            $or: queries.map(({ moduleId, contentId }) => ({
+                trainingModule: moduleId,
+                trainingContent: contentId,
+            })),
+        }).lean();
+
+        const foundPairs = new Set(
+            trainingContentBridges.map(
+                (doc) => `${doc.moduleId}-${doc.contentId}`
+            )
+        );
+
+        for (const [key, { moduleId, contentId }] of moduleContentPairs) {
+
+            if (!foundPairs.has(key)) {
+                errors.push(
+                    `Missing content ID ${contentId} for module ${moduleId}`
+                );
+            }
+        }
+    }
+
+    return errors;
+
+}
+
+const addDataToOverallTrainingProgress = async (input, errors) => {
+
+    const overallIds = input.map((item) => item.overallId);
+
+    let overallDocs = [];
+    if (overallIds.length > 0) {
+        overallDocs = await OverallTrainingProgress.find({
+            _id: { $in: overallIds },
+        }).lean();
+    }
+
+    if (overallDocs.length == 0) {
+        errors.push(`Training not found`);
+        return;
+    }
+
+    const overallDocsWithNoContentData = overallDocs.filter((doc) => !doc.contentData || doc.contentData.length == 0);
+
+    if (overallDocsWithNoContentData.length > 0) {
+
+        const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
+
+        if (trainingIds.length == 0) {
+            errors.push(`Training couldn't found`);
+            return;
+        }
+
+        const fetchTrainingContents = await TrainingContentBridge.find({
+            training: { $in: trainingIds },
+        }).lean();
+
+        if (fetchTrainingContents.length == 0) {
+            errors.push(`Training content not found`);
+            return;
+        }
+
+        let contentDataMap = new Map();
+
+        let bulkOperations = [];
+
+        for (const doc of overallDocsWithNoContentData) {
+
+            const matchingContents = fetchTrainingContents.filter(
+                (content) => content.training.toString() === doc.training.toString()
+            );
+
+            if (matchingContents.length > 0) {
+
+                for (const content of matchingContents) {
+                    const moduleId = content.trainingModule.toString();
+                    const contentId = content.trainingContent.toString();
+
+                    if (!contentDataMap.has(moduleId)) {
+                        contentDataMap.set(moduleId, []);
+                    }
+                    contentDataMap.get(moduleId).push(contentId);
+                }
+
+                const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
+                    moduleId,
+                    contentIds,
+                }));
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: doc._id },
+                        update: { $set: { status: "IN_PROGRESS", contentData } },
+                    },
+                });
+            }
+        }
+
+        if (bulkOperations.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkOperations);
+        }
+
+    }
+
+}
+const calculateTrainingCompletion = (overallTrainingProgresses) => {
+
+    const resultMap = {};
+
+    overallTrainingProgresses.forEach((otp) => {
+
+        if (!resultMap[otp._id]) {
+            resultMap[otp._id] = {
+                overallTrainingProgressId: otp._id,
+                completedModulesCount: 0,
+                totalModules: 0,
+                mandatoryModules: otp.mandatoryModules || 0,
+                isTrainingCompleted: false,
+            };
+
+            const moduleCompletionMap = {};
+
+            const contentDataArray = Array.isArray(otp.contentData)
+                ? otp.contentData
+                : [otp.contentData];
+
+            otp.trainingProgressData.forEach((progress) => {
+
+                const moduleId = progress.trainingModule;
+
+                if (!moduleCompletionMap[moduleId]) {
+                    moduleCompletionMap[moduleId] = true;
+                }
+
+                if (progress.status !== "COMPLETED") {
+                    moduleCompletionMap[moduleId] = false;
+                }
+
+            });
+
+            const completedModulesCount = Object.values(moduleCompletionMap).filter(
+                (isCompleted) => isCompleted
+            ).length;
+
+            const totalModules = new Set(contentDataArray.map((cd) => cd.moduleId)).size;
+
+            resultMap[otp._id].completedModulesCount = completedModulesCount;
+            resultMap[otp._id].totalModules = totalModules;
+
+            resultMap[otp._id].isTrainingCompleted =
+                completedModulesCount >= resultMap[otp._id].mandatoryModules ||
+                completedModulesCount === totalModules;
+        }
+    });
+
+    return Object.values(resultMap);
+
+};
+
+// const validateAndUpdateContentData = async (input) => {
+
+//     const overallIds = input.map((item) => item.overallId);
+
+//     let overallDocs = [];
+//     if (overallIds.length > 0) {
+//         overallDocs = await OverallTrainingProgress.find({
+//             _id: { $in: overallIds },
+//         }).lean();
+//     }
+
+//     if (overallDocs.length == 0) {
+//         errors.push(`Training not found`);
+//         return;
+//     }
+
+//     const getTrainingIds = overallDocs.map((doc) => doc.training);
+
+//     if (getTrainingIds.length == 0) {
+//         errors.push(`Training couldn't found`);
+//         return;
+//     }
+
+//     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
+
+//     const errors = [];
+//     const missingOverallEntries = [];
+
+//     for (const item of input) {
+
+//         const { overallId, trainingModules } = item;
+
+//         const overallDoc = overallMap.get(overallId.toString());
+
+//         if (!overallDoc) {
+//             errors.push({
+//                 overallId,
+//                 error: `Training not found for overallId`,
+//             });
+//             break;
+//         }
+
+//         for (const trainingModule of trainingModules) {
+//             const { moduleId, contentDetails } = trainingModule;
+
+//             let matchingModuleData;
+//             if (overallDoc) {
+//                 matchingModuleData = overallDoc.contentData?.find(
+//                     (data) => data.moduleId.toString() == moduleId
+//                 );
+//             }
+
+//             if (!matchingModuleData) {
+
+//                 missingOverallEntries.push({
+//                     updateOne: {
+//                         filter: { _id: overallId },
+//                         update: {
+//                             status: "IN_PROGRESS",
+//                             $push: {
+//                                 contentData: {
+//                                     moduleId,
+//                                     contentIds: contentDetails.map((content) => content.contentId),
+//                                 },
+//                             },
+//                         },
+//                         upsert: true,
+//                     },
+//                 });
+
+//                 continue;
+//             }
+
+//             for (const content of contentDetails) {
+
+//                 const { contentId } = content;
+
+//                 const isContentPresent = matchingModuleData.contentIds
+//                     .map((id) => id.toString())
+//                     .includes(contentId.toString());
+
+//                 if (!isContentPresent) {
+//                     errors.push({
+//                         overallId,
+//                         moduleId,
+//                         contentId,
+//                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
+//                     });
+//                 }
+
+//             }
+//         }
+//     }
+
+//     if (missingOverallEntries.length > 0) {
+//         await OverallTrainingProgress.bulkWrite(missingOverallEntries);
+//     }
+
+//     return errors;
+// };
+
+const validateAndGenerateCertificate = async (overallIds, session) => {
+
+    if (overallIds.length > 0) {
+
+        if (!overallIds) return;
+
+        const fetchDetails = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    _id: { $in: overallIds }
+                }
+            },
+            { $unwind: "$contentData" },
+            { $unwind: "$contentData.contentIds" },
+            {
+                $lookup: {
+                    from: "trainingprogresses",
+                    let: {
+                        overallId: "$_id",
+                        moduleId: "$contentData.moduleId",
+                        contentId: "$contentData.contentIds"
+                    },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$overallTrainingProgress", "$$overallId"] },
+                                        { $eq: ["$trainingModule", "$$moduleId"] },
+                                        { $eq: ["$trainingModuleContent", "$$contentId"] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "trainingProgressData"
+                }
+            },
+            { $unwind: "$trainingProgressData" },
+            {
+                $group: {
+                    _id: "$_id",
+                    user: { $first: "$user" },
+                    training: { $first: "$training" },
+                    contentData: { $first: "$contentData" },
+                    trainingRegistration: { $first: "$trainingRegistration" },
+                    mandatoryModules: { $first: "$mandatoryModules" },
+                    // contentData: {
+                    //     $push: {
+                    //         moduleId: "$contentData.moduleId",
+                    //         contentIds: "$contentData.contentIds"
+                    //     }
+                    // },
+                    trainingProgressData: { $push: "$trainingProgressData" }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    user: 1,
+                    training: 1,
+                    contentData: 1,
+                    trainingRegistration: 1,
+                    mandatoryModules: 1,
+                    contentData: 1,
+                    trainingProgressData: 1
                 }
             }
-        };
+        ]);
+
+        const trainingCompletionStatus = calculateTrainingCompletion(fetchDetails);
+
+        if (registrationsForCertificates.length > 0) {
+            await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
+        }
+
+    }
+
+}
+
+const updateTrainingProgress = async (input, userId) => {
+
+    const overallIds = input.map((item) => item.overallId);
+
+    if (overallIds.length == 0) return;
+
+    const overallDocs = await OverallTrainingProgress.find({
+        _id: { $in: overallIds },
+    }).lean();
+
+    if (overallDocs.length == 0) return;
+
+    const trainingRegMap = new Map(
+        overallDocs.map((doc) => [doc._id.toString(), doc.trainingRegistration])
+    );
+
+    const trainingRegistrationIds = [];
+    const contentIds = new Set();
+    let trainingProgressDocs;
+
+    input.forEach((item) => {
+        const trainingRegistration = trainingRegMap.get(item.overallId.toString());
+
+        if (trainingRegistration) {
+            trainingRegistrationIds.push(trainingRegistration);
+            item.trainingModules.forEach((module) => {
+                module.contentDetails.forEach((content) => {
+                    contentIds.add(content.contentId);
+                });
+            });
+        }
+
+    });
+
+    trainingProgressDocs = await TrainingProgress.find({
+        trainingRegistration: { $in: trainingRegistrationIds },
+        trainingModuleContent: { $in: [...contentIds] },
+    }).lean();
+
+    let trainingProgressMap;
+
+    if (trainingProgressDocs) {
+        trainingProgressMap = new Map(
+            trainingProgressDocs.map((doc) => [
+                `${doc.trainingRegistration}_${doc.trainingModuleContent}`,
+                doc,
+            ])
+        );
+    }
+
+    const bulkOps = [];
+
+    let overallProgressPercentageMap = new Map();
+
+    input.forEach((item) => {
+
+        const trainingRegistration = trainingRegMap.get(item.overallId.toString());
+
+        if (!trainingRegistration) return;
+
+        item.trainingModules.forEach((module) => {
+
+            module.contentDetails.forEach((content) => {
+
+                const progressKey = `${trainingRegistration}_${content.contentId}`;
+                const existingProgress = trainingProgressMap?.get(progressKey);
+
+                if (overallProgressPercentageMap.has(item.overallId)) {
+                    overallProgressPercentageMap.get(item.overallId).push(content.progressPercentage);
+                } else {
+                    overallProgressPercentageMap.set(item.overallId, [content.progressPercentage]);
+                }
+
+                if (existingProgress) {
+
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: existingProgress._id },
+                            update: {
+                                $set: {
+                                    status: content.contentStatus,
+                                    lastAccessedDuration: content.duration,
+                                    progressPercentage: content.progressPercentage,
+                                    playerSettings: content.playerSettings,
+                                },
+                            },
+                        },
+                    });
+
+                } else {
+
+                    bulkOps.push({
+                        insertOne: {
+                            document: {
+                                trainingRegistration,
+                                trainingModule: module.moduleId,
+                                trainingModuleContent: ObjectId(content.contentId),
+                                overallTrainingProgress: item.overallId,
+                                status: content.contentStatus,
+                                lastAccessedDuration: content.duration,
+                                progressPercentage: content.progressPercentage,
+                                playerSettings: content.playerSettings,
+                            },
+                        },
+                    });
+
+                }
+            });
+        });
+
+    });
+
+    let updateTrainingProgress;
+    if (bulkOps.length > 0) {
+        updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps);
+    }
+
+    const overallTrainingMap = new Map(
+        overallDocs.map((doc) => [doc._id.toString(), doc.training])
+    );
+
+    const arrayOfTrainingIds = [...overallTrainingMap.values()];
+
+    const trainingModules = await TrainingModule.find({ training: { $in: arrayOfTrainingIds } });
+
+    let trainingModuleIds = trainingModules.map((mod) => mod._id.toString());
+
+    const trainingModuleMap = trainingModules.reduce((acc, mod) => {
+        const trainingId = mod.training.toString();
+        if (!acc[trainingId]) acc[trainingId] = [];
+        acc[trainingId].push(mod._id.toString());
+        return acc;
+    }, {});
+
+    let overallModuleMap = {};
+    overallIds.forEach(overallId => {
+        const trainingId = overallTrainingMap.get(overallId.toString());
+        overallModuleMap[overallId] = trainingModuleMap[trainingId] || [];
+    });
+
+    const trainingModuleContents = await TrainingContentBridge.find({
+        trainingModule: { $in: trainingModuleIds }
+    });
+
+    const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
+        const { trainingModule, trainingContent } = doc;
+
+        if (!acc[trainingModule]) {
+            acc[trainingModule] = [];
+        }
+        acc[trainingModule].push(trainingContent.toString());
+        return acc;
+    }, {});
+
+    const trainingModuleContentIds = trainingModuleContents.map((item) => item.trainingContent);
+
+    const existingProgresses = await TrainingProgress.find({
+        trainingRegistration: { $in: overallIds.map(id => trainingRegMap.get(id.toString())) },
+        overallTrainingProgress: { $in: overallIds },
+        trainingModule: { $in: trainingModuleIds },
+        trainingModuleContent: { $in: Object.values(trainingModuleContentMap).flat() },
+    });
+
+    const existingSet = new Set(
+        existingProgresses.map(
+            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}`
+        )
+    );
+
+    const newProgresses = [];
+
+    overallIds.forEach(overallId => {
+
+        const training = overallTrainingMap.get(overallId.toString());
+
+        const trainingRegistration = trainingRegMap.get(overallId.toString());
+
+        const moduleIds = trainingModules
+            .filter(mod => mod.training.toString() == training)
+            .map(mod => mod._id.toString());
+
+        moduleIds.forEach(trainingModule => {
+            const contentIds = trainingModuleContentMap[trainingModule] || [];
+            contentIds.forEach(trainingModuleContent => {
+                const key = `${overallId}_${trainingModuleContent}`;
+                if (!existingSet.has(key)) {
+                    newProgresses.push({
+                        training,
+                        trainingModule,
+                        trainingModuleContent,
+                        trainingRegistration,
+                        overallTrainingProgress: overallId
+                    });
+                }
+            });
+        });
+
+    });
+
+
+    const evaluationData = input.flatMap(overall =>
+        overall.trainingModules.flatMap(module =>
+            module.contentDetails.filter(content => content.questionAnswers && content.questionAnswers.length > 0)
+                .map(content => ({
+                    contentId: content.contentId,
+                    trainingModuleId: module.moduleId,
+                    overallId: overall.overallId,
+                    questionAnswers: content.questionAnswers
+                }))
+        )
+    );
+
+    const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+
+        let updatedTrainingProgress;
+        if (newProgresses.length > 0) {
+            updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses);
+        }
+
+        if (overallProgressPercentageMap) {
+            let bulkOperations = [];
+            overallProgressPercentageMap.forEach((percentages, overallId) => {
+
+                const total = percentages.reduce((sum, value) => sum + value, 0);
+                const average = total / percentages.length;
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: overallId },
+                        update: { $set: { progressPercentage: average } },
+                    },
+                });
+
+            });
+
+            if (bulkOperations.length > 0) {
+                await OverallTrainingProgress.bulkWrite(bulkOperations);
+            }
+        }
+
+
+        let quizErrors = [];
+        if (evaluationData) {
+            quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
+        }
+
+        if (quizErrors && quizErrors.length > 0) {
+            errors.push(quizErrors[0]);
+            return;
+        }
+
+        // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
+        // const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, session);
+
+    });
+
+
+    return { updatedCount: bulkOps.length };
+};
+
+const quizEvaluationBulk = async (evaluationData, userId, session) => {
+
+    try {
+
+        let errors = [];
+
+        const overallIds = evaluationData.map(data => data.overallId);
+
+        if (overallIds.length == 0) {
+            errors.push("No overallId found in evaluationData");
+            return;
+        }
+
+        const overallTrainingProgress = await OverallTrainingProgress.find({
+            _id: { $in: overallIds }
+        }).lean();
+
+        if (!overallTrainingProgress) {
+            errors.push("Overall training progress data not found!");
+            return;
+        }
+
+
+        const overallIdToTrainingIdMap = overallTrainingProgress.reduce((acc, doc) => {
+            acc[doc._id.toString()] = doc.training.toString();
+            return acc;
+        }, {});
+
+        const contentIds = evaluationData.map(data => data.contentId);
+        const trainingModuleIds = evaluationData.map(data => data.trainingModuleId);
+        const trainingIds = evaluationData.map(data => overallIdToTrainingIdMap[data.overallId]);
+
+        if (contentIds.length == 0 || trainingModuleIds.length == 0 || trainingIds.length == 0) {
+            errors.push("No contentId, trainingModuleId or trainingId found in evaluationData");
+            return;
+        }
+
+        const trainingModuleContents = await TrainingModuleContent.find({
+            _id: { $in: contentIds }
+        }).populate({
+            path: "quiz",
+            model: "Question"
+        }).lean();
+
+        const trainingModules = await TrainingModule.find({
+            _id: { $in: trainingModuleIds }
+        }).lean();
+
+        const trainings = await Training.find({
+            _id: { $in: trainingIds }
+        }).lean();
+
+        if (!trainingModuleContents || !trainings || !trainingModules) {
+            errors.push("No contentId, trainingModuleId or trainingId found");
+            return;
+        }
+
+        let results = [];
+
+        let quizEvaluations = [];
+
+        for (const data of evaluationData) {
+
+            const { contentId, trainingModuleId, overallId, questionAnswers } = data;
+
+            const trainingId = overallIdToTrainingIdMap[overallId];
+
+            const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
+            const trainingModule = trainingModules.find(module => module._id.toString() === trainingModuleId.toString());
+            const training = trainings.find(training => training._id.toString() === trainingId.toString());
+
+            if (!trainingModuleContent || !trainingModule || !training) {
+                continue;
+            }
+
+            let totalScore = 0;
+            let acquiredScore = 0;
+            let skippedQuestions = 0;
+            let isPassed = false;
+
+            const filteredQuestionAnswers = questionAnswers?.filter(el => {
+                if (Array.isArray(el?.answer)) {
+                    return el.answer.some(ans => ans && ans.trim() !== "");
+                }
+                return (
+                    el?.answer &&
+                    el.answer !== "" &&
+                    el.answer !== null &&
+                    el.answer !== undefined
+                );
+            }) || [];
+
+            const questionResults = trainingModuleContent.quiz.map(question => {
+
+                const userAnswer = filteredQuestionAnswers?.find(
+                    ans => ans.questionId.toString() === question._id.toString()
+                );
+
+                totalScore += question.points;
+
+                if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
+                    skippedQuestions += 1;
+
+                    return {
+                        questionId: question._id,
+                        question: question.question,
+                        givenAnswer: null,
+                        correctAnswer: question.answerKey,
+                        isCorrectAnswer: false,
+                        points: question.points,
+                        negativePoints: question.negativePoints,
+                        isSkipped: true,
+                    };
+                }
+
+                const isCorrectAnswer =
+                    question.answerKey.every(correctAnswer =>
+                        userAnswer.answer.includes(correctAnswer)
+                    ) && userAnswer.answer.length === question.answerKey.length;
+
+                if (isCorrectAnswer) {
+                    acquiredScore += question.points;
+                } else {
+                    acquiredScore -= question.negativePoints;
+                }
+
+                return {
+                    questionId: question._id,
+                    question: question.question,
+                    givenAnswer: userAnswer.answer,
+                    correctAnswer: question.answerKey,
+                    isCorrectAnswer,
+                    points: question.points,
+                    negativePoints: question.negativePoints,
+                    isSkipped: false,
+                };
+            });
+
+            const scorePercentage = totalScore
+                ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
+                : 0;
+
+            isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
+
+            const quizEvaluationData = {
+                contentId,
+                trainingModuleId,
+                trainingId,
+                userId,
+                attended: filteredQuestionAnswers.length,
+                totalQuestions: trainingModuleContent.quiz.length,
+                totalPoints: totalScore,
+                acquiredMarks: acquiredScore,
+                percentage: scorePercentage,
+                skippedQuestions,
+                isPassed,
+                attendedQuestions: questionResults,
+            };
+
+            quizEvaluations.push(quizEvaluationData);
+
+        }
+
+        results = await QuizEvaluation.insertMany(quizEvaluations, { session });
+
+        return errors;
+
+    } catch (error) {
+        console.error("Error evaluating quiz in bulk:", error);
+    }
+};
+
+module.exports = {
+    uploadTrainingImages,
+    updateTrainingProgress,
+    addDataToOverallTrainingProgress,
+    validateSyncOfflineData,
+    generateTrainingUID,
+    uploadCertificateTrainingImages,
+    createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
         const trainingFilterConditions = {
             _id: input._id ?? ObjectId(),
             subscriber: subscriberId,
         };
 
         const trainingUpdateData = {};
-
-        if (input.courseId) {
-            if (!validateCourseId(input.courseId, input.courseType)) {
-                throw CustomError(ErrorName.INVALID_COURSE_ID);
-            }
-            const existingTraining = await Training.findOne({
-                courseId: input.courseId,
-                subscriber: subscriberId,
-                _id: { $ne: input._id }, 
-            });
-            if (existingTraining) {
-                throw CustomError(ErrorName.DUPLICATE_COURSE_ID);
-            }
-            trainingUpdateData.courseId = input.courseId;
-        } else if (!input._id){
-            trainingUpdateData.courseId = generateCourseId(input.courseType);
-        }
 
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
@@ -181,96 +979,28 @@ module.exports = {
             });
         }
 
-        if (input.trainingCategories)
-            trainingUpdateData.trainingCategories = input.trainingCategories;
-        if (input.trainingSubCategories)
-            trainingUpdateData.trainingSubCategories = input.trainingSubCategories;
         if (input.title) trainingUpdateData.title = input.title;
         if (input.overview) trainingUpdateData.overview = input.overview;
-        
-        let TargetAudienceId;
-        if (input.targetAudienceId) {
-            const { userObjectId, groupUserObjectId } = input.targetAudienceId;
-            if (userObjectId && userObjectId.length > 0) {
-                await validateObjectIds(userObjectId, User,'userObjectId');
-            }
-            if (groupUserObjectId && groupUserObjectId.length > 0) {
-                await validateObjectIds(groupUserObjectId,  Group,'groupUserObjectId');
-            }
-            if ((!userObjectId || userObjectId.length === 0) && (!groupUserObjectId || groupUserObjectId.length === 0)) {
-                throw new Error('At least one of userObjectId or groupUserObjectId must be provided.');
-            }        
-            const targetAudience = await TargetAudience.create({
-                subscriber: subscriberId,
-                userObjectId: userObjectId || [],
-                groupUserObjectId: groupUserObjectId || [],
-                courseId: trainingFilterConditions._id,
-                createdBy: userId,
-              });
-            TargetAudienceId = targetAudience._id;
-            trainingUpdateData.TargetAudienceId = TargetAudienceId;
-        }
-        let classroomModuleId = null;
-        if (input.courseType) {
-            trainingUpdateData.courseType = input.courseType
-            if(input.courseType === CourseType.CLASSROOM){
-                const data = input.classroomModule;
-                const classroomData = {
-                    title: data.title ? data.title: [],
-                    description: data.description ? data.description:[],
-                    classroomModuleImage: data.classroomModuleImage ? data.classroomModuleImage:[],
-                    details: data.details? data.details:[],
-                    time: data.time? data.time: { startTime: '', endTime: '' },
-                    meetingRoomName: data.meetingRoomName || '',
-                    Instructor: data.Instructor || '',
-                    seatLimit: data.seatLimit || 0,
-                    createdBy: userId,
-                    subscriber: subscriberId,
-                }
-             const classroomModule = await ClassroomModule.create(classroomData);
-              classroomModuleId = classroomModule._id;
-            }
-            if(input.courseType === CourseType.VIRTUAL_TYPE){
-                console.log(`Virtual Classroom  Data...`); 
-            }
-        };
-        if (input.enableFreeFlow) trainingUpdateData.enableFreeFlow = input.enableFreeFlow;
-        if (input.unlockOn) trainingUpdateData.unlockOn = input.unlockOn;
+        trainingUpdateData.isCertificate = input?.isCertificate ? true : false;
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
-        if (input.courseLevel) trainingUpdateData.courseLevel = input.courseLevel;
-        if (input.certifications && input.isCertification ){
+        if (input.certifications && input.isCertification) {
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
                 folderName: trainingFilterConditions._id,
             });
         }
-        if (input.bannerImage) {
+        if (bannerImage) {
             trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                images: input.bannerImage,
+                bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
         }
-        if(input.skills) {
-            if (!Array.isArray(input.skills)) {
-                throw CustomError(ErrorName.INVALID_SKILLS_FORMAT);
-            }
-            trainingUpdateData.skills = input.skills;
-        }
-        if (typeof input.userFeedback === "boolean") trainingUpdateData.userFeedback = input.userFeedback;
-        if (typeof input.managerFeedback === "boolean") trainingUpdateData.managerFeedback = input.managerFeedback;
-        if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
-        if (typeof input.setReminder === "boolean") trainingUpdateData.setReminder = input.setReminder;
-        if (typeof input.userFeedback === "boolean") trainingUpdateData.userFeedback = input.userFeedback;
-        
-        if (input.setFrequency != null ) trainingUpdateData.setFrequency = input.setFrequency;
 
-        if (input.setFrequencyDate) trainingUpdateData.setFrequencyDate = input.setFrequencyDate;
+        if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
-        if (input.course_validity) trainingUpdateData.course_validity = input.course_validity;
-        if (input.hideCourseProgress) trainingUpdateData.hideCourseProgress = input.hideCourseProgress;
         if (input.allowMultipleAttempts) {
             trainingUpdateData.allowMultipleAttempts = input.allowMultipleAttempts;
             if (input.attemptFlexibility) trainingUpdateData.attemptFlexibility = input.attemptFlexibility;
@@ -278,12 +1008,11 @@ module.exports = {
             if (input.attemptType === "LIMITED_ATTEMPT" && input.setLimitAttempt) {
                 trainingUpdateData.setLimitAttempt = input.setLimitAttempt;
             }
-        
+
             if (input.disableFurtherAttemptsOnPass) trainingUpdateData.disableFurtherAttemptsOnPass = input.disableFurtherAttemptsOnPass;
             if (input.lockModulesBetweenAttempts) trainingUpdateData.lockModulesBetweenAttempts = input.lockModulesBetweenAttempts;
-            if (input.setTimeLimitForModule) trainingUpdateData.setTimeLimitForModule = input.setTimeLimitForModule;
-        
-            } 
+
+        }
         else {
             delete trainingUpdateData.attemptFlexibility;
             delete trainingUpdateData.attemptType;
@@ -293,28 +1022,16 @@ module.exports = {
             delete trainingUpdateData.setTimeLimitForModule;
         }
         if (input.description) trainingUpdateData.description = input.description;
-        if (input.instructions) trainingUpdateData.instructions = input.instructions;
-        if (input.feedback) trainingUpdateData.feedback = input.feedback;
 
-        if (input.images) {
-            trainingUpdateData.images = await uploadTrainingImages({
-                images: input.images,
+        if (coverImage) {
+            trainingUpdateData.coverImage = await uploadTrainingImages({
+                coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
         }
 
-        if (input.price) trainingUpdateData.price = input.price;
-
         if (input.durationHours != null) {
             trainingUpdateData.durationHours = input.durationHours >= 0 ? input.durationHours : undefined;
-        }
-
-        if (input.certificateValidity != null) {
-            trainingUpdateData.certificateValidity =
-                input.certificateValidity >= 0 ? input.certificateValidity : undefined;
-        }
-        if (input.scorm != null) {
-            trainingUpdateData.scorm = input.scorm;
         }
 
         if (typeof input.isActive === "boolean") trainingUpdateData.isActive = input.isActive;
@@ -327,7 +1044,6 @@ module.exports = {
                     approvalStatus: ApprovalStatus.PREPARING,
                     createdBy: userId,
                 },
-                ClassroomModule: classroomModuleId,
                 updatedBy: userId,
             },
             {
@@ -339,7 +1055,7 @@ module.exports = {
                 session,
             }
         ).populate('targetAudienceId')
-        .populate('ClassroomModule');
+            .populate('ClassroomModule');
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
         return savedTraining;
     },

@@ -1,5 +1,7 @@
-const { JwtHelper, CryptoHelper, Moment } = require("../../../tools");
+const { JwtHelper, CryptoHelper, Moment, PubSubHelper } = require("../../../tools");
 const {
+    SendEmail,
+    EmailTemplate,
     CustomError,
     ErrorName,
     AuthUser,
@@ -9,6 +11,20 @@ const {
     VesselStatus,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_ENDPOINT,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_PORT == 465,
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -29,14 +45,32 @@ const { GroupMember } = require("../group-user/group_member_model");
 const { ImportLog } = require("../import-log/import_log_model");
 const { Vessel } = require("../../vessle/vessel_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
-const { sendNotificationOn, generateRandomString } = require("../../user/user-profile/user_profile_helper");
-const { v4: uuidv4 } = require('uuid')
-const { SubRole } = require('../sub-roles/sub_role_model');
-const { fork } = require('child_process');
+const {
+    sendNotificationOn,
+    generateRandomString,
+    sendNodeEmail,
+    sendNodeEmailBulk,
+} = require("../../user/user-profile/user_profile_helper");
+const { v4: uuidv4 } = require("uuid");
+const { SubRole } = require("../sub-roles/sub_role_model");
+const { fork } = require("child_process");
 const { sendEmail } = require("../../../util/aws_helper");
+const { parseAsync } = require('json2csv');
+const xlsx = require('xlsx');
+const path = require('path');
+const Export = require('../exportUser/exportUser_model');
+const AwsHelper = require("../../../util/aws_helper");
+const NotificationEvent = require("../../notifications/notification_event.json");
+const { LearningPlan } = require("../../learning-plan/learning_plan_model");
+const { Notification } = require("../../notifications/notification_model");
 
+const NotificationType = require("../../notifications/notification_type.json");
+const NotificationHelper = require("../../notifications/notification_helper");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {};
+    const userVesselFilter = {
+        isActive: true,
+    };
     if (vesselStatus && vesselStatus.length > 0) {
         userVesselFilter.vesselStatus = { $in: vesselStatus };
     }
@@ -46,7 +80,7 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     if (vesselObjectId) {
         userVesselFilter.vesselObjectId = vesselObjectId;
     }
-    const userVessels = await UserVessel.find(userVesselFilter).select('user');
+    const userVessels = await UserVessel.find(userVesselFilter).select("user");
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
 }
@@ -169,8 +203,27 @@ module.exports.queries = {
                 : []),
         ]);
     },
-    getManagerList: async ({ pageInput, filterInput }, context) => {
+    fetchSampleFile: async () => {
 
+
+        try {
+
+            const signedUrl = await AwsHelper.fetchFile("public/sample_doc.csv");
+            return {
+                success: true,
+                message: "File fetched successfully",
+                url: signedUrl,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: "Failed to fetch file",
+                url: null,
+            };
+        }
+    },
+
+    getManagerList: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
 
@@ -469,16 +522,29 @@ module.exports.queries = {
         ]);
     },
     getEmployees: async ({ pageInput, filterInput }, context) => {
-
         const {
             role,
             userPermissions,
             subscriberId,
+            primaryRole,
             employeeId,
             isOrganizationManager,
             managingOrganization,
         } = AuthUser(context);
 
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                primaryRole: primaryRole,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
@@ -494,31 +560,31 @@ module.exports.queries = {
             const today = Moment();
             switch (filterInput.lastSeen) {
                 case "TODAY":
-                    startDate = today.startOf('day').toDate();
-                    endDate = today.endOf('day').toDate();
+                    startDate = today.startOf("day").toDate();
+                    endDate = today.endOf("day").toDate();
                     break;
                 case "YESTERDAY":
-                    startDate = today.subtract(1, 'day').startOf('day').toDate();
-                    endDate = today
+                    startDate = today.subtract(1, "day").startOf("day").toDate();
+                    endDate = today;
                     break;
                 case "LAST_7_DAYS":
-                    startDate = today.subtract(7, 'days').startOf('day').toDate();
+                    startDate = today.subtract(7, "days").startOf("day").toDate();
                     endDate = Moment().toDate();
                     break;
                 case "LAST_30_DAYS":
-                    startDate = today.subtract(30, 'days').startOf('day').toDate();
+                    startDate = today.subtract(30, "days").startOf("day").toDate();
                     endDate = Moment().toDate();
                     break;
                 case "LAST_3_MONTHS":
-                    startDate = today.subtract(3, 'months').startOf('day').toDate();
+                    startDate = today.subtract(3, "months").startOf("day").toDate();
                     endDate = Moment().toDate();
                     break;
                 case "LAST_6_MONTHS":
-                    startDate = today.subtract(6, 'months').startOf('day').toDate();
+                    startDate = today.subtract(6, "months").startOf("day").toDate();
                     endDate = Moment().toDate();
                     break;
                 case "LAST_YEAR":
-                    startDate = today.subtract(1, 'year').startOf('day').toDate();
+                    startDate = today.subtract(1, "year").startOf("day").toDate();
                     endDate = Moment().toDate();
                     break;
                 default:
@@ -532,7 +598,11 @@ module.exports.queries = {
             filterConditions.empDesignation = { $in: filterInput.empDesignation };
         }
         if (filterInput?.vesselStatus && filterInput.vesselStatus.length > 0) {
-            const userIdsByVesselStatus = await fetchVesselUsersByStatus(filterInput.vesselStatus, filterInput.vesselType, filterInput.vesselObjectId);
+            const userIdsByVesselStatus = await fetchVesselUsersByStatus(
+                filterInput.vesselStatus,
+                filterInput.vesselType,
+                filterInput.vesselObjectId
+            );
             if (userIdsByVesselStatus.length > 0) {
                 filterConditions.user = { $in: userIdsByVesselStatus };
             }
@@ -541,7 +611,7 @@ module.exports.queries = {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                 offset: skip,
                 limit,
-                sort: { createdAt: "descending" },
+                sort: { updatedAt: -1 },
                 customLabels: {
                     docs: "employees",
                     totalDocs: "totalCount",
@@ -551,7 +621,6 @@ module.exports.queries = {
                 allowDiskUse: true,
             });
         };
-
 
         if (isOrganizationManager) {
             filterConditions.organization = managingOrganization;
@@ -587,66 +656,117 @@ module.exports.queries = {
                 $unwind: "$user",
             },
             {
-                $match: {
-                    "user.isDeleted": { $ne: true },
-                    "user.role": { $in: ['LEARNER'] }
+                $lookup: {
+                    from: "subroles",
+                    localField: "user.subRoles",
+                    foreignField: "_id",
+                    as: "user.subRoles",
                 }
             },
             {
+                $match: {
+                    "user.isDeleted": { $ne: true },
+                    "user.role": { $in: ["LEARNER"] },
+                },
+            },
+            {
                 $lookup: {
-                    from: "vessels",
-                    localField: "user.currentVessel",
-                    foreignField: "_id",
-                    as: "currentVessel",
+                    from: "uservessels",
+                    localField: "user._id",
+                    foreignField: "user",
+                    as: "userVessels",
                     pipeline: [
                         {
                             $match: {
-                                name: { $exists: true, $ne: null }
-                            }
+                                isActive: true,
+                            },
                         },
-                        { $project: { _id: 1, name: 1, typeOfVessel: 1, imoNumber: 1, isActive: 1, createdAt: 1, updatedAt: 1 } },
                         {
                             $lookup: {
-                                from: "vesseltypes",
-                                localField: "typeOfVessel",
+                                from: "vessels",
+                                localField: "vessel",
                                 foreignField: "_id",
-                                as: "typeOfVessel",
+                                as: "vesselDetails",
                                 pipeline: [
-                                    { 
+                                    {
                                         $match: {
-                                            _id: { $ne: null }
-                                        }
+                                            name: { $exists: true, $ne: null },
+                                        },
                                     },
-                                    { $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }
-                                ]
-                            }
+                                    {
+                                        $project: {
+                                            _id: 1,
+                                            name: 1,
+                                            typeOfVessel: 1,
+                                            imoNumber: 1,
+                                            isActive: 1,
+
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "vesseltypes",
+                                            localField: "typeOfVessel",
+                                            foreignField: "_id",
+                                            as: "typeOfVesselDetails",
+                                            pipeline: [
+                                                {
+                                                    $match: {
+                                                        _id: { $ne: null },
+                                                    },
+                                                },
+                                                {
+                                                    $project: {
+                                                        _id: 1,
+                                                        name: 1,
+                                                        isActive: 1,
+
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$typeOfVesselDetails",
+                                            preserveNullAndEmptyArrays: true,
+                                        },
+                                    },
+                                ],
+                            },
                         },
                         {
                             $unwind: {
-                                path: "$typeOfVessel",
+                                path: "$vesselDetails",
                                 preserveNullAndEmptyArrays: true,
-                            }
-                        }
+                            },
+                        },
+                        {
+                            $sort: {
+                                updatedAt: -1, 
+                            },
+                        },
+                        {
+                            $limit: 1, 
+                        },
                     ],
                 },
             },
             {
                 $unwind: {
-                    path: "$currentVessel",
+                    path: "$userVessels",
                     preserveNullAndEmptyArrays: true,
-                }
+                },
             },
-            {
-                $match: {
-                    "currentVessel.isActive": { $ne: false },
-                }
-            },
+
             ...(filterInput?.vesselName?.length > 0
                 ? [
                     {
                         $match: {
-                            "currentVessel.name": {
-                                $in: filterInput.vesselName.map((name) => new RegExp(".*" + name + ".*", "i")),
+                            "userVessels.vesselDetails.name": {
+                                $in: filterInput.vesselName.map(
+                                    name => new RegExp(".*" + name + ".*", "i")
+                                ),
                             },
                         },
                     },
@@ -656,8 +776,8 @@ module.exports.queries = {
                 ? [
                     {
                         $match: {
-                            "currentVessel.typeOfVessel": {
-                                $in: filterInput.vesselType.map((id) => ObjectId(id)),
+                            "userVessels.vesselDetails.typeOfVesselDetails._id": {
+                                $in: filterInput.vesselType.map(id => ObjectId(id)),
                             },
                         },
                     },
@@ -710,29 +830,26 @@ module.exports.queries = {
                                         $options: "i",
                                     },
                                 },
-                                {
-                                    "managerObjectId.firstName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "managerObjectId.lastName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
                             ],
                         },
                     },
                 ]
                 : []),
-            ...(filterInput?.role
+            ...(filterInput?.role?.length > 0
                 ? [
                     {
-                        $match: {
-                            "user.role": filterInput.role,
-                        },
+                        $match:
+                            filterInput.role.includes("LEARNER") &&
+                                filterInput.role.includes("ADMIN")
+                                ? {}
+                                : filterInput.role.includes("LEARNER")
+                                    ? {
+                                        "user.role": "LEARNER",
+                                        "user.subRoles.name": { $ne: "ADMIN" },
+                                    }
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
                     },
                 ]
                 : []),
@@ -755,13 +872,14 @@ module.exports.queries = {
                 ]
                 : []),
         ]);
-        return result;
 
+        return {
+            employees: result.employees,
+            totalCount: result.employees.length,
+        }
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
-
-        const { role, userPermissions } =
-            AuthUser(context);
+        const { role, userPermissions } = AuthUser(context);
 
         if (
             !SubRoleHelper.hasPermission({
@@ -785,9 +903,9 @@ module.exports.queries = {
         const searchCriteria = filterInput?.search
             ? {
                 $or: [
-                    { firstName: { $regex: filterInput.search, $options: 'i' } },
-                    { lastName: { $regex: filterInput.search, $options: 'i' } },
-                    { email: { $regex: filterInput.search, $options: 'i' } },
+                    { firstName: { $regex: filterInput.search, $options: "i" } },
+                    { lastName: { $regex: filterInput.search, $options: "i" } },
+                    { email: { $regex: filterInput.search, $options: "i" } },
                 ],
             }
             : {};
@@ -798,16 +916,15 @@ module.exports.queries = {
             .sort({ deleteRequestDate: -1 });
 
         if (!result) {
-            return { totalCount: 0 }
+            return { totalCount: 0 };
         }
 
         const totalCount = await User.countDocuments({ deleteRequest: true });
 
         return {
             users: result,
-            totalCount
+            totalCount,
         };
-
     },
     getImportLogs: async () => {
         const combinedLogs = await Log.aggregate([
@@ -873,7 +990,6 @@ module.exports.queries = {
         }));
     },
     getCSVImportLogs: async (_, context) => {
-
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -893,17 +1009,12 @@ module.exports.queries = {
         }
 
         try {
-
             const importLogs = await ImportLog.find().sort({ _id: -1 }).limit(12);
 
-            console.log(importLogs);
-
             if (importLogs.length > 0) {
-
                 const result = [];
 
                 importLogs.map(log => {
-
                     result.push({
                         id: log._id,
                         usersCount: log.usersCount,
@@ -911,45 +1022,159 @@ module.exports.queries = {
                         filePath: log.filePath,
                         importStatus: log.importStatus,
                         description: log.description,
-                        createdAt: log.createdAt
-                    })
-
-                })
+                        createdAt: log.createdAt,
+                    });
+                });
 
                 return result;
-
-            } else if (importLogs.length === 0) {
-
-                const sampleLog = [
-                    {
-                        id: 1,
-                        usersCount: 3,
-                        fileName: "csv_1729176933541",
-                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
-                        importStatus: "FAILED",
-                        description: "Error in row 1!",
-                        createdAt: '2024 - 10 - 17T14: 55: 33.728+00:00'
-                    },
-                    {
-                        id: 2,
-                        usersCount: 3,
-                        fileName: "csv_1729176933531",
-                        filePath: "files/import-logs/csv-content/csv-files/csv_1729176933541.csv",
-                        importStatus: "SUCCESS",
-                        description: "The users are created successfully!",
-                        createdAt: '2024 - 10 - 17T14: 55: 33.728+00:00'
-                    },
-                ]
-
-                return sampleLog;
-
             }
+
+            return [];
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error}`);
         }
-
     },
+    sendWelcomeMails: async ({ emailInput }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
+
+        const emails = emailInput.email;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        let messages = [];
+        const notifications = [];
+        await Promise.all(
+            emails.map(async (email) => {
+                if (!emailRegex.test(email)) {
+                    messages.push(`Invalid email format: ${email}`);
+                    return;
+                }
+    
+                let currentUserData = await User.findOne({ email: email });
+                if (!currentUserData) {
+                    messages.push(`No user data found for email: ${email}`);
+                    return;
+                }
+    
+                let html = ``;
+                if (currentUserData.isResetPasswordDialog) {
+                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                    <p>Welcome</p>
+                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                    Get ready for a great career journey with our Learning Management System</div>
+                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                        Click Here
+                    </a>
+                    </div>`;
+                } else {
+                    const generatePassword = generateRandomString(10);
+                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                    try {
+                        await currentUserData.save();
+                    } catch {
+                        messages.push(`Failed to create new dummy password for ${email}`);
+                        return;
+                    }
+                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
+                    <p>Welcome</p>
+                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
+                    Get ready for a great career journey with our Learning Management System</div>
+                    <h4>User Name: ${currentUserData.email}</h4>
+                    <h4>Temporary Password: ${generatePassword}</h4>
+                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
+                        Click Here
+                    </a>
+                    </div>`;
+                }
+    
+            try {
+                await SendEmail({
+                    receiverEmail: email,
+                    subject: "Registration Invitation",
+                    htmlContent: html,
+                });
+                messages.push(`Welcome mail sent to ${email}`);
+               
+            } 
+            catch (error) {
+                messages.push(`Unable to send Welcome mail to ${email}`);
+            }
+            notifications.push({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `Welcome Email Sent` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                    },
+                ],
+                notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: currentUserData._id,
+                    },
+                ],
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+                status:"SENT"
+            });
+            
+            
+        })
+    );
+        if (notifications.length > 0 ) {
+            try {
+                await NotificationHelper.createNotification(notifications);
+            } catch (error) {
+                messages.push(`Failed to create notifications.`);
+            }
+        }
+        return messages;
+    },
+    validateEmailorEmployeeId: async ({ input }, context) => {
+        const { role } = AuthUser(context);
+        if (role !== "ADMIN") {
+            throw new CustomError(ErrorName.FORBIDDEN);
+        }
+        try {
+            const messages = [];
+            if (!input.email && !input.civilIdOrPassport) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Either email or Employee No must be provided.");
+            }
+            if (input.email && input.civilIdOrPassport) {
+                throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
+            }
+            if (input.email) {
+                const emailExists = await User.findOne({ email: { $regex: `^${input.email}$`, $options: 'i' }, isDeleted: false });
+                if (emailExists) {
+                    messages.push("This email Id already exists in the system with another employee.");
+                }
+            } else if (input.civilIdOrPassport) {
+                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
+                if (empNoExists) {
+                    messages.push("Another user already exists with this employee Id");
+                }
+            }
+            if (messages.length > 0) {
+                return {
+                    status: false,
+                    message: messages.join(" "),
+                };
+            }
+            return {
+                status: true,
+                message: "The input value is available.",
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    }
+
+
 };
 
 const validateDeleteUserRow = row => {
@@ -1073,13 +1298,12 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
     if (input.users.length <= 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length === 1) {
-        const user = await User.findOne({ _id: input.users[0], subscriber: subscriberId });
+    if (input.users.length >0) {
+        const user = await User.findOne({ _id: input.users?.[0] });
         if (input.type === "Registered" && user.isRegistered) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
         } else if (input.type === "Unregistered" && !user.isRegistered) {
@@ -1103,6 +1327,18 @@ const changeRegisterEmployees = async ({ input }, context) => {
     );
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
+            const users = await User.find({
+                _id: { $in: input.users },
+                subscriber: subscriberId,
+            });
+            const notificationsData = users.map((user) => ({
+                subscriber: subscriberId,
+                employee: { user }, 
+                updatedBy: userInfo, 
+                type: input.type, 
+            }));
+            await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -1127,6 +1363,9 @@ const manageRole = async ({ input }, context) => {
     }
 
     let updateUserRole;
+    let operationType;
+    let notificationMessage = "";
+    let affectedUsers = [];
     if (input.change === "Assign") {
         if (!input.assignType) throw CustomError(ErrorName.ASSIGNTYPE_ERROR);
 
@@ -1134,6 +1373,8 @@ const manageRole = async ({ input }, context) => {
             { _id: { $in: input.users }, superAdmin: false },
             { $set: { role: input.assignType } }
         );
+        operationType = `Assigned role ${input.assignType}`;
+        notificationMessage = `Your role has been updated to ${input.assignType}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -1142,24 +1383,77 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "AUTHOR" },
                 { $set: { role: "EMPLOYEE" } }
             );
+            operationType = "Removed role as AUTHOR";
+            notificationMessage = "Your role has been changed to EMPLOYEE.";
         }
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
             updateUserRole = await User.updateMany(
-                { _id: { $in: input.users }, superAdmin: false, role: "ADMIN" },
-                { $set: { role: "EMPLOYEE" } }
+                { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
+                { $set: { subRoles: [] } }
             );
+            operationType = "Removed subroles for LEARNER";
+            notificationMessage = "Your subroles have been removed.";
         }
     } else if (input.change === "Delete") {
-
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
-
+        operationType = "Deleted users";
+        notificationMessage = "Your account has been deleted.";
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
     if (updateUserRole) {
         if (updateUserRole.n > 0) {
+            affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
+
+            const adminNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `Role Management Operation Successful` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `${userInfo.firstName} ${userInfo.lastName} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: affectedUsers.map(user => ({
+                    targetRef: "User",
+                    target: user._id,
+                })),
+                status:"SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            };
+
+            const userNotifications = affectedUsers.map(user => ({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Role Management Update" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: notificationMessage,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: false,
+                notifiers: [user._id],
+                employeeNotifiers: [user._id],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: user._id,
+                    },
+                ],
+                status:"SENT",
+                icon: notificationiconEnum.INFO,
+                createdBy: userInfo,
+            }));
+
+            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -1186,19 +1480,20 @@ const respondToDeleteRequest = async ({ input }, context) => {
         throw CustomError(ErrorName.FORBIDDEN);
     }
 
-
     if (input.users.length <= 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
     if (input.type === "REJECT") {
-
-        const rejectDeleteRequest = await User.updateMany({ _id: { $in: input.users } }, {
-            $set: {
-                deleteRequest: false,
-                deleteRequestDate: null,
-            },
-        });
+        const rejectDeleteRequest = await User.updateMany(
+            { _id: { $in: input.users } },
+            {
+                $set: {
+                    deleteRequest: false,
+                    deleteRequestDate: null,
+                },
+            }
+        );
 
         if (rejectDeleteRequest.nModified > 0) {
             for (let userId of input.users) {
@@ -1211,25 +1506,20 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             firstName: user.firstName,
                             lastName: user.lastName,
                             civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email
+                            email: user.email,
                         },
                         action: "rejected",
                         message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
-                        createdBy: userInfo
+                        createdBy: userInfo,
                     });
-                }
-                else {
+                } else {
                     console.error(`User with ID ${userId} not found`);
                 }
             }
             return "Successfully rejected";
-
         } else {
-
             throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
-
         }
-
     }
     if (input.type === "APPROVE") {
         let errors = [];
@@ -1248,14 +1538,14 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             firstName: user.firstName,
                             lastName: user.lastName,
                             civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email
+                            email: user.email,
                         },
                         action: "approved",
                         message: `Admin ${userInfo.firstName} ${userInfo.lastName} has approved your delete request.`,
-                        createdBy: userInfo
+                        createdBy: userInfo,
                     });
                 } else {
-                    console.error(`User with ID ${userId} not found`)
+                    console.error(`User with ID ${userId} not found`);
                 }
             }
             return "Successfully deleted";
@@ -1263,14 +1553,13 @@ const respondToDeleteRequest = async ({ input }, context) => {
             throw CustomError(ErrorName.ERROR_DELETING_USER);
         }
     }
-}
+};
 
 module.exports.mutations = {
     respondToDeleteRequest,
     manageRole,
     changeRegisterEmployees,
     createEmployees: async ({ input }, context) => {
-
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -1292,12 +1581,11 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
-
             const { subscriberId, userId } = AuthUser(context);
 
             if (!input.file) throw CustomError(ErrorName.BULK_USER_FILE_UPLOAD);
             const { createReadStream, filename } = await input.file;
-            if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE);
+            if (!filename.endsWith(".csv")) throw CustomError(ErrorName.INVALID_FILE, "Failed to upload the CSV file. Please check the format and try again.");
 
             const newFileName = `csv_${Date.now()}`;
 
@@ -1308,7 +1596,7 @@ module.exports.mutations = {
                 uploadType: UploadHelper.uploadType.bulkCSV,
             });
 
-            if (!saveCSV) throw CustomError(ErrorName.FAILED, 'Failed to upload CSV file');
+            if (!saveCSV) throw CustomError(ErrorName.FAILED, "Failed to upload CSV file");
 
             let users = [];
 
@@ -1317,44 +1605,82 @@ module.exports.mutations = {
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
+            const existingEmployeNumbers=await User.find({ isDeleted: false }).lean();
+            const employeeNumbers=existingEmployeNumbers.map(user => user.civilIdOrPassport);
+            const vessels = await Vessel.find({ isDeleted: false, isActive: true })
+                .select("imoNumber")
+                .lean();
 
-            const vessels = await Vessel.find({ isDeleted: false, isActive: true }).select('imoNumber').lean();
             const imoNumbers = vessels.map(vessel => vessel.imoNumber);
 
-            const vesselStatus = [VesselStatus.ONBOARDED, VesselStatus.ONSHORE, VesselStatus.ASSIGNED];
+            const vesselStatus = [
+                VesselStatus.ONBOARDED,
+                VesselStatus.ONSHORE,
+                VesselStatus.ASSIGNED,
+            ];
 
-            const errors = await EmployeeHelper.bulkValidationHelper(createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV);
+            const errors = await EmployeeHelper.bulkValidationHelper(
+                createReadStream,
+                empIds,
+                emails,
+                employeeNumbers,
+                designationNames,
+                imoNumbers,
+                vesselStatus,
+                users,
+                userId,
+                subscriberId,
+                newFileName,
+                saveCSV
+            );
 
-            if (errors.length > 0) {
-                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${errors[0]}`);
+            const nonEmptyArray = errors.find(arr => arr.length > 0);
+            if (nonEmptyArray) {
+                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
             }
 
             const empIdsArray = Array.from(empIds);
             const emailsArray = Array.from(emails);
 
-            const child = fork('./src/app/user/employee/csv_import_process.js');
+            const child = fork("./src/app/user/employee/csv_import_process.js");
 
-            child.send({ users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV });
-
-            child.on('message', (message) => {
-                console.log('Message from child process:', message);
+            child.send({
+                users,
+                emailsArray,
+                empIdsArray,
+                subscriberId,
+                userId,
+                newFileName,
+                saveCSV,
             });
 
-            child.on('error', (error) => {
-                console.error('Error in child process:', error);
+            child.on("message", async message => {
+                if (message.type === 'NOTIFICATION') {
+                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+                }
+
+                if (message.type === 'EMAIL') {
+                    await sendNodeEmailBulk({
+                        receiverEmails: message.data.email,
+                        subject: message.data.subject,
+                        htmlContent: message.data.htmlContent
+                    })
+                }
+            });
+
+            child.on("error", error => {
+                console.error("Error in child process:", error);
             });
 
             return {
-                status: "The bulk import is being processed in the background. You can continue working."
-            }
-
-
+                status: "The bulk import is being processed in the background. You can continue working.",
+            };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw Error(error.message);
         }
     },
-    createEmployee: async ({ input }, context) => {
 
+    createEmployee: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -1373,13 +1699,16 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
-        if (!input.empDesignation ||
+        if (
+            !input.empDesignation ||
             !input.user.firstName ||
             !input.user.email ||
             !input.user.civilIdOrPassport ||
             !input.user.currentVessel ||
             !input.user.vesselStatus ||
-            typeof input.user.isRegistered !== 'boolean') throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            typeof input.user.isRegistered !== "boolean"
+        )
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
         const existingUser = await User.findOne({ email: input.user.email });
 
@@ -1393,12 +1722,13 @@ module.exports.mutations = {
         let savedBatch;
 
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-
             const savedEmployees = [];
 
             const generatePassword = generateRandomString(10);
 
-            input.user.password = input.user.password ? await CryptoHelper.hash(input.user.password, 10) : await CryptoHelper.hash(generatePassword, 10);
+            input.user.password = input.user.password
+                ? await CryptoHelper.hash(input.user.password, 10)
+                : await CryptoHelper.hash(generatePassword, 10);
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -1410,10 +1740,11 @@ module.exports.mutations = {
                 ...input.user,
                 role: userRole,
                 isRegistered: input.user.isRegistered,
-                UID: await EmployeeHelper.generateUserUID({ session })
-            })
+                UID: await EmployeeHelper.generateUserUID({ session }),
+            });
 
             if (!savedUser) throw CustomError(ErrorName.FAILED);
+
 
             let employeeUpdate = {
                 subscriber: subscriberId,
@@ -1421,65 +1752,225 @@ module.exports.mutations = {
                 branch: input.branch,
                 organization: input.organization,
                 empDesignation: input.empDesignation,
-                designation: existingDesignation.name
+                designation: existingDesignation.name,
             };
 
-            const savedEmployee = await Employee.create({ ...employeeUpdate, UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }) });
+            const savedEmployee = await Employee.create({
+                ...employeeUpdate,
+                UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }),
+            });
 
             if (!savedEmployee) throw CustomError(ErrorName.FAILED);
 
             let userVesselUpdate = {
                 user: savedUser,
                 vessel: input.user.currentVessel,
-                vesselStatus: input.user.vesselStatus
-            }
+                vesselStatus: input.user.vesselStatus,
+            };
 
             const savedUserVessel = await UserVessel.create(userVesselUpdate);
 
             if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+            const vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
 
             invitationList.push({
-                userData: savedUser
+                userData: savedUser,
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
+            const learningPlans = await LearningPlan.find();
+            function filterLearningPlans(learningPlans, conditions) {
+                const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
 
-            const result = await sendEmail({
-                receiverEmail: savedUser.email,
-                subject: "Welcome",
-                htmlContent: `<!DOCTYPE html>
-            <html lang="en">
+                return learningPlans?.filter(plan => {
+                    const { conditionType, conditionalCustomFields } = plan;
+
+                    let matches = conditionalCustomFields.map(field => {
+                        const { type_of_Field, valueOfField, isOrIsNot } = field;
+
+                        switch (type_of_Field) {
+                            case "DESIGNATION":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(designationID)
+                                    : !valueOfField.includes(designationID);
+
+                            case "VESSEL":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselID)
+                                    : !valueOfField.includes(vesselID);
+
+                            case "VESSEL_TYPE":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(vesselTypeID)
+                                    : !valueOfField.includes(vesselTypeID);
+
+                            case "CURRENT_STATUS":
+                                return isOrIsNot === "IS"
+                                    ? valueOfField.includes(currentStatus)
+                                    : !valueOfField.includes(currentStatus);
+
+                            default:
+                                return false;
+                        }
+                    });
+
+                    if (conditionType === "MATCH_ANY_CONDITION") {
+                        return matches.some(match => match === true);
+                    }
+
+                    if (conditionType === "MATCH_ALL_CONDITION") {
+                        return matches.every(match => match === true);
+                    }
+
+                    return false;
+                });
+            }
+
+            
+
+            const conditions = {
+                designationID: input.empDesignation,
+                vesselID: savedUserVessel.vessel,
+                vesselTypeID: vessel?.typeOfVessel?._id,
+                currentStatus: savedUserVessel.vesselStatus
+            };
+
+            const filteredPlans = filterLearningPlans(learningPlans, conditions);
+
+
+            if (filteredPlans?.length > 0) {
+                await LearningPlan.updateMany(
+                    { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                );
+            }
+            const mailOptions = {
+                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                to: savedUser.email,
+                subject: "Welcome to SeaVerse!",
+                text: "",
+                html: `<!DOCTYPE html>
+                <html lang="en">
                 <head>
-                    <meta charset="UTF-8" />
-                    <title>Welcome</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Welcome to SeaVerse</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f4f4f4;
+                        }
+                        .email-container {
+                            max-width: 600px;
+                            margin: 20px auto;
+                            background: #ffffff;
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            overflow: hidden;
+                        }
+                        .header {
+                            background-color: #0056b3;
+                            color: #ffffff;
+                            text-align: center;
+                            padding: 20px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 24px;
+                        }
+                        .content {
+                            padding: 20px;
+                        }
+                        .content p {
+                            margin: 0 0 15px;
+                        }
+                        .cta-button {
+                            display: inline-block;
+                            background-color: #0056b3;
+                            color: #ffffff;
+                            text-decoration: none;
+                            padding: 10px 20px;
+                            border-radius: 5px;
+                            font-size: 16px;
+                            margin: 20px 0;
+                            display: block;
+                            text-align: center;
+                        }
+                        .footer {
+                            text-align: center;
+                            padding: 10px;
+                            background: #f4f4f4;
+                            font-size: 12px;
+                            color: #555;
+                        }
+                        ul {
+                            padding-left: 20px;
+                        }
+                        ul li {
+                            margin-bottom: 10px;
+                        }
+                    </style>
                 </head>
                 <body>
-                    <div style="width: 600px; margin: 0 auto; text-align: center">
-                        <p>Welcome</p>
-                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-            Get ready for a great career journey with our Learning Management System</div>
-            <h4>User Name: ${savedUser.email}</h4>
-            <h4>Temporary Password: ${generatePassword}</h4>
-                        <a href="${process.env.APP_URL}/login/isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank">
-                            Click Here
-                        </a>
+                    <div class="email-container">
+                        <div class="header">
+                            <h1>Welcome to SeaVerse!</h1>
+                        </div>
+                        <div class="content">
+                            <p>Dear <strong>${savedUser.firstName}</strong>,</p>
+                            <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
+                            <p>To get started, log in with these details:</p>
+                            <p><strong>Email:</strong> ${savedUser.email}</p>
+                            <p><strong>Temporary Password:</strong> ${generatePassword}</p>
+                            <p><em>Please set a new password upon your first login for security.</em></p>
+                            <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank" class="cta-button">Web Access</a>
+                            <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
+                            <ul>
+                                <li>
+                                    <a href="https://play.google.com/store/games?hl=en&pli=1">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play Store" style="width: 120px; height: auto;">
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="https://www.apple.com/in/app-store/">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Download_on_the_App_Store_Badge.svg" alt="App Store" style="width: 120px; height: auto;">
+                                    </a>
+                                </li>
+                            </ul>
+                            <p>Explore courses, track your progress, and unlock new skills today! For any assistance, feel free to reach out to our support team at <strong>[support email/phone]</strong>.</p>
+                        </div>
+                        <div class="footer">
+                            <p>Happy sailing and learning,</p>
+                            <p>The SeaVerse Team</p>
+                        </div>
                     </div>
                 </body>
-            </html>`,
+                </html>
+                `
+            };
+
+            await transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error("Error sending email:", error);
+                } else {
+                    console.log("Email sent:", info.response);
+                }
             });
 
             return savedEmployees;
         });
 
-
-        if (!savedEmployees) throw CustomError(ErrorName.FAILED);
-
+         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
-            employee: savedEmployees[0],
+            employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
@@ -1488,7 +1979,6 @@ module.exports.mutations = {
             status: true,
             message: "User created successfully!",
         };
-
     },
     updateEmployee: async ({ id, input }, context) => {
         const {
@@ -1503,26 +1993,30 @@ module.exports.mutations = {
 
         const employeeFilterConditions = { subscriber: subscriberId };
 
-        if (context.platform === Role.ADMIN) {
-            if (
-                !SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: [
-                        Permission.UPDATE_EMPLOYEE,
-                        Permission.ENABLE_DISABLE_EMPLOYEE,
-                    ],
-                    requiredAll: false,
-                    restrictOrganizationManager: isOrganizationManager,
-                }) &&
-                id.toString() !== employeeId.toString()
-            ) {
-                throw CustomError(ErrorName.FORBIDDEN);
-            }
-        } else {
-            throw CustomError(ErrorName.FORBIDDEN);
-        }
+        // if (context.platform === Role.ADMIN) {
+        //     if (
+        //         !SubRoleHelper.hasPermission({
+        //             currentRole: role,
+        //             currentPermissions: userPermissions,
+        //             requiredPermission: [
+        //                 Permission.UPDATE_EMPLOYEE,
+        //                 Permission.ENABLE_DISABLE_EMPLOYEE,
+        //             ],
+        //             requiredAll: false,
+        //             restrictOrganizationManager: isOrganizationManager,
+        //         }) &&
+        //         id.toString() !== employeeId.toString()
+        //     ) {
+        //         throw CustomError(ErrorName.FORBIDDEN);
+        //     }
+        // } else {
+        //     throw CustomError(ErrorName.FORBIDDEN);
+        // }
+        const currentEmployee = await User.findById(id);
 
+        if (!currentEmployee) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
         const savedEmployee = await EmployeeHelper.updateEmployees(
             {
                 id: id,
@@ -1530,9 +2024,41 @@ module.exports.mutations = {
                 userId: userId,
                 subscriberId: subscriberId,
                 role: role,
+                userInfo: userInfo,
             },
             context
         );
+        const updatedFields = Object.keys(input).reduce((changes, key) => {
+            if (currentEmployee[key] !== input[key]) {
+                changes[key] = {
+                    oldValue: currentEmployee[key],
+                    newValue: input[key],
+                };
+            }
+            return changes;
+        }, {});
+    
+        const notificationData = [
+            {
+                subscriber: subscriberId,
+                trainingRegistration: {
+                    _id: savedEmployee._id, 
+                    employee: savedEmployee, 
+                },
+                userIds: [savedEmployee.user?._id], 
+                action: "UPDATED",
+                createdBy: userInfo,
+            },
+        ];
+    
+        notificationData[0].additionalInfo = [
+            {
+                infoType: "UPDATED_FIELDS",
+                infoData: updatedFields,
+            },
+        ];
+    
+        EmployeeHelper.sendEnrollmentNotification(notificationData);
 
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
@@ -1579,8 +2105,17 @@ module.exports.mutations = {
             };
         });
 
+        const notificationsData = [
+            {
+                subscriber: subscriberId,
+                deletedEmployee: deletedEmployee,
+                createdBy: userInfo,
+            },
+        ];
+        await EmployeeHelper.sendDeleteNotification(notificationsData);
+    
         if (!deletedEmployee) throw CustomError(ErrorName.FAILED);
-
+    
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: deletedEmployee,
@@ -1775,7 +2310,6 @@ module.exports.mutations = {
                     }
                 }
 
-
                 savedEmployees.push({ ...savedEmployee, user: savedUser });
             }
 
@@ -1791,29 +2325,35 @@ module.exports.mutations = {
         return savedEmployees;
     },
     assignSubroleToLearners: async ({ input }, context) => {
-
-        const { role, userId, primaryRole, userInfo, userPermissions, subscriberId, isOrganizationManager } =
-            AuthUser(context);
-        if (!SubRoleHelper.hasPermission({ currentRole: role, primaryRole: primaryRole, })) {
+        const {
+            role,
+            userId,
+            primaryRole,
+            userInfo,
+            userPermissions,
+            subscriberId,
+            isOrganizationManager,
+        } = AuthUser(context);
+        if (!SubRoleHelper.hasPermission({ currentRole: role, primaryRole: primaryRole })) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { users, subrole } = input;
-            if (role !== 'ADMIN' && primaryRole[0] !== 'ADMIN') {
-                throw new Error('Unauthorized: Only admins can assign subroles');
+            if (role !== "ADMIN" && primaryRole[0] !== "ADMIN") {
+                throw new Error("Unauthorized: Only admins can assign subroles");
             }
             const validSubRole = await SubRole.findById(subrole);
             if (!validSubRole) {
-                throw new Error('Invalid subrole');
+                throw new Error("Invalid subrole");
             }
             const usersToUpdate = await User.find({ _id: { $in: users } });
             if (!usersToUpdate || usersToUpdate.length === 0) {
-                throw new Error('No valid users found');
+                throw new Error("No valid users found");
             }
             await Promise.all(
-                usersToUpdate.map(async (user) => {
+                usersToUpdate.map(async user => {
                     if (!user.subRoles) {
                         user.subRoles = [];
                     }
@@ -1823,16 +2363,178 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
+            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
+            const adminNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: adminNotificationMessage,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                affected: users.map(user => ({
+                    targetRef: "User",
+                    target: user._id,
+                })),
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            };
+    
+            const userNotifications = usersToUpdate.map(user => ({
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `You have been assigned the subrole "${validSubRole.name}".`,
+                    },
+                ],
+                notificationType: NotificationType.ROLE_MANAGEMENT,
+                notifyAdmin: false,
+                notifiers: [user._id],
+                employeeNotifiers: [user._id],
+                affected: [
+                    {
+                        targetRef: "User",
+                        target: user._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            }));
+    
+            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+    
             return {
                 success: true,
-                message: 'Subrole successfully assigned to all learners',
+                message: "Subrole successfully assigned to all learners",
             };
-        }
-        catch (error) {
+        } catch (error) {
             return {
                 success: false,
                 message: `Error assigning subrole: ${error.message}`,
             };
+        }
+    },
+
+    exportUserToCsv: async ({ input }, context) => {
+        const { role, userId, subscriberId, userInfo } = AuthUser(context);
+        if (!role || role !== "ADMIN") {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const notifications = [];
+        const exportStartTime = new Date();
+    
+        try {
+            const inProgressNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `User Export In Progress` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                    },
+                ],
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS,
+            };
+            notifications.push(inProgressNotification);
+            await NotificationHelper.createNotification(notifications);
+            const userIds = input.ids;
+            const users = await User.find({ _id: { $in: userIds } }).lean();
+            if (!users.length) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
+            const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
+            const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
+            const vesselMap = vessels.reduce((acc, vessel) => {
+                acc[vessel._id.toString()] = vessel.name;
+                return acc;
+            }, {});
+            const userObjectIds = users.map(user => user._id);
+            const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
+            const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
+            const designations = empDesignationIds.length > 0 ? await Designation.find({ _id: { $in: empDesignationIds } }).lean() : [];
+            const designationMap = designations.reduce((acc, designation) => {
+                acc[designation._id.toString()] = designation.name;
+                return acc;
+            }, {});
+            const data = users.map(user => {
+                const employee = employees.find(emp => emp.user.toString() === user._id.toString());
+                const empDesignation = employee && employee.empDesignation ? designationMap[employee.empDesignation.toString()] : " ";
+                return {
+                    "First Name": user.firstName,
+                    "Last Name": user.lastName,
+                    "Employee ID": user.civilIdOrPassport,
+                    "Email": user.email,
+                    "Last Login": user.lastLoginAt,
+                    "Created At": user.createdAt,
+                    "Vessel Status": user.vesselStatus,
+                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
+                    "Employee Designation": empDesignation
+                };
+            });
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(data);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_users_${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+            if (excelFilePath) {
+                const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const exportEntry = new Export({
+                    filePath: s3PresignedUrl,
+                    subscriberId: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    type_of_export: 'USER_EXPORT'
+                });
+                await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Export Successful` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `The export user process completed successfully. You can download the file from the link: ${s3PresignedUrl}.`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]);
+                return {
+                    status: true,
+                    message: "User Export successful",
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath)
+                };
+            } else {
+                throw CustomError(ErrorName.UPLOAD_FAILED);
+            }
+        } catch (error) {
+            throw new Error(error.message);
         }
     }
 

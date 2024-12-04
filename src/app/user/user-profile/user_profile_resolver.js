@@ -1,4 +1,4 @@
-const { CryptoHelper, MomentTimezone } = require("../../../tools");
+const { CryptoHelper, MomentTimezone, ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
 
 const { User } = require("../user_model");
@@ -23,6 +23,22 @@ const { isAlphanumeric } = require('../../../util/password_helper');
 const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_ENDPOINT,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_PORT == 465, 
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
@@ -40,12 +56,19 @@ module.exports.queries = {
             if (existingUser.avatar) {
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
-
+            const employeeData = await Employee.findOne({ user: userId }).lean().populate({
+                path: "empDesignation",
+                select: "_id name",
+            });
+            if (employeeData && employeeData.empDesignation) {
+                employeeData.designation = employeeData.empDesignation.name;
+            }
+            existingUser.employee = employeeData || null;
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {
-          
-            if (userInfo.role === 'ADMIN') {
+
+            if (role === 'ADMIN') {
                 return [
                     {
                         role_name: 'ADMIN',
@@ -70,9 +93,9 @@ module.exports.queries = {
 
             }
         };
-        
+
         if (isAuthenticated) {
-            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo)};
+            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
         }
 
         throw CustomError(ErrorName.FORBIDDEN);
@@ -270,7 +293,7 @@ module.exports.queries = {
         let errors = [];
 
         const result = await AwsHelper.sendEmail({
-            receiverEmail: email,
+            receiverEmail: user.email,
             subject: "Reset Password",
             htmlContent: `<!DOCTYPE html>
                 <html lang="en">
@@ -283,7 +306,7 @@ module.exports.queries = {
             
                             <p>Please visit the link below to reset your password</p>
             
-                            <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                            <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                 Click Here
                             </a>
                         </div>
@@ -349,28 +372,36 @@ module.exports.mutations = {
 
             const existingUser = await User.findById(userId);
             if (!existingUser) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND);
             }
+
+
             if (newPassword !== confirmPassword) {
-                throw new CustomError(ErrorName.PASSWORD_MISMATCH);
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
+
+            const sameOldPassword = await CryptoHelper.compare(input.newPassword, existingUser.password);
+            if (sameOldPassword) {
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Please enter a new password");
+            }
+
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
-                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
                 }
             } else {
                 if (!newPassword || !confirmPassword) {
-                    throw new CustomError(ErrorName.PROVIDE_PASSWORDS);
+                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
                 }
             }
             if (!isAlphanumeric(newPassword)) {
-                throw new CustomError(ErrorName.INVALID_PASSWORD);
+                throw CustomError(ErrorName.INVALID_PASSWORD, "Password must have 8 characters and should be alphanumeric with a special character");
             }
             if (isResetPasswordDialog) {
                 const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
                 if (!isPasswordValid) {
-                    throw new CustomError(ErrorName.INVALID_PASSWORD);
+                    throw CustomError(ErrorName.INVALID_PASSWORD, "Current password is incorrect");
                 }
             }
             existingUser.password = await CryptoHelper.hash(newPassword, 10);
@@ -388,7 +419,7 @@ module.exports.mutations = {
             });
             return "Password updated successfully!";
         } catch (error) {
-            throw error instanceof CustomError ? error : new CustomError(ErrorName.SERVER_ERROR, error.message);
+            throw CustomError(ErrorName.SERVER_ERROR, error.message);
         }
     },
 
@@ -397,23 +428,25 @@ module.exports.mutations = {
         try {
 
             const existingUser = await User.findOne({ email });
-
             if (!existingUser) {
-                throw new CustomError(ErrorName.NOT_FOUND);
+                throw  CustomError(ErrorName.NOT_FOUND);
             }
 
             const token = generateRandomString(10);
 
             existingUser.resetPasswordToken = token;
             existingUser.resetPasswordExpires = Date.now() + (7 * 3600000);
-            await existingUser.save();
+            const updatedUser = await existingUser.save();
 
-            let errors = [];
+            if(!updatedUser) {
+                throw CustomError(ErrorName.FAILED);
+            }
 
-            const result = await AwsHelper.sendEmail({
-                receiverEmail: email,
+            const mailOptions = {
+                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                to: email, 
                 subject: "Reset Password",
-                htmlContent: `<!DOCTYPE html>
+                html: `<!DOCTYPE html>
                     <html lang="en">
                         <head>
                             <meta charset="UTF-8" />
@@ -421,20 +454,16 @@ module.exports.mutations = {
                         </head>
                         <body>
                             <div style="width: 600px; margin: 0 auto; text-align: center">
-                
                                 <p>Please visit the link below to reset your password</p>
-                
-                                <a href="${process.env.APP_URL}/reset-password/token=${token}" target="_blank">
+                                <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
                                     Click Here
                                 </a>
                             </div>
                         </body>
                     </html>`,
-            });
-
-            if (errors.length > 0) {
-                throw new CustomError(ErrorName.FAILED);
-            }
+            };
+            
+            const result = await transporter.sendMail(mailOptions)
 
             if (result) {
                 return {
@@ -445,6 +474,7 @@ module.exports.mutations = {
 
         } catch (error) {
             console.error(error);
+            throw new Error(error.message)
         }
 
     },
@@ -471,8 +501,11 @@ module.exports.mutations = {
     newPasswordAfterReset: async ({ input }, context) => {
 
         try {
+
+            let userId = null;
+
             if (!input.token) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide all the required fields');
+                userId = AuthUser(context).userId;
             }
 
             if (input.newPassword !== input.confirmPassword) {
@@ -481,7 +514,7 @@ module.exports.mutations = {
 
             const user = await User.findOne({
                 $or: [
-                    { resetPasswordToken: input.token }
+                    ObjectId.isValid(userId) ? { _id: userId } : { resetPasswordToken: input.token }
                 ]
             });
 
@@ -499,6 +532,7 @@ module.exports.mutations = {
 
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
+            user.isResetPasswordDialog = true;
 
             const updateUser = await user.save();
 

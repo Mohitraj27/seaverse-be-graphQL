@@ -1,8 +1,8 @@
 module.exports = {
     types: `
         enum TrainingProgressStatus {
-            PENDING
-            ON_GOING
+            NOT_STARTED
+            IN_PROGRESS
             COMPLETED
         }
         extend type TrainingModuleContent {
@@ -29,22 +29,39 @@ module.exports = {
             startedAt: String
             completedAt: String
         }
+        input genericObjectInput {
+            key: String!
+            value: JSON
+        }
         input TrainingProgressInput {
-            trainingRegistrationId: ID!
+            trainingRegistrationId: ID
             trainingRegistrationSortedTrainingModules: [TrainingRegistrationSortedTrainingModuleInput]
             trainingRegistrationStatus: TrainingRegistrationStatus
-            trainingRegistrationProgressPercentage: Float
+            trainingRegistrationProgressPercentage: Int
             currentTrainingModuleContentId: ID
             currentTrainingModuleContentStatus: TrainingProgressStatus
             currentTrainingModuleContentLastAccessedItem: String
             currentTrainingModuleContentLastAccessedDuration: Float
             currentTrainingModuleContentQuestionAnswers: [QuizAttemptQuestionAnswerInput]
             nextTrainingModuleId: ID
+            currentTrainingModuleId: ID
             nextTrainingModuleContentId: ID
+            additionalData : genericObjectInput
+            settings: genericObjectInput
+            training : ID
+            completedModules: Int
+        }
+        type initialTrainingProgress {
+            message: String
+        }
+        type overallTrainingProgress {
+           status : Int
+           message : String 
         }
     `,
     mutations: `
-        updateTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
+        initiateTrainingProgress(input: TrainingProgressInput!): initialTrainingProgress!
+        updateTrainingProgress(input: TrainingProgressInput!): overallTrainingProgress!
         updateScormTrainingProgress(input: TrainingProgressInput!): TrainingRegistration!
     `,
 };

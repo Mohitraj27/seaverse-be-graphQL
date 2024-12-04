@@ -51,7 +51,12 @@ const { VesselTypeSchema } = require("../app/vessle/vessel-type");
 const { VesselSchema } = require("../app/vessle");
 const { ContactSupportSchema } = require('../app/contact-support');
 const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
-const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question')
+const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question');
+const { LearningPlanSchema } = require("../app/learning-plan");
+const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
+const {  ContentZipSchema } = require("../app/trainings/compress_to_zip");
+const { CompanySchema } = require("../app/vessle/company");
+const { OwnerSchema } = require("../app/vessle/owner");
 
 const schemas = [
     AppDataSchema,
@@ -97,7 +102,12 @@ const schemas = [
     VesselSchema,
     ContactSupportSchema,
     UserVesselSchema,
-    QuestionSchema
+    QuestionSchema,
+    LearningPlanSchema,
+    CertificateLayoutSchema,
+    ContentZipSchema,
+    CompanySchema,
+    OwnerSchema
 ];
 
 const types = [];
