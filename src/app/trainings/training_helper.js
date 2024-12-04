@@ -288,6 +288,59 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
     }
 
 }
+const calculateTrainingCompletion = (overallTrainingProgresses) => {
+
+    const resultMap = {};
+
+    overallTrainingProgresses.forEach((otp) => {
+
+        if (!resultMap[otp._id]) {
+            resultMap[otp._id] = {
+                overallTrainingProgressId: otp._id,
+                completedModulesCount: 0,
+                totalModules: 0,
+                mandatoryModules: otp.mandatoryModules || 0,
+                isTrainingCompleted: false,
+            };
+
+            const moduleCompletionMap = {};
+
+            const contentDataArray = Array.isArray(otp.contentData)
+                ? otp.contentData
+                : [otp.contentData];
+
+            otp.trainingProgressData.forEach((progress) => {
+
+                const moduleId = progress.trainingModule;
+
+                if (!moduleCompletionMap[moduleId]) {
+                    moduleCompletionMap[moduleId] = true;
+                }
+
+                if (progress.status !== "COMPLETED") {
+                    moduleCompletionMap[moduleId] = false;
+                }
+
+            });
+
+            const completedModulesCount = Object.values(moduleCompletionMap).filter(
+                (isCompleted) => isCompleted
+            ).length;
+
+            const totalModules = new Set(contentDataArray.map((cd) => cd.moduleId)).size;
+
+            resultMap[otp._id].completedModulesCount = completedModulesCount;
+            resultMap[otp._id].totalModules = totalModules;
+
+            resultMap[otp._id].isTrainingCompleted =
+                completedModulesCount >= resultMap[otp._id].mandatoryModules ||
+                completedModulesCount === totalModules;
+        }
+    });
+
+    return Object.values(resultMap);
+
+};
 
 // const validateAndUpdateContentData = async (input) => {
 
@@ -390,57 +443,77 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
 //     return errors;
 // };
 
-const validateAndGenerateCertificate = async (trainingRegMap, overallDocs, session) => {
+const validateAndGenerateCertificate = async (overallIds, session) => {
 
-    if (trainingRegMap && overallDocs) {
+    if (overallIds.length > 0) {
 
-        const trainingRegistrationIds = overallDocs
-            .map((doc) => trainingRegMap.get(doc._id.toString()))
-            .filter(Boolean);
+        if (!overallIds) return;
 
-        const allTrainingProgresses = await TrainingProgress.find({
-            trainingRegistration: { $in: trainingRegistrationIds },
-        }).lean();
-
-        const trainingProgressMap = new Map();
-
-        allTrainingProgresses.forEach((progress) => {
-
-            const trainingRegistrationStr = progress.trainingRegistration.toString();
-
-            if (!trainingProgressMap.has(trainingRegistrationStr)) {
-                trainingProgressMap.set(trainingRegistrationStr, []);
-            }
-
-            trainingProgressMap.get(trainingRegistrationStr).push(progress);
-
-        });
-
-        const registrationsForCertificates = [];
-
-        for (const overallDoc of overallDocs) {
-
-            const mandatoryModulesCount = overallDoc.mandatoryModules ?? 0;
-
-            if (mandatoryModulesCount > 0) {
-
-                const trainingRegistration = trainingRegMap.get(overallDoc._id.toString());
-
-                if (trainingRegistration) {
-
-                    const trainingRegistrationStr = trainingRegistration.toString();
-                    const trainingProgresses = trainingProgressMap.get(trainingRegistrationStr) || [];
-
-                    const completedProgresses = trainingProgresses.filter(
-                        (progress) => progress.progressPercentage === 100
-                    );
-
-                    if (completedProgresses.length >= mandatoryModulesCount) {
-                        registrationsForCertificates.push(trainingRegistration);
-                    }
+        const fetchDetails = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    _id: { $in: overallIds }
+                }
+            },
+            { $unwind: "$contentData" },
+            { $unwind: "$contentData.contentIds" },
+            {
+                $lookup: {
+                    from: "trainingprogresses",
+                    let: {
+                        overallId: "$_id",
+                        moduleId: "$contentData.moduleId",
+                        contentId: "$contentData.contentIds"
+                    },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$overallTrainingProgress", "$$overallId"] },
+                                        { $eq: ["$trainingModule", "$$moduleId"] },
+                                        { $eq: ["$trainingModuleContent", "$$contentId"] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "trainingProgressData"
+                }
+            },
+            { $unwind: "$trainingProgressData" },
+            {
+                $group: {
+                    _id: "$_id",
+                    user: { $first: "$user" },
+                    training: { $first: "$training" },
+                    contentData: { $first: "$contentData" },
+                    trainingRegistration: { $first: "$trainingRegistration" },
+                    mandatoryModules: { $first: "$mandatoryModules" },
+                    // contentData: {
+                    //     $push: {
+                    //         moduleId: "$contentData.moduleId",
+                    //         contentIds: "$contentData.contentIds"
+                    //     }
+                    // },
+                    trainingProgressData: { $push: "$trainingProgressData" }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    user: 1,
+                    training: 1,
+                    contentData: 1,
+                    trainingRegistration: 1,
+                    mandatoryModules: 1,
+                    contentData: 1,
+                    trainingProgressData: 1
                 }
             }
-        }
+        ]);
+
+        const trainingCompletionStatus = calculateTrainingCompletion(fetchDetails);
 
         if (registrationsForCertificates.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
@@ -508,12 +581,12 @@ const updateTrainingProgress = async (input, userId) => {
 
         const trainingRegistration = trainingRegMap.get(item.overallId.toString());
 
-
         if (!trainingRegistration) return;
 
         item.trainingModules.forEach((module) => {
 
             module.contentDetails.forEach((content) => {
+
                 const progressKey = `${trainingRegistration}_${content.contentId}`;
                 const existingProgress = trainingProgressMap?.get(progressKey);
 
@@ -702,7 +775,7 @@ const updateTrainingProgress = async (input, userId) => {
         }
 
         // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
-        // const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
+        // const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, session);
 
     });
 
