@@ -226,7 +226,7 @@ module.exports.queries = {
 
         try {
             let filterConditions = {
-                user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
+                user:filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
             }
 
@@ -565,6 +565,21 @@ module.exports.queries = {
                                         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
                                     },
                                 },
+                                // {
+                                //     $group: {
+                                //         _id: "$_id",
+                                //         trainingContent: {
+                                //             $first: "$trainingContent"
+                                //         },
+                                //         trainingModule: {
+                                //             $first: "$trainingModule"
+                                //         },
+                                //         trainingModuleContentDetails: {
+                                //             $push:
+                                //                 "$trainingModuleContentDetails"
+                                //         }
+                                //     }
+                                // }
                             ],
                             as: "progressDetails"
                         }
@@ -741,8 +756,6 @@ module.exports.queries = {
             }
 
             const processedTrainingDetails = trainingDetails.map(trainingDetail => {
-
-                const moduleProgressArray = [];
                 const moduleCount = trainingDetail.trainingModules.length;
 
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
@@ -767,8 +780,6 @@ module.exports.queries = {
 
                     module.progressPercentage = averageProgress.toFixed(2);
 
-                    moduleProgressArray.push(module.progressPercentage);
-
                     const statuses = module.trainingModuleContents.map(content => content.status);
                     if (statuses.every(status => status === "COMPLETED")) {
                         module.status = "COMPLETED";
@@ -781,14 +792,14 @@ module.exports.queries = {
                     return acc;
                 }, 0);
 
-                const sum = moduleProgressArray.reduce((acc, val) => acc + parseFloat(val), 0);
-                const progressPercentage = sum / moduleProgressArray.length;
+                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
+                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
 
                 return {
                     ...trainingDetail,
                     totalDuration,
                     moduleCount,
-                    progressPercentage: parseFloat(progressPercentage.toFixed(2))
+                    progressPercentage: overallProgress.toFixed(2)
                 };
             });
 
@@ -1111,7 +1122,7 @@ module.exports.mutations = {
     },
 
     markAsCompleted: async ({ input }, context) => {
-        const { subscriberId, userInfo, userId } = AuthUser(context);
+        const { subscriberId , userInfo, userId} = AuthUser(context);
         try {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
@@ -1213,7 +1224,7 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
             }));
-
+    
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Course Completion Notification`,
@@ -1227,7 +1238,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+    
             return {
                 status: true,
                 message: "Marked as completed successfully"

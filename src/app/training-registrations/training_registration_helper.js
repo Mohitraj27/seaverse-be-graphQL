@@ -244,7 +244,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
         if (existingTrainings) {
             existingTrainings.forEach(training => {
-                if (userObjectIdStrings.includes(training.user.toString())) {
+                if (userObjectIdStrings.includes(training.user.toString()) && training.isEnrolled === true) {
                     alreadyEnrolledUserIds.push(training.user.toString());
                 } else {
                     notEnrolledUserIds.push(training.user.toString());
@@ -553,11 +553,10 @@ module.exports = {
                 const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
                 if (alreadyExistInCourse.length > 0) {
                     await OverallTrainingProgress.updateMany(
-                        { user: { $in: userObjectIds }, training: { $in: input.trainings } },
-                        { $set: { isEnrolled: true } }
+                        { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
+                        { $set: { isEnrolled: true, learningPlan: null } }
                     );
                 }
-
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
