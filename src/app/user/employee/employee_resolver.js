@@ -67,6 +67,7 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const roleUpdate = require("../../email-template/roleUpdate");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2361,6 +2362,12 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
+            const resetPasswordHtml = roleUpdate(usersToUpdate);
+            await AwsHelper.sendEmail({
+                receiverEmail: usersToUpdate[0].email,
+                subject: "Your Role Updated",
+                htmlContent: resetPasswordHtml,
+            });
             const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
             const adminNotification = {
                 subscriber: subscriberId,
