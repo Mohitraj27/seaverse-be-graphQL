@@ -553,11 +553,10 @@ module.exports = {
                 const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
                 if (alreadyExistInCourse.length > 0) {
                     await OverallTrainingProgress.updateMany(
-                        { user: { $in: userObjectIds }, training: { $in: input.trainings } },
-                        { $set: { isEnrolled: true } }
+                        { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
+                        { $set: { isEnrolled: true, learningPlan: null } }
                     );
                 }
-
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
