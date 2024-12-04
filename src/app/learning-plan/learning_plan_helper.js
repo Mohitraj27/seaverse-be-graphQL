@@ -73,11 +73,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                     }
                     break;
                 case 'vesselStatus':
-                    if (![vesselStatusEnum].includes(group.groupIDs)) {
-                        errors.push(errorMessages.INVALID_VESSEL_STATUS);
-                    } else {
                         group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
-                    }
                     break;
                 default:
                     errors.push(errorMessages.INVALID_GROUP_TYPE);
