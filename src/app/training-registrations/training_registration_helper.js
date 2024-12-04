@@ -31,6 +31,8 @@ const { TrainingModule } = require("../trainings/training_modules/training_modul
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const courseEnrollment = require("../email-template/courseEnrollment");
+const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
+const {Training} = require("../trainings/training_model");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -749,7 +751,28 @@ module.exports = {
                             { $set: { isEnrolled: false } },
                             { session }
                         );
-
+                        const users = await User.find({
+                            _id: { $in: input.users } 
+                        }).select('firstName email');
+                        const  trainings = await Training.aggregate([
+                            { $match: { _id: { $in: input.trainings } } },
+                            { $project: { title: 1 } }
+                        ]);
+                        users.forEach(user => {
+                            trainings.forEach(training => {
+                                const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                                const emailContent = courseUnenrollmentEmail({
+                                    firstName: user.firstName,
+                                    email: user.email,
+                                    courseTitle: trainingTitle,
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: `Unenrolled from ${trainingTitle}`,
+                                    htmlContent: emailContent,
+                                });
+                            });
+                        });
                         return updateTrainingRegistration;
                     }
                 );
