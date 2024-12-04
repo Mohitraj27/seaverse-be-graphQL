@@ -45,6 +45,7 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const courseCompletion = require("../email-template/courseCompletion");
+const moduleResetNotificationEmail = require("../email-template/resetModule");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1300,7 +1301,28 @@ module.exports.mutations = {
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
 
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
-
+            const users = await User.find({
+                _id: { $in: input.userIds } 
+            }).select('firstName email');
+            const  trainings = await Training.aggregate([
+                { $match: { _id:  input.training  } },
+                { $project: { title: 1 } }
+            ]);
+            users.forEach(user => {
+                trainings.forEach(training => {
+                    const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                    const emailContent = moduleResetNotificationEmail({
+                        firstName: user.firstName,
+                        email: user.email,
+                        courseTitle: trainingTitle,
+                    });
+                    sendEmail({
+                        receiverEmail: user.email,
+                        subject: `Module Reset Notification`,
+                        htmlContent: emailContent,
+                    });
+                });
+            });
             await Promise.all(userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
