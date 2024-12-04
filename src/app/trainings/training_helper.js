@@ -481,7 +481,7 @@ const validateAndGenerateCertificate = async (overallIds, session) => {
                     as: "trainingProgressData"
                 }
             },
-            { $unwind: "$trainingProgressData" }, // Flatten to ensure no nested arrays
+            { $unwind: "$trainingProgressData" },
             {
                 $group: {
                     _id: "$_id",
@@ -513,56 +513,7 @@ const validateAndGenerateCertificate = async (overallIds, session) => {
             }
         ]);
 
-        console.log(JSON.stringify(fetchDetails, null, 2));
-
         const trainingCompletionStatus = calculateTrainingCompletion(fetchDetails);
-
-        console.log(trainingCompletionStatus);
-
-        ///////////////////////////////////////////////////////////
-
-        // getTrainingModules = await TrainingModule.find({})
-        // const trainingRegistrationIds = overallDocs
-        //     .map((doc) => trainingRegMap.get(doc._id.toString()))
-        //     .filter(Boolean);
-        // const allTrainingProgresses = await TrainingProgress.find({
-        //     trainingRegistration: { $in: trainingRegistrationIds },
-        // }).lean();
-        // const trainingProgressMap = new Map();
-        // allTrainingProgresses.forEach((progress) => {
-        //     const trainingRegistrationStr = progress.trainingRegistration.toString();
-        //     if (!trainingProgressMap.has(trainingRegistrationStr)) {
-        //         trainingProgressMap.set(trainingRegistrationStr, []);
-        //     }
-        //     trainingProgressMap.get(trainingRegistrationStr).push(progress);
-        // });
-        // const registrationsForCertificates = [];
-        // for (const overallDoc of overallDocs) {
-        //     const mandatoryModulesCount = overallDoc.mandatoryModules;
-        //     if (mandatoryModulesCount > 0) {
-        //         const trainingRegistration = trainingRegMap.get(overallDoc._id.toString());
-        //         if (trainingRegistration) {
-        //             const trainingRegistrationStr = trainingRegistration.toString();
-        //             const trainingProgresses = trainingProgressMap.get(trainingRegistrationStr) || [];
-        //             const completedProgresses = trainingProgresses.filter(
-        //                 (progress) => progress.progressPercentage === 100
-        //             );
-        //             if (completedProgresses.length >= mandatoryModulesCount) {
-        //                 registrationsForCertificates.push(trainingRegistration);
-        //             }
-        //         }
-        //     } else if (!mandatoryModulesCount) {
-        //         const trainingRegistration = trainingRegMap.get(overallDoc._id.toString());
-        //         if (trainingRegistration) {
-        //             const trainingRegistrationStr = trainingRegistration.toString();
-        //             const trainingProgresses = trainingProgressMap.get(trainingRegistrationStr) || [];
-        //             const completedProgresses = trainingProgresses.filter(
-        //                 (progress) => progress.progressPercentage === 100
-        //             );
-        //             registrationsForCertificates.push(trainingRegistration);
-        //         }
-        //     }
-        // }
 
         if (registrationsForCertificates.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
