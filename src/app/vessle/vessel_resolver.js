@@ -7,11 +7,13 @@ const {
 const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
-const { VesselType } = require("./vessel-type/vessel_type_model");
-const { VesselHelper } = require("./vessel_helper");
+const { User } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
-
+const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
+const NotificationHelper = require("../notifications/notification_helper");
+const NotificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -23,48 +25,85 @@ module.exports.queries = {
             let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
 
             if (filterInput?.isActive !== undefined) {
-                filterConditions.isActive = filterInput?.isActive ? true : false;
+                filterConditions.isActive = filterInput?.isActive;
             }
 
-            if (filterInput?.vesselType) {
-                filterConditions = {
-                    ...filterConditions,
-                    typeOfVessel: ObjectId(filterInput.vesselType),
+            if (filterInput?.vesselName?.length > 0) {
+                filterConditions.name = {
+                    $in: filterInput.vesselName.map(name => new RegExp(".*" + name + ".*", "i")),
+                };
+            }
+
+            if (filterInput?.vesselNameAndImoNumber?.length > 0) {
+                filterConditions.$or = [
+                    {
+                        name: {
+                            $in: filterInput.vesselNameAndImoNumber.map(name => new RegExp(".*" + name + ".*", "i")),
+                        },
+                    },
+                    {
+                        imoNumber: {
+                            $in: filterInput.vesselNameAndImoNumber.map(imo => new RegExp(".*" + imo + ".*", "i")),
+                        },
+                    },
+                ];
+            }
+
+            if (filterInput?.companyName?.length > 0) {
+                filterConditions.companyName = {
+                    $in: filterInput.companyName.map(companyName => new RegExp(".*" + companyName + ".*", "i")),
+                };
+            }
+
+            if (filterInput?.ownerName?.length > 0) {
+                filterConditions.ownerName = {
+                    $in: filterInput.ownerName.map(ownerName => new RegExp(".*" + ownerName + ".*", "i")),
                 };
             }
 
             if (filterInput?.search) {
-                filterConditions = {
-                    ...filterConditions,
-                    $and: [
-                        {
-                            "name": {
-                                $regex: ".*" + filterInput.search + ".*",
-                                $options: "i",
-                            },
-                        },
-                    ],
-                };
+                filterConditions.$or = [
+                    { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                    { ownerName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                ];
             }
 
-            return Vessel.aggregatePaginate(
-                Vessel.aggregate([
-                    { $match: filterConditions },
-                    {
-                        $lookup: {
-                            from: "vesseltypes",
-                            localField: "typeOfVessel",
-                            foreignField: "_id",
-                            as: "typeOfVessel",
-                            pipeline: [{ $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } }],
+            const pipeline = [
+                { $match: filterConditions },
+                {
+                    $lookup: {
+                        from: "vesseltypes",
+                        localField: "typeOfVessel",
+                        foreignField: "_id",
+                        as: "typeOfVessel",
+                        pipeline: [
+                            { $project: { _id: 1, name: 1, isActive: 1, createdAt: 1, updatedAt: 1 } },
+                        ],
+                    },
+                },
+                { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+            ];
+
+            if (filterInput?.vesselType?.length > 0) {
+                pipeline.push({
+                    $match: {
+                        "typeOfVessel.name": {
+                            $in: filterInput.vesselType.map(
+                                vesselType => new RegExp(".*" + vesselType + ".*", "i")
+                            ),
                         },
                     },
-                    { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
-                ]),
+                });
+            }
+
+            const vessels = await Vessel.aggregatePaginate(
+                Vessel.aggregate(pipeline),
                 {
                     offset: skip,
                     limit,
-                    sort: { createdAt: "descending" },
+                    sort: { updatedAt: -1 },
                     customLabels: {
                         docs: "vessels",
                         totalDocs: "totalCount",
@@ -74,6 +113,12 @@ module.exports.queries = {
                     allowDiskUse: true,
                 }
             );
+
+            return {
+                vessels: vessels.vessels,
+                totalCount: vessels.vessels.length,
+            };
+
         } catch (error) {
             throw Error(error.message);
         }
@@ -98,16 +143,23 @@ module.exports.queries = {
         try {
             const { subscriberId } = AuthUser(context);
 
-            const vessel = await Vessel.findOne({ 
-                imoNumber: { $regex: imoNumber, $options: "i" }, subscriber: subscriberId });
-            if (vessel) {
-                throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist');
-            }
+            const vessel = await Vessel.findOne({
+                imoNumber: imoNumber,
+                subscriber: subscriberId,
+                isDeleted: { $ne: true }
+            });
 
-            return {
-                status: true,
-                message: 'IMO number is valid'
-            };
+            if (vessel) {
+                return {
+                    status: false,
+                    message : 'IMO number already exist.'
+                };
+            } else {
+                return {
+                    status: true,
+                    message : 'IMO number is valid.'
+                };
+            }
         } catch (error) {
             throw Error(error.message);
         }
@@ -124,8 +176,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
-
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -192,7 +243,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
-            if (!input.isActive) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
+            if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
             if (existingImoNumber) {
@@ -246,22 +297,32 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             if (!ids || ids.length === 0) {
-                throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel id is required.');
+                throw CustomError(ErrorName.FIELD_REQUIRED, 'Vessel ID is required.');
             }
 
-            for (let id of ids) {
-                const vessel = await Vessel.findOne({ _id: id });
+            const vesselUsers = await UserVessel.find({
+                vessel: { $in: ids },
+                isActive: true,
+            });
 
-                if (!vessel) {
-                    throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
-                }
-                if (vessel.isDeleted) {
-                    throw CustomError(ErrorName.ALREADY_DELETED, 'Vessel already deleted.');
-                }
-                vessel.isDeleted = true;
-                vessel.updatedBy = userId;
+            if (vesselUsers.length > 0) {
+                await UserVessel.updateMany(
+                    { vessel: { $in: ids } },
+                    { $set: { isActive: false, vesselStatus: "ONSHORE" } }
+                );
+            }
 
-                await vessel.save();
+            const vessels = await Vessel.find({ _id: { $in: ids } });
+
+
+            await Vessel.updateMany(
+                { _id: { $in: ids } },
+                { $set: { isDeleted: true, updatedBy: userId } }
+            );
+
+
+            for (const vessel of vessels) {
+                if (!vessel) continue;
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -286,17 +347,19 @@ module.exports.mutations = {
 
             return {
                 success: true,
-                message: 'Vessel deleted successfully.'
+                message: 'Vessel(s) deleted successfully.',
             };
         } catch (error) {
-            throw Error(error.message);
+            throw new Error(error.message);
         }
     },
+
 
     activateDeactivateVessel: async ({ ids }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             let vessel
+            const updatedVessels = [];
             for (let id of ids) {
                 vessel = await Vessel.findOne({ _id: id });
                 if (!vessel) {
@@ -307,7 +370,11 @@ module.exports.mutations = {
                 vessel.updatedBy = userId;
 
                 await vessel.save();
-
+                updatedVessels.push({
+                    id: vessel._id,
+                    name: vessel.name,
+                    isActive: vessel.isActive,
+                });
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.VESSEL_LOG,
@@ -328,7 +395,43 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
             }
-
+            if (updatedVessels.length > 0) {
+                const vesselNames = updatedVessels.map(v => v.name).join(", ");
+                const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
+    
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Vessel Status Updated Successfully`,
+                    messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                    notifyAdmin: true,
+                    affected: updatedVessels.map(v => ({
+                        targetRef: "Vessel",
+                        target: v.id,
+                    })),
+                    status:"SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+    
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Vessels have been Updated`,
+                    messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                    notifyAdmin: false,
+                    affected: updatedVessels.map(v => ({
+                        targetRef: "Vessel",
+                        target: v.id,
+                    })),
+                    notifiers: updatedVessels.map(v => v.id),
+                    employeeNotifiers: updatedVessels.map(v => v.id),   
+                    icon: notificationiconEnum.SUCCESS,
+                    status:"SENT",
+                    createdBy: userInfo,
+                });
+            }
+    
             return {
                 success: true,
                 message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
