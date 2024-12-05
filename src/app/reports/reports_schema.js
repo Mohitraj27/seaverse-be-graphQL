@@ -1,5 +1,11 @@
 module.exports = {
     types: `
+
+        enum reportTypeEnum {
+            ENROLLMENT
+            QUIZ
+            MODULE
+        } 
         type TrainingProgressQuizReport {
             _id: ID
             trainingModuleContent: TrainingModuleContent
@@ -109,7 +115,8 @@ module.exports = {
             designations : [ID]
         } 
         input singleLearnerReportInput {
-            learnerId : ID!
+            learnerIds : [ID]!
+            reportType : reportTypeEnum!
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean
