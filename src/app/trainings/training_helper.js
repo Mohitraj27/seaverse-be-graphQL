@@ -540,6 +540,47 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
 }
 
+const updateOverallProgressPercentage = async (overallIds, session) => {
+
+    const trainingProgresses = await TrainingProgress.find({
+        overallTrainingProgress: { $in: overallIds },
+    });
+
+    if (trainingProgresses.length === 0) return;
+
+    let overallIdContentPercentagesMap = new Map();
+    overallIds.forEach(overallId => {
+        const trainingProgress = trainingProgresses.filter(prog =>
+            prog.overallTrainingProgress.toString() === overallId.toString()
+        );
+
+        if (trainingProgress.length > 0) {
+            const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
+
+            overallIdContentPercentagesMap.set(overallId.toString(), progressPercentages);
+        }
+    });
+
+    let bulkOperations = [];
+
+    overallIdContentPercentagesMap.forEach((progressPercentages, overallId) => {
+        const total = progressPercentages.reduce((sum, val) => sum + val, 0);
+        const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
+
+        bulkOperations.push({
+            updateOne: {
+                filter: { _id: overallId },
+                update: { $set: { progressPercentage: average } }
+            }
+        });
+    });
+
+    if (bulkOperations.length > 0) {
+        await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+    }
+
+}
+
 const updateTrainingProgress = async (input, userId) => {
 
     const overallIds = input.map((item) => item.overallId);
@@ -575,16 +616,16 @@ const updateTrainingProgress = async (input, userId) => {
     });
 
     trainingProgressDocs = await TrainingProgress.find({
-        trainingRegistration: { $in: trainingRegistrationIds },
+        overallTrainingProgress: { $in: overallIds },
         trainingModuleContent: { $in: [...contentIds] },
     }).lean();
 
-    let trainingProgressMap;
+    let overallContentMap;
 
     if (trainingProgressDocs) {
-        trainingProgressMap = new Map(
+        overallContentMap = new Map(
             trainingProgressDocs.map((doc) => [
-                `${doc.trainingRegistration}_${doc.trainingModuleContent}`,
+                `${doc.overallTrainingProgress}_${doc.trainingModuleContent}`,
                 doc,
             ])
         );
@@ -604,8 +645,8 @@ const updateTrainingProgress = async (input, userId) => {
 
             module.contentDetails.forEach((content) => {
 
-                const progressKey = `${trainingRegistration}_${content.contentId}`;
-                const existingProgress = trainingProgressMap?.get(progressKey);
+                const progressKey = `${item.overallId}_${content.contentId}`;
+                const existingProgress = overallContentMap?.get(progressKey);
 
                 if (overallProgressPercentageMap.has(item.overallId)) {
                     overallProgressPercentageMap.get(item.overallId).push(content.progressPercentage);
@@ -759,27 +800,9 @@ const updateTrainingProgress = async (input, userId) => {
             updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses);
         }
 
-        if (overallProgressPercentageMap) {
-            let bulkOperations = [];
-            overallProgressPercentageMap.forEach((percentages, overallId) => {
-
-                const total = percentages.reduce((sum, value) => sum + value, 0);
-                const average = total / percentages.length;
-
-                bulkOperations.push({
-                    updateOne: {
-                        filter: { _id: overallId },
-                        update: { $set: { progressPercentage: average } },
-                    },
-                });
-
-            });
-
-            if (bulkOperations.length > 0) {
-                await OverallTrainingProgress.bulkWrite(bulkOperations);
-            }
+        if (overallIds) {
+            await updateOverallProgressPercentage(overallIds, session);
         }
-
 
         let quizErrors = [];
         if (evaluationData) {
