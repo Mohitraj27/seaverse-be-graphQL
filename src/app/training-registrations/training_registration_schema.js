@@ -199,6 +199,12 @@ module.exports = {
             message: String
             course: OverallTrainingProgress
         }
+        type singleTrainingWebRes {
+            status: Boolean!
+            message: String!
+            course: OverallTrainingProgress!
+            totalCountofTraining: Int! 
+        }
         input MarkAsCompleteInput {
             training: ID!
             userIds: [ID]!
@@ -222,6 +228,7 @@ module.exports = {
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
         myCourses(filterInput: myCourseFilterInput): myCoursesRes!
         getSingleCourseDetails(input: ID!): singleTrainingRes!
+        getSingleCourseDetailsforWeb(input: ID!): singleTrainingWebRes!
     `,
     mutations: `
         """used for assign course to employee"""
