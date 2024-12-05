@@ -547,7 +547,10 @@ module.exports.queries = {
                                                         "$$question.questionType",
                                                     points: "$$question.points",
                                                     negativePoints:
-                                                        "$$question.negativePoints"
+                                                        "$$question.negativePoints",
+                                                        allowMultipleAnswers:
+                                                        "$$question.allowMultipleAnswers"
+                                                        
                                                 }
                                             }
                                         }
@@ -607,6 +610,7 @@ module.exports.queries = {
                 ]);
 
                 trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
             } else {
 
                 trainingDetails = await OverallTrainingProgress.aggregate([
@@ -961,7 +965,10 @@ module.exports.queries = {
                                                         "$$question.questionType",
                                                     points: "$$question.points",
                                                     negativePoints:
-                                                        "$$question.negativePoints"
+                                                        "$$question.negativePoints",
+                                                        allowMultipleAnswers:
+                                                        "$$question.allowMultipleAnswers"
+
                                                 }
                                             }
                                         }
@@ -1097,6 +1104,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers:"$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },

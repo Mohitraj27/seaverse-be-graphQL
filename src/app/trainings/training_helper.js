@@ -287,6 +287,25 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
 
     }
 
+    const updateOverallTrainingProgress = [];
+    for (const item of input) {
+
+        const lastModule = item.trainingModules[item.trainingModules.length - 1];
+        const lastContent = lastModule.contentDetails[lastModule.contentDetails.length - 1];
+
+        updateOverallTrainingProgress.push({
+            updateOne: {
+                filter: { _id: item.overallId },
+                update: { $set: { lastConsumedContent: { moduleId: lastModule.moduleId, contentId: lastContent.contentId } } }
+            }
+        })
+
+    }
+
+    if (updateOverallTrainingProgress.length > 0) {
+        await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress);
+    }
+
 }
 const calculateTrainingCompletion = (overallTrainingProgresses) => {
 
