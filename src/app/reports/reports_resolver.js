@@ -1245,16 +1245,27 @@ const getSingleCourseReport = async ({ input }, context) => {
                 let s3PresignedUrl = "";
 
                 if (input?.export) {
+                    if(!data) throw CustomError(ErrorName.NOT_FOUND,"No there is no data present");
+                    const parsedData = data.map(item => {
+                        const parsedItem = { ...item };
+                        parsedItem.trainingTitle = (Array.isArray(item.trainingTitle) && item.trainingTitle.length > 0)
+                            ? item.trainingTitle[0]?.value || ''
+                            : '';
+                        parsedItem.quizPercentage = parsedItem.quizPercentage? parsedItem.quizPercentage: 'Not Applicable'     
+                        delete parsedItem.isPassed;
+                        delete parsedItem._id;
+                        return parsedItem;
+                    });
                     const workbook = XLSX.utils.book_new();
-                    const worksheet = XLSX.utils.json_to_sheet(data);
+                    const worksheet = XLSX.utils.json_to_sheet(parsedData);
                     XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Courses_Report_exports",
                         fileName: `Courses_Report-${Date.now()}.xlsx`,
-                        uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
-                    });
+                        uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
+                    }); 
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     }
