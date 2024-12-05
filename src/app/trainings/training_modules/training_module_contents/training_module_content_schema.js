@@ -36,6 +36,7 @@ module.exports = {
             value: String
             choices: [AnswerChoice]
             answerKey: [String]
+            allowMultipleAnswers: Boolean
             questionType: String
             points: Int
             negativePoints: Int
