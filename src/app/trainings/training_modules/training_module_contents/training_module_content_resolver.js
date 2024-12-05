@@ -607,7 +607,7 @@ module.exports.mutations = {
                 $or: input.title.map(x => ({
                     "title.value": { $regex: x.value.trim(), $options: "i" },
                 })),
-                isUpdated: false
+                isDeleted: { $ne: true },
             }).lean().select("_id");
 
             if (existingContent) {
@@ -768,7 +768,7 @@ module.exports.mutations = {
                 $or: title.map(x => ({
                     "title.value": { $regex: x.value.trim(), $options: "i" },
                 })),
-                isUpdated: false
+                isDeleted: { $ne: true },
             }).lean().select("_id");
 
             if (existingContent) {
@@ -861,8 +861,8 @@ module.exports.mutations = {
                 $or: input.title.map(x => ({
                     "title.value": { $regex: x.value.trim(), $options: "i" },
                 })),
-                _id: { $ne: input._id },
-                isUpdated: false
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
             }).lean().select("_id");
 
             if (alreadyContentExist) {
@@ -1122,8 +1122,8 @@ module.exports.mutations = {
                 $or: input.title.map(x => ({
                     "title.value": { $regex: x.value.trim(), $options: "i" },
                 })),
-                _id: { $ne: input._id },
-                isUpdated: false
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
             }).lean().select("_id");
 
             if (alreadyContentExist) {

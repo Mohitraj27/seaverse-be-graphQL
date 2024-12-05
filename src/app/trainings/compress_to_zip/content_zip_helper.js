@@ -73,7 +73,7 @@ const fileDownloader = async (contentMap) => {
     }
 
     return filePath;
-    
+
 };
 
 const fetchFiles = (contents) => {
@@ -81,7 +81,8 @@ const fetchFiles = (contents) => {
     let fileUrlMap = new Map();
 
     for (let content of contents) {
-        const trainingContent = content.trainingContent;
+
+        const trainingContent = content;
 
         switch (trainingContent.contentType) {
             case contentTypes.VIDEO:
@@ -90,16 +91,20 @@ const fetchFiles = (contents) => {
             case contentTypes.IMAGE:
                 fileUrlMap.set(content._id, trainingContent.images[0]?.url);
                 break;
+            case contentTypes.QUIZ:
+                break;
             default:
                 fileUrlMap.set(content._id, trainingContent.files[0]?.url);
                 break;
         }
+
     }
 
     return fileUrlMap;
 
 }
-const getTheContent = async (contents, tableType) => {
+
+const getTheContent = async (contents) => {
 
     let zipUrl = null;
     let fetchedData;
