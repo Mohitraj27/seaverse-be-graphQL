@@ -1797,20 +1797,20 @@ const getVesselMainReport = async ({ input }, context) => {
 
         if (input?.export) {
 
-            
-        const parsedData = data.map(item => {
-            const parsedItem = { ...item };
-            parsedItem.quizPercentage = parsedItem.quizPercentage? parsedItem.quizPercentage: 'Not Applicable'     
-            parsedItem.ownerName = parsedItem.ownerName? parsedItem.ownerName: 'NIL'     
-            parsedItem.companyName = parsedItem.companyName? parsedItem.companyName: 'NIL'     
-           
-            delete parsedItem.isPassed;
-            delete parsedItem._id;
-            delete parsedItem.vesselId;
-            delete parsedItem.vesselTypeId;
 
-            return parsedItem;
-        });
+            const parsedData = data.map(item => {
+                const parsedItem = { ...item };
+                parsedItem.quizPercentage = parsedItem.quizPercentage ? parsedItem.quizPercentage : 'Not Applicable'
+                parsedItem.ownerName = parsedItem.ownerName ? parsedItem.ownerName : 'NIL'
+                parsedItem.companyName = parsedItem.companyName ? parsedItem.companyName : 'NIL'
+
+                delete parsedItem.isPassed;
+                delete parsedItem._id;
+                delete parsedItem.vesselId;
+                delete parsedItem.vesselTypeId;
+
+                return parsedItem;
+            });
 
             const workbook = XLSX.utils.book_new();
             const worksheet = XLSX.utils.json_to_sheet(parsedData);
