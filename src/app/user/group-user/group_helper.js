@@ -446,10 +446,11 @@ module.exports = {
         const roleGroups = await User.aggregate([
             {
                 $match: {
-                    subscriber: subscriberId,
+                    // subscriber: subscriberId,
                     isDeleted: { $ne: true },
                     firstName: { $ne: null },
                     email: { $ne: null },
+                    superAdmin: false
                 },
             },
             {
@@ -461,10 +462,10 @@ module.exports = {
                 },
             },
             {
-                $project: {
+                $addFields: {
                     effectiveRole: {
-                        $cond: {
-                            if: {
+                        $cond: [
+                            {
                                 $in: [
                                     "ADMIN",
                                     {
@@ -476,14 +477,10 @@ module.exports = {
                                     },
                                 ],
                             },
-                            then: "ADMIN",
-                            else: "$role",
-                        },
+                            "ADMIN",
+                            "$role",
+                        ],
                     },
-                    firstName: 1,
-                    lastName: 1,
-                    email: 1,
-                    _id: 1,
                 },
             },
             {
@@ -527,7 +524,7 @@ module.exports = {
                     memberCount: { $gt: 0 },
                 },
             },
-        ]);
+        ]);       
 
         const vesselGroups = await UserVessel.aggregate([
             {
