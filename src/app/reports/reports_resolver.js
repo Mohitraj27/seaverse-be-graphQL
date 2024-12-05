@@ -926,42 +926,26 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
 
-        if(!input?.reportType)throw new Error("Report Type is Required");
+        if(!input?.reportType)throw CustomError(ErrorName.ARGUMENTS_REQUIRED,"Report Type is Required");
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filter || {};
+            const searchString = filterInput.search || ''; 
+            if (searchString.trim() !== '') {
+                const regexSearch = new RegExp(searchString.trim(), 'i'); 
 
-            if (filterInput.vesselName) {
                 matchStage.push({
                     $match: {
-                        'usersVesselInfo.name': { $regex: filterInput.vesselName, $options: 'i' },
-                    },
+                        $or: [
+                            { 'usersVesselInfo.name': { $regex: regexSearch } },
+                            { 'vesselTypeInfo.name': { $regex: regexSearch } },
+                            { 'designationInfo.name': { $regex: regexSearch } },
+                            { 'status': { $regex: regexSearch } }
+                        ]
+                    }
                 });
             }
 
-            if (filterInput.vesselType) {
-                matchStage.push({
-                    $match: {
-                        'vesselTypeInfo.name': { $regex: filterInput.vesselType, $options: 'i' },
-                    },
-                });
-            }
-
-            if (filterInput.designation) {
-                matchStage.push({
-                    $match: {
-                        'designationInfo.name': { $regex: filterInput.designation, $options: 'i' },
-                    },
-                });
-            }
-
-            if (filterInput.status) {
-                matchStage.push({
-                    $match: {
-                        'status': { $regex: filterInput.status, $options: 'i' },
-                    },
-                });
-            }
 
             if (filterInput.dateRange) {
                 const { startDate, endDate } = filterInput.dateRange;
@@ -983,6 +967,36 @@ const getSingleCourseReport = async ({ input }, context) => {
                 matchStage.push({
                     $match: {
                         createdAt: dateFilter,
+                    },
+                });
+            }
+
+            if (filterInput.vesselType && Array.isArray(filterInput.vesselType) && filterInput.vesselType.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselTypeInfo._id': { $in: filterInput.vesselType },
+                    },
+                });
+            }
+
+            if (filterInput.vesselName && Array.isArray(filterInput.vesselName) && filterInput.vesselName.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'usersVesselInfo._id': { $in: filterInput.vesselName },
+                    },
+                });
+            }
+            if (filterInput.designation && Array.isArray(filterInput.designation) && filterInput.designation.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'designationInfo._id': { $in: filterInput.designation },
+                    },
+                });
+            }
+            if (filterInput.courseStatus && Array.isArray(filterInput.courseStatus) && filterInput.courseStatus.length > 0) {
+                matchStage.push({
+                    $match: {
+                        status: { $in: filterInput.courseStatus },
                     },
                 });
             }
