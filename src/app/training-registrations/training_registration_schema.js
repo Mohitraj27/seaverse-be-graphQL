@@ -51,6 +51,10 @@ module.exports = {
             scorm:Scorm
             users: [ID]
         }
+        type lastConsumedContent {
+            moduleId: ID!
+            contentId: ID!
+        }
         type OverallTrainingProgress {
             _id: ID
             subscriber: Subscriber
@@ -69,6 +73,7 @@ module.exports = {
             moduleCount: Int
             totalDuration: Int
             status: String
+            lastConsumedContent: lastConsumedContent
             trainingModules: [TrainingModule]
         }
         type TrainingRegistrationList {

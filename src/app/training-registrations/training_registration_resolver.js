@@ -607,6 +607,7 @@ module.exports.queries = {
                 ]);
 
                 trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
             } else {
 
                 trainingDetails = await OverallTrainingProgress.aggregate([
