@@ -412,6 +412,7 @@ module.exports.queries = {
             let trainingDetails;
 
             if (fetchOverallTrainingProgress.contentData && fetchOverallTrainingProgress.contentData.length > 0) {
+
                 const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
                     {
                         $match: {
@@ -604,8 +605,10 @@ module.exports.queries = {
                         }
                     }
                 ]);
+
                 trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
             } else {
+
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
                     {
@@ -734,6 +737,7 @@ module.exports.queries = {
                         },
                     },
                 ]);
+                
             }
 
             if (trainingDetails.length === 0) {
