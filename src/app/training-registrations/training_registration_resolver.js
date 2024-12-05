@@ -565,21 +565,6 @@ module.exports.queries = {
                                         trainingModuleContentDetails: { $push: "$trainingModuleContentDetails" },
                                     },
                                 },
-                                // {
-                                //     $group: {
-                                //         _id: "$_id",
-                                //         trainingContent: {
-                                //             $first: "$trainingContent"
-                                //         },
-                                //         trainingModule: {
-                                //             $first: "$trainingModule"
-                                //         },
-                                //         trainingModuleContentDetails: {
-                                //             $push:
-                                //                 "$trainingModuleContentDetails"
-                                //         }
-                                //     }
-                                // }
                             ],
                             as: "progressDetails"
                         }
