@@ -181,10 +181,11 @@ module.exports = {
             export : Boolean
         }
         input singleCourseReportFilter {
-            vesselName : String
-            vesselType : String
-            designation : String
-            courseStatus:String
+            search :String
+            vesselName : [ID]
+            vesselType : [ID]
+            designation : [ID]
+            courseStatus:[String]
             dateRange : filterDateRange
         }
         type singleCourseReportOutput {
