@@ -50,35 +50,31 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             }
             switch (group.groupType) {
                 case 'custom':
-                    group.groupIDs = await getCustomGroupUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
-                    break;
-                case 'designation':
+                   group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                   break;
+                case 'designation': 
                 case 'subRole':
                 case 'vessel':
-                case 'vesselType':
-                    group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                case 'vesselType': 
+                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     break;
                 case 'role':
                     if (!group.groupIDs.every(role => validRoles.includes(role))) {
                         errors.push(errorMessages.INVALID_ROLE_ID);
                     } else {
-                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                        group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     }
                     break;
-                case 'regStatus':
+                case 'regStatus': 
                     if (group.groupIDs !== "true" && group.groupIDs !== "false") {
                         errors.push(errorMessages.INVALID_REG_STATUS);
                     } else {
-                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
+                        group.groupIDS = group.groupIDs === "true" ? [true] : [false];
                     }
                     break;
                 case 'vesselStatus':
-                    if (![vesselStatusEnum].includes(group.groupIDs)) {
-                        errors.push(errorMessages.INVALID_VESSEL_STATUS);
-                    } else {
-                        group.groupIDs = await getAutoSyncUsers([{ groupType: group.groupType, groupId: group.groupIDs }]);
-                    }
-                    break;
+                      group.groupIDS = group.groupIDs.map((vesselStatus) => vesselStatusEnum[vesselStatus]);
+                        break;
                 default:
                     errors.push(errorMessages.INVALID_GROUP_TYPE);
             }
