@@ -509,7 +509,7 @@ module.exports.mutations = {
             if (syncContentErrors.length > 0) {
                 console.log(syncContentErrors[0]);
             }
-
+            
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
