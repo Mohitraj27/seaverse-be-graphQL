@@ -288,6 +288,84 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
     }
 
 }
+const calculateTrainingCompletion = (overallTrainingProgresses) => {
+
+    return overallTrainingProgresses.map((otp) => {
+
+        const moduleCompletionMap = {};
+
+        const contentDataArray = Array.isArray(otp.contentData)
+            ? otp.contentData
+            : [otp.contentData];
+
+        otp.trainingProgressData.forEach((progress) => {
+
+            const moduleId = progress.trainingModule;
+
+            if (!moduleCompletionMap[moduleId]) {
+                moduleCompletionMap[moduleId] = true;
+            }
+
+            if (progress.status !== "COMPLETED") {
+                moduleCompletionMap[moduleId] = false;
+            }
+
+        });
+
+        const completedModulesCount = Object.values(moduleCompletionMap).filter(
+            (isCompleted) => isCompleted
+        ).length;
+
+        const totalModules = new Set(contentDataArray.map((cd) => cd.moduleId)).size;
+
+        const mandatoryModules = otp.mandatoryModules || totalModules;
+
+        const isTrainingCompleted =
+            completedModulesCount >= mandatoryModules || completedModulesCount === totalModules;
+
+        return {
+            overallTrainingProgressId: otp._id,
+            completedModulesCount,
+            totalModules,
+            isTrainingCompleted,
+        };
+    });
+};
+
+function mergeTrainingData(data) {
+    const mergedData = {};
+
+    data.forEach(item => {
+        const { _id, contentData, trainingProgressData } = item;
+
+        if (!mergedData[_id]) {
+            mergedData[_id] = {
+                ...item,
+                contentData: {},
+                trainingProgressData: []
+            };
+        }
+
+        mergedData[_id].trainingProgressData.push(...trainingProgressData);
+
+        const { moduleId, contentIds } = contentData;
+        if (!mergedData[_id].contentData[moduleId]) {
+            mergedData[_id].contentData[moduleId] = [];
+        }
+        if (!mergedData[_id].contentData[moduleId].includes(contentIds)) {
+            mergedData[_id].contentData[moduleId].push(contentIds);
+        }
+    });
+
+    Object.values(mergedData).forEach(item => {
+        item.contentData = Object.entries(item.contentData).map(([moduleId, contentIds]) => ({
+            moduleId,
+            contentIds
+        }));
+    });
+
+    return Object.values(mergedData);
+}
 
 // const validateAndUpdateContentData = async (input) => {
 
@@ -390,62 +468,115 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
 //     return errors;
 // };
 
-const validateAndGenerateCertificate = async (trainingRegMap, overallDocs, session) => {
+const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
-    if (trainingRegMap && overallDocs) {
+    if (overallIds.length > 0) {
 
-        const trainingRegistrationIds = overallDocs
-            .map((doc) => trainingRegMap.get(doc._id.toString()))
-            .filter(Boolean);
+        if (!overallIds) return;
 
-        const allTrainingProgresses = await TrainingProgress.find({
-            trainingRegistration: { $in: trainingRegistrationIds },
-        }).lean();
+        const fetchDetails = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    _id: { $in: overallIds }
+                }
+            },
+            { $unwind: "$contentData" },
+            { $unwind: "$contentData.contentIds" },
+            {
+                $lookup: {
+                    from: "trainingprogresses",
+                    let: {
+                        overallId: "$_id",
+                        moduleId: "$contentData.moduleId",
+                        contentId: "$contentData.contentIds"
+                    },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$overallTrainingProgress", "$$overallId"] },
+                                        { $eq: ["$trainingModule", "$$moduleId"] },
+                                        { $eq: ["$trainingModuleContent", "$$contentId"] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "trainingProgressData"
+                }
+            },
+            { $match: { trainingProgressData: { $ne: [] } } },
+            {
+                $project: {
+                    _id: 1,
+                    user: 1,
+                    training: 1,
+                    trainingRegistration: 1,
+                    mandatoryModules: 1,
+                    "contentData.moduleId": 1,
+                    "contentData.contentIds": 1,
+                    trainingProgressData: 1
+                }
+            },
+        ]);
 
-        const trainingProgressMap = new Map();
+        const processedData = mergeTrainingData(fetchDetails);
 
-        allTrainingProgresses.forEach((progress) => {
+        const trainingCompletionStatus = calculateTrainingCompletion(processedData);
 
-            const trainingRegistrationStr = progress.trainingRegistration.toString();
+        const completedOverallIds = trainingCompletionStatus.filter((item) => item.isTrainingCompleted).map((item) => item.overallTrainingProgressId);
 
-            if (!trainingProgressMap.has(trainingRegistrationStr)) {
-                trainingProgressMap.set(trainingRegistrationStr, []);
-            }
-
-            trainingProgressMap.get(trainingRegistrationStr).push(progress);
-
+        const overallDocs = await OverallTrainingProgress.find({
+            _id: { $in: completedOverallIds },
+            trainingRegistration: { $ne: null }
         });
 
-        const registrationsForCertificates = [];
+        if (overallDocs.length > 0) {
+            await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+        }
 
-        for (const overallDoc of overallDocs) {
+    }
 
-            const mandatoryModulesCount = overallDoc.mandatoryModules ?? 0;
+}
 
-            if (mandatoryModulesCount > 0) {
+const updateOverallProgressPercentage = async (overallIds, session) => {
 
-                const trainingRegistration = trainingRegMap.get(overallDoc._id.toString());
+    const trainingProgresses = await TrainingProgress.find({
+        overallTrainingProgress: { $in: overallIds },
+    });
 
-                if (trainingRegistration) {
+    if (trainingProgresses.length === 0) return;
 
-                    const trainingRegistrationStr = trainingRegistration.toString();
-                    const trainingProgresses = trainingProgressMap.get(trainingRegistrationStr) || [];
+    let overallIdContentPercentagesMap = new Map();
+    overallIds.forEach(overallId => {
+        const trainingProgress = trainingProgresses.filter(prog =>
+            prog.overallTrainingProgress.toString() === overallId.toString()
+        );
 
-                    const completedProgresses = trainingProgresses.filter(
-                        (progress) => progress.progressPercentage === 100
-                    );
+        if (trainingProgress.length > 0) {
+            const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
 
-                    if (completedProgresses.length >= mandatoryModulesCount) {
-                        registrationsForCertificates.push(trainingRegistration);
-                    }
-                }
+            overallIdContentPercentagesMap.set(overallId.toString(), progressPercentages);
+        }
+    });
+
+    let bulkOperations = [];
+
+    overallIdContentPercentagesMap.forEach((progressPercentages, overallId) => {
+        const total = progressPercentages.reduce((sum, val) => sum + val, 0);
+        const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
+
+        bulkOperations.push({
+            updateOne: {
+                filter: { _id: overallId },
+                update: { $set: { progressPercentage: average } }
             }
-        }
+        });
+    });
 
-        if (registrationsForCertificates.length > 0) {
-            await TrainingCertificateHelper.generateCertificateBulk(registrationsForCertificates, session);
-        }
-
+    if (bulkOperations.length > 0) {
+        await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
     }
 
 }
@@ -485,16 +616,16 @@ const updateTrainingProgress = async (input, userId) => {
     });
 
     trainingProgressDocs = await TrainingProgress.find({
-        trainingRegistration: { $in: trainingRegistrationIds },
+        overallTrainingProgress: { $in: overallIds },
         trainingModuleContent: { $in: [...contentIds] },
     }).lean();
 
-    let trainingProgressMap;
+    let overallContentMap;
 
     if (trainingProgressDocs) {
-        trainingProgressMap = new Map(
+        overallContentMap = new Map(
             trainingProgressDocs.map((doc) => [
-                `${doc.trainingRegistration}_${doc.trainingModuleContent}`,
+                `${doc.overallTrainingProgress}_${doc.trainingModuleContent}`,
                 doc,
             ])
         );
@@ -508,14 +639,14 @@ const updateTrainingProgress = async (input, userId) => {
 
         const trainingRegistration = trainingRegMap.get(item.overallId.toString());
 
-
         if (!trainingRegistration) return;
 
         item.trainingModules.forEach((module) => {
 
             module.contentDetails.forEach((content) => {
-                const progressKey = `${trainingRegistration}_${content.contentId}`;
-                const existingProgress = trainingProgressMap?.get(progressKey);
+
+                const progressKey = `${item.overallId}_${content.contentId}`;
+                const existingProgress = overallContentMap?.get(progressKey);
 
                 if (overallProgressPercentageMap.has(item.overallId)) {
                     overallProgressPercentageMap.get(item.overallId).push(content.progressPercentage);
@@ -669,27 +800,9 @@ const updateTrainingProgress = async (input, userId) => {
             updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses);
         }
 
-        if (overallProgressPercentageMap) {
-            let bulkOperations = [];
-            overallProgressPercentageMap.forEach((percentages, overallId) => {
-
-                const total = percentages.reduce((sum, value) => sum + value, 0);
-                const average = total / percentages.length;
-
-                bulkOperations.push({
-                    updateOne: {
-                        filter: { _id: overallId },
-                        update: { $set: { progressPercentage: average } },
-                    },
-                });
-
-            });
-
-            if (bulkOperations.length > 0) {
-                await OverallTrainingProgress.bulkWrite(bulkOperations);
-            }
+        if (overallIds) {
+            await updateOverallProgressPercentage(overallIds, session);
         }
-
 
         let quizErrors = [];
         if (evaluationData) {
@@ -701,8 +814,7 @@ const updateTrainingProgress = async (input, userId) => {
             return;
         }
 
-        // const generatedTrainingCertificate = await validateAndGenerateCertificate(updateTrainingProgress, trainingRegMap, overallDocs, session);
-        // const generatedTrainingCertificate = await validateAndGenerateCertificate(trainingRegMap, overallDocs, session);
+        const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
 
     });
 

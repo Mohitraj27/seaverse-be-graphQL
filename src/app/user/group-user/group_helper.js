@@ -54,7 +54,7 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
                     default:
                         break;
                 }
-                
+
                 const matchedGroup = relevantGroup.find(g => g.groupId == groupId);
 
                 if (matchedGroup) {
@@ -206,7 +206,7 @@ module.exports = {
             {
                 $match: matchStage,
             },
-            { $sort: { updatedAt : -1 } },
+            { $sort: { updatedAt: -1 } },
             {
                 $lookup: {
                     from: 'groupmembers',
@@ -262,7 +262,7 @@ module.exports = {
                 },
             },
         ])
-        .skip(skip).limit(limit);
+            .skip(skip).limit(limit);
 
         const groupUserIds = await getUserIdsInAutoSyncedGroups();
 

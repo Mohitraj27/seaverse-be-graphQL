@@ -525,17 +525,33 @@ module.exports.mutations = {
         }
 
     },
-    startOverTraining: async ({ overallId }, context) => {
+    startOverTraining: async ({ overallId, user }, context) => {
 
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        let userId;
+        if (user) {
+            userId = user;
+        } else {
+            userId = AuthUser(context).userId;
+        }
 
         const fetchOverallTraining = await OverallTrainingProgress.findById(overallId);
 
         if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
 
-        return {
-            status: 1,
-            message: "Course restarted successfully!"
+        let updateOverallTrainingProgress;
+        if (fetchOverallTraining.contentData) {
+            fetchOverallTraining.contentData = [];
+            updateOverallTrainingProgress = fetchOverallTraining.save();
         }
+
+        if (updateOverallTrainingProgress) {
+            return {
+                status: 1,
+                message: "Course restarted successfully!"
+            }
+        } else {
+            throw CustomError(ErrorName.FAILED);
+        }
+        
     }
 };

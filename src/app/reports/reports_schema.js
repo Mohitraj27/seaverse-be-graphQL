@@ -1,5 +1,11 @@
 module.exports = {
     types: `
+
+        enum reportTypeEnum {
+            ENROLLMENT
+            QUIZ
+            MODULE
+        } 
         type TrainingProgressQuizReport {
             _id: ID
             trainingModuleContent: TrainingModuleContent
@@ -87,7 +93,7 @@ module.exports = {
             vesselTypeId : ID
             lastSeen : String
             coursesCount : Int 
-            averageProgressPercentage : Int
+            averageProgressPercentage : Float
             isDeleted : Boolean
         }
         type learnerMainReportResponse {
@@ -109,7 +115,8 @@ module.exports = {
             designations : [ID]
         } 
         input singleLearnerReportInput {
-            learnerId : ID!
+            learnerIds : [ID]!
+            reportType : reportTypeEnum!
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean
@@ -174,10 +181,11 @@ module.exports = {
             export : Boolean
         }
         input singleCourseReportFilter {
-            vesselName : String
-            vesselType : String
-            designation : String
-            courseStatus:String
+            search :String
+            vesselName : [ID]
+            vesselType : [ID]
+            designation : [ID]
+            courseStatus:[String]
             dateRange : filterDateRange
         }
         type singleCourseReportOutput {
@@ -223,7 +231,7 @@ module.exports = {
             companyName : String
             ownerName : String
             onboardedCount : Int
-            progress : Int
+            progress : Float
         }
         input customReportInput {
             dateRange : filterDateRange!
@@ -241,7 +249,7 @@ module.exports = {
             filePath : String
             message : String
         }
-        type customReortLogOutput{
+        type customReportLogOutput{
             _id : ID
             from : String
             to : String
@@ -249,6 +257,20 @@ module.exports = {
             generatedBy : String
             filePath : MultiMediaInfo
         }
+
+        input mainVesselReportInput {
+            filterInput: vesselReportFilter   
+            pageInput: PageInput       
+            export: Boolean 
+        }
+
+        input vesselReportFilter {
+          ownerName : [String]
+          companyName : [String]
+          vesselTypeIds : [ID]
+          vesselNameIds : [ID]
+        }
+
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -260,8 +282,8 @@ module.exports = {
         getSingleLearnerReport(input: singleLearnerReportInput):singleLearnersReportOutput
         getSingleCourseReport(input: singleCourseReportInput):singleCourseReportOutput
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
-        getVesselMainReport(input: MainCoursesReportInput): mainVesselReportOutput
+        getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
-        getCustomReportLogs(pageInput : PageInput):[customReortLogOutput]
+        getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
     `,
 };
