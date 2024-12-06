@@ -778,7 +778,7 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity) => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity,filteredLearnerData = []) => {
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
         let activityFilter;
@@ -840,7 +840,23 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             },
             {
                 $unwind: "$userDetails"
-            },
+            },  
+                ...(filteredLearnerData.length > 0
+                    ? [
+                        {
+                            $match: {
+                                $or: filteredLearnerData.map(field => ({
+                                    $or: [
+                                        { "userDetails.email": { $regex: field, $options: 'i' } }, 
+                                        { "userDetails.firstName": { $regex: field, $options: 'i' } }, 
+                                        { "userDetails.lastName": { $regex: field, $options: 'i' } } 
+                                    ]
+                                }))
+                            }
+                        }
+                    ]
+                    : []),
+                
             {
                 $group: {
                     _id: "$learningPlan",
