@@ -235,13 +235,13 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: result.learningPlan._id,
+                        target: learningPlan._id,
                     },
                 ],
                 status: 'SENT',

@@ -1796,15 +1796,31 @@ const getVesselMainReport = async ({ input }, context) => {
         let s3PresignedUrl = "";
 
         if (input?.export) {
+
+
+            const parsedData = data.map(item => {
+                const parsedItem = { ...item };
+                parsedItem.quizPercentage = parsedItem.quizPercentage ? parsedItem.quizPercentage : 'Not Applicable'
+                parsedItem.ownerName = parsedItem.ownerName ? parsedItem.ownerName : 'NIL'
+                parsedItem.companyName = parsedItem.companyName ? parsedItem.companyName : 'NIL'
+
+                delete parsedItem.isPassed;
+                delete parsedItem._id;
+                delete parsedItem.vesselId;
+                delete parsedItem.vesselTypeId;
+
+                return parsedItem;
+            });
+
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(data);
-            XLSX.utils.book_append_sheet(workbook, worksheet, `Vessel_Progress_Report-${Date.now()}`);
+            const worksheet = XLSX.utils.json_to_sheet(parsedData);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Main-Vessel-Report`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Vessel_Progress_Reports",
                 fileName: `Vessel_Progress_Report-${Date.now()}.xlsx`,
-                uploadType: UploadHelper.uploadType.exportVesselProgressReportAsExcel,
+                uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
