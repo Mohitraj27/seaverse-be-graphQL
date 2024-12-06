@@ -30,7 +30,6 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
     for (const customGroup of customGroups) {
         if (customGroup.groupType === "GROUP") {
             const uniqueUserIds = new Set();
-
             for (const member of customGroup.members) {
                 const { groupType, groupData: groupId } = member;
 
@@ -56,12 +55,12 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
                 }
 
                 const matchedGroup = relevantGroup.find(g => g.groupId == groupId);
-
+                console.log("matchedGroup", matchedGroup);
                 if (matchedGroup) {
-                    matchedGroup.userIds.forEach(userId => uniqueUserIds.add(userId));
+                    matchedGroup.userIds.forEach(userId => uniqueUserIds.add(userId.toString()));
                 }
             }
-
+            console.log("uniqueUserIds", uniqueUserIds);
             result.push({
                 _id: customGroup._id,
                 groupName: customGroup.groupName,
@@ -87,6 +86,28 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                 }
             },
             {
+                $unwind: "$userIds"
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userIds",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $match: {
+                    userDetails: { $ne: [] }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    userIds: { $push: "$userIds" }
+                }
+            },
+            {
                 $project: {
                     groupId: "$_id",
                     userIds: 1,
@@ -95,11 +116,38 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
             }
         ]);
 
-
         const roleUsers = await User.aggregate([
             {
+                $match: {
+                    // subscriber: subscriberId,
+                    isDeleted: { $ne: true },
+                    firstName: { $ne: null },
+                    email: { $ne: null },
+                    superAdmin: false
+                },
+            },
+            {
+                $lookup: {
+                    from: "subroles",
+                    localField: "subRoles",
+                    foreignField: "_id",
+                    as: "subRolesDetails"
+                }
+            },
+            {
+                $addFields: {
+                    groupKey: {
+                        $cond: [
+                            { $gt: [{ $size: "$subRolesDetails" }, 0] },
+                            { $arrayElemAt: ["$subRolesDetails.name", 0] },
+                            "$role"
+                        ]
+                    }
+                }
+            },
+            {
                 $group: {
-                    _id: "$role",
+                    _id: "$groupKey",
                     userIds: { $push: "$_id" }
                 }
             },
@@ -114,9 +162,34 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
 
         const vesselUsers = await UserVessel.aggregate([
             {
+                $match: {
+                    isActive: true
+                }
+            },
+            {
                 $group: {
                     _id: "$vessel",
                     userIds: { $push: "$user" }
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userIds",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userDetails",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    userIds: { $push: "$userDetails._id" }
                 }
             },
             {
@@ -130,9 +203,34 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
 
         const vesselStatusUsers = await UserVessel.aggregate([
             {
+                $match: {
+                    isActive: true
+                }
+            },
+            {
                 $group: {
                     _id: "$vesselStatus",
                     userIds: { $push: "$user" }
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userIds",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userDetails",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    userIds: { $push: "$userDetails._id" }
                 }
             },
             {
@@ -146,9 +244,48 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
 
         const vesselTypeUsers = await UserVessel.aggregate([
             {
+                $match: {
+                    isActive: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "vessels",
+                    localField: "vessel",
+                    foreignField: "_id",
+                    as: "vesselDetails"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$vesselDetails",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
                 $group: {
-                    _id: "$vesselType",
+                    _id: "$vesselDetails.typeOfVessel",
                     userIds: { $push: "$user" }
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userIds",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userDetails",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    userIds: { $push: "$userDetails._id" }
                 }
             },
             {
@@ -374,7 +511,7 @@ module.exports = {
         const empDesignationGroups = await Employee.aggregate([
             {
                 $match: {
-                    subscriber: subscriberId,
+                    // subscriber: subscriberId,
                     isDeleted: { $ne: true },
                     empDesignation: { $ne: null },
                 },
@@ -524,7 +661,7 @@ module.exports = {
                     memberCount: { $gt: 0 },
                 },
             },
-        ]);       
+        ]);
 
         const vesselGroups = await UserVessel.aggregate([
             {
