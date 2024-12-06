@@ -463,6 +463,35 @@ const combineTrainingModules = (data) => {
     return Object.values(mergedData);
 
 }
+const mergeContentDetails = (combineTrainingDetails, contentData) => {
+
+    const contentDataMap = contentData.reduce((map, item) => {
+        map[item._id] = item.contentData.reduce((contentMap, content) => {
+            contentMap[content.contentId] = content;
+            return contentMap;
+        }, {});
+        return map;
+    }, {});
+
+    combineTrainingDetails.forEach(entry => {
+        entry.trainingModules.forEach(module => {
+            module.trainingModuleContents.forEach(content => {
+                content.trainingModuleContentDetails.forEach(detail => {
+                    const moduleContentMap = contentDataMap[module._id];
+                    if (moduleContentMap && moduleContentMap[detail._id]) {
+                        const matchedContent = moduleContentMap[detail._id];
+                        detail.progressPercentage = matchedContent.progressPercentage;
+                        detail.status = matchedContent.status;
+                        detail.lastAccessedDuration = matchedContent.lastAccessedDuration;
+                    }
+                });
+            });
+        });
+    });
+
+    return combineTrainingDetails;
+
+}
 
 module.exports = {
     enrolUserVerificationHelper,
@@ -472,6 +501,7 @@ module.exports = {
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
     combineTrainingModules,
+    mergeContentDetails,
     extractTrainingContentData,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
