@@ -89,8 +89,17 @@ module.exports.queries = {
                             },
                         },
                         {
+                            $lookup: {
+                                from: "overalltrainingprogresses",
+                                localField: "_id",
+                                foreignField: "training",
+                                as: "trainingUsers",
+                            },
+                        },
+                        {
                             $addFields: {
                                 createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                                countOfUsers: { $size: "$trainingUsers" },
                             },
                         },
                         { $project: { createdByDetails: 0 } },
@@ -99,11 +108,10 @@ module.exports.queries = {
             },
             {
                 $project: {
-                    trainings: 1,
+                    trainings: 1
                 },
             },
         ]);
-
 
         const { trainings } = result[0];
         return {
@@ -552,6 +560,6 @@ module.exports.mutations = {
         } else {
             throw CustomError(ErrorName.FAILED);
         }
-        
+
     }
 };
