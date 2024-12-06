@@ -1066,7 +1066,52 @@ module.exports.queries = {
                     },
                 ]);
 
-                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+                const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+                const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);
+                const overallId = fetchOverallTrainingProgress._id;
+
+                const contentDataPipeline = [
+                    {
+                        $match: {
+                            overallTrainingProgress: overallId,
+                            trainingModule: { $in: moduleIds }
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingmodulecontents",
+                            localField: "trainingModuleContent",
+                            foreignField: "_id",
+                            as: "contentDetails"
+                        }
+                    },
+                    {
+                        $unwind: "$contentDetails"
+                    },
+                    {
+                        $group: {
+                            _id: "$trainingModule",
+                            contentData: {
+                                $push: {
+                                    contentId: "$contentDetails._id",
+                                    status: "$status",
+                                    progressPercentage: "$progressPercentage",
+                                    lastAccessedDuration: "$lastAccessedDuration"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $match: {
+                            _id: { $in: moduleIds }
+                        }
+                    }
+                ];
+
+                const contentData = await TrainingProgress.aggregate(contentDataPipeline);
+                trainingDetails = TrainingRegistrationHelper.mergeContentDetails(combineTrainingDetails, contentData);
+
             } else {
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
