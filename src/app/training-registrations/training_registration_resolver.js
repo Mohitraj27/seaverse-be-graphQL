@@ -547,7 +547,9 @@ module.exports.queries = {
                                                         "$$question.questionType",
                                                     points: "$$question.points",
                                                     negativePoints:
-                                                        "$$question.negativePoints"
+                                                        "$$question.negativePoints",
+                                                    allowMultipleAnswers:
+                                                        "$$question.allowMultipleAnswers"
                                                 }
                                             }
                                         }
@@ -1006,7 +1008,9 @@ module.exports.queries = {
                                                         "$$question.questionType",
                                                     points: "$$question.points",
                                                     negativePoints:
-                                                        "$$question.negativePoints"
+                                                        "$$question.negativePoints",
+                                                    allowMultipleAnswers:
+                                                        "$$question.allowMultipleAnswers"
                                                 }
                                             }
                                         }
