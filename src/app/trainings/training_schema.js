@@ -93,6 +93,7 @@ module.exports = {
             isOrdered : Boolean
             isCertificate: Boolean
             courseTag: String
+            countOfUsers: Int
         }
         type Scorm {
             type:String
