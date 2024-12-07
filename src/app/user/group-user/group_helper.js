@@ -27,10 +27,9 @@ const mergedGroupDetails = (allGroups, groupDetails) => {
 const calculateUniqueMemberCounts = (customGroups, groupData) => {
     const result = [];
 
-    const uniqueUserIds = new Set();
     for (const customGroup of customGroups) {
         if (customGroup.groupType === "GROUP") {
-
+            const uniqueUserIds = new Set();
             for (const member of customGroup.members) {
                 const { groupType, groupData: groupId } = member;
 
@@ -56,12 +55,12 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
                 }
 
                 const matchedGroup = relevantGroup.find(g => g.groupId == groupId);
-
+                console.log("matchedGroup", matchedGroup);
                 if (matchedGroup) {
                     matchedGroup.userIds.forEach(userId => uniqueUserIds.add(userId.toString()));
                 }
             }
-
+            console.log("uniqueUserIds", uniqueUserIds);
             result.push({
                 _id: customGroup._id,
                 groupName: customGroup.groupName,
