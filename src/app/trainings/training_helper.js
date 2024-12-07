@@ -802,9 +802,6 @@ const updateTrainingProgress = async (input, userId) => {
         )
     );
 
-    console.log(existingSet);
-
-
     const newProgresses = [];
 
     overallIds.forEach(overallId => {
