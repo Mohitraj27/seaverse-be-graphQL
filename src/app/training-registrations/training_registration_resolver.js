@@ -447,7 +447,8 @@ module.exports.queries = {
                             from: "trainingprogresses",
                             let: {
                                 moduleId: "$contentData.moduleId",
-                                contentIds: "$contentData.contentIds"
+                                contentIds: "$contentData.contentIds",
+                                attemptCount: "$attemptCount"
                             },
                             pipeline: [
                                 {
@@ -458,6 +459,12 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: [
+                                                        "$attemptCount",
+                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -607,7 +614,7 @@ module.exports.queries = {
                         }
                     }
                 ]);
-
+                
                 const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
 
                 const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);
@@ -639,7 +646,8 @@ module.exports.queries = {
                                     contentId: "$contentDetails._id",
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
-                                    lastAccessedDuration: "$lastAccessedDuration"
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
                         }
@@ -812,14 +820,14 @@ module.exports.queries = {
                     acc += moduleDurationInSeconds;
 
                     const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
-                    
-                    if(trainingModuleContentDetails.length > 0) {
+
+                    if (trainingModuleContentDetails.length > 0) {
 
                         const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
-                        
+
                         const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
                         const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
-    
+
                         module.progressPercentage = averageProgress.toFixed(2);
 
                     }
@@ -913,6 +921,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                attemptCount: "$attemptCount",
                             },
                             pipeline: [
                                 {
@@ -923,6 +932,12 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: [
+                                                        "$attemptCount",
+                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -1101,7 +1116,8 @@ module.exports.queries = {
                                     contentId: "$contentDetails._id",
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
-                                    lastAccessedDuration: "$lastAccessedDuration"
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
                         }
@@ -1271,14 +1287,14 @@ module.exports.queries = {
                     acc += moduleDurationInSeconds;
 
                     const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
-                    
-                    if(trainingModuleContentDetails.length > 0) {
+
+                    if (trainingModuleContentDetails.length > 0) {
 
                         const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
-                        
+
                         const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
                         const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
-    
+
                         module.progressPercentage = averageProgress.toFixed(2);
 
                     }

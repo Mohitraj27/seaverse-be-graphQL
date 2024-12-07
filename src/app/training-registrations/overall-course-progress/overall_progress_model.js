@@ -50,6 +50,10 @@ const overallProgressSchema = new Schema(
             type: String,
             enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
         },
+        attemptCount: {
+            type: Number, 
+            default: 1
+        },
         isCertificateGenerated: {
             type: Boolean,
             default: false,

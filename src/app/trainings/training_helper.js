@@ -559,11 +559,26 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
 }
 
-const updateOverallProgressPercentage = async (overallIds, session) => {
+const updateOverallProgressPercentage = async (overallDocs, session) => {
 
-    const trainingProgresses = await TrainingProgress.find({
-        overallTrainingProgress: { $in: overallIds },
+    const overallIds = overallDocs.map((item) => item._id);
+
+    let trainingProgressInput = [];
+    overallDocs.forEach((doc) => {
+        trainingProgressInput.push({
+            overallTrainingProgress: doc._id,
+            attemptCount: doc.attemptCount || 1,
+        });
     });
+
+    const query = {
+        $or: trainingProgressInput.map((input) => ({
+            overallTrainingProgress: input.overallTrainingProgress,
+            attemptCount: input.attemptCount,
+        }))
+    };
+
+    const trainingProgresses = await TrainingProgress.find(query);
 
     if (trainingProgresses.length === 0) return;
 
@@ -634,10 +649,24 @@ const updateTrainingProgress = async (input, userId) => {
 
     });
 
-    trainingProgressDocs = await TrainingProgress.find({
-        overallTrainingProgress: { $in: overallIds },
-        trainingModuleContent: { $in: [...contentIds] },
-    }).lean();
+
+    let trainingProgressInput = [];
+
+    overallDocs.forEach((doc) => {
+        trainingProgressInput.push({
+            overallTrainingProgress: doc._id,
+            attemptCount: doc.attemptCount || 1,
+        });
+    });
+
+    const query = {
+        $or: trainingProgressInput.map((input) => ({
+            overallTrainingProgress: input.overallTrainingProgress,
+            attemptCount: input.attemptCount,
+        }))
+    };
+
+    trainingProgressDocs = await TrainingProgress.find(query);
 
     let overallContentMap;
 
@@ -666,6 +695,8 @@ const updateTrainingProgress = async (input, userId) => {
 
                 const progressKey = `${item.overallId}_${content.contentId}`;
                 const existingProgress = overallContentMap?.get(progressKey);
+
+                const overallDoc = overallDocs.find((doc) => doc._id.toString() === item.overallId.toString());
 
                 if (overallProgressPercentageMap.has(item.overallId)) {
                     overallProgressPercentageMap.get(item.overallId).push(content.progressPercentage);
@@ -698,6 +729,7 @@ const updateTrainingProgress = async (input, userId) => {
                                 trainingModule: module.moduleId,
                                 trainingModuleContent: ObjectId(content.contentId),
                                 overallTrainingProgress: item.overallId,
+                                attemptCount: overallDoc.attemptCount ?? 1,
                                 status: content.contentStatus,
                                 lastAccessedDuration: content.duration,
                                 progressPercentage: content.progressPercentage,
@@ -712,6 +744,7 @@ const updateTrainingProgress = async (input, userId) => {
 
     });
 
+    // Update/add all the contents to the trainingprogresses collection
     let updateTrainingProgress;
     if (bulkOps.length > 0) {
         updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps);
@@ -765,7 +798,7 @@ const updateTrainingProgress = async (input, userId) => {
 
     const existingSet = new Set(
         existingProgresses.map(
-            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}`
+            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}_${prog.attemptCount || 1}`
         )
     );
 
@@ -777,6 +810,9 @@ const updateTrainingProgress = async (input, userId) => {
 
         const trainingRegistration = trainingRegMap.get(overallId.toString());
 
+        const overallDoc = overallDocs.find((doc) => doc._id.toString() === overallId.toString());
+        const attemptCount = overallDoc.attemptCount ?? 1;
+
         const moduleIds = trainingModules
             .filter(mod => mod.training.toString() == training)
             .map(mod => mod._id.toString());
@@ -784,21 +820,21 @@ const updateTrainingProgress = async (input, userId) => {
         moduleIds.forEach(trainingModule => {
             const contentIds = trainingModuleContentMap[trainingModule] || [];
             contentIds.forEach(trainingModuleContent => {
-                const key = `${overallId}_${trainingModuleContent}`;
+                const key = `${overallId}_${trainingModuleContent}_${attemptCount}`;
                 if (!existingSet.has(key)) {
                     newProgresses.push({
                         training,
                         trainingModule,
                         trainingModuleContent,
                         trainingRegistration,
-                        overallTrainingProgress: overallId
+                        overallTrainingProgress: overallId,
+                        attemptCount
                     });
                 }
             });
         });
 
     });
-
 
     const evaluationData = input.flatMap(overall =>
         overall.trainingModules.flatMap(module =>
@@ -820,19 +856,18 @@ const updateTrainingProgress = async (input, userId) => {
         }
 
         if (overallIds) {
-            await updateOverallProgressPercentage(overallIds, session);
+            await updateOverallProgressPercentage(overallDocs, session);
         }
 
         let quizErrors = [];
         if (evaluationData) {
-            quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
+            quizErrors = await quizEvaluationBulk(evaluationData, userId, overallDocs, session);
         }
 
         if (quizErrors && quizErrors.length > 0) {
             errors.push(quizErrors[0]);
             return;
         }
-
         const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
 
     });
@@ -841,7 +876,7 @@ const updateTrainingProgress = async (input, userId) => {
     return { updatedCount: bulkOps.length };
 };
 
-const quizEvaluationBulk = async (evaluationData, userId, session) => {
+const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) => {
 
     try {
 
@@ -901,6 +936,8 @@ const quizEvaluationBulk = async (evaluationData, userId, session) => {
         let results = [];
 
         let quizEvaluations = [];
+        let updateTrainingProgress = [];
+        let updateTrainingProgressData = [];
 
         for (const data of evaluationData) {
 
@@ -999,12 +1036,46 @@ const quizEvaluationBulk = async (evaluationData, userId, session) => {
                 isPassed,
                 attendedQuestions: questionResults,
             };
-
             quizEvaluations.push(quizEvaluationData);
+
+
+        
+            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+            
+            const attemptCount = overallDoc.attemptCount || 1;
+
+            const trainingProgressUpdates = {
+                attended: filteredQuestionAnswers.length,
+                totalQuestions: trainingModuleContent.quiz.length,
+                totalPoints: totalScore,
+                acquiredMarks: acquiredScore,
+                percentage: scorePercentage,
+                skippedQuestions,
+                isPassed,
+                attendedQuestions: questionResults,
+            }
+
+            updateTrainingProgressData.push({
+                updateOne: {
+                    filter: {
+                        overallTrainingProgress: overallId,
+                        trainingModuleContent: trainingModuleContent,
+                        attemptCount: attemptCount,
+                    },
+                    update: {
+                        $set: {
+                            quizAttemptDetails: trainingProgressUpdates,
+                        },
+                    },
+                    upsert: true,
+                },
+            });
+
 
         }
 
         results = await QuizEvaluation.insertMany(quizEvaluations, { session });
+        const udpateTrainingProgress = await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
 
         return errors;
 
