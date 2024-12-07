@@ -614,7 +614,7 @@ module.exports.queries = {
                         }
                     }
                 ]);
-
+                
                 const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
 
                 const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);
@@ -646,7 +646,8 @@ module.exports.queries = {
                                     contentId: "$contentDetails._id",
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
-                                    lastAccessedDuration: "$lastAccessedDuration"
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
                         }
@@ -920,6 +921,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                attemptCount: "$attemptCount",
                             },
                             pipeline: [
                                 {
@@ -930,6 +932,12 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: [
+                                                        "$attemptCount",
+                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -1108,7 +1116,8 @@ module.exports.queries = {
                                     contentId: "$contentDetails._id",
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
-                                    lastAccessedDuration: "$lastAccessedDuration"
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
                         }

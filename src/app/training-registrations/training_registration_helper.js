@@ -483,6 +483,7 @@ const mergeContentDetails = (combineTrainingDetails, contentData) => {
                         detail.progressPercentage = matchedContent.progressPercentage;
                         detail.status = matchedContent.status;
                         detail.lastAccessedDuration = matchedContent.lastAccessedDuration;
+                        detail.quizAttemptDetails = matchedContent.quizAttemptDetails || {};
                     }
                 });
             });

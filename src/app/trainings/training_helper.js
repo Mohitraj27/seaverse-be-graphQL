@@ -861,14 +861,13 @@ const updateTrainingProgress = async (input, userId) => {
 
         let quizErrors = [];
         if (evaluationData) {
-            quizErrors = await quizEvaluationBulk(evaluationData, userId, session);
+            quizErrors = await quizEvaluationBulk(evaluationData, userId, overallDocs, session);
         }
 
         if (quizErrors && quizErrors.length > 0) {
             errors.push(quizErrors[0]);
             return;
         }
-
         const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
 
     });
@@ -877,7 +876,7 @@ const updateTrainingProgress = async (input, userId) => {
     return { updatedCount: bulkOps.length };
 };
 
-const quizEvaluationBulk = async (evaluationData, userId, session) => {
+const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) => {
 
     try {
 
@@ -937,6 +936,8 @@ const quizEvaluationBulk = async (evaluationData, userId, session) => {
         let results = [];
 
         let quizEvaluations = [];
+        let updateTrainingProgress = [];
+        let updateTrainingProgressData = [];
 
         for (const data of evaluationData) {
 
@@ -1035,12 +1036,46 @@ const quizEvaluationBulk = async (evaluationData, userId, session) => {
                 isPassed,
                 attendedQuestions: questionResults,
             };
-
             quizEvaluations.push(quizEvaluationData);
+
+
+            // Update in trainingprogresses collection
+            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+            
+            const attemptCount = overallDoc.attemptCount || 1;
+
+            const trainingProgressUpdates = {
+                attended: filteredQuestionAnswers.length,
+                totalQuestions: trainingModuleContent.quiz.length,
+                totalPoints: totalScore,
+                acquiredMarks: acquiredScore,
+                percentage: scorePercentage,
+                skippedQuestions,
+                isPassed,
+                attendedQuestions: questionResults,
+            }
+
+            updateTrainingProgressData.push({
+                updateOne: {
+                    filter: {
+                        overallTrainingProgress: overallId,
+                        trainingModuleContent: trainingModuleContent,
+                        attemptCount: attemptCount,
+                    },
+                    update: {
+                        $set: {
+                            quizAttemptDetails: trainingProgressUpdates,
+                        },
+                    },
+                    upsert: true,
+                },
+            });
+
 
         }
 
         results = await QuizEvaluation.insertMany(quizEvaluations, { session });
+        const udpateTrainingProgress = await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
 
         return errors;
 
