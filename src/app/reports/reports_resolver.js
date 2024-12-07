@@ -1341,7 +1341,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$vesselInfo',
                             'preserveNullAndEmptyArrays': true
                         }
-                    }, {
+                    }, 
+                    ...matchStage,
+                    {
                         '$lookup': {
                             'from': 'vesseltypes',
                             'localField': 'vesselInfo.typeOfVessel',
@@ -1353,12 +1355,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$vesselTypeInfo',
                             'preserveNullAndEmptyArrays': true
                         }
-                    }, 
-                    {
-                        '$match': {
-                            '_id': new ObjectId(input?.courseId)
-                        }
-                    }, 
+                    },  
                     {
                         '$unwind': {
                             'path': '$contentData',
@@ -1422,7 +1419,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     }, {
                         '$group': {
-                            '_id': '$training',
+                            '_id': {
+                                'userId': "$userInfo._id",
+                                'trainingId': "$training"
+                              },
                             'modules': {
                                 '$push': {
                                     'id': '$contentData.moduleId',
@@ -1479,7 +1479,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     }, {
                         '$project': {
-                            '_id': 1,
+                            '_id': 0,
+                            'courseId': "$_id.trainingId",
+                            'user': "$_id.userId",
                             'firstName': 1,
                             'lastName': 1,
                             'designation': 1,
@@ -1497,7 +1499,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     {
                         '$match': {
-                            '_id': new ObjectId(input?.courseId)
+                            'courseId':  ObjectId(input?.courseId)
                         }
                     }, 
                 ]
