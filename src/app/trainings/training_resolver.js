@@ -542,14 +542,33 @@ module.exports.mutations = {
             userId = AuthUser(context).userId;
         }
 
-        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId);
+        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
+
+        const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
+        const attemptType = fetchOverallTraining.training.attemptType;
+        let attemptLimit;
+
+        if (allowMultipleAttempts && attemptType === 'LIMITED_ATTEMPT') {
+            attemptLimit = fetchOverallTraining.training.setLimitAttempt;
+        }
 
         if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
 
         let updateOverallTrainingProgress;
         if (fetchOverallTraining.contentData) {
+
             fetchOverallTraining.contentData = [];
-            updateOverallTrainingProgress = fetchOverallTraining.save();
+            fetchOverallTraining.progressPercentage = 0.00;
+            fetchOverallTraining.lastConsumedContent = {};
+            fetchOverallTraining.attemptCount++;
+
+            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
+
+                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+
+            }
+
+            updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
 
         if (updateOverallTrainingProgress) {
