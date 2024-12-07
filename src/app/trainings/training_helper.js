@@ -1039,7 +1039,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
             quizEvaluations.push(quizEvaluationData);
 
 
-            // Update in trainingprogresses collection
+        
             const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
             
             const attemptCount = overallDoc.attemptCount || 1;
