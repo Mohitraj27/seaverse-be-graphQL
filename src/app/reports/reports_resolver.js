@@ -194,6 +194,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             ...matchStage,
             {
                 $project: {
+                    _id:0,
                     name: {
                         $concat: [
                             { $ifNull: ['$userInfo.firstName', ''] },
@@ -356,7 +357,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
 
-        if (input.reportType = "ENROLLMENT"){
+        if (input.reportType == "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
                 [
                     {
@@ -500,7 +501,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             });
             let s3PresignedUrl = "";
 
-            if (input?.export && learnersReports.length>0) {
+            if (input?.export && learnersReports.length > 0) {
                 const workbook = XLSX.utils.book_new();
 
                 for (const learnerName in learnerReportsByUser) {
@@ -527,7 +528,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     learnerData: learnersReports,
                 };
             }
-            else if(input?.export && learnersReports.length == 0){
+            else if (input?.export && learnersReports.length == 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
             }
 
@@ -537,161 +538,154 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 learnerData: learnersReports,
             };
         }
-        else if (input.reportType = "QUIZ"){
+        else if (input.reportType == "QUIZ") {
             const learnersReports = await OverallTrainingProgress.aggregate(
                 [
                     {
-                        "$lookup": {
-                            "from": "trainings",
-                            "localField": "training",
-                            "foreignField": "_id",
-                            "as": "trainingInfo"
+                        $sort: { user: -1 }  
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "user",
+                            foreignField: "_id",
+                            as: "userInfo"
                         }
                     },
                     {
-                        "$lookup": {
-                            "from": "users",
-                            "localField": "user",
-                            "foreignField": "_id",
-                            "as": "userInfo"
+                        $lookup: {
+                            from: "trainings",
+                            localField: "training",
+                            foreignField: "_id",
+                            as: "trainingInfo"
                         }
                     },
                     {
-                        "$match": {
-                            "user": { $in: learnerIds.map(id => ObjectId(id)) }
+                        $unwind: {
+                            path: "$userInfo",
+                            preserveNullAndEmptyArrays: true
                         }
                     },
                     {
-                        "$lookup": {
-                            "from": "quizevaluations",
-                            "localField": "training",
-                            "foreignField": "trainingId",
-                            "as": "quizevaluationInfo",
-                            "pipeline": [
-                                {
-                                    "$match": {
-                                        "userId": { $in: learnerIds.map(id => ObjectId(id)) }
-                                    }
-                                },
-                                {
-                                    "$sort": {
-                                        "updatedAt": -1
-                                    }
-                                },
-                                {
-                                    "$limit": 1
-                                }
-                            ]
+                        $lookup: {
+                            from: "employees",
+                            localField: "user",
+                            foreignField: "user",
+                            as: "employeeData"
                         }
                     },
                     {
-                        "$unwind": {
-                            "path": "$quizevaluationInfo",
-                            "preserveNullAndEmptyArrays": true
+                        $unwind: {
+                            path: "$employeeData",
+                            preserveNullAndEmptyArrays: true
                         }
                     },
                     {
-                        "$unwind": {
-                            "path": "$userInfo",
-                            "preserveNullAndEmptyArrays": true
+                        $lookup: {
+                            from: "designations",
+                            localField: "employeeData.empDesignation",
+                            foreignField: "_id",
+                            as: "designationData"
                         }
                     },
                     {
-                        "$lookup": {
-                            "from": "trainingprogress",
-                            "localField": "training",
-                            "foreignField": "training",
-                            "as": "trainingProgressInfo",
-                            "pipeline": [
-                                {
-                                    "$match": {
-                                        "user": { $in: learnerIds.map(id => ObjectId(id)) },
-                                        "status": "COMPLETED"
-                                    }
-                                },
-                                {
-                                    "$lookup": {
-                                        "from": "trainingmodulecontents",
-                                        "localField": "trainingModuleContent",
-                                        "foreignField": "_id",
-                                        "as": "moduleContentInfo"
-                                    }
-                                },
-                                {
-                                    "$unwind": {
-                                        "path": "$moduleContentInfo",
-                                        "preserveNullAndEmptyArrays": true
-                                    }
-                                },
-                                {
-                                    "$project": {
-                                        "duration": "$moduleContentInfo.duration"
-                                    }
-                                }
-                            ]
+                        $unwind: {
+                            path: "$designationData",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$trainingInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$contentData",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$contentData.contentIds",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingmodulecontents",
+                            localField: "contentData.contentIds",
+                            foreignField: "_id",
+                            as: "contentDetails"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$contentDetails",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingmodules",
+                            localField: "contentData.moduleId",
+                            foreignField: "_id",
+                            as: "moduleInfo"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$moduleInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingprogresses",
+                            localField: "_id",
+                            foreignField: "overallTrainingProgress",
+                            as: "contentProgress"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$contentProgress",
+                            preserveNullAndEmptyArrays: true
                         }
                     },
                     ...matchStage,
                     {
-                        "$project": {
-                            "courseName": {
-                                "$arrayElemAt": ["$trainingInfo.title.value", 0]
-                            },
-                            "createdAt": 1,
-                            "completionDate": 1,
-                            "status": 1,
-                            "updatedAt": 1,
-                            "firstName": "$userInfo.firstName",
-                            "lastName": "$userInfo.lastName",
-                            "quizPercentage": {
-                                "$ifNull": ["$quizevaluationInfo.percentage", null]
-                            },
-                            "isPassed": {
-                                "$ifNull": ["$quizevaluationInfo.isPassed", null]
-                            },
-                            "totalTimeSpent": {
-                                "$sum": {
-                                    "$map": {
-                                        "input": "$trainingProgressInfo.duration",
-                                        "as": "duration",
-                                        "in": { "$toDouble": "$$duration" }
+                        $project: {
+                            user: {
+                                $concat: [
+                                    {
+                                        $ifNull: ["$userInfo.firstName", ""]
+                                    },
+                                    " ",
+                                    {
+                                        $ifNull: ["$userInfo.lastName", ""]
                                     }
-                                }
-                            }
+                                ]
+                            },
+                            training: "$trainingInfo.title",
+                            courseStatus: "$status",
+                            lesson: "$moduleInfo.title",
+                            content: "$contentDetails.title",
+                            contentType: "$contentDetails.contentType",
+                            contentStatus: "$contentProgress.status",
+                            enrollmentDate: "$createdAt"
                         }
                     }
                 ]
             );
-
-            const learnerReportsByUser = {};
-
-            learnersReports.forEach(item => {
-                const learnerName = `${item.firstName} ${item.lastName}`;
-                if (!learnerReportsByUser[learnerName]) {
-                    learnerReportsByUser[learnerName] = [];
-                }
-                learnerReportsByUser[learnerName].push({
-                    courseName: item.courseName ? item.courseName : null,
-                    status: item.status,
-                    Enrollment_Date: item.createdAt,
-                    Completion_Date: item.completionDate || "Not Applicable",
-                    totalTimeSpent: item.totalTimeSpent || 0,
-                    LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
-                });
-            });
-
+            console.log(learnersReports[0]);
             let s3PresignedUrl = "";
 
             if (input?.export) {
                 const workbook = XLSX.utils.book_new();
-
-                for (const learnerName in learnerReportsByUser) {
-                    const data = learnerReportsByUser[learnerName];
-                    const firstName = learnerName.split(' ')[0]?learnerName.split(' ')[0]:learnerName.split(' ')[1];
-                    const worksheet = XLSX.utils.json_to_sheet(data);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `${firstName}-Report`);
-                }
-
+                const worksheet = XLSX.utils.json_to_sheet(learnersReports);
+                XLSX.utils.book_append_sheet(workbook, worksheet, `Report`);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
