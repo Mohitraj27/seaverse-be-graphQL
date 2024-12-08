@@ -90,6 +90,14 @@ const trainingProgressSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        attemptCount: {
+            type: Number,
+            default: 1
+        },
+        quizAttemptDetails: {
+            type: Schema.Types.Mixed,
+            default: {}
+        }
     },
     { timestamps: true }
 );

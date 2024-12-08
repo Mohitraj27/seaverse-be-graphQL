@@ -79,6 +79,7 @@ module.exports = {
             progressPercentage: String
             lastAccessedDuration: Int
             playerSettings: [JSON]
+            quizAttemptDetails: JSON
             quizAttempts: [String]
             status: String
             trainingModuleContentDetails: [TrainingModuleContent]

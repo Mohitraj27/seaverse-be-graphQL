@@ -52,8 +52,8 @@ module.exports = {
             users: [ID]
         }
         type lastConsumedContent {
-            moduleId: ID!
-            contentId: ID!
+            moduleId: ID
+            contentId: ID
         }
         type OverallTrainingProgress {
             _id: ID
