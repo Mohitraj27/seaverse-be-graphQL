@@ -36,15 +36,15 @@ module.exports = {
         FirebaseAdmin.initializeApp({
             credential: FirebaseAdmin.credential.cert({
                 "type": "service_account",
-                "project_id": "seaverse-dff00",
-                "private_key_id": "7af6a3cbdaa19718312b26624e09d0ffa5c2eca9",
-                "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDWAX7gEMyei44V\nHrK7P9VRIXSSdj91OAbFJaMb7sNW40W8H7PmI+ksu/8w+kp1/7ttmDdNqQaKjZw5\n7i0zKOAOBPV2r9/fEnRbx0mhUDryVA52eCt8ZPnoDS3CRNak3CDdl7Lf35lmNqCN\nBaDeGMUGqjVIJHIPvBJmycZuiwIj9KouB9ioW8a1PUcm/OJC4mVB/u8KlNNM2R7f\nB0U7oj2hTuvwY9w8HNE2TSxatUInFHhrnpqG38YF7rnd867KZnlBOMDKqBxBrZbM\njujRbPhVKkyf71t2nFipfynRFIMSK9gTCxawUq/wonGzCKULrPiLyx0y7kDMtstv\nn4EWdmH1AgMBAAECggEAQRv1YPBbgMUOtkg/so6KNQPLtp+5UM156dM4m8/5qF6/\nIaw3jIZSc+TCkEEmFF54xLAx6zPIpLDO3iUjpVQDTuCdWb3Ki9DOi/nG4ghJ1t5S\nBCMtf8ws6DfSOy+8ai365dA4gLpDroBiOmWC+u9oSk3QpiFIfpcGtjUfZRRv00YX\nVDRTUTaBNlR3syUXzK0BrXM/NGwHu3+dIpzQGJ4STkgMdA3XVLq4i9MzhFHxISa0\nA/+1hDD8va72Mj/XHIhtu2fbTOFizJ+dROtKeEpjgQmzd7XbBH2H+wUycnj5uwII\nJ3IoAoRMVxekJEpeI8FvpUd9nI9qGlmPGvKxlpSFBQKBgQDzW56Nm/RdugvIju3q\nByAswMM//B8IO0W4ZbdHRVN9DVDwTYk7mabk1APuclHjhk4h4WK1jWi8bi0uVA+F\naAXQp9frpyB7tGqC1BCMkPa6lW0P9tsZgevV2/bfT0zbN0D33bHQB3bOh1mq52R0\nx6C/9vC7i6kAlTprK6QJfEgOOwKBgQDhH4cZV1XnpEN0w5/Y8obPNHtLHudxiM8B\nHl+VH/fym5aeSANfwEJ5K9ATBK4GCWCmVtRaU18EKoLuFt1gwTnx842OHa3dxM/P\nNcsbnKyuj6qw0ur1InrPwPKedCBfJa7We6bol142cKQwN/wHTqvRyC6ouvcnkY6Q\nM1HUT3FdjwKBgDUQGyhhgw0UzhDzKWlIGHnppilDfji7Q96LP0VpFmVEDAv5vByk\nykFHAXxyrOxhkpPMo0tXBCliFLPvXFsIbYwrrOcTT//pPPg96UXdLg9NGbTLbMbJ\nD3VYOyJCFk4OZDonuufTWNJ7rM+ZGMxl4uU4oREjyLv5zf0kTOZMlSGVAoGBALjm\nDy0WGT1nIexOHASwtV6L6VP6rvcF+Zcenjy6BAjkF2IrHXJQU4h4Hq7wIgpdO1+D\nY2hIn3qpe94XM34bVf9OHY6C++Fwm4nB0e780KuS3gvbQBVUW3A1NlBEaq4bIi2R\nY7YXVM771y6vXLWXvPFRLFlzLjn2iBQRwnzRPvgrAoGBANKkGtUnXmpH8tmBZWOT\nK6MiMwUvIxkRcboJ8HCpEqPQslCaPewOlRYcnFJv56PB6/kGa2kKJBjoH2ifUjmJ\nVVdS9hs8PyRrJSGGyBOrF6d/ilT4kJxKyCZM5xwGvxGhhzjtSE7e48eI7ak9mS+s\n1ayigqSA/Nc9yILTyKFY3gf4\n-----END PRIVATE KEY-----\n",
-                "client_email": "firebase-adminsdk-f7x9r@seaverse-dff00.iam.gserviceaccount.com",
-                "client_id": "114371887120127006634",
+                "project_id": "seaverse-lms",
+                "private_key_id": "1b12dd484cdd65ae70d93d0637e00504756924ee",
+                "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCmNLAsj9yAdab2\nZ0iJ8HmDpSN119txfoxOHZqkwlGgt7rvXcUOXtQDjydk1587dhbjniHIML5aQQlz\nKWX4GMNucugZY/igbSorzCtYISEzAGwxn7OAyT3bQkwb5R79K9Yp9Bno8nPG8pcf\nlkFR7yNon7vuyIBmXO8IBB7bKhqbL7SQhdmPODRq/tvL+c+7wVI3GCNgMIoe6KDe\nPmEtMWHAaUYQnFwoL4QK1Ai98PC5wpJ3tkBt0kYIn/EkD5hvB3cgDYt8BSxrdeSv\nqxGGU7ZUVIC60SEmXqswmKgOb0rpjHqZT9TL9X54cBOSBzsxkUUwf7ml4sSa0CUC\nDm+HRUp7AgMBAAECggEAROSzIA2T04WxKxL93PuaiuiBTeAnXKCdjOW1i9TmXA28\nhWrje0Twcfc9V44POWkGLNyH2UDnLmcmAR/oXhH5tEcaEShAz1Lgt53eW54D8m2a\n62js0ZXZN5EAFlH/aebpU6OUt9wEBLPa06OHOOy8yynnDx/6JTQherumhKcrtyY/\npljaIZBGs+ipFZPSAeZ65gwORm2anqs19w5Jea9h4mSL8+VEBvk/7qtPc5crsgMl\nOZfuP8VslqTlsi11jYnNFD+fztSxxe7QCYHlGlKtCakj+gFgSRNjapIeQVAcSP1A\nUaP3Pdj0k89tkarJabjjedr7XTX0MFZ6qBIiZQKwOQKBgQDlSNxmu18MIFiGL5H4\nbsbawaxz2VBopI+KEFxyJc4koQytzh3+vlcCNGE390t7KTCJlFGKvcae7HEW6ZwO\nyBP9LTusOR9N2TDYS0v/dxG2dXia2I846yFjOLBTP1ZI+d66NbBxukOqX5W883L0\n5D0dEhTutOEHqZp2ZA+S4QKZKQKBgQC5kk1tGBAOtYyJfH0HieOB9Nk88Hb2LZa1\noj5gGEpZngMssES4gqHYhcPaiP/7FAcxXsums7qC3HIidKkAQR6o0SDLk1pXQ7Gm\n/pwopDh5Mp64/hi0NBlqHs25nXlBerwYokTP4b/nTgkcAftfwWSjDbpoLdaume4r\nlt5U4W5nAwKBgCymBZVTw2x/F/35YXl5SOvsbwKYPNpDwVfnW7k2t2/WlLt7uceT\nlSnuvUfCtkYjfTotUbusvPLRpCwMDcGrIIlat5YQAZKNSr+z2fbDXwWi1nuA1FMH\nJpdFwMBVQx4u2jp0nglndinFN0l2NtqNX4E7tivNuUxesJ+BWK8HdhQRAoGAL3LG\nE0/kwy4OehT3jxblshPd++PsNvPfJiAO3Nk5IYLygtmrKJZWNZu2QUloUlWDpU78\nuWoZFV6yXDcCA0ujQD0AqqzJm6h2YyGU4htjSTH1PY3S2Ti9CtJHfd9S4rg0IgRT\nnee1/rmIQL4M/SXgyoQ3Fm4qB0jaihCwVnmxlesCgYBYn6T7Ua5Wh2Jd3T65bCw8\n6x0eWSaXO8VGHuR3iYKdDjRowxfEiyaMYDep3B/GgdIjdjC2ijdQHDMkPNqKrfA3\nnPAI6Llv0+n5tSLAY2FfCNgrZDv8Ncv/fyX7bDKVbCZowHnPmD0S8Owu6R6tZLaM\nFQHXi1IRF8Q9KdUa3YNmFw==\n-----END PRIVATE KEY-----\n",
+                "client_email": "firebase-adminsdk-9ue24@seaverse-lms.iam.gserviceaccount.com",
+                "client_id": "100149077474397948215",
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-f7x9r%40seaverse-dff00.iam.gserviceaccount.com",
+                "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-9ue24%40seaverse-lms.iam.gserviceaccount.com",
                 "universe_domain": "googleapis.com"
               }
               ),
@@ -76,7 +76,7 @@ module.exports = {
             if (message.tokens.length > 0) {
                 const sendMessage = multicastMessage => {
                     FirebaseAdmin.messaging()
-                        .sendMulticast(multicastMessage)
+                        .sendEachForMulticast(multicastMessage)
                         .then(response => {
                             if (response.failureCount > 0) {
                                 const failedTokens = [];
