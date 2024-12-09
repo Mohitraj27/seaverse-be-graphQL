@@ -137,6 +137,10 @@ module.exports.queries = {
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
 
+        const countOfUsers = await OverallTrainingProgress.countDocuments({
+            training: { $in: training._id }
+        });
+
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
             isDeleted: false,
@@ -167,7 +171,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-        return training;
+
+        return { ...training, countOfUsers };
     },
 
 };
