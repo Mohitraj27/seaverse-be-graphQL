@@ -1088,7 +1088,7 @@ module.exports = {
                 'Vessel Updated',
                 `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 'Vessel updated successfully',
-                "https://your-application-link.com/vessel-update"
+                ""
             );
         }
         else{
@@ -1135,7 +1135,7 @@ module.exports = {
                 'Vessel Updated',
                 `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 'Vessel updated successfully',
-                "https://your-application-link.com/vessel-update"
+                ""
             );
         }
 

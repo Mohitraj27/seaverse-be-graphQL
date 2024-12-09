@@ -581,7 +581,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                         `Certificate Generated Successfully`,
                         `Your certificate for the course ${courseTitle} has been successfully generated.`,
                         "Certificate Details",
-                        "https://your-application-link.com/certificates"
+                        ""
                     );  
                 } else {
                     throw new Error(`Course title is missing for training ID ${doc.training}. Cannot send notification.`);

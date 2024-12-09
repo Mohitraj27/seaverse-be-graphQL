@@ -755,7 +755,7 @@ module.exports = {
                     "Course Enrollment",
                     `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
-                    "https://your-application-link.com/courses"
+                    ""
                 );
                 return {
                     message: "Course enrollment successful!",
@@ -868,7 +868,7 @@ module.exports = {
                     "Course Unenrollment",
                     `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
-                    "https://your-application-link.com/courses"
+                    ""
                 );
                 return {
                     message: "Course unenrollment successful!",

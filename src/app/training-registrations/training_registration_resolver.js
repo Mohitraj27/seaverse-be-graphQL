@@ -1778,7 +1778,7 @@ module.exports.mutations = {
                 'Course Completed',
                 `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
                 "Course Completion Content",
-                "https://your-application-link.com/courses"
+                ""
             );
             return {
                 status: true,
@@ -1873,7 +1873,7 @@ module.exports.mutations = {
                     });
                 }
             };
-            await sendNotifications(userIds, 'Course Reset Notification', `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`, "Dummy content", "https://your-application-link.com/courses");
+            await sendNotifications(userIds, 'Course Reset Notification', `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`, "Dummy content", "");
             return {
                 status: true,
                 message: "Modules reset successfully"

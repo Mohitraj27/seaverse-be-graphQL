@@ -458,7 +458,7 @@ module.exports.mutations = {
                         "Your Vessel Status has been Updated",
                         `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
-                        "https://your-application-link.com/vessels"
+                        ""
                     );
                 } else{
                     throw new Error("No users found with matching vessel IDs in their currentVessel field.");

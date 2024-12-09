@@ -2436,7 +2436,7 @@ module.exports.mutations = {
                 title: "Subrole Assigned Successfully",
                 body: `You have been assigned the subrole "${validSubRole.name}".`,
                 content: `You have been assigned the subrole "${validSubRole.name}".`,
-                webLink: "https://dummyLink.org",
+                webLink: "",
             })
             return {
                 success: true,
