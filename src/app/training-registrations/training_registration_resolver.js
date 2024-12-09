@@ -1645,7 +1645,31 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
+            const sendNotifications = async (userIds, title, body, content, webLink) => {
+                const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
+                const tokens = usersWithTokens.reduce((acc, user) => {
+                    if (user.firebaseTokens && user.firebaseTokens.length > 0) {
+                        acc.push(...user.firebaseTokens);
+                    }
+                    return acc;
+                }, []);
+                if (tokens.length > 0) {
+                    sendMulticastNotification({
+                        tokens,
+                        title,
+                        body,
+                        content,
+                        webLink,
+                    });
+                }
+            };
     
+            await sendNotifications(input.userIds,
+                'Course Completed',
+                `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
+                "Course Completion Content",
+                "https://your-application-link.com/courses"
+            );
             return {
                 status: true,
                 message: "Marked as completed successfully"
