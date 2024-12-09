@@ -225,6 +225,7 @@ module.exports.queries = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
@@ -262,10 +263,14 @@ module.exports.queries = {
                 {
                     $match: {
                         ...filterConditions,
-                        $or: [
-                            { "training.deletedDate": { $gt: twoDaysAgo } },
-                            { "training.deletedDate": { $exists: false } },
-                        ],
+                        $and: [
+                            {
+                                $or: [
+                                    { "training.deletedDate": { $gt: twoDaysAgo } },
+                                    { "training.deletedDate": { $exists: false } },
+                                ]
+                            }
+                        ]
                     },
                 },
                 {
