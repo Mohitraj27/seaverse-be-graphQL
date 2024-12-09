@@ -30,7 +30,7 @@ const { TrainingModuleContent } = require("../trainings/training_modules/trainin
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
-const {sendMulticastNotification} = require("../../util/firebase_helper");
+const {sendNotifications} = require("../../util/firebase_helper")
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -521,24 +521,6 @@ module.exports = {
         }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-        const sendNotifications = async (userIds, title, body, content, webLink) => {
-            const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
-            const tokens = usersWithTokens.reduce((acc, user) => {
-                if (user.firebaseTokens && user.firebaseTokens.length > 0) {
-                    acc.push(...user.firebaseTokens);
-                }
-                return acc;
-            }, []);
-            if (tokens.length > 0) {
-                sendMulticastNotification({
-                    tokens,
-                    title,
-                    body,
-                    content,
-                    webLink,
-                });
-            }
-        };
         try {
 
             if (!input.groups && !input.users) {
@@ -750,13 +732,13 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
-                await sendNotifications(
-                    userObjectIds,
-                    "Course Enrollment",
-                    `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
-                    ""
-                );
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Enrollment",
+                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
+                    webUrl: ""
+                });
                 return {
                     message: "Course enrollment successful!",
                 };
@@ -863,13 +845,13 @@ module.exports = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-                await sendNotifications(
-                    userObjectIds,
-                    "Course Unenrollment",
-                    `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
-                    ""
-                );
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Unenrollment",
+                    body: `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
+                    webUrl: "",
+                });
                 return {
                     message: "Course unenrollment successful!",
                 }

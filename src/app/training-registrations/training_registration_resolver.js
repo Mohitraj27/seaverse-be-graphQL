@@ -44,7 +44,7 @@ const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
-const {sendMulticastNotification} = require("../../util/firebase_helper");
+const {sendNotifications} = require("../../util/firebase_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1755,31 +1755,13 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            const sendNotifications = async (userIds, title, body, content, webLink) => {
-                const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
-                const tokens = usersWithTokens.reduce((acc, user) => {
-                    if (user.firebaseTokens && user.firebaseTokens.length > 0) {
-                        acc.push(...user.firebaseTokens);
-                    }
-                    return acc;
-                }, []);
-                if (tokens.length > 0) {
-                    sendMulticastNotification({
-                        tokens,
-                        title,
-                        body,
-                        content,
-                        webLink,
-                    });
-                }
-            };
-    
-            await sendNotifications(input.userIds,
-                'Course Completed',
-                `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
-                "Course Completion Content",
-                ""
-            );
+            await sendNotifications({
+                userIds: input.userIds,
+                title: 'Course Completed',
+                body: `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
+                content: "Course Completion Content",
+                webLink: ""
+            });
             return {
                 status: true,
                 message: "Marked as completed successfully"
@@ -1855,25 +1837,13 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            const sendNotifications = async (userIds, title, body, content, webLink) => {
-                const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
-                const tokens = usersWithTokens.reduce((acc, user) => {
-                    if (user.firebaseTokens && user.firebaseTokens.length > 0) {
-                        acc.push(...user.firebaseTokens);
-                    }
-                    return acc;
-                }, []);
-                if (tokens.length > 0) {
-                    sendMulticastNotification({
-                        tokens,
-                        title,
-                        body,
-                        content,
-                        webLink,
-                    });
-                }
-            };
-            await sendNotifications(userIds, 'Course Reset Notification', `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`, "Dummy content", "");
+            await sendNotifications({
+                userIds: userIds, 
+                title:'Course Reset Notification',
+                body:`The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
+                content: "Dummy content",
+                webLink:  ""
+            });
             return {
                 status: true,
                 message: "Modules reset successfully"

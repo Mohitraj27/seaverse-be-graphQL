@@ -14,7 +14,7 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
-const {sendMulticastNotification} =require("../../util/firebase_helper");
+const {sendNotifications} =require("../../util/firebase_helper");
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -396,24 +396,6 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
             }
-            const sendNotifications = async (userIds, title, body, content, webLink) => {
-                const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
-                const tokens = usersWithTokens.reduce((acc, user) => {
-                    if (user.firebaseTokens && user.firebaseTokens.length > 0) {
-                        acc.push(...user.firebaseTokens);
-                    }
-                    return acc;
-                }, []);
-                if (tokens.length > 0) {
-                    sendMulticastNotification({
-                        tokens,
-                        title,
-                        body,
-                        content,
-                        webLink,
-                    });
-                }
-            };
             if (updatedVessels.length > 0) {
                 const vesselNames = updatedVessels.map(v => v.name).join(", ");
                 const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
@@ -453,13 +435,13 @@ module.exports.mutations = {
                 const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id');
                 if (matchingUsers.length > 0) {
                     const userObjectIds = matchingUsers.map(user => user._id);
-                    await sendNotifications(
-                        userObjectIds,
-                        "Your Vessel Status has been Updated",
-                        `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
-                        ""
-                    );
+                    await sendNotifications({
+                        userIds: userObjectIds,
+                        title: "Your Vessel Status has been Updated",
+                        body: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        content: { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
+                        webLink: ""
+                    });
                 } else{
                     throw new Error("No users found with matching vessel IDs in their currentVessel field.");
                 }
