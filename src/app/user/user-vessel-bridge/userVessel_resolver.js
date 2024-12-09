@@ -2,11 +2,12 @@ const {
     CustomError,
     ErrorName,
     AuthUser,
+    SendEmail
 } = require("../../../util");
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
 const { Vessel } = require('../../vessle/vessel_model');
-
+const vesselAssignmentEmail = require("../../email-template/assignVessel");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -50,6 +51,15 @@ module.exports.mutations = {
                 const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId, vesselStatus: input.vesselStatus || 'ASSIGNED' }, { new: true });
 
                 if (updateUser) {
+                    const emailContent = vesselAssignmentEmail({
+                        firstName: getUser.firstName, 
+                        vesselName: getVessel.name, 
+                    });
+                    await SendEmail({
+                        receiverEmail: getUser.email,
+                        subject: `Vessel Assignment Notification`,
+                        htmlContent: emailContent,
+                    });
                     return {
                         status: "Success",
                         message: "The vessel assigned successfully!"
