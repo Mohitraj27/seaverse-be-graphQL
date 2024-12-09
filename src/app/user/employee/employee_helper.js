@@ -49,6 +49,7 @@ const NotificationEvent = require("../../notifications/notification_event.json")
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const { sendMulticastNotification } = require("../../../util/firebase_helper");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1017,7 +1018,28 @@ module.exports = {
             .lean();
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-         
+        
+        const sendNotifications = async (userIds, title, body, content, webLink) => {
+            const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
+            const tokens = usersWithTokens.reduce((acc, user) => {
+                if (user.firebaseTokens && user.firebaseTokens.length > 0) {
+                    acc.push(...user.firebaseTokens);
+                }
+                return acc;
+            }, []);
+            if (tokens.length > 0) {
+                sendMulticastNotification({
+                    tokens,
+                    title,
+                    body,
+                    content,
+                    webLink,
+                });
+            }
+        };
+        const newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
+        if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
+    
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
             
           await UserVessel.updateMany(
@@ -1032,7 +1054,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -1047,7 +1069,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1061,6 +1083,13 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await sendNotifications(
+                [existingEmployee?.user?._id],
+                'Vessel Updated',
+                `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                'Vessel updated successfully',
+                "https://your-application-link.com/vessel-update"
+            );
         }
         else{
             await UserVessel.findOneAndUpdate(
@@ -1071,7 +1100,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
@@ -1087,7 +1116,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1101,6 +1130,13 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
+            await sendNotifications(
+                [existingEmployee?.user?._id],
+                'Vessel Updated',
+                `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                'Vessel updated successfully',
+                "https://your-application-link.com/vessel-update"
+            );
         }
 
 
