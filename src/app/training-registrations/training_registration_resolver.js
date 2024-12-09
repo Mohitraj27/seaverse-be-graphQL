@@ -227,7 +227,7 @@ module.exports.queries = {
 
         try {
             let filterConditions = {
-                user:filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
+                user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
             }
 
@@ -448,7 +448,8 @@ module.exports.queries = {
                             from: "trainingprogresses",
                             let: {
                                 moduleId: "$contentData.moduleId",
-                                contentIds: "$contentData.contentIds"
+                                contentIds: "$contentData.contentIds",
+                                attemptCount: "$attemptCount"
                             },
                             pipeline: [
                                 {
@@ -459,6 +460,12 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: [
+                                                        "$attemptCount",
+                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -549,9 +556,8 @@ module.exports.queries = {
                                                     points: "$$question.points",
                                                     negativePoints:
                                                         "$$question.negativePoints",
-                                                        allowMultipleAnswers:
+                                                    allowMultipleAnswers:
                                                         "$$question.allowMultipleAnswers"
-                                                        
                                                 }
                                             }
                                         }
@@ -609,8 +615,54 @@ module.exports.queries = {
                         }
                     }
                 ]);
+                
+                const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
 
-                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+                const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);
+                const overallId = fetchOverallTrainingProgress._id;
+
+                const contentDataPipeline = [
+                    {
+                        $match: {
+                            overallTrainingProgress: overallId,
+                            trainingModule: { $in: moduleIds }
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingmodulecontents",
+                            localField: "trainingModuleContent",
+                            foreignField: "_id",
+                            as: "contentDetails"
+                        }
+                    },
+                    {
+                        $unwind: "$contentDetails"
+                    },
+                    {
+                        $group: {
+                            _id: "$trainingModule",
+                            contentData: {
+                                $push: {
+                                    contentId: "$contentDetails._id",
+                                    status: "$status",
+                                    progressPercentage: "$progressPercentage",
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $match: {
+                            _id: { $in: moduleIds }
+                        }
+                    }
+                ];
+
+                const contentData = await TrainingProgress.aggregate(contentDataPipeline);
+                trainingDetails = TrainingRegistrationHelper.mergeContentDetails(combineTrainingDetails, contentData);
+
             } else {
 
                 trainingDetails = await OverallTrainingProgress.aggregate([
@@ -741,7 +793,7 @@ module.exports.queries = {
                         },
                     },
                 ]);
-                
+
             }
 
             if (trainingDetails.length === 0) {
@@ -752,6 +804,7 @@ module.exports.queries = {
                 const moduleCount = trainingDetail.trainingModules.length;
 
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
+
                     const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
                         if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
                             content.trainingModuleContentDetails.forEach(detail => {
@@ -767,11 +820,18 @@ module.exports.queries = {
 
                     acc += moduleDurationInSeconds;
 
-                    const progressPercentages = module.trainingModuleContents.map(content => content.progressPercentage || 0);
-                    const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
-                    const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
+                    const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
 
-                    module.progressPercentage = averageProgress.toFixed(2);
+                    if (trainingModuleContentDetails.length > 0) {
+
+                        const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
+
+                        const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
+                        const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
+
+                        module.progressPercentage = averageProgress.toFixed(2);
+
+                    }
 
                     const statuses = module.trainingModuleContents.map(content => content.status);
                     if (statuses.every(status => status === "COMPLETED")) {
@@ -785,14 +845,10 @@ module.exports.queries = {
                     return acc;
                 }, 0);
 
-                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
-                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
-
                 return {
                     ...trainingDetail,
                     totalDuration,
-                    moduleCount,
-                    progressPercentage: overallProgress.toFixed(2)
+                    moduleCount
                 };
             });
 
@@ -808,28 +864,28 @@ module.exports.queries = {
     },
     getSingleCourseDetailsforWeb: async ({ input }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-    
+
         try {
             if (!input) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
             }
-    
+
             const fetchOverallTrainingProgress = await OverallTrainingProgress.findOne({ _id: input })
                 .populate("training")
                 .lean();
-    
+
             if (!fetchOverallTrainingProgress) {
                 throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             }
-    
+
             const trainingObjectId = fetchOverallTrainingProgress.training._id;
-    
+
             const totalCountofTraining = await OverallTrainingProgress.countDocuments({
                 training: trainingObjectId,
             });
-    
+
             let trainingDetails;
-    
+
             if (fetchOverallTrainingProgress.contentData && fetchOverallTrainingProgress.contentData.length > 0) {
                 const trainingDetailsFetched = await OverallTrainingProgress.aggregate([
                     {
@@ -866,6 +922,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                attemptCount: "$attemptCount",
                             },
                             pipeline: [
                                 {
@@ -876,6 +933,12 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: [
+                                                        "$attemptCount",
+                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -966,9 +1029,8 @@ module.exports.queries = {
                                                     points: "$$question.points",
                                                     negativePoints:
                                                         "$$question.negativePoints",
-                                                        allowMultipleAnswers:
+                                                    allowMultipleAnswers:
                                                         "$$question.allowMultipleAnswers"
-
                                                 }
                                             }
                                         }
@@ -1023,8 +1085,54 @@ module.exports.queries = {
                         },
                     },
                 ]);
-    
-                trainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+                const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
+
+                const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);
+                const overallId = fetchOverallTrainingProgress._id;
+
+                const contentDataPipeline = [
+                    {
+                        $match: {
+                            overallTrainingProgress: overallId,
+                            trainingModule: { $in: moduleIds }
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingmodulecontents",
+                            localField: "trainingModuleContent",
+                            foreignField: "_id",
+                            as: "contentDetails"
+                        }
+                    },
+                    {
+                        $unwind: "$contentDetails"
+                    },
+                    {
+                        $group: {
+                            _id: "$trainingModule",
+                            contentData: {
+                                $push: {
+                                    contentId: "$contentDetails._id",
+                                    status: "$status",
+                                    progressPercentage: "$progressPercentage",
+                                    lastAccessedDuration: "$lastAccessedDuration",
+                                    quizAttemptDetails: "$quizAttemptDetails"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $match: {
+                            _id: { $in: moduleIds }
+                        }
+                    }
+                ];
+
+                const contentData = await TrainingProgress.aggregate(contentDataPipeline);
+                trainingDetails = TrainingRegistrationHelper.mergeContentDetails(combineTrainingDetails, contentData);
+
             } else {
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
@@ -1104,7 +1212,6 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
-                                                            allowMultipleAnswers:"$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1156,14 +1263,14 @@ module.exports.queries = {
                     },
                 ]);
             }
-    
+
             if (trainingDetails.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "Course not found!");
             }
-    
+
             const processedTrainingDetails = trainingDetails.map(trainingDetail => {
                 const moduleCount = trainingDetail.trainingModules.length;
-    
+
                 const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
                     const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
                         if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
@@ -1177,15 +1284,22 @@ module.exports.queries = {
                         }
                         return moduleAcc;
                     }, 0);
-    
+
                     acc += moduleDurationInSeconds;
-    
-                    const progressPercentages = module.trainingModuleContents.map(content => content.progressPercentage || 0);
-                    const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
-                    const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
-    
-                    module.progressPercentage = averageProgress.toFixed(2);
-    
+
+                    const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
+
+                    if (trainingModuleContentDetails.length > 0) {
+
+                        const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
+
+                        const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
+                        const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
+
+                        module.progressPercentage = averageProgress.toFixed(2);
+
+                    }
+
                     const statuses = module.trainingModuleContents.map(content => content.status);
                     if (statuses.every(status => status === "COMPLETED")) {
                         module.status = "COMPLETED";
@@ -1194,21 +1308,17 @@ module.exports.queries = {
                     } else {
                         module.status = "IN_PROGRESS";
                     }
-    
+
                     return acc;
                 }, 0);
-    
-                const moduleProgresses = trainingDetail.trainingModules.map(module => parseFloat(module.averageProgressPercentage) || 0);
-                const overallProgress = moduleProgresses.reduce((sum, p) => sum + p, 0) / moduleCount;
-    
+
                 return {
                     ...trainingDetail,
                     totalDuration,
                     moduleCount,
-                    progressPercentage: overallProgress.toFixed(2),
                 };
             });
-    
+
             return {
                 status: true,
                 message: "Course details fetched successfully",
@@ -1219,7 +1329,7 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
-    
+
 };
 
 module.exports.mutations = {
@@ -1529,7 +1639,7 @@ module.exports.mutations = {
     },
 
     markAsCompleted: async ({ input }, context) => {
-        const { subscriberId , userInfo, userId} = AuthUser(context);
+        const { subscriberId, userInfo, userId } = AuthUser(context);
         try {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
@@ -1631,7 +1741,7 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
             }));
-    
+
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Course Completion Notification`,

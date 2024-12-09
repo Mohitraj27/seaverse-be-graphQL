@@ -52,7 +52,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     designationIds.push(groupId);
                     break;
                 case groupTypes.role:
-                    roleIds.push(...groupId);
+                    if (Array.isArray(groupId)) {
+                        roleIds.push(...groupId);
+                    } else {
+                        roleIds.push(groupId);
+                    }
                     break;
                 case groupTypes.subRole:
                     subRoleIds.push(groupId);
@@ -61,7 +65,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     vesselIds.push(groupId);
                     break;
                 case groupTypes.vesselStatus:
-                    vesselStatusIds.push(...groupId);
+                    if (Array.isArray(groupId)) {
+                        vesselStatusIds.push(...groupId);
+                    } else {
+                        vesselStatusIds.push(groupId);
+                    }
                     break;
                 case groupTypes.vesselType:
                     vesselTypeIds.push(groupId);
@@ -76,19 +84,35 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
 
-        const roleQuery = roleIds.length
-            ? User.find({
-                $or: roleIds.includes("ADMIN")
-                    ? [
-                        { role: "ADMIN" },
-                        { "subRoles.name": "ADMIN" }
-                    ]
-                    : [
-                        { role: "LEARNER", "subRoles.name": { $ne: "ADMIN" } }
-                    ]
-            }).populate("subRoles", "name")
-            : Promise.resolve([]);
+        const adminUsers = [];
+        const learnerUsers = [];
 
+        const roleUsersQuery = await User.find({ role: "LEARNER" }).populate("subRoles", "name");
+        roleUsersQuery.forEach(user => {
+            if (user.subRoles.length > 0) {
+                user.subRoles.forEach(subRole => {
+                    if (roleIds.includes(subRole.name)) {
+                        if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
+                            adminUsers.push(user);
+                        }
+                        if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
+                            learnerUsers.push(user);
+                        }
+                    }
+                });
+            } else if (roleIds.includes("LEARNER")) {
+                learnerUsers.push(user);
+            }
+        });
+
+        let roleQuery = [];
+        if (roleIds.includes("ADMIN")) {
+            roleQuery = adminUsers;
+        } else if (roleIds.includes("LEARNER")) {
+            roleQuery = learnerUsers;
+        } else {
+            roleQuery = Promise.resolve([]);
+        }
 
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
@@ -439,6 +463,36 @@ const combineTrainingModules = (data) => {
     return Object.values(mergedData);
 
 }
+const mergeContentDetails = (combineTrainingDetails, contentData) => {
+
+    const contentDataMap = contentData.reduce((map, item) => {
+        map[item._id] = item.contentData.reduce((contentMap, content) => {
+            contentMap[content.contentId] = content;
+            return contentMap;
+        }, {});
+        return map;
+    }, {});
+
+    combineTrainingDetails.forEach(entry => {
+        entry.trainingModules.forEach(module => {
+            module.trainingModuleContents.forEach(content => {
+                content.trainingModuleContentDetails.forEach(detail => {
+                    const moduleContentMap = contentDataMap[module._id];
+                    if (moduleContentMap && moduleContentMap[detail._id]) {
+                        const matchedContent = moduleContentMap[detail._id];
+                        detail.progressPercentage = matchedContent.progressPercentage;
+                        detail.status = matchedContent.status;
+                        detail.lastAccessedDuration = matchedContent.lastAccessedDuration;
+                        detail.quizAttemptDetails = matchedContent.quizAttemptDetails || {};
+                    }
+                });
+            });
+        });
+    });
+
+    return combineTrainingDetails;
+
+}
 
 module.exports = {
     enrolUserVerificationHelper,
@@ -448,6 +502,7 @@ module.exports = {
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
     combineTrainingModules,
+    mergeContentDetails,
     extractTrainingContentData,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -652,24 +707,24 @@ module.exports = {
                     messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: false,
-                    notifiers:[
+                    notifiers: [
                         userId
                     ],
-                    employeeNotifiers:[userId],
+                    employeeNotifiers: [userId],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-        
+
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `New Course Enrollment`,
                     messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: true,
-                    notifiers:[],
-                    employeeNotifiers:[],
+                    notifiers: [],
+                    employeeNotifiers: [],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -785,24 +840,24 @@ module.exports = {
                     messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                     notifyAdmin: false,
-                    notifiers:[
+                    notifiers: [
                         userId
                     ],
-                    employeeNotifiers:[userId],
+                    employeeNotifiers: [userId],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-        
+
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Unenrollment`,
                     messageValue: `A  Course Unenrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                     notifyAdmin: true,
-                    notifiers:[],
-                    employeeNotifiers:[],
+                    notifiers: [],
+                    employeeNotifiers: [],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,

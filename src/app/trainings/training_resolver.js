@@ -89,8 +89,17 @@ module.exports.queries = {
                             },
                         },
                         {
+                            $lookup: {
+                                from: "overalltrainingprogresses",
+                                localField: "_id",
+                                foreignField: "training",
+                                as: "trainingUsers",
+                            },
+                        },
+                        {
                             $addFields: {
                                 createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                                countOfUsers: { $size: "$trainingUsers" },
                             },
                         },
                         { $project: { createdByDetails: 0 } },
@@ -99,11 +108,10 @@ module.exports.queries = {
             },
             {
                 $project: {
-                    trainings: 1,
+                    trainings: 1
                 },
             },
         ]);
-
 
         const { trainings } = result[0];
         return {
@@ -534,14 +542,33 @@ module.exports.mutations = {
             userId = AuthUser(context).userId;
         }
 
-        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId);
+        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
+
+        const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
+        const attemptType = fetchOverallTraining.training.attemptType;
+        let attemptLimit;
+
+        if (allowMultipleAttempts && attemptType === 'LIMITED_ATTEMPT') {
+            attemptLimit = fetchOverallTraining.training.setLimitAttempt;
+        }
 
         if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
 
         let updateOverallTrainingProgress;
         if (fetchOverallTraining.contentData) {
+
             fetchOverallTraining.contentData = [];
-            updateOverallTrainingProgress = fetchOverallTraining.save();
+            fetchOverallTraining.progressPercentage = 0.00;
+            fetchOverallTraining.lastConsumedContent = {};
+            fetchOverallTraining.attemptCount++;
+
+            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
+
+                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+
+            }
+
+            updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
 
         if (updateOverallTrainingProgress) {
@@ -552,6 +579,6 @@ module.exports.mutations = {
         } else {
             throw CustomError(ErrorName.FAILED);
         }
-        
+
     }
 };
