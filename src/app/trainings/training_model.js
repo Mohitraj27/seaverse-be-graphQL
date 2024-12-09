@@ -132,9 +132,6 @@ const trainingSchema = new Schema(
         attemptFlexibility: {
             type: String,
             uppercase: true,
-            required: function () {
-                return this.allowMultipleAttempts === true;
-            },
         },
         attemptType: {
             type: String,
@@ -153,21 +150,12 @@ const trainingSchema = new Schema(
         },
         disableFurtherAttemptsOnPass: {
             type: Boolean,
-            required: function () {
-                return this.allowMultipleAttempts === true;
-            },
         },
         lockModulesBetweenAttempts: {
             type: Boolean,
-            required: function () {
-                return this.allowMultipleAttempts === true;
-            },
         },
         setTimeLimitForModule: {
             type: Boolean,
-            required: function () {
-                return this.allowMultipleAttempts === true;
-            },
         },
         approvalStatus: {
             type: String,
@@ -200,6 +188,7 @@ const trainingSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        deletedDate: Date,
     },
     { timestamps: true }
 );

@@ -94,6 +94,7 @@ module.exports = {
             isCertificate: Boolean
             courseTag: String
             countOfUsers: Int
+            deletedDate: String
         }
         type Scorm {
             type:String
