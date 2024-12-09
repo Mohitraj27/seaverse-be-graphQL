@@ -22,7 +22,7 @@ const exportSchema = new Schema({
     },
     type_of_export: {
         type: String,
-        enum: ['USER_EXPORT','CUSTOM_REPORT_EXPORT'],
+        enum: ['USER_EXPORT','CUSTOM_REPORT_EXPORT', 'USER_GROUP_EXPORT'],
         required: true,
     },
     additionalData: [{
