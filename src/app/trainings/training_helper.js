@@ -22,6 +22,7 @@ const TrainingCertificateHelper = require("../training-registrations/training-ce
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
+const {sendMulticastNotification} = require("../../util/firebase_helper");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -534,6 +535,39 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+            const sendNotifications = async (userIds, title, body, content, webLink) => {
+                const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
+                const tokens = usersWithTokens.reduce((acc, user) => {
+                    if (user.firebaseTokens && user.firebaseTokens.length > 0) {
+                        acc.push(...user.firebaseTokens);
+                    }
+                    return acc;
+                }, []);
+                if (tokens.length > 0) {
+                    sendMulticastNotification({
+                        tokens,
+                        title,
+                        body,
+                        content,
+                        webLink,
+                    });
+                }
+            };
+            for (const doc of overallDocs) {
+                const training = await Training.findById(doc.training); 
+                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value ;
+                if(courseTitle){
+                    await sendNotifications(
+                        [userId],
+                        `Certificate Generated Successfully`,
+                        `Your certificate for the course ${courseTitle} has been successfully generated.`,
+                        "Certificate Details",
+                        "https://your-application-link.com/certificates"
+                    );  
+                } else {
+                    throw new Error(`Course title is missing for training ID ${doc.training}. Cannot send notification.`);
+                }
+               }
         }
 
     }
