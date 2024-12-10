@@ -386,6 +386,14 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        "$lookup": {
+                            "from": "employees",
+                            "localField": "user",
+                            "foreignField": "user",
+                            "as": "employeeInfo"
+                        }
+                    },
+                    {
                         "$match": {
                             "user": { $in: learnerIds.map(id => ObjectId(id)) }
                         }
@@ -465,6 +473,28 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        "$unwind": {
+                            "path": "$employeeInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
+                        "$lookup":
+                        {
+                            "from": "designations",
+                            "localField": "employeeInfo.empDesignation",
+                            "foreignField": "_id",
+                            "as": "designationInfo"
+                        }
+                    },
+                    {
+                        "$unwind":
+                        {
+                            "path": "$designationInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
                         "$lookup": {
                             "from": "trainingprogress",
                             "localField": "training",
@@ -501,37 +531,44 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     },
                     ...matchStage,
                     {
-                        "$project": {
-                            "courseName": {
-                                "$arrayElemAt": ["$trainingInfo.title.value", 0]
+                        '$project': {
+                            'firstName': '$userInfo.firstName',
+                            'lastName': '$userInfo.lastName',
+                            'email': '$userInfo.email',
+                            'employeeId': '$userInfo.civilIdOrPassport',
+                            'designation': '$designationInfo.name',
+                            'courseName': {
+                                '$arrayElemAt': [
+                                    '$trainingInfo.title.value', 0
+                                ]
                             },
-                            "createdAt": 1,
-                            "completionDate": 1,
-                            "status": 1,
-                            "updatedAt": 1,
-                            "firstName": "$userInfo.firstName",
-                            "lastName": "$userInfo.lastName",
-                            "quizPercentage": {
-                                "$ifNull": ["$quizevaluationInfo.percentage", null]
-                            },
-                            "isPassed": {
-                                "$ifNull": ["$quizevaluationInfo.isPassed", null]
-                            },
-                            "totalTimeSpent": {
-                                "$sum": {
-                                    "$map": {
-                                        "input": "$trainingProgressInfo.duration",
-                                        "as": "duration",
-                                        "in": {
-                                            "$add": [
-                                                { "$multiply": [{ "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 0] } }, 3600] },
-                                                { "$multiply": [{ "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 1] } }, 60] },
-                                                { "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 2] } }
-                                            ]
-                                        }
-                                    }
+                            'createdAt': 1,
+                            'unenrolmentDate': {
+                                '$cond': {
+                                    'if': {
+                                        '$eq': [
+                                            '$isEnrolled', false
+                                        ]
+                                    },
+                                    'then': '$updatedAt',
+                                    'else': null
                                 }
-                            }
+                            },
+                            'startDate' : "$startDate",
+                            'completionDate': "$endDate",
+                            'status': 1,
+                            'updatedAt': 1,
+                            'quizPercentage': {
+                                '$ifNull': [
+                                    '$quizevaluationInfo.percentage', null
+                                ]
+                            },
+                            'isPassed': {
+                                '$ifNull': [
+                                    '$quizevaluationInfo.isPassed', null
+                                ]
+                            },
+                            'totalTimeSpent': "$timeSpend"
                         }
                     }
                 ]
@@ -543,16 +580,30 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
                 if (!learnerReportsByUser[learnerName]) {
                     learnerReportsByUser[learnerName] = [];
-                }
+                }    
+                const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
+                const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
+                const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
+                const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                const quizScore = item.quizPercentage !== null ? item.quizPercentage.toFixed(2) : null;
+                const userState = item.isRegistered ? "Registered" : "Unregistered";  
+                const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0; 
+            
                 learnerReportsByUser[learnerName].push({
-                    courseName: item.courseName ? item.courseName[0] : null,
-                    status: item.status,
-                    Enrollment_Date: item.createdAt,
-                    Completion_Date: item.completionDate || "Not Applicable",
-                    totalTimeSpent: item.totalTimeSpent || 0,
-                    LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
+                    Name: learnerName,
+                    Email: item.email || null,
+                    Designation: item.designation || null,
+                    'Course Name': item.courseName ? item.courseName[0] : null,
+                    Status: item.status || null,
+                    'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                    'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
+                    'Completion Date (UTC TimeZone)': completionDate,
+                    'Started Date (UTC TimeZone)': startDate,
+                    'Quiz Score': quizScore,
+                    userState: userState,
+                    'Time Spent (mins)': timeSpent,
                 });
-            });
+            });            
             let s3PresignedUrl = "";
 
             if (input?.export && learnersReports.length > 0) {
