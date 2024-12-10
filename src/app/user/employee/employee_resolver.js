@@ -68,6 +68,8 @@ const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const roleUpdate = require("../../email-template/roleUpdate");
+const Unregistered_status = require("../../email-template/Unregistered_status");
+const registered_status = require("../../email-template/Registered_Status");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1339,7 +1341,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 type: input.type, 
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-
+            for (const user of users) {
+                const emailContent =
+                    input.type === "Registered"
+                        ? registered_status({ firstName: user.firstName})
+                        : Unregistered_status({ firstName: user.firstName});
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Current Status Update: ${input.type}`,
+                    htmlContent: emailContent,
+                });
+            }
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
