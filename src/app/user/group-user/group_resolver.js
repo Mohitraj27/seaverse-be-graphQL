@@ -17,45 +17,170 @@ const { SubRole } = require("../sub-roles/sub_role_model");
 const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup, getAutoSyncedGroupsOnly, getCustomGroupsOnly } = require("./group_helper");
 const error_helper = require("../../../util/error_helper");
 const { getCustomGroupUsers, getAutoSyncUsers } = require("../../training-registrations/training_registration_helper");
-module.exports.queries = {
-    exportGroupToCSV: async ({ groupId }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
-        const groupInfo = await Group.findOne({
-            _id: groupId,
-            subscriber: subscriberId,
-            isDeleted: false,
-        }).lean();
-        const groupDetails = await GroupMember.find({
-            group: groupId,
-            subscriber: subscriberId,
-            isDeleted: false,
-        })
-            .populate("member", "email civilIdOrPassport firstName lastName role")
-            .lean();
+const NotificationType = require("../../notifications/notification_type.json");
+const NotificationHelper = require("../../notifications/notification_helper");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 
-        if (!groupDetails) {
-            throw new CustomError(ErrorName.NOT_FOUND, "Group not found");
+const xlsx = require('xlsx');
+const path = require('path');
+const Export = require('../exportUser/exportUser_model');
+const AwsHelper = require("../../../util/aws_helper");
+
+module.exports.queries = {
+    exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
+        const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
+        if (!role || role !== "ADMIN") {
+            throw CustomError(ErrorName.FORBIDDEN);
         }
+        const notifications = [];
+        const exportStartTime = new Date();
 
         try {
-            const fields = [
-                { label: "ID", value: "_id" },
-                { label: "Email", value: "email" },
-                { label: "Civil ID or Passport", value: "civilIdOrPassport" },
-                { label: "First Name", value: "firstName" },
-                { label: "Last Name", value: "lastName" },
-                { label: "Role", value: "role" },
-            ];
-            const membersData = groupDetails.map(group => group.member).flat();
-            const csv = await parseAsync(membersData, { fields });
-            const fileName = `${groupInfo.groupName.replace(/\s+/g, "_")}_export.csv`;
-            return {
-                message: "CSV export successful",
-                csvData: csv,
-                fileName: fileName,
+            const inProgressNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `User Export In Progress` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                    },
+                ],
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS,
             };
+            notifications.push(inProgressNotification);
+            await NotificationHelper.createNotification(notifications);
+            let memberIds;
+            let selectedGroup;
+            let userDetails = [];
+
+            if (groupKind === "CUSTOMGROUP") {
+                selectedGroup = await Group.findOne({ _id: groupId, isDeleted: false })
+                    .select('groupType createdAt')
+                    .lean();
+
+                if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND, "Custom Group not found");
+
+                const customGroupMembers = await getCustomGroupUsers([
+                    { groupId: selectedGroup._id, groupType: selectedGroup.groupType }
+                ]);
+
+                memberIds = customGroupMembers.map(member => member._id);
+            } else {
+                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
+                memberIds = autoSyncGroupMembers.map(member => member._id);
+            }
+
+            if (memberIds.length > 0) {
+                const users = await User.find({ _id: { $in: memberIds } })
+                    .select('firstName lastName email isRegistered isActive lastLoginAt createdAt')
+                    .lean();
+
+                const employeeData = await Employee.find({ user: { $in: memberIds } })
+                    .select('user empDesignation')
+                    .populate({
+                        path: 'empDesignation',
+                        select: 'name',
+                    })
+                    .lean();
+
+                const employeeMap = employeeData.reduce((map, emp) => {
+                    map[emp.user.toString()] = emp.empDesignation ? emp.empDesignation.name : null;
+                    return map;
+                }, {});
+
+                const userVesselData = await UserVessel.find({ user: { $in: memberIds }, isActive: true })
+                    .select('user vessel')
+                    .populate({
+                        path: 'vessel',
+                        select: 'typeOfVessel',
+                        populate: {
+                            path: 'typeOfVessel',
+                            select: 'name',
+                        },
+                    })
+                    .lean();
+
+                const vesselTypeMap = userVesselData.reduce((map, uv) => {
+                    map[uv.user.toString()] = uv.vessel?.typeOfVessel?.name || null;
+                    return map;
+                }, {});
+
+                userDetails = users.map(user => ({
+                    ...user,
+                    designation: employeeMap[user._id.toString()] || null,
+                    vesselType: vesselTypeMap[user._id.toString()] || null,
+                    createdAt: groupKind === "CUSTOMGROUP" ? selectedGroup?.createdAt : user?.createdAt,
+                }));
+            }
+
+            const data = userDetails.map(user => ({
+                "First Name": user?.firstName,
+                "Last Name": user?.lastName,
+                "Email": user?.email,
+                "Date Added": user?.createdAt,
+                "Date Deleted": "",
+                "Last Login Date": user?.lastLoginAt,
+                "User State": user?.isRegistered ? "Registered" : "Unregistered",
+                "Designation": user?.designation,
+                "Type Of Vessel": user?.vesselType,
+            }));
+
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(data);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Group_Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_group_users_${Date.now()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+            if (excelFilePath) {
+                const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const exportEntry = new Export({
+                    filePath: s3PresignedUrl,
+                    subscriberId: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    type_of_export: 'USER_GROUP_EXPORT'
+                });
+                await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Group Exported Successfully` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `The export user process completed successfully. You can download the file from the link: ${s3PresignedUrl}.`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]);
+                return {
+                    status: true,
+                    message: "User Group Exported successfully",
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath)
+                };
+            } else {
+                throw CustomError(ErrorName.UPLOAD_FAILED);
+            }
         } catch (error) {
-            throw new CustomError(ErrorName.ERROR_IN_EXPORT_CSV_USER_GROUP);
+            throw Error(error.message);
         }
     },
     getGroups: async ({ pageInput, groupFilter, groupType }, context) => {
@@ -286,17 +411,17 @@ module.exports.queries = {
         const users = await User.aggregate([
             { $match: { isRegistered: true, isDeleted: false } },
             ...(search
-            ? [
-                {
-                $match: {
-                    $or: [
-                    { firstName: { $regex: search, $options: 'i' } },
-                    { lastName: { $regex: search, $options: 'i' } },
-                    ],
-                },
-                },
-            ]
-            : []),
+                ? [
+                    {
+                        $match: {
+                            $or: [
+                                { firstName: { $regex: search, $options: 'i' } },
+                                { lastName: { $regex: search, $options: 'i' } },
+                            ],
+                        },
+                    },
+                ]
+                : []),
         ]);
 
         const autoSyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);

@@ -30,7 +30,7 @@
 		"express": "4.17.1",
 		"extract-zip": "^2.0.1",
 		"extract-zip-promise": "^1.0.5",
-		"firebase-admin": "9.9.0",
+		"firebase-admin": "^11.10.1",
 		"fs": "^0.0.1-security",
 		"geoip-lite": "1.4.6",
 		"geolocation-utils": "1.2.5",

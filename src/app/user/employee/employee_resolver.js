@@ -67,6 +67,7 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const {sendNotifications} = require("../../../util/firebase_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2411,7 +2412,17 @@ module.exports.mutations = {
             }));
     
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
-    
+            
+             const userIdsToSend = usersToUpdate.map(user => user._id);
+            for (const userId of userIdsToSend) {
+                await sendNotifications({
+                    userIds: userId, 
+                    title: "Subrole Assigned Successfully",
+                    body: `You have been assigned the subrole "${validSubRole.name}".`,
+                    content: `You have been assigned the subrole "${validSubRole.name}".`,
+                    webLink: "",
+                });
+            }
             return {
                 success: true,
                 message: "Subrole successfully assigned to all learners",

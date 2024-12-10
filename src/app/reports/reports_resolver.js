@@ -37,6 +37,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 const searchConditions = [
                     { 'userInfo.firstName': { $regex: regexSearch } },
                     { 'userInfo.lastName': { $regex: regexSearch } },
+                    { 'userInfo.civilIdOrPassport': { $regex: regexSearch } },
                     { 'employeeDesignation.name': { $regex: regexSearch } },
                     { 'userInfo.email': { $regex: regexSearch } },
                     { 'vesselDetails.name': { $regex: regexSearch } },
@@ -183,6 +184,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: 'user',
                     as: 'trainingProgresses',
+                    pipeline: [
+                        {
+                            $match: { isEnrolled: true }
+                        },
+                    ],
                 },
             },
             {
@@ -231,14 +237,10 @@ const getMainLearnersReport = async ({ input }, context) => {
             EmployeeId: item.EmployeeId,
             Designation: item.designation,
             VesselName: item.vesselName,
-            learnerId : item.learnerId,
             IsRegistered: item.isRegistered ? 'Yes' : 'No',
             IsDeleted: item.isDeleted ? 'Yes' : 'No',
             LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
-            vesselId: item.vesselId,
-            designationId : item.designationId,
             vesselTypeName : item.vesselTypeName,
-            vesselTypeId : item.vesselTypeId,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ?parseInt(item.averageProgressPercentage):0,
         }));
@@ -1866,18 +1868,16 @@ const getVesselMainReport = async ({ input }, context) => {
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
 
-            if (filterInput.name) {
+            if (filterInput?.search) {
+                const search = filterInput.search;
                 matchStage.push({
                     $match: {
-                        'name': { $regex: filterInput.name, $options: 'i' },
-                    },
-                });
-            }
-
-            if (filterInput.imoNumber) {
-                matchStage.push({
-                    $match: {
-                        'imoNumber': { $regex: filterInput.imoNumber, $options: 'i' },
+                        $or: [
+                            { 'vesselName': { $regex: search, $options: 'i' } },
+                            { 'imoNumber': { $regex: search, $options: 'i' } },
+                            { 'ownerName': { $regex: search, $options: 'i' } },
+                            { 'companyName': { $regex: search, $options: 'i' } },
+                        ],
                     },
                 });
             }
