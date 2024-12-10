@@ -1,7 +1,8 @@
 const {
     CustomError,
     ErrorName,
-    AuthUser
+    AuthUser,
+    SendEmail,
 } = require("../../util");
 
 const { ObjectId } = require("../../tools");
@@ -14,6 +15,7 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
+const vesselStatusUpdateEmail = require("../email-template/vesselStatusUpdate");
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -430,6 +432,19 @@ module.exports.mutations = {
                     status:"SENT",
                     createdBy: userInfo,
                 });
+                const assignedUsers = await User.find({ currentVessel: vessel._id });
+                for (let user of assignedUsers) {
+                const emailContent = vesselStatusUpdateEmail({
+                    firstName: user.firstName,
+                    vesselName: vesselNames,
+                    vesselStatus: statusSummary,
+                });
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Vessel Status Update: ${vesselNames}`,
+                    htmlContent: emailContent,
+                });
+                }
             }
     
             return {
