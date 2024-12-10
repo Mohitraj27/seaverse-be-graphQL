@@ -1598,22 +1598,6 @@ const getVesselMainReport = async ({ input }, context) => {
                 });
             }
 
-            // if (filterInput.vesselNameIds) {
-            //     matchStage.push({
-            //         $match: {
-            //             'name': { $regex: filterInput.name, $options: 'i' },
-            //         },
-            //     });
-            // }
-
-            // if (filterInput.imoNumber) {
-            //     matchStage.push({
-            //         $match: {
-            //             'imoNumber': { $regex: filterInput.imoNumber, $options: 'i' },
-            //         },
-            //     });
-            // }
-
             if (filterInput.ownerName && Array.isArray(filterInput.ownerName) && filterInput.ownerName.length > 0) {
                 matchStage.push({
                     $match: {
