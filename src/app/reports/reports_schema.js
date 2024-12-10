@@ -139,7 +139,7 @@ module.exports = {
             completionDate : String
             status : String
             updatedAt : String
-            quizPercentage : Int
+            quizPercentage : Float
             totalTimeSpent : Int
             isPassed : Boolean
         }
