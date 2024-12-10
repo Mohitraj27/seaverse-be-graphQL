@@ -139,7 +139,7 @@ module.exports = {
             completionDate : String
             status : String
             updatedAt : String
-            quizPercentage : Int
+            quizPercentage : Float
             totalTimeSpent : Int
             isPassed : Boolean
         }
@@ -265,10 +265,11 @@ module.exports = {
         }
 
         input vesselReportFilter {
-          ownerName : [String]
-          companyName : [String]
-          vesselTypeIds : [ID]
-          vesselNameIds : [ID]
+            search : String
+            ownerName : [String]
+            companyName : [String]
+            vesselTypeIds : [ID]
+            vesselNameIds : [ID]
         }
 
     `,

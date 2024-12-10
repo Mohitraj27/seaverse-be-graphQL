@@ -44,6 +44,7 @@ const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
+const {sendNotifications} = require("../../util/firebase_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1719,7 +1720,13 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+            await sendNotifications({
+                userIds: input.userIds,
+                title: 'Course Completed',
+                body: `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
+                content: "Course Completion Content",
+                webLink: ""
+            });
             return {
                 status: true,
                 message: "Marked as completed successfully"
@@ -1807,7 +1814,13 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+            await sendNotifications({
+                userIds: userIds, 
+                title:'Course Reset Notification',
+                body:`The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
+                content: "Dummy content",
+                webLink:  ""
+            });
             return {
                 status: true,
                 message: "Modules reset successfully"

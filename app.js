@@ -13,7 +13,7 @@ const TrainingRegistrationRemainder = require("./src/app/training-registrations/
 const TrainingCertificateRemainder = require("./src/app/training-registrations/training-certificates/training_certificate_reminder");
 const BatchRemainder = require("./src/app/batches/batch_reminder");
 const BackupHelper = require("./src/app/backup/backup_helper");
-
+const firebaseHelper = require('./src/util/firebase_helper');
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
     process.env.MONGO_DB = process.env.MONGO_DB_LIVE;
@@ -65,7 +65,7 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 
     return { httpsServer, httpServer, apolloServer };
 })();
-
+firebaseHelper.init();
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 

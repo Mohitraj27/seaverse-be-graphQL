@@ -14,6 +14,7 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
+const {sendNotifications} =require("../../util/firebase_helper");
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -430,6 +431,20 @@ module.exports.mutations = {
                     status:"SENT",
                     createdBy: userInfo,
                 });
+                const userVesselIdsToNotify = updatedVessels.map(v => v.id);
+                const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id');
+                if (matchingUsers.length > 0) {
+                    const userObjectIds = matchingUsers.map(user => user._id);
+                    await sendNotifications({
+                        userIds: userObjectIds,
+                        title: "Your Vessel Status has been Updated",
+                        body: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        content: { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
+                        webLink: ""
+                    });
+                } else{
+                    throw new Error("No users found with matching vessel IDs in their currentVessel field.");
+                }
             }
     
             return {
