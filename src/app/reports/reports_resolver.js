@@ -237,9 +237,8 @@ const getMainLearnersReport = async ({ input }, context) => {
             EmployeeId: item.EmployeeId,
             Designation: item.designation,
             VesselName: item.vesselName,
-            IsRegistered: item.isRegistered ? 'Yes' : 'No',
-            IsDeleted: item.isDeleted ? 'Yes' : 'No',
-            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
+            RegistrationStatus: item.isRegistered ? 'REGISTERED' : 'UNREGISTERED',
+            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : ' ',
             vesselTypeName : item.vesselTypeName,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ?parseInt(item.averageProgressPercentage):0,
@@ -390,24 +389,63 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$lookup": {
-                            "from": "quizevaluations",
-                            "localField": "training",
-                            "foreignField": "trainingId",
-                            "as": "quizevaluationInfo",
-                            "pipeline": [
+                        $lookup: {
+                            from: "trainingprogresses",
+                            localField: "_id",
+                            foreignField: "overallTrainingProgress",
+                            as: "quizevaluationInfo",
+                            let: {
+                                attemptCount: "$attemptCount"
+                            },
+                            pipeline: [
                                 {
-                                    "$match": {
-                                        "userId": { $in: learnerIds.map(id => ObjectId(id)) }
+                                    $match: {
+                                        $expr: {
+                                            $eq: [
+                                                "$attemptCount",
+                                                "$$attemptCount"
+                                            ]
+                                        }
                                     }
                                 },
                                 {
-                                    "$sort": {
-                                        "updatedAt": -1
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingModuleContent",
+                                        foreignField: "_id",
+                                        as: "contentInfo",
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    $expr: {
+                                                        $eq: ["$contentType", "QUIZ"]
+                                                    }
+                                                }
+                                            }
+                                        ]
                                     }
                                 },
                                 {
-                                    "$limit": 1
+                                    $unwind: {
+                                        path: "$contentInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $sort: {
+                                        updatedAt: -1
+                                    }
+                                },
+                                {
+                                    $limit: 1
+                                },
+                                {
+                                    $project: {
+                                        percentage:
+                                            "$quizAttemptDetails.percentage",
+                                        isPassed:
+                                            "$quizAttemptDetails.isPassed"
+                                    }
                                 }
                             ]
                         }
