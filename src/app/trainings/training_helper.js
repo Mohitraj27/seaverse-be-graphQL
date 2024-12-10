@@ -275,7 +275,7 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData } },
+                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date() } },
                     },
                 });
             }
@@ -578,7 +578,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         }))
     };
 
-    const trainingProgresses = await TrainingProgress.find(query);
+    const trainingProgresses = await TrainingProgress.find(query).populate('trainingModuleContent');
 
     if (trainingProgresses.length === 0) return;
 
@@ -589,24 +589,42 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         );
 
         if (trainingProgress.length > 0) {
-            const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
 
-            overallIdContentPercentagesMap.set(overallId.toString(), progressPercentages);
+            const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
+            const durations = trainingProgress.map(prog => prog.trainingModuleContent?.duration || 0);
+
+            overallIdContentPercentagesMap.set(overallId.toString(), { progressPercentages, durations });
+
         }
     });
 
     let bulkOperations = [];
 
-    overallIdContentPercentagesMap.forEach((progressPercentages, overallId) => {
+    overallIdContentPercentagesMap.forEach(({ progressPercentages, durations }, overallId) => {
+
+        const totalDuration = durations.reduce((sum, val) => sum + val, 0);
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
         const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
+        const timeSpend = (totalDuration * (average / 100)).toFixed(2);
+
+        const updateFields = {
+            progressPercentage: average,
+            totalDuration,
+            timeSpend
+        };
+
+        if (average == 100) {
+            updateFields.status = "COMPLETED";
+            updateFields.endDate = new Date();
+        }
 
         bulkOperations.push({
             updateOne: {
                 filter: { _id: overallId },
-                update: { $set: { progressPercentage: average } }
+                update: { $set: updateFields }
             }
         });
+
     });
 
     if (bulkOperations.length > 0) {
@@ -637,7 +655,6 @@ const updateTrainingProgress = async (input, userId) => {
 
     input.forEach((item) => {
         const trainingRegistration = trainingRegMap.get(item.overallId.toString());
-
         if (trainingRegistration) {
             trainingRegistrationIds.push(trainingRegistration);
             item.trainingModules.forEach((module) => {
@@ -646,9 +663,7 @@ const updateTrainingProgress = async (input, userId) => {
                 });
             });
         }
-
     });
-
 
     let trainingProgressInput = [];
 
@@ -1037,9 +1052,9 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 attendedQuestions: questionResults,
             };
             quizEvaluations.push(quizEvaluationData);
-        
+
             const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
-            
+
             const attemptCount = overallDoc.attemptCount || 1;
 
             const trainingProgressUpdates = {

@@ -17,7 +17,7 @@ const trainingModuleContentSchema = new Schema(
             required: true,
             enum: ["AUDIO", "VIDEO", "TEXT", "QUIZ", "PPT", "PDF", "SCORM", "FILES", "IMAGE"],
         },
-        duration: String,
+        duration: Number,
         contentStatus: {
             type: String,
             enum: ["DRAFT", "PUBLISHED", "RETIRED"],
