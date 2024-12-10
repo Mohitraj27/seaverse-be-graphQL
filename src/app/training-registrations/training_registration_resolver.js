@@ -226,6 +226,7 @@ module.exports.queries = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
@@ -247,6 +248,9 @@ module.exports.queries = {
                 };
             }
 
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
             const courses = await OverallTrainingProgress.aggregate([
                 {
                     $lookup: {
@@ -256,8 +260,20 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
-                { $match: filterConditions },
                 { $unwind: { path: "$training", preserveNullAndEmptyArrays: true } },
+                {
+                    $match: {
+                        ...filterConditions,
+                        $and: [
+                            {
+                                $or: [
+                                    { "training.deletedDate": { $gt: twoDaysAgo } },
+                                    { "training.deletedDate": { $exists: false } },
+                                ]
+                            }
+                        ]
+                    },
+                },
                 {
                     $lookup: {
                         from: "trainingmodules",
@@ -615,7 +631,7 @@ module.exports.queries = {
                         }
                     }
                 ]);
-                
+
                 const combineTrainingDetails = TrainingRegistrationHelper.combineTrainingModules(trainingDetailsFetched);
 
                 const moduleIds = fetchOverallTrainingProgress.contentData.map((item) => item.moduleId);

@@ -137,6 +137,10 @@ module.exports.queries = {
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
 
+        const countOfUsers = await OverallTrainingProgress.countDocuments({
+            training: { $in: training._id }
+        });
+
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
             isDeleted: false,
@@ -167,7 +171,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-        return training;
+
+        return { ...training, countOfUsers };
     },
 
 };
@@ -318,10 +323,11 @@ module.exports.mutations = {
         };
     },
     deleteTraining: async ({ id }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        const deletedTraining = await Training.findOne({
+        let deletedTraining = await Training.findOne({
             _id: id,
             subscriber: subscriberId,
         });
@@ -338,8 +344,10 @@ module.exports.mutations = {
         try {
             deletedTraining.isDeleted = true;
             deletedTraining.isActive = false;
-            deletedTraining.save();
-        } catch {
+            deletedTraining.deletedDate = new Date();
+            await deletedTraining.save();
+        } catch (error) {
+            console.error("Error while saving:", error);
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
