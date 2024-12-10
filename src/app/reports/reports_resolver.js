@@ -364,6 +364,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
 
+        
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
                 [
