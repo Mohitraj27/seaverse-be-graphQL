@@ -89,13 +89,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     $match: { 'userInfo.isDeleted': filterInput.isDeleted },
                 });
             }
+        }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         const employeesData = await Employee.aggregate([
@@ -237,9 +237,8 @@ const getMainLearnersReport = async ({ input }, context) => {
             EmployeeId: item.EmployeeId,
             Designation: item.designation,
             VesselName: item.vesselName,
-            IsRegistered: item.isRegistered ? 'Yes' : 'No',
-            IsDeleted: item.isDeleted ? 'Yes' : 'No',
-            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
+            RegistrationStatus: item.isRegistered ? 'REGISTERED' : 'UNREGISTERED',
+            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : ' ',
             vesselTypeName : item.vesselTypeName,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ?parseInt(item.averageProgressPercentage):0,
@@ -355,15 +354,17 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 });
             }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
-
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+            
         }
 
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
+
 
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
@@ -385,29 +386,76 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        "$lookup": {
+                            "from": "employees",
+                            "localField": "user",
+                            "foreignField": "user",
+                            "as": "employeeInfo"
+                        }
+                    },
+                    {
                         "$match": {
                             "user": { $in: learnerIds.map(id => ObjectId(id)) }
                         }
                     },
                     {
-                        "$lookup": {
-                            "from": "quizevaluations",
-                            "localField": "training",
-                            "foreignField": "trainingId",
-                            "as": "quizevaluationInfo",
-                            "pipeline": [
+                        $lookup: {
+                            from: "trainingprogresses",
+                            localField: "_id",
+                            foreignField: "overallTrainingProgress",
+                            as: "quizevaluationInfo",
+                            let: {
+                                attemptCount: "$attemptCount"
+                            },
+                            pipeline: [
                                 {
-                                    "$match": {
-                                        "userId": { $in: learnerIds.map(id => ObjectId(id)) }
+                                    $match: {
+                                        $expr: {
+                                            $eq: [
+                                                "$attemptCount",
+                                                "$$attemptCount"
+                                            ]
+                                        }
                                     }
                                 },
                                 {
-                                    "$sort": {
-                                        "updatedAt": -1
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingModuleContent",
+                                        foreignField: "_id",
+                                        as: "contentInfo",
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    $expr: {
+                                                        $eq: ["$contentType", "QUIZ"]
+                                                    }
+                                                }
+                                            }
+                                        ]
                                     }
                                 },
                                 {
-                                    "$limit": 1
+                                    $unwind: {
+                                        path: "$contentInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $sort: {
+                                        updatedAt: -1
+                                    }
+                                },
+                                {
+                                    $limit: 1
+                                },
+                                {
+                                    $project: {
+                                        percentage:
+                                            "$quizAttemptDetails.percentage",
+                                        isPassed:
+                                            "$quizAttemptDetails.isPassed"
+                                    }
                                 }
                             ]
                         }
@@ -421,6 +469,28 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     {
                         "$unwind": {
                             "path": "$userInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
+                        "$unwind": {
+                            "path": "$employeeInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
+                        "$lookup":
+                        {
+                            "from": "designations",
+                            "localField": "employeeInfo.empDesignation",
+                            "foreignField": "_id",
+                            "as": "designationInfo"
+                        }
+                    },
+                    {
+                        "$unwind":
+                        {
+                            "path": "$designationInfo",
                             "preserveNullAndEmptyArrays": true
                         }
                     },
@@ -461,37 +531,44 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     },
                     ...matchStage,
                     {
-                        "$project": {
-                            "courseName": {
-                                "$arrayElemAt": ["$trainingInfo.title.value", 0]
+                        '$project': {
+                            'firstName': '$userInfo.firstName',
+                            'lastName': '$userInfo.lastName',
+                            'email': '$userInfo.email',
+                            'employeeId': '$userInfo.civilIdOrPassport',
+                            'designation': '$designationInfo.name',
+                            'courseName': {
+                                '$arrayElemAt': [
+                                    '$trainingInfo.title.value', 0
+                                ]
                             },
-                            "createdAt": 1,
-                            "completionDate": 1,
-                            "status": 1,
-                            "updatedAt": 1,
-                            "firstName": "$userInfo.firstName",
-                            "lastName": "$userInfo.lastName",
-                            "quizPercentage": {
-                                "$ifNull": ["$quizevaluationInfo.percentage", null]
-                            },
-                            "isPassed": {
-                                "$ifNull": ["$quizevaluationInfo.isPassed", null]
-                            },
-                            "totalTimeSpent": {
-                                "$sum": {
-                                    "$map": {
-                                        "input": "$trainingProgressInfo.duration",
-                                        "as": "duration",
-                                        "in": {
-                                            "$add": [
-                                                { "$multiply": [{ "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 0] } }, 3600] },
-                                                { "$multiply": [{ "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 1] } }, 60] },
-                                                { "$toInt": { "$arrayElemAt": [{ "$split": ["$$duration", ":"] }, 2] } }
-                                            ]
-                                        }
-                                    }
+                            'createdAt': 1,
+                            'unenrolmentDate': {
+                                '$cond': {
+                                    'if': {
+                                        '$eq': [
+                                            '$isEnrolled', false
+                                        ]
+                                    },
+                                    'then': '$updatedAt',
+                                    'else': null
                                 }
-                            }
+                            },
+                            'startDate' : "$startDate",
+                            'completionDate': "$endDate",
+                            'status': 1,
+                            'updatedAt': 1,
+                            'quizPercentage': {
+                                '$ifNull': [
+                                    '$quizevaluationInfo.percentage', null
+                                ]
+                            },
+                            'isPassed': {
+                                '$ifNull': [
+                                    '$quizevaluationInfo.isPassed', null
+                                ]
+                            },
+                            'totalTimeSpent': "$timeSpend"
                         }
                     }
                 ]
@@ -503,16 +580,30 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
                 if (!learnerReportsByUser[learnerName]) {
                     learnerReportsByUser[learnerName] = [];
-                }
+                }    
+                const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
+                const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
+                const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
+                const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                const quizScore = item.quizPercentage !== null ? item.quizPercentage.toFixed(2) : null;
+                const userState = item.isRegistered ? "Registered" : "Unregistered";  
+                const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0; 
+            
                 learnerReportsByUser[learnerName].push({
-                    courseName: item.courseName ? item.courseName[0] : null,
-                    status: item.status,
-                    Enrollment_Date: item.createdAt,
-                    Completion_Date: item.completionDate || "Not Applicable",
-                    totalTimeSpent: item.totalTimeSpent || 0,
-                    LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
+                    Name: learnerName,
+                    Email: item.email || null,
+                    Designation: item.designation || null,
+                    'Course Name': item.courseName ? item.courseName[0] : null,
+                    Status: item.status || null,
+                    'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                    'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
+                    'Completion Date (UTC TimeZone)': completionDate,
+                    'Started Date (UTC TimeZone)': startDate,
+                    'Quiz Score': quizScore,
+                    userState: userState,
+                    'Time Spent (mins)': timeSpent,
                 });
-            });
+            });            
             let s3PresignedUrl = "";
 
             if (input?.export && learnersReports.length > 0) {
@@ -1049,13 +1140,15 @@ const getMainCoursesReport = async ({ input }, context) => {
                 matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
             }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
-
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
         }
+
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
+        
 
         const data = await Training.aggregate([
             {
@@ -1292,13 +1385,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+        }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         if (input?.reportType === "ENROLLMENT") {
@@ -1916,12 +2009,13 @@ const getVesselMainReport = async ({ input }, context) => {
                     },
                 });
             }
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        }
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         const data = await Vessel.aggregate([
@@ -2695,6 +2789,14 @@ const getCustomReportLogs = async ({pageInput},context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
+        const skip = pageInput?.skip ? pageInput.skip : 0;
+        const limit = pageInput?.limit ? pageInput.limit : 100;
+        let matchStage = [];
+
+        if (limit > 0) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
+
         const data = await Export.aggregate(
             [
                 {
@@ -2719,7 +2821,9 @@ const getCustomReportLogs = async ({pageInput},context) => {
                         'path': '$usersInfo',
                         'preserveNullAndEmptyArrays': true
                     }
-                }, {
+                },
+                ...matchStage,
+                {
                     '$project': {
                         'from': '$additionalData.value.dateRange.startDate',
                         'to': '$additionalData.value.dateRange.endDate',
