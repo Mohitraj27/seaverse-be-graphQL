@@ -603,6 +603,17 @@ module.exports.mutations = {
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
+            const existingContent = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (existingContent) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
@@ -753,6 +764,17 @@ module.exports.mutations = {
         try {
             const { title, description, questions = [], percentageCriteria } = input;
 
+            const existingContent = await TrainingModuleContent.findOne({
+                $or: title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (existingContent) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             if (!input.contentStatus || questions.length === 0) {
                 input.contentStatus = (title && description && questions.length > 0)
                     ? Content_status.PUBLISHED
@@ -835,6 +857,18 @@ module.exports.mutations = {
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         const { userId, subscriberId, userInfo} = AuthUser(context);
         try {
+            const alreadyContentExist = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (alreadyContentExist) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
                 subscriber: subscriberId,
@@ -1084,6 +1118,18 @@ module.exports.mutations = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+            const alreadyContentExist = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (alreadyContentExist) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
                 subscriber: subscriberId,

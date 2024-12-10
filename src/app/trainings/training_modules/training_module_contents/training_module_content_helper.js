@@ -275,8 +275,24 @@ module.exports = {
                             },
                         });
                     }
+                    existingContentMap.delete(key);
                 });
             }
+
+            existingContentMap.forEach(doc => {
+                if (doc.isDeleted === false) {
+                    trainingContentBridgeBulkOperations.push({
+                        updateOne: {
+                            filter: {
+                                training: input.training,
+                                trainingModule: doc.trainingModule,
+                                trainingContent: doc.trainingContent,
+                            },
+                            update: { $set: { isDeleted: true } },
+                        },
+                    });
+                }
+            });
 
             updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations, { session});
         }

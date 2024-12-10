@@ -87,9 +87,9 @@ module.exports = {
             message: String
         }
         type GroupCSVResponse {
-            message: String!
-            csvData: String!
-            fileName: String!
+            status: Boolean
+            message: String
+            filePath: String
         }
         type MemberDetails {
             _id: ID
@@ -164,7 +164,7 @@ module.exports = {
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
-        exportGroupToCSV(groupId: ID!): GroupCSVResponse!
+        exportGroupToCSV(groupKind :groupingCriteria, groupId: ID, autosyncInput : autosyncInput): GroupCSVResponse!
         getGroupsOfUser(userId: ID!): getGroupsOfUserResponse
         getSingleGroup(groupId: ID!): SingleGroupRes
         getUsersAndAutoSyncedGroups(search: String): UserAndAutoSyncedGroupRes!

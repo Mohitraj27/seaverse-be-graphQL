@@ -49,6 +49,7 @@ const NotificationEvent = require("../../notifications/notification_event.json")
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const { sendNotifications } = require("../../../util/firebase_helper");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -647,7 +648,7 @@ const deleteUsers = async (users, errors) => {
 
 }
 
-const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames,  imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -682,6 +683,8 @@ const validateUserRow = async (row, { empIds, emails, designationNames, imoNumbe
     } else {
         empIds.add(row["EmployeeID"]);
     }
+
+
 
     if (!row["Designation"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
@@ -739,7 +742,7 @@ function mapCSVRowToUser(row) {
         lastName: row["LastName"] ?? "",
         email: row["Email"]?.toLowerCase(),
         designation: row["Designation"]?.toLowerCase(),
-        civilIdOrPassport: row["EmployeeID"],
+        civilIdOrPassport: row["EmployeeID"]?.toLowerCase(),
         imoNumber: row["VesselIMONumber"],
         vesselStatus: row["Status"],
         imoNumber: row["VesselIMONumber"],
@@ -1015,7 +1018,10 @@ module.exports = {
             .lean();
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-         
+        
+        const newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
+        if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
+    
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
             
           await UserVessel.updateMany(
@@ -1030,7 +1036,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -1045,7 +1051,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1059,6 +1065,13 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await sendNotifications({
+                userIds: [existingEmployee?.user?._id],
+                title: 'Vessel Updated',
+                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                content: 'Vessel updated successfully',
+                webLink: ""
+            });
         }
         else{
             await UserVessel.findOneAndUpdate(
@@ -1069,7 +1082,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
@@ -1085,7 +1098,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1098,6 +1111,13 @@ module.exports = {
                 employeeNotifiers: [ existingEmployee?.user?._id ],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
+            });
+            await sendNotifications({
+                userIds: [existingEmployee?.user?._id],
+                title: 'Vessel Updated',
+                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                content: 'Vessel updated successfully',
+                webLink: ""
             });
         }
 
@@ -1940,7 +1960,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames ,imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
@@ -1960,7 +1980,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {

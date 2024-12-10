@@ -70,6 +70,7 @@ const notificationiconEnum = require("../../notifications/notification_icon.json
 const roleUpdate = require("../../email-template/roleUpdate");
 const Unregistered_status = require("../../email-template/Unregistered_status");
 const registered_status = require("../../email-template/Registered_Status");
+const {sendNotifications} = require("../../../util/firebase_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1618,7 +1619,8 @@ module.exports.mutations = {
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
-
+            const existingEmployeNumbers=await User.find({ isDeleted: false }).lean();
+            const employeeNumbers=existingEmployeNumbers.map(user => user.civilIdOrPassport);
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
@@ -1635,6 +1637,7 @@ module.exports.mutations = {
                 createReadStream,
                 empIds,
                 emails,
+                employeeNumbers,
                 designationNames,
                 imoNumbers,
                 vesselStatus,
@@ -2428,7 +2431,17 @@ module.exports.mutations = {
             }));
     
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
-    
+            
+             const userIdsToSend = usersToUpdate.map(user => user._id);
+            for (const userId of userIdsToSend) {
+                await sendNotifications({
+                    userIds: userId, 
+                    title: "Subrole Assigned Successfully",
+                    body: `You have been assigned the subrole "${validSubRole.name}".`,
+                    content: `You have been assigned the subrole "${validSubRole.name}".`,
+                    webLink: "",
+                });
+            }
             return {
                 success: true,
                 message: "Subrole successfully assigned to all learners",

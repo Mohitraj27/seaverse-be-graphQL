@@ -89,8 +89,17 @@ module.exports.queries = {
                             },
                         },
                         {
+                            $lookup: {
+                                from: "overalltrainingprogresses",
+                                localField: "_id",
+                                foreignField: "training",
+                                as: "trainingUsers",
+                            },
+                        },
+                        {
                             $addFields: {
                                 createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                                countOfUsers: { $size: "$trainingUsers" },
                             },
                         },
                         { $project: { createdByDetails: 0 } },
@@ -99,11 +108,10 @@ module.exports.queries = {
             },
             {
                 $project: {
-                    trainings: 1,
+                    trainings: 1
                 },
             },
         ]);
-
 
         const { trainings } = result[0];
         return {
@@ -128,6 +136,10 @@ module.exports.queries = {
             });
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
+
+        const countOfUsers = await OverallTrainingProgress.countDocuments({
+            training: { $in: training._id }
+        });
 
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
@@ -159,7 +171,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-        return training;
+
+        return { ...training, countOfUsers };
     },
 
 };
@@ -310,10 +323,11 @@ module.exports.mutations = {
         };
     },
     deleteTraining: async ({ id }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        const deletedTraining = await Training.findOne({
+        let deletedTraining = await Training.findOne({
             _id: id,
             subscriber: subscriberId,
         });
@@ -330,8 +344,10 @@ module.exports.mutations = {
         try {
             deletedTraining.isDeleted = true;
             deletedTraining.isActive = false;
-            deletedTraining.save();
-        } catch {
+            deletedTraining.deletedDate = new Date();
+            await deletedTraining.save();
+        } catch (error) {
+            console.error("Error while saving:", error);
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
@@ -509,7 +525,7 @@ module.exports.mutations = {
             if (syncContentErrors.length > 0) {
                 console.log(syncContentErrors[0]);
             }
-            
+
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
@@ -525,4 +541,52 @@ module.exports.mutations = {
         }
 
     },
+    startOverTraining: async ({ overallId, user }, context) => {
+
+        let userId;
+        if (user) {
+            userId = user;
+        } else {
+            userId = AuthUser(context).userId;
+        }
+
+        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
+
+        const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
+        const attemptType = fetchOverallTraining.training.attemptType;
+        let attemptLimit;
+
+        if (allowMultipleAttempts && attemptType === 'LIMITED_ATTEMPT') {
+            attemptLimit = fetchOverallTraining.training.setLimitAttempt;
+        }
+
+        if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        let updateOverallTrainingProgress;
+        if (fetchOverallTraining.contentData) {
+
+            fetchOverallTraining.contentData = [];
+            fetchOverallTraining.progressPercentage = 0.00;
+            fetchOverallTraining.lastConsumedContent = {};
+            fetchOverallTraining.attemptCount++;
+
+            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
+
+                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+
+            }
+
+            updateOverallTrainingProgress = await fetchOverallTraining.save();
+        }
+
+        if (updateOverallTrainingProgress) {
+            return {
+                status: 1,
+                message: "Course restarted successfully!"
+            }
+        } else {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+    }
 };
