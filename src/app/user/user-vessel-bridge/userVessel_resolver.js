@@ -2,11 +2,11 @@ const {
     CustomError,
     ErrorName,
     AuthUser,
+    SendEmail
 } = require("../../../util");
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
 const { Vessel } = require('../../vessle/vessel_model');
-
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
