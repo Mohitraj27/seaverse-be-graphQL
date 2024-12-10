@@ -54,7 +54,7 @@ module.exports.mutations = {
                     training: input.training,
                     trainingModule: input.trainingModule,
                     isDeleted: false
-                }).populate('trainingContent').select('trainingContent').lean();
+                }).populate('trainingContent').lean();
 
             }
 
@@ -62,7 +62,13 @@ module.exports.mutations = {
             if (trainingContentIds.length > 0) {
                 getContent = await getTheContent(trainingContents);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-                getContent = await getTheContent(trainingModuleContentsFromTrainingContent.trainingContent, 'contentCollection');
+
+                const trainingContents = [];
+                trainingModuleContentsFromTrainingContent.map((item) => {
+                    return trainingContents.push(item.trainingContent);
+                })
+
+                getContent = await getTheContent(trainingContents, 'contentCollection');
             }
 
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);

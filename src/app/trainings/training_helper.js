@@ -1037,8 +1037,6 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 attendedQuestions: questionResults,
             };
             quizEvaluations.push(quizEvaluationData);
-
-
         
             const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
             
