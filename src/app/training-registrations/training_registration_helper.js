@@ -30,7 +30,7 @@ const { TrainingModuleContent } = require("../trainings/training_modules/trainin
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
-
+const {sendNotifications} = require("../../util/firebase_helper")
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -521,7 +521,6 @@ module.exports = {
         }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
         try {
 
             if (!input.groups && !input.users) {
@@ -733,7 +732,13 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
-
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Enrollment",
+                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
+                    webUrl: ""
+                });
                 return {
                     message: "Course enrollment successful!",
                 };
@@ -840,7 +845,13 @@ module.exports = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Unenrollment",
+                    body: `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
+                    webUrl: "",
+                });
                 return {
                     message: "Course unenrollment successful!",
                 }
