@@ -89,13 +89,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     $match: { 'userInfo.isDeleted': filterInput.isDeleted },
                 });
             }
+        }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         const employeesData = await Employee.aggregate([
@@ -354,17 +354,18 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 });
             }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
-
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+            
         }
 
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
 
-        
+
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
                 [
@@ -1088,13 +1089,15 @@ const getMainCoursesReport = async ({ input }, context) => {
                 matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
             }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
-
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
         }
+
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
+        
 
         const data = await Training.aggregate([
             {
@@ -1331,13 +1334,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+        }
 
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         if (input?.reportType === "ENROLLMENT") {
@@ -1955,12 +1958,13 @@ const getVesselMainReport = async ({ input }, context) => {
                     },
                 });
             }
-            const skip = (input.pageInput?.pageSize || 0) * ((input.pageInput?.pageNumber || 1) - 1);
-            const limit = input.pageInput?.pageSize || 0;
+        }
 
-            if (limit > 0) {
-                matchStage.push({ $skip: skip }, { $limit: limit });
-            }
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+
+        if (limit > 0 && (input?.export!==true)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         const data = await Vessel.aggregate([
@@ -2734,6 +2738,14 @@ const getCustomReportLogs = async ({pageInput},context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
+        const skip = pageInput?.skip ? pageInput.skip : 0;
+        const limit = pageInput?.limit ? pageInput.limit : 100;
+        let matchStage = [];
+
+        if (limit > 0) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
+
         const data = await Export.aggregate(
             [
                 {
@@ -2758,7 +2770,9 @@ const getCustomReportLogs = async ({pageInput},context) => {
                         'path': '$usersInfo',
                         'preserveNullAndEmptyArrays': true
                     }
-                }, {
+                },
+                ...matchStage,
+                {
                     '$project': {
                         'from': '$additionalData.value.dateRange.startDate',
                         'to': '$additionalData.value.dateRange.endDate',
