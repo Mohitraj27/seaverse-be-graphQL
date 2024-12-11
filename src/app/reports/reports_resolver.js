@@ -91,9 +91,9 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -392,9 +392,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
@@ -1199,9 +1199,9 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         
@@ -1444,9 +1444,9 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -2068,9 +2068,9 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -2845,6 +2845,14 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
+
+        const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        let matchStage =[];
+        if (limit > 0 && (!input?.export)) {
+            matchStage.push({ $skip: skip }, { $limit: limit });
+        }
+
         const data = await Export.aggregate([
             {
                 $match:{
@@ -2877,6 +2885,7 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
+            ...matchStage,
             {
                 $project: {
                     from: {
