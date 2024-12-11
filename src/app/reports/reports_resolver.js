@@ -2846,10 +2846,10 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
 
-        const skip = pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = pageInput?.limit ? input.pageInput.limit : 50;
+        const skip = pageInput?.skip ? pageInput.skip : 0;
+        const limit = pageInput?.limit ? pageInput.limit : 50;
         let matchStage =[];
-        if (limit > 0 && (!input?.export)) {
+        if (limit > 0) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
