@@ -320,10 +320,10 @@ module.exports.mutations = {
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         if (thumbnail) {
@@ -373,6 +373,7 @@ module.exports.mutations = {
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         const savedItem = await UploadHelper.uploadDocument({
@@ -419,9 +420,12 @@ module.exports.mutations = {
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         const savedItem = await UploadHelper.uploadAudio({
@@ -455,7 +459,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
-        const { userId, subscriberId,userInfo } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
 
@@ -661,6 +665,7 @@ module.exports.mutations = {
                 if (!durationStyleChecked) {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
             }
             let contentTypeNotification = '';
             if (thumbnail) {
@@ -747,11 +752,11 @@ module.exports.mutations = {
                         target: savedContent._id,
                     },
                 ],
-                status:'SENT',
+                status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-    
+
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -829,6 +834,14 @@ module.exports.mutations = {
                 }
             }
 
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            }
+
             const contentData = {
                 ...input,
                 contentType: ContentType.QUIZ,
@@ -855,7 +868,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
-        const { userId, subscriberId, userInfo} = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
@@ -928,6 +941,7 @@ module.exports.mutations = {
                 if (!durationStyleChecked) {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
             }
 
             let updateData = {
@@ -1093,16 +1107,16 @@ module.exports.mutations = {
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
-                    {   
+                    {
                         targetRef: "TrainingModuleContent",
                         target: savedContent._id,
                     },
                 ],
-                status:'SENT',
+                status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-    
+
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1155,6 +1169,14 @@ module.exports.mutations = {
             let questionsChanged = false;
             let totalScore = 0;
             let questionsIdArr = [];
+
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            }
 
             if (input.questions && input.questions.length > 0) {
 
@@ -1269,7 +1291,7 @@ module.exports.mutations = {
     },
     pushLatestContent: async ({ id }, context) => {
 
-        const { subscriberId ,userInfo, userId} = AuthUser(context);
+        const { subscriberId, userInfo, userId } = AuthUser(context);
 
         if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 

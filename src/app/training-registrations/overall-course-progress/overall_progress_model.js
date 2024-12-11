@@ -51,7 +51,7 @@ const overallProgressSchema = new Schema(
             enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
         },
         attemptCount: {
-            type: Number, 
+            type: Number,
             default: 1
         },
         isCertificateGenerated: {
@@ -65,6 +65,8 @@ const overallProgressSchema = new Schema(
             default: 0
         },
         isEnrolled: Boolean,
+        totalDuration: Number,
+        timeSpend: Number
     },
     { timestamps: true }
 )
