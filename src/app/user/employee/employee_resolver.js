@@ -68,6 +68,7 @@ const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
+const Roles = require("../../../util/role.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1299,33 +1300,40 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-    if (input.users.length <= 0) {
+
+    const users = await User.find({ _id: { $in: input.users } });
+
+    if (users.length === 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length > 0) {
-        const user = await User.findOne({ _id: input.users?.[0] });
-        if (input.type === "Registered" && user.isRegistered) {
+    let updateUsers;
+    if (input.type === "Registered") {
+        const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
+        if (alreadyRegisteredUsers.length > 0) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
-        } else if (input.type === "Unregistered" && !user.isRegistered) {
+        }
+
+        updateUsers = await User.updateMany(
+            { _id: { $in: input.users } },
+            { isRegistered: true }
+        );
+
+    } else if (input.type === "Unregistered") {
+        const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
+        if (alreadyUnregisteredUsers.length > 0) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
         }
+
+        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+        updateUsers = await User.updateMany(
+            { _id: { $in: input.users } },
+            { 
+                $pull: { subRoles: subRoleAdminId._id },
+                $set: { isRegistered: false }
+            }
+        );
     }
-
-    let registerStatus = false;
-
-    if (input.type === "Registered") {
-        registerStatus = true;
-    } else if (input.type === "Unregistered") {
-        registerStatus = false;
-    } else {
-        throw CustomError(ErrorName.VALIDATION_ERROR);
-    }
-
-    const updateUsers = await User.updateMany(
-        { _id: { $in: input.users } },
-        { isRegistered: registerStatus }
-    );
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
             const users = await User.find({

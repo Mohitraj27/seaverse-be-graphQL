@@ -584,6 +584,11 @@ const deleteUsers = async (users, errors) => {
 
             let deleteUsers = await User.deleteMany({ _id: { $in: users } });
 
+            await Employee.updateMany(
+                { user: { $in: users } },
+                { $set: { isDeleted: true } }
+            );
+
             if (deleteUsers) {
 
                 const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
@@ -1877,6 +1882,7 @@ module.exports = {
                                     subscriber: subscriberId,
                                     empDesignation: designationMap.get(originalUserData.designation.toLowerCase())?.id,
                                     bulkId: bulkId,
+                                    isDeleted: false,
                                     regType: 2
                                 }
                             },
