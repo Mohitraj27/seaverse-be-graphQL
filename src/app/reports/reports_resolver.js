@@ -2845,82 +2845,73 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
-        const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 100;
-        let matchStage = [];
-
-        if (limit > 0) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
-        }
-
-        const data = await Export.aggregate(
-            [
-                {
-                    '$unwind': {
-                        'path': '$additionalData',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                }, {
-                    '$unwind': {
-                        'path': '$additionalData.value.dateRange',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                }, {
-                    '$lookup': {
-                        'from': 'users',
-                        'localField': 'createdBy',
-                        'foreignField': '_id',
-                        'as': 'usersInfo'
-                    }
-                }, {
-                    '$unwind': {
-                        'path': '$usersInfo',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                },
-                ...matchStage,
-                {
-                    '$project': {
-                        'from': '$additionalData.value.dateRange.startDate',
-                        'to': '$additionalData.value.dateRange.endDate',
-                        'createdAt': 1,
-                        'filePath': 1,
-                        'generatedBy': {
-                            '$concat': [
-                                {
-                                    '$ifNull': [
-                                        '$usersInfo.firstName', ''
-                                    ]
-                                }, ' ', {
-                                    '$ifNull': [
-                                        '$usersInfo.lastName', ''
-                                    ]
-                                }
-                            ]
-                        }
+        const data = await Export.aggregate([
+            {
+                $unwind: {
+                    path: "$additionalData",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $unwind: {
+                    path: "$additionalData.value.dateRange",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "createdBy",
+                    foreignField: "_id",
+                    as: "usersInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$usersInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    from: {
+                        $ifNull: ["$additionalData.value.dateRange.startDate", null]
+                    },
+                    to: {
+                        $ifNull: ["$additionalData.value.dateRange.endDate", null]
+                    },
+                    createdAt: 1,
+                    filePath: 1,
+                    generatedBy: {
+                        $concat: [
+                            { $ifNull: ["$usersInfo.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$usersInfo.lastName", ""] }
+                        ]
                     }
                 }
-            ]
-        )
+            }
+        ]);
 
         if (data.length > 0) {
-            const customReportLogs = data.map(item => ({
-                _id: item._id,
-                generatedBy: item?.generatedBy,
-                generatedAt: new Date(item?.createdAt).toLocaleString(),
-                from: new Date(item?.from).toLocaleString(),
-                to: new Date(item?.to).toLocaleString(),
-                filePath: { url: item?.filePath },
+            const customReportLogs = await Promise.all(data.map(async (item) => {
+                const signedUrl = await aws_helper.fetchFile(item.filePath);
+                return {
+                    _id: item._id,
+                    generatedBy: item?.generatedBy,
+                    generatedAt: new Date(item?.createdAt).toLocaleString(),
+                    from: item?.from ? new Date(item?.from).toLocaleString() : null,
+                    to: item?.to ? new Date(item?.to).toLocaleString() : null,
+                    filePath: { url: signedUrl },
+                };
             }));
-            return customReportLogs
+            return customReportLogs;
         }
-
-        return []
-
+        return [];
     } catch (error) {
-        throw new Error(error.message)
+        throw new Error(error.message);
     }
-}
+};
 
 module.exports.queries = {
     getMainLearnersReport,
