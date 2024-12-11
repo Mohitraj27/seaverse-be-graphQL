@@ -69,7 +69,7 @@ const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
 const Unregistered_status = require("../../email-template/Unregistered_status");
-const registered_status = require("../../email-template/Registered_Status");
+const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
@@ -1321,7 +1321,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
             { _id: { $in: input.users } },
             { isRegistered: true }
         );
-
+        const emailContentforAdmin = registered_statusforAdmin(
+            {
+                adminfirstName: userInfo.firstName,
+                userfirstName: users[0].firstName
+            }
+        );
+        await SendEmail({
+            receiverEmail: userInfo.email,
+            subject: `User Status Update: ${input.type}`,
+            htmlContent: emailContentforAdmin,
+        });
     } else if (input.type === "Unregistered") {
         const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
         if (alreadyUnregisteredUsers.length > 0) {
