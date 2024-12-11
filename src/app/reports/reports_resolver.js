@@ -131,11 +131,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     {
                         $addFields: {
                             finalUserInfo: {
-                                $cond: {
-                                    if: { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
-                                    then: '$userInfo',
-                                    else: '$deletedUserInfo',
-                                },
+                                $cond: [
+                                    { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
+                                    '$userInfo',
+                                    '$deletedUserInfo',
+                                ],
                             },
                         },
                     },
@@ -240,39 +240,40 @@ const getMainLearnersReport = async ({ input }, context) => {
             ...matchStage,
             {
                 $project: {
-                    _id: 1,
+                    _id: 0,
                     name: {
                         $concat: [
-                            { $ifNull: ['$finalUserInfo.firstName', ''] },
+                            { $ifNull: ['$userInfo.firstName', ''] },
                             ' ',
-                            { $ifNull: ['$finalUserInfo.lastName', ''] },
+                            { $ifNull: ['$userInfo.lastName', ''] },
                         ],
                     },
-                    isRegistered: '$finalUserInfo.isRegistered',
-                    learnerId: '$finalUserInfo._id',
-                    isDeleted: '$finalUserInfo.isDeleted',
-                    EmployeeId: '$finalUserInfo.civilIdOrPassport',
-                    email: '$finalUserInfo.email',
+                    isRegistered: '$userInfo.isRegistered',
+                    learnerId: '$userInfo._id',
+                    isDeleted: '$userInfo.isDeleted',
+                    EmployeeId: '$userInfo.civilIdOrPassport',
+                    email: '$userInfo.email',
                     designation: '$employeeDesignation.name',
                     designationId: '$employeeDesignation._id',
                     vesselName: '$vesselDetails.name',
                     vesselId: '$vesselDetails._id',
                     vesselTypeName: "$vesselTypeInfo.name",
                     vesselTypeId: '$vesselTypeInfo._id',
-                    lastSeen: '$finalUserInfo.lastLoginAt',
+                    lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
                     averageProgressPercentage: 1,
                 },
             },
         ]);
-
+        console.log("employeesData", JSON.stringify(employeesData, null, 2));
         const data = employeesData.map(item => ({
             Name: item.name,
             EmployeeId: item.EmployeeId,
             Designation: item.designation,
             VesselName: item.vesselName,
-            RegistrationStatus: item.isRegistered ? 'REGISTERED' : 'UNREGISTERED',
-            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : ' ',
+            IsRegistered: item.isRegistered ? 'Yes' : 'No',
+            IsDeleted: item.isDeleted ? 'Yes' : 'No',
+            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
             vesselTypeName : item.vesselTypeName,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ? parseInt(item.averageProgressPercentage) : 0,
