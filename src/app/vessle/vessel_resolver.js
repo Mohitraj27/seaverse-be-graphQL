@@ -15,8 +15,9 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
-const vesselStatusUpdateEmail = require("../email-template/vesselStatusUpdate");
+const {vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin} = require("../email-template/vesselStatusUpdate");
 const {sendNotifications} =require("../../util/firebase_helper");
+
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -446,6 +447,16 @@ module.exports.mutations = {
                     htmlContent: emailContent,
                 });
                 }
+                const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
+                    firstName: userInfo?.firstName,
+                    vesselName: vesselNames,
+                    vesselStatus: statusSummary,
+                });
+                await SendEmail({
+                    receiverEmail: userInfo?.email,
+                    subject: `Vessel Status Update: ${vesselNames}`,
+                    htmlContent: emailContentforAdmin,
+                })
                 const userVesselIdsToNotify = updatedVessels.map(v => v.id);
                 const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id');
                 if (matchingUsers.length > 0) {
