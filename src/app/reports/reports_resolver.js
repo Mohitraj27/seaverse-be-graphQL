@@ -19,6 +19,8 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
+const { sortBy } = require("lodash");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -91,9 +93,9 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -175,6 +177,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: 'user',
                     as: 'vesselInfo',
+                    pipeline: [
+                        { $match: { isActive: true } },
+                        { $sort: { updatedAt: -1 } },
+                        { $limit: 1 }
+                    ]
                 },
             },
             {
@@ -393,9 +400,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
@@ -1200,9 +1207,9 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         
@@ -1445,9 +1452,9 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -2069,9 +2076,9 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 100;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
-        if (limit > 0 && (input?.export!==true)) {
+        if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
@@ -2846,82 +2853,87 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
-        const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 100;
-        let matchStage = [];
 
+        const skip = pageInput?.skip ? pageInput.skip : 0;
+        const limit = pageInput?.limit ? pageInput.limit : 50;
+        let matchStage =[];
         if (limit > 0) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
-        const data = await Export.aggregate(
-            [
-                {
-                    '$unwind': {
-                        'path': '$additionalData',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                }, {
-                    '$unwind': {
-                        'path': '$additionalData.value.dateRange',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                }, {
-                    '$lookup': {
-                        'from': 'users',
-                        'localField': 'createdBy',
-                        'foreignField': '_id',
-                        'as': 'usersInfo'
-                    }
-                }, {
-                    '$unwind': {
-                        'path': '$usersInfo',
-                        'preserveNullAndEmptyArrays': true
-                    }
-                },
-                ...matchStage,
-                {
-                    '$project': {
-                        'from': '$additionalData.value.dateRange.startDate',
-                        'to': '$additionalData.value.dateRange.endDate',
-                        'createdAt': 1,
-                        'filePath': 1,
-                        'generatedBy': {
-                            '$concat': [
-                                {
-                                    '$ifNull': [
-                                        '$usersInfo.firstName', ''
-                                    ]
-                                }, ' ', {
-                                    '$ifNull': [
-                                        '$usersInfo.lastName', ''
-                                    ]
-                                }
-                            ]
-                        }
+        const data = await Export.aggregate([
+            {
+                $match:{
+                    type_of_export: "CUSTOM_REPORT_EXPORT"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$additionalData",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $unwind: {
+                    path: "$additionalData.value.dateRange",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "createdBy",
+                    foreignField: "_id",
+                    as: "usersInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$usersInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            ...matchStage,
+            {
+                $project: {
+                    from: {
+                        $ifNull: ["$additionalData.value.dateRange.startDate", null]
+                    },
+                    to: {
+                        $ifNull: ["$additionalData.value.dateRange.endDate", null]
+                    },
+                    createdAt: 1,
+                    filePath: 1,
+                    generatedBy: {
+                        $concat: [
+                            { $ifNull: ["$usersInfo.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$usersInfo.lastName", ""] }
+                        ]
                     }
                 }
-            ]
-        )
+            }
+        ]);
 
         if (data.length > 0) {
-            const customReportLogs = data.map(item => ({
-                _id: item._id,
-                generatedBy: item?.generatedBy,
-                generatedAt: new Date(item?.createdAt).toLocaleString(),
-                from: new Date(item?.from).toLocaleString(),
-                to: new Date(item?.to).toLocaleString(),
-                filePath: { url: item?.filePath },
+            const customReportLogs = await Promise.all(data.map(async (item) => {
+                const signedUrl = await aws_helper.fetchFile(item.filePath);
+                return {
+                    _id: item._id,
+                    generatedBy: item?.generatedBy,
+                    generatedAt: new Date(item?.createdAt).toLocaleString(),
+                    from: item?.from ? new Date(item?.from).toLocaleString() : null,
+                    to: item?.to ? new Date(item?.to).toLocaleString() : null,
+                    filePath: { url: signedUrl },
+                };
             }));
-            return customReportLogs
+            return customReportLogs;
         }
-
-        return []
-
+        return [];
     } catch (error) {
-        throw new Error(error.message)
+        throw new Error(error.message);
     }
-}
+};
 
 module.exports.queries = {
     getMainLearnersReport,
