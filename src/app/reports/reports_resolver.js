@@ -19,8 +19,6 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
-const { sortBy } = require("lodash");
-const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -1920,10 +1918,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 '$first': '$vesselTypeInfo.name'
                             },
                             'designation': {
-                                '$first': '$designationInfo.title'
+                                '$first': '$designationInfo.name'
                             },
                             'lastSeen': {
                                 '$first': '$updatedAt'
+                            },
+                            'status': {
+                                '$first': '$status'
                             }
                         }
                     }, {
@@ -1943,7 +1944,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'vesselType': 1,
                             'modules': 1,
                             'empId': 1,
-                            'lastSeen': 1
+                            'lastSeen': 1,
+                            'status': 1
                         }
                     },
                     {
@@ -1962,7 +1964,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     designation: item?.designation ? item?.designation : "Not Found",
                     email: item?.email ? item?.email : "Not Found",
                     status: item?.status ? item?.status : "Not Found",
-                    currentVessel: item.vesselName ? item?.status : "Not Found",
+                    currentVessel: item?.currentVessel ? item?.currentVessel : "Not Found",
                     vesselType: item.vesselType ? item?.vesselType : "Not Found",
                     updatedAt: new Date(item.lastSeen).toLocaleString(),
                     modules: item?.modules,
