@@ -19,6 +19,8 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
+const { sortBy } = require("lodash");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -175,6 +177,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: 'user',
                     as: 'vesselInfo',
+                    pipeline: [
+                        { $match: { isActive: true } },
+                        { $sort: { updatedAt: -1 } },
+                        { $limit: 1 }
+                    ]
                 },
             },
             {
