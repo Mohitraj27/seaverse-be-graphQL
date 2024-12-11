@@ -56,6 +56,7 @@ const { CertificateLayoutResolver } = require("../app/trainings/certificate_layo
 const { ContentZipResolver } = require("../app/trainings/compress_to_zip");
 const { CompanyResolver } = require("../app/vessle/company");
 const { OwnerResolver } = require("../app/vessle/owner");
+const { convertMinutesToHHMMSS } = require("../util/string_helper");
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -104,6 +105,12 @@ module.exports = {
             return s3url;
           }
           return null;
+        },
+        duration: (parent) => {
+            if (parent.duration && typeof parent.duration == "number") {
+                return convertMinutesToHHMMSS(parent.duration);
+            }
+            return parent.duration;
         },
     },
     Query: {

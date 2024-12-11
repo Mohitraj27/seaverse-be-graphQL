@@ -46,7 +46,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
-const {sendNotifications} = require("../../util/firebase_helper");
+const { sendNotifications } = require("../../util/firebase_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -306,32 +306,8 @@ module.exports.queries = {
                                 },
                             },
                             {
-                                $project: {
-                                    durationsInSeconds: {
-                                        $map: {
-                                            input: "$trainingModuleContentDetails",
-                                            as: "content",
-                                            in: {
-                                                $let: {
-                                                    vars: {
-                                                        parts: { $split: ["$$content.duration", ":"] },
-                                                    },
-                                                    in: {
-                                                        $add: [
-                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 0] } }, 3600] },
-                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 1] } }, 60] },
-                                                            { $toInt: { $arrayElemAt: ["$$parts", 2] } },
-                                                        ],
-                                                    },
-                                                },
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                            {
                                 $addFields: {
-                                    duration: { $sum: "$durationsInSeconds" },
+                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
                                 },
                             },
                         ],
@@ -357,32 +333,8 @@ module.exports.queries = {
                                 },
                             },
                             {
-                                $project: {
-                                    durationsInSeconds: {
-                                        $map: {
-                                            input: "$trainingModuleContentDetails",
-                                            as: "content",
-                                            in: {
-                                                $let: {
-                                                    vars: {
-                                                        parts: { $split: ["$$content.duration", ":"] },
-                                                    },
-                                                    in: {
-                                                        $add: [
-                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 0] } }, 3600] },
-                                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 1] } }, 60] },
-                                                            { $toInt: { $arrayElemAt: ["$$parts", 2] } },
-                                                        ],
-                                                    },
-                                                },
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                            {
                                 $addFields: {
-                                    duration: { $sum: "$durationsInSeconds" },
+                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
                                 },
                             },
                         ],
@@ -392,10 +344,12 @@ module.exports.queries = {
                 {
                     $addFields: {
                         totalDuration: {
-                            $cond: {
-                                if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
-                                then: { $sum: "$trainingProgresses.duration" },
-                                else: { $sum: "$trainingContentsFallback.duration" },
+                            $toInt: {
+                                $cond: {
+                                    if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
+                                    then: { $sum: "$trainingProgresses.duration" },
+                                    else: { $sum: "$trainingContentsFallback.duration" },
+                                },
                             },
                         },
                     },
@@ -826,17 +780,15 @@ module.exports.queries = {
                     const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
                         if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
                             content.trainingModuleContentDetails.forEach(detail => {
-                                const durationParts = (detail.duration || "00:00:00").split(":");
-                                const hours = parseInt(durationParts[0], 10) || 0;
-                                const minutes = parseInt(durationParts[1], 10) || 0;
-                                const seconds = parseInt(durationParts[2], 10) || 0;
-                                moduleAcc += (hours * 3600) + (minutes * 60) + seconds;
+                                if (detail.duration && typeof detail.duration == "number") {
+                                    moduleAcc += detail.duration;
+                                }
                             });
                         }
                         return moduleAcc;
                     }, 0);
 
-                    acc += moduleDurationInSeconds;
+                    acc += Math.floor(moduleDurationInSeconds);
 
                     const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
 
@@ -1293,11 +1245,9 @@ module.exports.queries = {
                     const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
                         if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
                             content.trainingModuleContentDetails.forEach(detail => {
-                                const durationParts = (detail.duration || "00:00:00").split(":");
-                                const hours = parseInt(durationParts[0], 10) || 0;
-                                const minutes = parseInt(durationParts[1], 10) || 0;
-                                const seconds = parseInt(durationParts[2], 10) || 0;
-                                moduleAcc += (hours * 3600) + (minutes * 60) + seconds;
+                                if (detail.duration && typeof detail.duration == "number") {
+                                    moduleAcc += detail.duration;
+                                }
                             });
                         }
                         return moduleAcc;
@@ -1347,7 +1297,6 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
-
 };
 
 module.exports.mutations = {
@@ -1675,7 +1624,9 @@ module.exports.mutations = {
                         progressPercentage: 100,
                         isComplete: true,
                         completedModules: trainingModuleIds.length,
-                        isCertificateGenerated: true
+                        isCertificateGenerated: true,
+                        startData: new Date(),
+                        endDate: new Date(),
                     }
                 }
             );
@@ -1819,7 +1770,13 @@ module.exports.mutations = {
                             status: "NOT_STARTED",
                             progressPercentage: 0,
                             isComplete: false,
-                            completedModules: 0
+                            completedModules: 0,
+                            contentData: [],
+                            startData: null,
+                            endDate: null,
+                            lastConsumedContent: {},
+                            totalDuration: 0,
+                            timeSpend: 0
                         }
                     }
                 );
@@ -1831,7 +1788,13 @@ module.exports.mutations = {
                             status: "NOT_STARTED",
                             progressPercentage: 0,
                             isComplete: false,
-                            completedModules: 0
+                            completedModules: 0,
+                            contentData: [],
+                            startData: null,
+                            endDate: null,
+                            lastConsumedContent: {},
+                            totalDuration: 0,
+                            timeSpend: 0
                         }
                     }
                 );
@@ -1892,11 +1855,11 @@ module.exports.mutations = {
                 createdBy: userInfo,
             });
             await sendNotifications({
-                userIds: userIds, 
-                title:'Course Reset Notification',
-                body:`The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
+                userIds: userIds,
+                title: 'Course Reset Notification',
+                body: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
                 content: "Dummy content",
-                webLink:  ""
+                webLink: ""
             });
             return {
                 status: true,
