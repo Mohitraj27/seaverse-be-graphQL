@@ -2847,6 +2847,11 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     try {
         const data = await Export.aggregate([
             {
+                $match:{
+                    type_of_export: "CUSTOM_REPORT_EXPORT"
+                }
+            },
+            {
                 $unwind: {
                     path: "$additionalData",
                     preserveNullAndEmptyArrays: true
