@@ -19,6 +19,8 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
+const { sortBy } = require("lodash");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -130,12 +132,12 @@ const getMainLearnersReport = async ({ input }, context) => {
                     },
                     {
                         $addFields: {
-                            finalUserInfo: {
-                                $cond: {
-                                    if: { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
-                                    then: '$userInfo',
-                                    else: '$deletedUserInfo',
-                                },
+                            userInfo: {
+                                $cond: [
+                                    { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
+                                    '$userInfo',
+                                    '$deletedUserInfo',
+                                ],
                             },
                         },
                     },
@@ -175,6 +177,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: 'user',
                     as: 'vesselInfo',
+                    pipeline: [
+                        { $match: { isActive: true } },
+                        { $sort: { updatedAt: -1 } },
+                        { $limit: 1 }
+                    ]
                 },
             },
             {
@@ -240,26 +247,26 @@ const getMainLearnersReport = async ({ input }, context) => {
             ...matchStage,
             {
                 $project: {
-                    _id: 1,
+                    _id: 0,
                     name: {
                         $concat: [
-                            { $ifNull: ['$finalUserInfo.firstName', ''] },
+                            { $ifNull: ['$userInfo.firstName', ''] },
                             ' ',
-                            { $ifNull: ['$finalUserInfo.lastName', ''] },
+                            { $ifNull: ['$userInfo.lastName', ''] },
                         ],
                     },
-                    isRegistered: '$finalUserInfo.isRegistered',
-                    learnerId: '$finalUserInfo._id',
-                    isDeleted: '$finalUserInfo.isDeleted',
-                    EmployeeId: '$finalUserInfo.civilIdOrPassport',
-                    email: '$finalUserInfo.email',
+                    isRegistered: '$userInfo.isRegistered',
+                    learnerId: '$userInfo._id',
+                    isDeleted: '$userInfo.isDeleted',
+                    EmployeeId: '$userInfo.civilIdOrPassport',
+                    email: '$userInfo.email',
                     designation: '$employeeDesignation.name',
                     designationId: '$employeeDesignation._id',
                     vesselName: '$vesselDetails.name',
                     vesselId: '$vesselDetails._id',
                     vesselTypeName: "$vesselTypeInfo.name",
                     vesselTypeId: '$vesselTypeInfo._id',
-                    lastSeen: '$finalUserInfo.lastLoginAt',
+                    lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
                     averageProgressPercentage: 1,
                 },
@@ -273,7 +280,8 @@ const getMainLearnersReport = async ({ input }, context) => {
             VesselName: item.vesselName,
             RegistrationStatus: item.isRegistered ? 'REGISTERED' : 'UNREGISTERED',
             LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : ' ',
-            vesselTypeName : item.vesselTypeName,
+            IsDeleted: item.isDeleted ? 'Yes' : 'No',
+            vesselTypeName: item.vesselTypeName,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ? parseInt(item.averageProgressPercentage) : 0,
         }));
