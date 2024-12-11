@@ -1583,7 +1583,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "uservessels",
                             localField: "user",
                             foreignField: "user",
-                            as: "usersVesselBridge"
+                            as: "usersVesselBridge",
+                            pipeline: [
+                                { $match: { isActive: true } },
+                                { $sort: { updatedAt: -1 } },
+                                { $limit: 1 }
+                            ]
                         }
                     },
                     {
@@ -1688,15 +1693,39 @@ const getSingleCourseReport = async ({ input }, context) => {
                 if (input?.export) {
                     if (!data) throw CustomError(ErrorName.NOT_FOUND, "No there is no data present");
                     const parsedData = data.map(item => {
-                        const parsedItem = { ...item };
-                        parsedItem.trainingTitle = (Array.isArray(item.trainingTitle) && item.trainingTitle.length > 0)
-                            ? item.trainingTitle[0]?.value || ''
-                            : '';
-                        parsedItem.quizPercentage = parsedItem.quizPercentage ? parsedItem.quizPercentage : 'Not Applicable'
-                        delete parsedItem.isPassed;
-                        delete parsedItem._id;
+
+                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
+
+                        const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
+                        const completionDate = item.endDate ? new Date(item.endDate).toISOString() : null;
+                        const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
+
+                        const quizScore = (typeof item.quizPercentage === 'string')
+                            ? item.quizPercentage
+                            : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
+                                ? item.quizPercentage.toFixed(2)
+                                : 'Not Applicable';
+
+                        const courseStatus = item.status || 'Not Started';
+                        const currentVessel = item.vesselName || '';
+                        const vesselType = item.vesselType || '';
+
+                        const parsedItem = {
+                            LearnerName: learnerName,
+                            Email: item.email || '',
+                            EmployeeId: item.empId || '',
+                            Designation: item.designation || '',
+                            CourseStatus: courseStatus,
+                            CurrentVessel: currentVessel,
+                            VesselType: vesselType,
+                            EnrolledDate: enrollmentDate,
+                            CompletionDate: completionDate,
+                            TimeSpent: timeSpent,
+                            QuizScore: quizScore,
+                        };
+
                         return parsedItem;
-                    });
+                    });                    
                     const workbook = XLSX.utils.book_new();
                     const worksheet = XLSX.utils.json_to_sheet(parsedData);
                     XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
