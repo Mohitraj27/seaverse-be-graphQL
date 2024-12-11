@@ -610,35 +610,57 @@ const getSingleLearnerReport = async ({ input }, context) => {
             );
 
             const learnerReportsByUser = {};
+            if (input?.export) {
+                learnersReports.forEach(item => {
+                    const learnerName = `${item.firstName} ${item.lastName}`;
+                    if (!learnerReportsByUser[learnerName]) {
+                        learnerReportsByUser[learnerName] = [];
+                    }
+                    const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
+                    const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
+                    const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
+                    const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                    const quizScore = (typeof item.quizPercentage === 'string') 
+                    ? item.quizPercentage 
+                    : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage)) 
+                      ? item.quizPercentage.toFixed(2) 
+                      : null;                  
+                    const userState = item.isRegistered ? "Registered" : "Unregistered";
+                    const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0;
 
-            learnersReports.forEach(item => {
-                const learnerName = `${item.firstName} ${item.lastName}`;
-                if (!learnerReportsByUser[learnerName]) {
-                    learnerReportsByUser[learnerName] = [];
-                }    
-                const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
-                const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
-                const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
-                const quizScore = item.quizPercentage !== null ? item.quizPercentage.toFixed(2) : null;
-                const userState = item.isRegistered ? "Registered" : "Unregistered";  
-                const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0; 
-            
-                learnerReportsByUser[learnerName].push({
-                    Name: learnerName,
-                    Email: item.email || null,
-                    Designation: item.designation || null,
-                    'Course Name': item.courseName ? item.courseName[0] : null,
-                    Status: item.status || null,
-                    'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
-                    'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
-                    'Completion Date (UTC TimeZone)': completionDate,
-                    'Started Date (UTC TimeZone)': startDate,
-                    'Quiz Score': quizScore,
-                    userState: userState,
-                    'Time Spent (mins)': timeSpent,
+                    learnerReportsByUser[learnerName].push({
+                        Name: learnerName,
+                        Email: item.email || null,
+                        Designation: item.designation || null,
+                        'Course Name': item.courseName ? item.courseName[0] : null,
+                        Status: item.status || null,
+                        'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                        'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
+                        'Completion Date (UTC TimeZone)': completionDate,
+                        'Started Date (UTC TimeZone)': startDate,
+                        'Quiz Score': quizScore,
+                        userState: userState,
+                        'Time Spent (mins)': timeSpent,
+                    });
                 });
-            });            
+            } else {
+                learnersReports.forEach(item => {
+                    const learnerName = `${item.firstName} ${item.lastName}`;
+                    if (!learnerReportsByUser[learnerName]) {
+                        learnerReportsByUser[learnerName] = [];
+                    }
+
+                    learnerReportsByUser[learnerName].push({
+                        courseName: item.courseName ? item.courseName[0] : null,
+                        status: item.status,
+                        Enrollment_Date: item.createdAt,
+                        Completion_Date: item.completionDate || "Not Applicable",
+                        totalTimeSpent: item.totalTimeSpent || 0,
+                        LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
+                    });
+                });
+            }
+
             let s3PresignedUrl = "";
 
             if (input?.export && learnersReports.length > 0) {
