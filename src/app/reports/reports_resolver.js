@@ -585,7 +585,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
                     const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
                     const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
-                    const quizScore = item.quizPercentage !== null ? item.quizPercentage.toFixed(2) : null;
+                    const quizScore = (typeof item.quizPercentage === 'string') 
+                    ? item.quizPercentage 
+                    : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage)) 
+                      ? item.quizPercentage.toFixed(2) 
+                      : null;                  
                     const userState = item.isRegistered ? "Registered" : "Unregistered";
                     const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0;
 
