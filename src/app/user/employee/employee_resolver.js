@@ -67,7 +67,7 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-const roleUpdate = require("../../email-template/roleUpdate");
+const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
 const Unregistered_status = require("../../email-template/Unregistered_status");
 const registered_status = require("../../email-template/Registered_Status");
 const {sendNotifications} = require("../../../util/firebase_helper");
@@ -2377,12 +2377,25 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
-            const resetPasswordHtml = roleUpdate(usersToUpdate);
+            const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
+            await Promise.all(
+                usersToUpdate.map(async user => {
+                    const emailContentforAdmin = roleUpdateNotifyAdmin({
+                        firstName: userInfo?.firstName,
+                        usersUpdated: [{user: user.firstName}],
+                    });
+                    await SendEmail({
+                        receiverEmail: userInfo?.email,
+                        subject: `User Role Updated`,
+                        htmlContent: emailContentforAdmin,
+                    })
+                })
+            );
             const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
             const adminNotification = {
                 subscriber: subscriberId,
