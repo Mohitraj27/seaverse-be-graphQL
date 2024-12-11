@@ -207,7 +207,7 @@ module.exports.mutations = {
             }
         }
 
-        const totalDuration = Math.round(totalDurationSeconds / 60);
+        const totalDuration = Math.round(totalDurationSeconds);
         input.durationHours = totalDuration;
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
