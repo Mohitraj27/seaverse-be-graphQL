@@ -195,19 +195,14 @@ module.exports.mutations = {
             );
         }
 
-        const convertToSeconds = duration => {
-            const [hours, minutes, seconds] = duration.split(":").map(Number);
-            return hours * 3600 + minutes * 60 + seconds;
-        };
-
         let totalDurationSeconds = 0;
 
         if (input.trainingModules?.length) {
             for (const module of input.trainingModules) {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
-                    const duration = trainingContent?.duration || "00:00:00";
-                    totalDurationSeconds += convertToSeconds(duration);
+                    const duration = trainingContent?.duration || 0;
+                    totalDurationSeconds += duration;
                 }
             }
         }
@@ -565,16 +560,18 @@ module.exports.mutations = {
         let updateOverallTrainingProgress;
         if (fetchOverallTraining.contentData) {
 
+            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
+                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+            }
+
             fetchOverallTraining.contentData = [];
             fetchOverallTraining.progressPercentage = 0.00;
             fetchOverallTraining.lastConsumedContent = {};
+            fetchOverallTraining.startDate = null;
+            fetchOverallTraining.endDate = null;
+            fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
-
-            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
-
-                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
-
-            }
+            fetchOverallTraining.timeSpend = 0;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
