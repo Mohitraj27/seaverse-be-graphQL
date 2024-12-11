@@ -130,7 +130,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     },
                     {
                         $addFields: {
-                            finalUserInfo: {
+                            userInfo: {
                                 $cond: [
                                     { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
                                     '$userInfo',
@@ -265,7 +265,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 },
             },
         ]);
-        console.log("employeesData", JSON.stringify(employeesData, null, 2));
+
         const data = employeesData.map(item => ({
             Name: item.name,
             EmployeeId: item.EmployeeId,
@@ -273,7 +273,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             VesselName: item.vesselName,
             IsRegistered: item.isRegistered ? 'Yes' : 'No',
             IsDeleted: item.isDeleted ? 'Yes' : 'No',
-            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A',
+            LastSeen: item.lastSeen ? new Date(item.lastSeen).toLocaleString() : '',
             vesselTypeName : item.vesselTypeName,
             CoursesCount: item.coursesCount,
             AverageProgressPercentage: item?.averageProgressPercentage ? parseInt(item.averageProgressPercentage) : 0,
