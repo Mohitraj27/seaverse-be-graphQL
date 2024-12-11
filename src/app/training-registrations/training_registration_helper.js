@@ -668,15 +668,19 @@ module.exports = {
 
                         }
 
-
-                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
+                        const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         users.forEach(user => {
-                            const emailContent = courseEnrollment(user);
-                            sendEmail({
-                                receiverEmail: user.email,
-                                subject: "Course Enrollment",
-                                htmlContent: emailContent,
+                            trainingsData.forEach(training => {
+                                const emailContent = courseEnrollment({
+                                    firstName: user.firstName,
+                                    trainingTitle: training?.title?.[0]?.value,
+                                    durationHours: training?.durationHours
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: "Course Enrollment",
+                                    htmlContent: emailContent,
+                                });
                             });
                         })
 

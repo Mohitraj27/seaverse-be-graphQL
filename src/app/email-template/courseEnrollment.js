@@ -1,4 +1,4 @@
-function courseEnrollment(user) {
+function courseEnrollment({firstName,trainingTitle,durationHours}) {
     return `
     <html lang="en">
     <head>
@@ -80,7 +80,7 @@ function courseEnrollment(user) {
     <body>
         <div class="container">
             <div class="header">
-                <p>Hello <strong>${user.firstName}</strong> 👋</p>
+                <p>Hello <strong>${firstName}</strong> 👋</p>
                 <p>You have been assigned to a new course. Start learning today and achieve your goals!</p>
             </div>
             <div class="content">
@@ -88,12 +88,12 @@ function courseEnrollment(user) {
             </div>
             <div class="course-card">
                 <img src="https://via.placeholder.com/100" alt="Course Image" />
-                <h3>${user.trainingTitle}</h3>
-                <p>Duration: ${user.durationHours} hours</p>
+                <h3>${trainingTitle}</h3>
+                <p>Duration: ${durationHours} hours</p>
                 <a href="#" class="button">Start Learning</a>
             </div>
             <div class="footer">
-                Sent by Seaverse - Training for ${user.trainingTitle}
+                Sent by Seaverse - Training for Advanced Navigation Techniques
             </div>
         </div>
     </body>
