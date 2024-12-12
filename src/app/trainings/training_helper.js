@@ -1153,7 +1153,7 @@ module.exports = {
                 bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else {
+        } else if (bannerImage === null) {
             trainingUpdateData.bannerImage = null;
         }
 
@@ -1188,7 +1188,7 @@ module.exports = {
                 coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else {
+        } else if (coverImage === null) {
             trainingUpdateData.coverImage = null;
         }
 
