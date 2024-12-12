@@ -1772,6 +1772,11 @@ const getSingleCourseReport = async ({ input }, context) => {
             const data = await OverallTrainingProgress.aggregate(
                 [
                     {
+                        '$match': {
+                            'training': ObjectId(input?.courseId)
+                        }
+                    },
+                    {
                         '$lookup': {
                             'from': 'users',
                             'localField': 'user',
@@ -1819,9 +1824,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$vesselInfo',
                             'preserveNullAndEmptyArrays': true
                         }
-                    },
-                    ...matchStage,
-                    {
+                    }, {
                         '$lookup': {
                             'from': 'vesseltypes',
                             'localField': 'vesselInfo.typeOfVessel',
@@ -1833,102 +1836,77 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$vesselTypeInfo',
                             'preserveNullAndEmptyArrays': true
                         }
-                    },
-                    {
-                        '$unwind': {
-                            'path': '$contentData',
-                            'includeArrayIndex': 'string',
-                            'preserveNullAndEmptyArrays': true
-                        }
                     }, {
                         '$lookup': {
-                            'from': 'quizevaluvations',
-                            'localField': 'contentData.moduleId',
-                            'foreignField': 'trainingModuleId',
-                            'as': 'quizEvaluations'
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'trainingmodulecontents',
-                            'localField': 'contentData.moduleId',
-                            'foreignField': 'trainingModule',
-                            'as': 'moduleContent'
+                            'from': 'trainingprogresses',
+                            'localField': '_id',
+                            'foreignField': 'overallTrainingProgress',
+                            'as': 'quizEvaluations',
+                            'let': {
+                                'attemptCount': '$attemptCount'
+                            },
+                            'pipeline': [
+                                {
+                                    '$match': {
+                                        '$expr': {
+                                            '$eq': [
+                                                '$attemptCount', '$$attemptCount'
+                                            ]
+                                        }
+                                    }
+                                }, {
+                                    '$lookup': {
+                                        'from': 'trainingmodules',
+                                        'localField': 'trainingModule',
+                                        'foreignField': '_id',
+                                        'as': 'moduleInfo'
+                                    }
+                                }, {
+                                    '$unwind': {
+                                        'path': '$moduleInfo',
+                                        'preserveNullAndEmptyArrays': true
+                                    }
+                                }, {
+                                    '$lookup': {
+                                        'from': 'trainingmodulecontents',
+                                        'localField': 'trainingModuleContent',
+                                        'foreignField': '_id',
+                                        'as': 'contentInfo'
+                                    }
+                                }, {
+                                    '$unwind': {
+                                        'path': '$contentInfo',
+                                        'preserveNullAndEmptyArrays': true
+                                    }
+                                }, {
+                                    '$project': {
+                                        'moduleId': '$moduleInfo._id',
+                                        'moduleName': '$moduleInfo.title',
+                                        'percentage': '$quizAttemptDetails.percentage',
+                                        'isPassed': '$quizAttemptDetails.isPassed',
+                                        'contentType': '$contentInfo.contentType',
+                                        'updatedAt': 1
+                                    }
+                                }
+                            ]
                         }
                     }, {
                         '$unwind': {
                             'path': '$quizEvaluations',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
-                    }, {
-                        '$sort': {
-                            'quizEvaluations.createdAt': -1
-                        }
-                    }, {
-                        '$addFields': {
-                            'hasQuiz': {
-                                '$gt': [
-                                    {
-                                        '$size': {
-                                            '$filter': {
-                                                'input': '$moduleContent',
-                                                'as': 'item',
-                                                'cond': {
-                                                    '$eq': [
-                                                        '$$item.contentType', 'QUIZ'
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    }, 0
-                                ]
-                            }
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'trainingmodules',
-                            'localField': 'contentData.moduleId',
-                            'foreignField': '_id',
-                            'as': 'trainingModuleInfo'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$trainingModuleInfo',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
+                    }, 
+                    ...matchStage,
+                    {
                         '$group': {
                             '_id': {
-                                'userId': "$userInfo._id",
-                                'trainingId': "$training"
+                                "userId" : "$user",
+                                "moduleId":'$quizEvaluations.moduleId'},
+                            'training': {
+                                '$first': '$training'
                             },
-                            'modules': {
-                                '$push': {
-                                    'id': '$contentData.moduleId',
-                                    'moduleName': '$trainingModuleInfo.title',
-                                    'percentage': {
-                                        '$cond': {
-                                            'if': {
-                                                '$eq': [
-                                                    '$hasQuiz', false
-                                                ]
-                                            },
-                                            'then': 'NOT APPLICABLE',
-                                            'else': {
-                                                '$cond': {
-                                                    'if': {
-                                                        '$eq': [
-                                                            '$quizEvaluations.percentage', null
-                                                        ]
-                                                    },
-                                                    'then': '---',
-                                                    'else': '$quizEvaluations.percentage'
-                                                }
-                                            }
-                                        }
-                                    },
-                                    'isPassed': '$quizEvaluations.isPassed',
-                                    'hasQuiz': '$hasQuiz'
-                                }
+                            'userId': {
+                                '$first': '$userInfo._id'
                             },
                             'firstName': {
                                 '$first': '$userInfo.firstName'
@@ -1942,6 +1920,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'empId': {
                                 '$first': '$userInfo.civilIdOrPassport'
                             },
+                            'status': {
+                                '$first': '$status'
+                            },
                             'currentVessel': {
                                 '$first': '$vesselInfo.name'
                             },
@@ -1949,19 +1930,194 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 '$first': '$vesselTypeInfo.name'
                             },
                             'designation': {
-                                '$first': '$designationInfo.title'
+                                '$first': '$designationInfo.name'
                             },
                             'lastSeen': {
                                 '$first': '$updatedAt'
+                            },
+                            'moduleContents': {
+                                '$push': {
+                                    '$cond': {
+                                        'if': {
+                                            '$eq': [
+                                                '$quizEvaluations.contentType', 'QUIZ'
+                                            ]
+                                        },
+                                        'then': {
+                                            'moduleName': '$quizEvaluations.moduleName',
+                                            'percentage': '$quizEvaluations.percentage',
+                                            'isQuizPassed': '$quizEvaluations.isPassed',
+                                            'contentType': '$quizEvaluations.contentType',
+                                            'updatedAt': '$quizEvaluations.updatedAt'
+                                        },
+                                        'else': {
+                                            'moduleName': '$quizEvaluations.moduleName',
+                                            'percentage': 'NOT APPLICABLE',
+                                            'isQuizPassed': false,
+                                            'contentType': '$quizEvaluations.contentType'
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }, {
+                        '$addFields': {
+                            'hasQuiz': {
+                                '$gt': [
+                                    {
+                                        '$size': {
+                                            '$filter': {
+                                                'input': '$moduleContents',
+                                                'as': 'item',
+                                                'cond': {
+                                                    '$eq': [
+                                                        '$$item.contentType', 'QUIZ'
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }, 0
+                                ]
+                            }
+                        }
+                    }, {
+                        '$addFields': {
+                            'moduleContents': {
+                                '$cond': {
+                                    'if': {
+                                        '$eq': [
+                                            '$hasQuiz', true
+                                        ]
+                                    },
+                                    'then': {
+                                        '$slice': [
+                                            {
+                                                '$filter': {
+                                                    'input': '$moduleContents',
+                                                    'as': 'module',
+                                                    'cond': {
+                                                        '$eq': [
+                                                            '$$module.contentType', 'QUIZ'
+                                                        ]
+                                                    }
+                                                }
+                                            }, 1
+                                        ]
+                                    },
+                                    'else': '$moduleContents'
+                                }
+                            }
+                        }
+                    }, {
+                        '$group': {
+                            '_id': {
+                                'userId': '$userId',
+                                'trainingId': '$training'
+                            },
+                            'firstName': {
+                                '$first': '$firstName'
+                            },
+                            'lastName': {
+                                '$first': '$lastName'
+                            },
+                            'email': {
+                                '$first': '$email'
+                            },
+                            'empId': {
+                                '$first': '$empId'
+                            },
+                            'status': {
+                                '$first': '$status'
+                            },
+                            'currentVessel': {
+                                '$first': '$currentVessel'
+                            },
+                            'vesselType': {
+                                '$first': '$vesselType'
+                            },
+                            'designation': {
+                                '$first': '$designation'
+                            },
+                            'lastSeen': {
+                                '$first': '$lastSeen'
+                            },
+                            'modules': {
+                                '$push': {
+                                    'moduleName': '$moduleContents',
+                                    'hasQuiz': '$hasQuiz',
+                                    'moduleName': {
+                                        '$arrayElemAt': [
+                                            '$moduleContents.moduleName', 0
+                                        ]
+                                    },
+                                    'moduleId': {
+                                        '$arrayElemAt': [
+                                            {
+                                                '$arrayElemAt': [
+                                                    '$moduleContents.moduleName._id', 0
+                                                ]
+                                            }, 0
+                                        ]
+                                    },
+                                    'percentage': {
+                                        '$cond': {
+                                            'if': {
+                                                '$eq': [
+                                                    '$hasQuiz', false
+                                                ]
+                                            },
+                                            'then': 'NOT APPLICABLE',
+                                            'else': {
+                                                '$cond': {
+                                                    'if': {
+                                                        '$gt': [
+                                                            {
+                                                                '$size': '$moduleContents.percentage'
+                                                            }, 0
+                                                        ]
+                                                    },
+                                                    'then': '---',
+                                                    'else': {
+                                                        '$ifNull': [
+                                                            {
+                                                                '$arrayElemAt': [
+                                                                    '$moduleContents.percentage', 0
+                                                                ]
+                                                            }, 0.0
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    'isPassed': {
+                                        '$cond': {
+                                            'if': {
+                                                '$gt': [
+                                                    {
+                                                        '$size': '$moduleContents.isPassed'
+                                                    }, 0
+                                                ]
+                                            },
+                                            'then': {
+                                                '$arrayElemAt': [
+                                                    '$moduleContents.isPassed', 0
+                                                ]
+                                            },
+                                            'else': false
+                                        }
+                                    }
+                                }
                             }
                         }
                     }, {
                         '$project': {
                             '_id': 0,
-                            'courseId': "$_id.trainingId",
-                            'user': "$_id.userId",
+                            'courseId': '$_id.trainingId',
+                            'user': '$_id.userId',
                             'firstName': 1,
                             'lastName': 1,
+                            'status':1,
                             'designation': 1,
                             'hasQuiz': 1,
                             'moduleName': 1,
@@ -1974,12 +2130,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'empId': 1,
                             'lastSeen': 1
                         }
-                    },
-                    {
-                        '$match': {
-                            'courseId': ObjectId(input?.courseId)
-                        }
-                    },
+                    }
                 ]
             );
             if (data.length > 0) {
@@ -2000,16 +2151,51 @@ const getSingleCourseReport = async ({ input }, context) => {
                 let s3PresignedUrl = "";
 
                 if (input?.export) {
-                    const workbook = XLSX.utils.book_new();
-                    const worksheet = XLSX.utils.json_to_sheet(data);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
-                    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-                    const excelFilePath = await UploadHelper.uploadExcel({
-                        data: excelBuffer,
-                        folderName: "Courses_Report_exports",
-                        fileName: `Courses_Report-${Date.now()}.xlsx`,
-                        uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
-                    });
+                    const flattenCourseDataForSingleSheet = (course) => {
+                        const flattenedData = [];
+                        if (course) {
+                            const email = course?.email || '';
+                            const designation = course?.designation || '';
+                            const firstName = course?.firstName || '';
+                            const lastName = course?.lastName || '';
+                            const status = course?.status || 'N/A'; 
+                            course.modules.forEach(module => {
+                                const moduleName = module.moduleName[0]?.value || '';
+                                const hasQuiz = module.hasQuiz || false;
+                                const quizScore = hasQuiz ? (module.percentage || 'N/A') : 'N/A'; 
+                                flattenedData.push({
+                                    Name: `${firstName} ${lastName}`,
+                                    Email: email,
+                                    Designation: designation,
+                                    Status: status,
+                                    Module: moduleName,
+                                    'Quiz Score': quizScore
+                                });
+                            });
+                        }
+                        return flattenedData;
+                    };
+                    const exportToExcelWithMultipleSheets = async (coursesData) => {
+                        const workbook = XLSX.utils.book_new();
+
+                        coursesData.forEach(courses => {
+                            const coursesData = flattenCourseDataForSingleSheet(courses);
+                            const sheetName = `${courses.firstName} ${courses.lastName}` || `Learner_${courses.userId?.toString() || Date.now()}`;
+                            const worksheet = XLSX.utils.json_to_sheet(coursesData);
+                            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        });
+                        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                        const excelFilePath = await UploadHelper.uploadExcel({
+                            data: excelBuffer,
+                            folderName: "COURSE-QUIZ-REPORT",
+                            fileName: `COURSE-QUIZ-REPORT-${Date.now()}.xlsx`,
+                            uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
+                        });
+
+                        return excelFilePath;
+                    };
+
+                    const excelFilePath = await exportToExcelWithMultipleSheets(data);
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     }
