@@ -1129,7 +1129,7 @@ module.exports = {
         };
 
         const trainingUpdateData = {};
-        const trainingData = {};
+        let trainingData;
 
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
@@ -1156,8 +1156,6 @@ module.exports = {
                 bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else if (input._id) {
-            trainingUpdateData.bannerImage = trainingData?.bannerImage || null
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1191,8 +1189,6 @@ module.exports = {
                 coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else if (input._id) {
-            trainingUpdateData.coverImage = trainingData?.coverImage || null
         }
 
         if (input.durationHours != null) {
