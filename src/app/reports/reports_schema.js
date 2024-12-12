@@ -175,7 +175,7 @@ module.exports = {
         }
         input singleCourseReportInput {
             courseId : ID!
-            reportType : String!
+            reportType : reportTypeEnum!
             pageInput: PageInput
             filter : singleCourseReportFilter
             export : Boolean
