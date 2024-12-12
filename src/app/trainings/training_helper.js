@@ -1129,12 +1129,15 @@ module.exports = {
         };
 
         const trainingUpdateData = {};
+        const trainingData = {};
 
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
                 subscriberId,
                 session,
             });
+        } else {
+            trainingData = await Training.findOne({ _id: input._id });
         }
 
         if (input.title) trainingUpdateData.title = input.title;
@@ -1153,8 +1156,8 @@ module.exports = {
                 bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else if (bannerImage === null) {
-            trainingUpdateData.bannerImage = null;
+        } else if (input._id) {
+            trainingUpdateData.bannerImage = trainingData?.bannerImage || null
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1188,8 +1191,8 @@ module.exports = {
                 coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
-        } else if (coverImage === null) {
-            trainingUpdateData.coverImage = null;
+        } else if (input._id) {
+            trainingUpdateData.coverImage = trainingData?.coverImage || null
         }
 
         if (input.durationHours != null) {
