@@ -24,7 +24,7 @@ const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, genera
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
-const resetPasswordRequest = require("../../email-template/passwordResetRequest");
+const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -276,7 +276,7 @@ module.exports.queries = {
     },
     resetPassword: async (_, context) => {
 
-        const { userId } = AuthUser(context);
+        const { userId,userInfo } = AuthUser(context);
 
         const user = await User.findById(userId);
 
@@ -292,14 +292,18 @@ module.exports.queries = {
 
         let errors = [];
         const resetPasswordHtml = resetPasswordRequest(user, token);
-
+        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user,token);
         const result = await AwsHelper.sendEmail({
             receiverEmail: user.email,
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
         });
-
+         await AwsHelper.sendEmail({
+            receiverEmail: userInfo.email,
+            subject: "Reset Password Request",
+            htmlContent: resetPasswordHtmlforAdmin,
+        })
         if (errors.length > 0) {
             throw new CustomError(ErrorName.FAILED);
         }
