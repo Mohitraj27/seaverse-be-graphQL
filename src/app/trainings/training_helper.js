@@ -1153,6 +1153,8 @@ module.exports = {
                 bannerImage: bannerImage,
                 folderName: trainingFilterConditions._id,
             });
+        } else {
+            trainingUpdateData.bannerImage = null;
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1186,6 +1188,8 @@ module.exports = {
                 coverImage: coverImage,
                 folderName: trainingFilterConditions._id,
             });
+        } else {
+            trainingUpdateData.coverImage = null;
         }
 
         if (input.durationHours != null) {
