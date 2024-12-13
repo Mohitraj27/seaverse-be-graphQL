@@ -1818,7 +1818,7 @@ module.exports.mutations = {
                     const { conditionType, conditionalCustomFields } = plan;
 
                     let matches = conditionalCustomFields.map(field => {
-                        const { type_of_Field, valueOfField, isOrIsNot } = field;
+                        const { type_of_Field, valueOfField, isOrIsNot,groupIDs } = field;
 
                         switch (type_of_Field) {
                             case "DESIGNATION":
@@ -1840,7 +1840,21 @@ module.exports.mutations = {
                                 return isOrIsNot === "IS"
                                     ? valueOfField.includes(currentStatus)
                                     : !valueOfField.includes(currentStatus);
-
+                            case "GROUP":
+                                return groupIDs?.some(group => {
+                                    switch (group.groupType) {
+                                        case "designation":
+                                            return group.groupIDs.includes(designationID);
+                                        case "vessel":
+                                            return group.groupIDs.includes(vesselID);
+                                        case "vesselType":
+                                            return group.groupIDs.includes(vesselTypeID);
+                                        case "vesselStatus":
+                                            return group.groupIDs.includes(currentStatus);
+                                        default:
+                                            return false;
+                                        }
+                                    });
                             default:
                                 return false;
                         }
@@ -1864,12 +1878,25 @@ module.exports.mutations = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel.vessel,
                 vesselTypeID: vessel?.typeOfVessel?._id,
-                currentStatus: savedUserVessel.vesselStatus
+                currentStatus: savedUserVessel.vesselStatus,
+                email: savedUser.email
             };
 
             const filteredPlans = filterLearningPlans(learningPlans, conditions);
-
-
+            const matchedLearningPlans = filteredPlans.map(plan => {
+                return {
+                    learningPlanID: plan._id,
+                    learningPlanName: plan.title,
+                    employeeID: savedUser._id,
+                    email: savedUser.email,
+                    designationID: input.empDesignation,
+                    vesselID: savedUserVessel.vessel,
+                    vesselTypeID: vessel?.typeOfVessel?._id,
+                    currentStatus: savedUserVessel.vesselStatus
+                };
+            });
+            
+            
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
