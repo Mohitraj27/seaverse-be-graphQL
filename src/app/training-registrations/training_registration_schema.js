@@ -73,6 +73,7 @@ module.exports = {
             moduleCount: Int
             totalDuration: Int
             status: String
+            timeSpend: Float
             lastConsumedContent: lastConsumedContent
             trainingModules: [TrainingModule]
         }
