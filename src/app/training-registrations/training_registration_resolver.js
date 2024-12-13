@@ -97,10 +97,12 @@ module.exports.queries = {
             {
                 $match: input?.search
                     ? {
-                        $or: [
-                            { 'userInfo.firstName': { $regex: input.search, $options: 'i' } },
-                            { 'userInfo.lastName': { $regex: input.search, $options: 'i' } },
-                        ]
+                        $or: input.search.split(' ').map(term => ({
+                            $or: [
+                                { 'userInfo.firstName': { $regex: term, $options: 'i' } },
+                                { 'userInfo.lastName': { $regex: term, $options: 'i' } },
+                            ]
+                        }))
                     }
                     : {}
             },
