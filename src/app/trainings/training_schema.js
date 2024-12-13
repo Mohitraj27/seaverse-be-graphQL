@@ -192,6 +192,8 @@ module.exports = {
             classroomModule: ClassroomModuleInput
             isCertificate : Boolean
             isOrdered : Boolean
+            bannerImageDelete: Boolean
+            coverImageDelete: Boolean
         }
         input TrainingFilterInput {
             search: String
