@@ -28,6 +28,19 @@ const getMainLearnersReport = async ({ input }, context) => {
     try {
         const matchStage = [];
 
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learners Report Exported In Progress`,
+                messageValue: `The learners report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.PROGRESS
+            });
+        }
+
         let includeDeletedUsers = false;
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
@@ -322,16 +335,18 @@ const getMainLearnersReport = async ({ input }, context) => {
             employeesData
         };
     } catch (err) {
-        await NotificationHelper.createNotificationhelper({
-            subscriber: subscriberId,
-            titleValue: `Learners Report Export Failed`,
-            messageValue: `An error occurred while generating the learners report: ${err.message}.`,
-            notificationType: NotificationType.REPORT_EXPORT_FAILED,
-            notifyAdmin: true,
-            status: 'FAILED',
-            icon: notificationiconEnum.ERROR,
-            createdBy: userInfo,
-        });
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Learners Report Export Failed`,
+                messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+                notificationType: NotificationType.REPORT_EXPORT_FAILED,
+                notifyAdmin: true,
+                status: 'FAILED',
+                icon: notificationiconEnum.ERROR,
+                createdBy: userInfo,
+            });
+        }
         throw Error(err.message);
     }
 };
@@ -343,6 +358,19 @@ const getSingleLearnerReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let learnerData = [];
+
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `SINGLE Learner Report Exported In Progress`,
+                messageValue: `The single learner report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.PROGRESS
+            });
+        }
 
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filter || {};
@@ -385,7 +413,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 }
 
                 if (endDate) {
-                    dateFilter['$lte'] = new Date(endDate);
+                    const endDateObj = new Date(endDate);
+                    endDateObj.setHours(23, 59, 59, 999);
+                    dateFilter['$lte'] = endDateObj;
                 }
 
                 matchStage.push({
@@ -578,6 +608,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
+                            "isRegistered": "$userInfo.isRegistered",
                             'courseName': {
                                 '$arrayElemAt': [
                                     '$trainingInfo.title.value', 0
@@ -1148,6 +1179,16 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Single Learner Report Exported Successfully`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
+                        notifyAdmin: true,
+                        status: 'SENT',
+                        createdBy: userInfo,
+                        icon: notificationiconEnum.SUCCESS
+                    });
                 }
 
                 return {
@@ -1187,6 +1228,19 @@ const getMainCoursesReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Main Course Report Exported In Progress`,
+                messageValue: `The main course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.PROGRESS
+            });
+        }
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
@@ -1340,6 +1394,16 @@ const getMainCoursesReport = async ({ input }, context) => {
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Courses Report Exported Successfully`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
             }
             return {
                 filePath: s3PresignedUrl,
@@ -1347,21 +1411,24 @@ const getMainCoursesReport = async ({ input }, context) => {
                 coursesData,
             };
         }
-        await NotificationHelper.createNotificationhelper({
-            subscriber: subscriberId,
-            titleValue: `Courses Report Exported Successfully`,
-            messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
-            notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
-            notifyAdmin: true,
-            status: 'SENT',
-            createdBy: userInfo,
-            icon: notificationiconEnum.SUCCESS
-        });
+
         return {
             coursesData,
         };
 
     } catch (err) {
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Main Course Report Export Failed`,
+                messageValue: `An error occurred while generating the Main Course report: ${err.message}.`,
+                notificationType: NotificationType.REPORT_EXPORT_FAILED,
+                notifyAdmin: true,
+                status: 'FAILED',
+                icon: notificationiconEnum.ERROR,
+                createdBy: userInfo,
+            });
+        }
         throw Error(err.message);
     }
 };
@@ -1374,6 +1441,19 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
 
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Single Course Report Exported In Progress`,
+                messageValue: `The single course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.PROGRESS
+            });
+        }
+        
         if (!input?.reportType) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
 
         if (Object.keys(input).length > 0) {
@@ -1641,7 +1721,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             designation: "$designationInfo.name",
                             status: 1,
                             createdAt: 1,
-                            completionDate: 1,
+                            endDate: 1,
                             updatedAt: 1,
                             quizPercentage: {
                                 $ifNull: [
@@ -1732,7 +1812,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         };
 
                         return parsedItem;
-                    });                    
+                    });
                     const workbook = XLSX.utils.book_new();
                     const worksheet = XLSX.utils.json_to_sheet(parsedData);
                     XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
@@ -1745,6 +1825,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                     });
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Enrollment Report Exported Successfully`,
+                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
+                            notifyAdmin: true,
+                            status: 'SENT',
+                            createdBy: userInfo,
+                            icon: notificationiconEnum.SUCCESS
+                        });
                     }
                     return {
                         filePath: s3PresignedUrl,
@@ -1752,16 +1842,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         coursesData,
                     };
                 }
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Enrollment Report Exported Successfully`,
-                    messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
-                    status: 'SENT',
-                    createdBy: userInfo,
-                    icon: notificationiconEnum.SUCCESS
-                });
+
                 return {
                     coursesData,
                 };
@@ -1894,13 +1975,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$quizEvaluations',
                             'preserveNullAndEmptyArrays': false
                         }
-                    }, 
+                    },
                     ...matchStage,
                     {
                         '$group': {
                             '_id': {
-                                "userId" : "$user",
-                                "moduleId":'$quizEvaluations.moduleId'},
+                                "userId": "$user",
+                                "moduleId": '$quizEvaluations.moduleId'
+                            },
                             'training': {
                                 '$first': '$training'
                             },
@@ -2116,7 +2198,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'user': '$_id.userId',
                             'firstName': 1,
                             'lastName': 1,
-                            'status':1,
+                            'status': 1,
                             'designation': 1,
                             'hasQuiz': 1,
                             'moduleName': 1,
@@ -2158,11 +2240,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const designation = course?.designation || '';
                             const firstName = course?.firstName || '';
                             const lastName = course?.lastName || '';
-                            const status = course?.status || 'N/A'; 
+                            const status = course?.status || 'N/A';
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
                                 const hasQuiz = module.hasQuiz || false;
-                                const quizScore = hasQuiz ? (module.percentage || 'N/A') : 'N/A'; 
+                                const quizScore = hasQuiz ? (module.percentage || 'N/A') : 'N/A';
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
@@ -2198,6 +2280,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                     const excelFilePath = await exportToExcelWithMultipleSheets(data);
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Quiz Report Exported Successfully`,
+                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
+                            notifyAdmin: true,
+                            status: 'SENT',
+                            createdBy: userInfo,
+                            icon: notificationiconEnum.SUCCESS
+                        });
                     }
                     return {
                         filePath: s3PresignedUrl,
@@ -2205,16 +2297,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         coursesData,
                     };
                 }
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Quiz Report Exported Successfully`,
-                    messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
-                    status: 'SENT',
-                    createdBy: userInfo,
-                    icon: notificationiconEnum.SUCCESS
-                });
+
                 return {
                     coursesData,
                 };
@@ -2225,6 +2308,18 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
     } catch (err) {
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Single Course Report Export Failed`,
+                messageValue: `An error occurred while generating the Single Course report: ${err.message}.`,
+                notificationType: NotificationType.REPORT_EXPORT_FAILED,
+                notifyAdmin: true,
+                status: 'FAILED',
+                icon: notificationiconEnum.ERROR,
+                createdBy: userInfo,
+            });
+        }
         throw Error(err.message);
     }
 };
@@ -2237,19 +2332,31 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const matchStage = [];
 
+        if (input?.export) {
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Main Vessel Report Exported In Progress`,
+                messageValue: `The Vessel report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.PROGRESS
+            });
+        }
+
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
 
             if (filterInput?.search) {
                 const search = filterInput.search;
-                const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 matchStage.push({
                     $match: {
                         $or: [
-                            { 'vesselName': { $regex: escapedSearch, $options: 'i' } },
-                            { 'imoNumber': { $regex: escapedSearch, $options: 'i' } },
-                            { 'ownerName': { $regex: escapedSearch, $options: 'i' } },
-                            { 'companyName': { $regex: escapedSearch, $options: 'i' } },
+                            { 'vesselName': { $regex: search, $options: 'i' } },
+                            { 'imoNumber': { $regex: search, $options: 'i' } },
+                            { 'ownerName': { $regex: search, $options: 'i' } },
+                            { 'companyName': { $regex: search, $options: 'i' } },
                         ],
                     },
                 });
@@ -2490,6 +2597,16 @@ const getVesselMainReport = async ({ input }, context) => {
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Main Vessel Report Exported Successfully`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
+                    notifyAdmin: true,
+                    status: 'SENT',
+                    createdBy: userInfo,
+                    icon: notificationiconEnum.SUCCESS
+                });
             }
             return {
                 filePath: s3PresignedUrl,
@@ -2503,6 +2620,16 @@ const getVesselMainReport = async ({ input }, context) => {
         };
 
     } catch (err) {
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `Main Vessel Report Export Failed`,
+            messageValue: `An error occurred while generating the main vessel report: ${err.message}.`,
+            notificationType: NotificationType.REPORT_EXPORT_FAILED,
+            notifyAdmin: true,
+            status: 'FAILED',
+            icon: notificationiconEnum.ERROR,
+            createdBy: userInfo,
+        });
         throw Error(err.message);
     }
 };
@@ -3360,14 +3487,14 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
 
         const skip = pageInput?.skip ? pageInput.skip : 0;
         const limit = pageInput?.limit ? pageInput.limit : 50;
-        let matchStage =[];
+        let matchStage = [];
         if (limit > 0) {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
 
         const data = await Export.aggregate([
             {
-                $match:{
+                $match: {
                     type_of_export: "CUSTOM_REPORT_EXPORT"
                 }
             },
