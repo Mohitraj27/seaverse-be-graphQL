@@ -65,10 +65,12 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
 
             if (filterInput.status) filterConditions.status = filterInput.status;
-            if (filterInput.dateFilter === -1) {
-                sortOrder = { updatedAt: "descending" };
-            } else {
-                sortOrder = { updatedAt: "ascending" };
+            if (filterInput?.dateFilter) {
+                if (filterInput.dateFilter === -1) {
+                    sortOrder = { updatedAt: "descending" };
+                } else {
+                    sortOrder = { updatedAt: "ascending" };
+                }
             }
         }
 

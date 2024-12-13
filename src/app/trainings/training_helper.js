@@ -1131,12 +1131,15 @@ module.exports = {
         };
 
         const trainingUpdateData = {};
+        let trainingData;
 
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
                 subscriberId,
                 session,
             });
+        } else {
+            trainingData = await Training.findOne({ _id: input._id });
         }
 
         if (input.title) trainingUpdateData.title = input.title;

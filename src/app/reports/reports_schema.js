@@ -175,7 +175,7 @@ module.exports = {
         }
         input singleCourseReportInput {
             courseId : ID!
-            reportType : String
+            reportType : reportTypeEnum!
             pageInput: PageInput
             filter : singleCourseReportFilter
             export : Boolean
@@ -240,7 +240,7 @@ module.exports = {
             vesselType : [ID]
             vesselName : [ID]
             designation :[ID]
-            learnerStatus : [String]
+            learnerStatus : Boolean
             reportType : String!
         }
         type customReportGenerated{
