@@ -240,7 +240,7 @@ module.exports = {
             vesselType : [ID]
             vesselName : [ID]
             designation :[ID]
-            learnerStatus : [String]
+            learnerStatus : Boolean
             reportType : String!
         }
         type customReportGenerated{
