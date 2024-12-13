@@ -1,7 +1,8 @@
 const {
     CustomError,
     ErrorName,
-    AuthUser
+    AuthUser,
+    SendEmail,
 } = require("../../util");
 
 const { ObjectId } = require("../../tools");
@@ -14,7 +15,9 @@ const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
+const {vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin} = require("../email-template/vesselStatusUpdate");
 const {sendNotifications} =require("../../util/firebase_helper");
+
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -431,6 +434,29 @@ module.exports.mutations = {
                     status:"SENT",
                     createdBy: userInfo,
                 });
+                const assignedUsers = await User.find({ currentVessel: vessel._id });
+                for (let user of assignedUsers) {
+                const emailContent = vesselStatusUpdateEmail({
+                    firstName: user.firstName,
+                    vesselName: vesselNames,
+                    vesselStatus: statusSummary,
+                });
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Vessel Status Update: ${vesselNames}`,
+                    htmlContent: emailContent,
+                });
+                }
+                const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
+                    firstName: userInfo?.firstName,
+                    vesselName: vesselNames,
+                    vesselStatus: statusSummary,
+                });
+                await SendEmail({
+                    receiverEmail: userInfo?.email,
+                    subject: `Vessel Status Update: ${vesselNames}`,
+                    htmlContent: emailContentforAdmin,
+                })
                 const userVesselIdsToNotify = updatedVessels.map(v => v.id);
                 const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id');
                 if (matchingUsers.length > 0) {

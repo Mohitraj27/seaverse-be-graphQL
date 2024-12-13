@@ -67,8 +67,12 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
+const {Unregistered_Status} = require("../../email-template/Unregistered_status");
+const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
+const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1060,14 +1064,11 @@ module.exports.queries = {
 
                 let html = ``;
                 if (currentUserData.isResetPasswordDialog) {
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendWelcomeEmailsToLearner({
+                        firstName: currentUserData.firstName,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                    });
+                    html = htmlContent;
                 } else {
                     const generatePassword = generateRandomString(10);
                     currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
@@ -1077,16 +1078,18 @@ module.exports.queries = {
                         messages.push(`Failed to create new dummy password for ${email}`);
                         return;
                     }
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <h4>User Name: ${currentUserData.email}</h4>
-                    <h4>Temporary Password: ${generatePassword}</h4>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendEmailToLearner({
+                        firstName: currentUserData.firstName,
+                        email: currentUserData.email,
+                        temp_password: generatePassword,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                    });
+                    html = htmlContent;
+                    await SendEmail({
+                        receiverEmail: userInfo.email,
+                        subject: "Registration Invitation",
+                        htmlContent: html,
+                    })
                 }
 
                 try {
@@ -1318,7 +1321,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
             { _id: { $in: input.users } },
             { isRegistered: true }
         );
-
+        const emailContentforAdmin = registered_statusforAdmin(
+            {
+                adminfirstName: userInfo.firstName,
+                userfirstName: users[0].firstName
+            }
+        );
+        await SendEmail({
+            receiverEmail: userInfo.email,
+            subject: `User Status Update: ${input.type}`,
+            htmlContent: emailContentforAdmin,
+        });
     } else if (input.type === "Unregistered") {
         const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
         if (alreadyUnregisteredUsers.length > 0) {
@@ -1347,7 +1360,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 type: input.type,
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-
+            for (const user of users) {
+                const emailContent =
+                    input.type === "Registered"
+                        ? registered_status({ firstName: user.firstName})
+                        : Unregistered_status({ firstName: user.firstName});
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Current Status Update: ${input.type}`,
+                    htmlContent: emailContent,
+                });
+            }
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -2370,6 +2393,25 @@ module.exports.mutations = {
                         user.subRoles.push(subrole);
                     }
                     await user.save();
+                })
+            );
+            const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
+            await AwsHelper.sendEmail({
+                receiverEmail: usersToUpdate[0].email,
+                subject: "Your Role Updated",
+                htmlContent: resetPasswordHtml,
+            });
+            await Promise.all(
+                usersToUpdate.map(async user => {
+                    const emailContentforAdmin = roleUpdateNotifyAdmin({
+                        firstName: userInfo?.firstName,
+                        usersUpdated: [{user: user.firstName}],
+                    });
+                    await SendEmail({
+                        receiverEmail: userInfo?.email,
+                        subject: `User Role Updated`,
+                        htmlContent: emailContentforAdmin,
+                    })
                 })
             );
             const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
