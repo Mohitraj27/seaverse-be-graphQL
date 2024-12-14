@@ -3,5 +3,6 @@
     "SUCCESS": "SUCCESS",
     "ERROR": "ERROR",
     "WARNING": "WARNING",
-    "STABLE": "STABLE"
+    "STABLE": "STABLE",
+    "PROGRESS": "PROGRESS"
 }
