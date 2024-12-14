@@ -510,6 +510,23 @@ module.exports.mutations = {
 
             const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
 
+            // Update/validate the progress status based on the progress percentage
+            input.forEach((entry) => {
+                entry.trainingModules?.forEach((module) => {
+                    module.contentDetails?.forEach((content) => {
+                        if (content.progressPercentage == 100) {
+                            content.contentStatus = 'COMPLETED';
+                        } else if (content.progressPercentage == 0) {
+                            content.contentStatus = 'NOT_STARTED';
+                        } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
+                            content.contentStatus = 'IN_PROGRESS';
+                        }
+                    })
+                })
+            })
+
+            console.log(JSON.stringify(input, null, 2));
+
             if (validateErrors.length > 0) {
                 throw CustomError(ErrorName.FAILED, validateErrors[0]);
             }
