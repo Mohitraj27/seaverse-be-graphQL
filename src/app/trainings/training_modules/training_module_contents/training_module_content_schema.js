@@ -36,6 +36,7 @@ module.exports = {
             value: String
             choices: [AnswerChoice]
             answerKey: [String]
+            allowMultipleAnswers: Boolean
             questionType: String
             points: Int
             negativePoints: Int
@@ -78,6 +79,7 @@ module.exports = {
             progressPercentage: String
             lastAccessedDuration: Int
             playerSettings: [JSON]
+            quizAttemptDetails: JSON
             quizAttempts: [String]
             status: String
             trainingModuleContentDetails: [TrainingModuleContent]

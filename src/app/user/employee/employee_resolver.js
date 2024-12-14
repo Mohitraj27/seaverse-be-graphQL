@@ -67,6 +67,12 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
+const {Unregistered_Status} = require("../../email-template/Unregistered_status");
+const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
+const { sendNotifications } = require("../../../util/firebase_helper");
+const Roles = require("../../../util/role.json");
+const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -647,7 +653,7 @@ module.exports.queries = {
                     as: "user",
                     pipeline: [
                         {
-                            $match: { superAdmin: { $ne: true } },
+                            $match: { superAdmin: { $ne: true }, isRegistered: { $ne: false } },
                         },
                     ],
                 },
@@ -743,11 +749,11 @@ module.exports.queries = {
                         },
                         {
                             $sort: {
-                                updatedAt: -1, 
+                                updatedAt: -1,
                             },
                         },
                         {
-                            $limit: 1, 
+                            $limit: 1,
                         },
                     ],
                 },
@@ -1049,23 +1055,20 @@ module.exports.queries = {
                     messages.push(`Invalid email format: ${email}`);
                     return;
                 }
-    
+
                 let currentUserData = await User.findOne({ email: email });
                 if (!currentUserData) {
                     messages.push(`No user data found for email: ${email}`);
                     return;
                 }
-    
+
                 let html = ``;
                 if (currentUserData.isResetPasswordDialog) {
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendWelcomeEmailsToLearner({
+                        firstName: currentUserData.firstName,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                    });
+                    html = htmlContent;
                 } else {
                     const generatePassword = generateRandomString(10);
                     currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
@@ -1075,58 +1078,60 @@ module.exports.queries = {
                         messages.push(`Failed to create new dummy password for ${email}`);
                         return;
                     }
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <h4>User Name: ${currentUserData.email}</h4>
-                    <h4>Temporary Password: ${generatePassword}</h4>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendEmailToLearner({
+                        firstName: currentUserData.firstName,
+                        email: currentUserData.email,
+                        temp_password: generatePassword,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                    });
+                    html = htmlContent;
+                    await SendEmail({
+                        receiverEmail: userInfo.email,
+                        subject: "Registration Invitation",
+                        htmlContent: html,
+                    })
                 }
-    
-            try {
-                await SendEmail({
-                    receiverEmail: email,
-                    subject: "Registration Invitation",
-                    htmlContent: html,
+
+                try {
+                    await SendEmail({
+                        receiverEmail: email,
+                        subject: "Registration Invitation",
+                        htmlContent: html,
+                    });
+                    messages.push(`Welcome mail sent to ${email}`);
+
+                }
+                catch (error) {
+                    messages.push(`Unable to send Welcome mail to ${email}`);
+                }
+                notifications.push({
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `Welcome Email Sent` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                        },
+                    ],
+                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    affected: [
+                        {
+                            targetRef: "User",
+                            target: currentUserData._id,
+                        },
+                    ],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                    status: "SENT"
                 });
-                messages.push(`Welcome mail sent to ${email}`);
-               
-            } 
-            catch (error) {
-                messages.push(`Unable to send Welcome mail to ${email}`);
-            }
-            notifications.push({
-                subscriber: subscriberId,
-                title: [{ lang: "en", value: `Welcome Email Sent` }],
-                message: [
-                    {
-                        lang: "en",
-                        value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
-                    },
-                ],
-                notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                notifyAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: currentUserData._id,
-                    },
-                ],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-                status:"SENT"
-            });
-            
-            
-        })
-    );
-        if (notifications.length > 0 ) {
+
+
+            })
+        );
+        if (notifications.length > 0) {
             try {
                 await NotificationHelper.createNotification(notifications);
             } catch (error) {
@@ -1298,33 +1303,50 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-    if (input.users.length <= 0) {
+
+    const users = await User.find({ _id: { $in: input.users } });
+
+    if (users.length === 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.users.length >0) {
-        const user = await User.findOne({ _id: input.users?.[0] });
-        if (input.type === "Registered" && user.isRegistered) {
+    let updateUsers;
+    if (input.type === "Registered") {
+        const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
+        if (alreadyRegisteredUsers.length > 0) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
-        } else if (input.type === "Unregistered" && !user.isRegistered) {
+        }
+
+        updateUsers = await User.updateMany(
+            { _id: { $in: input.users } },
+            { isRegistered: true }
+        );
+        const emailContentforAdmin = registered_statusforAdmin(
+            {
+                adminfirstName: userInfo.firstName,
+                userfirstName: users[0].firstName
+            }
+        );
+        await SendEmail({
+            receiverEmail: userInfo.email,
+            subject: `User Status Update: ${input.type}`,
+            htmlContent: emailContentforAdmin,
+        });
+    } else if (input.type === "Unregistered") {
+        const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
+        if (alreadyUnregisteredUsers.length > 0) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
         }
+
+        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+        updateUsers = await User.updateMany(
+            { _id: { $in: input.users } },
+            { 
+                $pull: { subRoles: subRoleAdminId._id },
+                $set: { isRegistered: false }
+            }
+        );
     }
-
-    let registerStatus = false;
-
-    if (input.type === "Registered") {
-        registerStatus = true;
-    } else if (input.type === "Unregistered") {
-        registerStatus = false;
-    } else {
-        throw CustomError(ErrorName.VALIDATION_ERROR);
-    }
-
-    const updateUsers = await User.updateMany(
-        { _id: { $in: input.users } },
-        { isRegistered: registerStatus }
-    );
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
             const users = await User.find({
@@ -1333,12 +1355,22 @@ const changeRegisterEmployees = async ({ input }, context) => {
             });
             const notificationsData = users.map((user) => ({
                 subscriber: subscriberId,
-                employee: { user }, 
-                updatedBy: userInfo, 
-                type: input.type, 
+                employee: { user },
+                updatedBy: userInfo,
+                type: input.type,
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-
+            for (const user of users) {
+                const emailContent =
+                    input.type === "Registered"
+                        ? registered_status({ firstName: user.firstName})
+                        : Unregistered_status({ firstName: user.firstName});
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Current Status Update: ${input.type}`,
+                    htmlContent: emailContent,
+                });
+            }
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -1424,7 +1456,7 @@ const manageRole = async ({ input }, context) => {
                     targetRef: "User",
                     target: user._id,
                 })),
-                status:"SENT",
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             };
@@ -1448,7 +1480,7 @@ const manageRole = async ({ input }, context) => {
                         target: user._id,
                     },
                 ],
-                status:"SENT",
+                status: "SENT",
                 icon: notificationiconEnum.INFO,
                 createdBy: userInfo,
             }));
@@ -1605,8 +1637,8 @@ module.exports.mutations = {
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
-            const existingEmployeNumbers=await User.find({ isDeleted: false }).lean();
-            const employeeNumbers=existingEmployeNumbers.map(user => user.civilIdOrPassport);
+            const existingEmployeNumbers = await User.find({ isDeleted: false }).lean();
+            const employeeNumbers = existingEmployeNumbers.map(user => user.civilIdOrPassport);
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
@@ -1826,7 +1858,7 @@ module.exports.mutations = {
                 });
             }
 
-            
+
 
             const conditions = {
                 designationID: input.empDesignation,
@@ -1964,7 +1996,7 @@ module.exports.mutations = {
             return savedEmployees;
         });
 
-         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+        if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
@@ -2037,27 +2069,27 @@ module.exports.mutations = {
             }
             return changes;
         }, {});
-    
+
         const notificationData = [
             {
                 subscriber: subscriberId,
                 trainingRegistration: {
-                    _id: savedEmployee._id, 
-                    employee: savedEmployee, 
+                    _id: savedEmployee._id,
+                    employee: savedEmployee,
                 },
-                userIds: [savedEmployee.user?._id], 
+                userIds: [savedEmployee.user?._id],
                 action: "UPDATED",
                 createdBy: userInfo,
             },
         ];
-    
+
         notificationData[0].additionalInfo = [
             {
                 infoType: "UPDATED_FIELDS",
                 infoData: updatedFields,
             },
         ];
-    
+
         EmployeeHelper.sendEnrollmentNotification(notificationData);
 
         EmployeeHelper.sendNotificationOnCRUD({
@@ -2113,9 +2145,9 @@ module.exports.mutations = {
             },
         ];
         await EmployeeHelper.sendDeleteNotification(notificationsData);
-    
+
         if (!deletedEmployee) throw CustomError(ErrorName.FAILED);
-    
+
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: deletedEmployee,
@@ -2363,6 +2395,25 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
+            const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
+            await AwsHelper.sendEmail({
+                receiverEmail: usersToUpdate[0].email,
+                subject: "Your Role Updated",
+                htmlContent: resetPasswordHtml,
+            });
+            await Promise.all(
+                usersToUpdate.map(async user => {
+                    const emailContentforAdmin = roleUpdateNotifyAdmin({
+                        firstName: userInfo?.firstName,
+                        usersUpdated: [{user: user.firstName}],
+                    });
+                    await SendEmail({
+                        receiverEmail: userInfo?.email,
+                        subject: `User Role Updated`,
+                        htmlContent: emailContentforAdmin,
+                    })
+                })
+            );
             const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
             const adminNotification = {
                 subscriber: subscriberId,
@@ -2385,7 +2436,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             };
-    
+
             const userNotifications = usersToUpdate.map(user => ({
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
@@ -2409,9 +2460,19 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }));
-    
+
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
-    
+
+            const userIdsToSend = usersToUpdate.map(user => user._id);
+            for (const userId of userIdsToSend) {
+                await sendNotifications({
+                    userIds: userId,
+                    title: "Subrole Assigned Successfully",
+                    body: `You have been assigned the subrole "${validSubRole.name}".`,
+                    content: `You have been assigned the subrole "${validSubRole.name}".`,
+                    webLink: "",
+                });
+            }
             return {
                 success: true,
                 message: "Subrole successfully assigned to all learners",
@@ -2431,7 +2492,7 @@ module.exports.mutations = {
         }
         const notifications = [];
         const exportStartTime = new Date();
-    
+
         try {
             const inProgressNotification = {
                 subscriber: subscriberId,

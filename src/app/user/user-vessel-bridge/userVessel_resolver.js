@@ -2,17 +2,18 @@ const {
     CustomError,
     ErrorName,
     AuthUser,
+    SendEmail
 } = require("../../../util");
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
 const { Vessel } = require('../../vessle/vessel_model');
-
+const {vesselAssignmentEmail, vesselAssignmentEmailforAdmin} = require("../../email-template/assignVessel");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
         try {
 
-            const { subscriberId } = AuthUser(context);
+            const { subscriberId,userInfo } = AuthUser(context);
 
             if (!input.vesselId || !input.userId) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Provide all the required fields");
@@ -50,6 +51,25 @@ module.exports.mutations = {
                 const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId, vesselStatus: input.vesselStatus || 'ASSIGNED' }, { new: true });
 
                 if (updateUser) {
+                    const emailContent = vesselAssignmentEmail({
+                        firstName: getUser.firstName, 
+                        vesselName: getVessel.name, 
+                    });
+                    await SendEmail({
+                        receiverEmail: getUser.email,
+                        subject: `Vessel Assignment Notification`,
+                        htmlContent: emailContent,
+                    });
+                    const emailContentforAdmin = vesselAssignmentEmailforAdmin({
+                        firstName: userInfo.firstName,
+                        vesselName: getVessel.name,
+                        userName: getUser.firstName,
+                    })
+                    await SendEmail({
+                        receiverEmail: userInfo.email,
+                        subject: `User Vessel Assignment Notification`,
+                        htmlContent: emailContentforAdmin,
+                    })
                     return {
                         status: "Success",
                         message: "The vessel assigned successfully!"

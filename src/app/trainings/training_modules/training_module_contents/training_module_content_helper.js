@@ -123,8 +123,14 @@ const generateContentUID = async ({ session }) => {
     return `CONTENT-${savedCounter.count}`;
 };
 
+const convertDurationToMinutes = (duration) => {
+    const [hours, minutes, seconds] = duration.split(":");
+    return Number(hours) * 60 + Number(minutes) + Number(seconds) / 60;
+}
+
 module.exports = {
     checkDurationStyle,
+    convertDurationToMinutes,
     generateContentUID,
     uploadTrainingModuleContentVideos,
     uploadTrainingModuleContentAudios,
@@ -223,7 +229,7 @@ module.exports = {
             if (module.trainingModuleContents) trainingModuleContentUpdateData.push(...module.trainingModuleContents);
             if (module._id) trainingModuleIds.push(module._id);
         });
-        
+
         if (trainingModuleContentUpdateData.length > 0) {
 
             const existingContentBridges = await TrainingContentBridge.find(
@@ -275,10 +281,26 @@ module.exports = {
                             },
                         });
                     }
+                    existingContentMap.delete(key);
                 });
             }
 
-            updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations, { session});
+            existingContentMap.forEach(doc => {
+                if (doc.isDeleted === false) {
+                    trainingContentBridgeBulkOperations.push({
+                        updateOne: {
+                            filter: {
+                                training: input.training,
+                                trainingModule: doc.trainingModule,
+                                trainingContent: doc.trainingContent,
+                            },
+                            update: { $set: { isDeleted: true } },
+                        },
+                    });
+                }
+            });
+
+            updateTrainingBridge = await TrainingContentBridge.bulkWrite(trainingContentBridgeBulkOperations, { session });
         }
 
         return updateTrainingBridge;

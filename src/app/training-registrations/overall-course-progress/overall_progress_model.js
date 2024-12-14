@@ -27,17 +27,21 @@ const overallProgressSchema = new Schema(
             type: ObjectId,
             ref: "TrainingRegistration",
         },
-        contentData : [
+        contentData: [
             {
-                moduleId : ObjectId,
-                contentIds : [ObjectId]
+                moduleId: ObjectId,
+                contentIds: [ObjectId]
             },
         ],
+        lastConsumedContent: {
+            moduleId: ObjectId,
+            contentId: ObjectId
+        },
         startDate: Date,
-        endDate : Date,
+        endDate: Date,
         mandatoryModules: Number,
         completedModules: Number,
-        totalTrainingModules : Number,
+        totalTrainingModules: Number,
         isComplete: {
             type: Boolean,
             default: false,
@@ -45,6 +49,10 @@ const overallProgressSchema = new Schema(
         status: {
             type: String,
             enum: ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"],
+        },
+        attemptCount: {
+            type: Number,
+            default: 1
         },
         isCertificateGenerated: {
             type: Boolean,
@@ -57,6 +65,8 @@ const overallProgressSchema = new Schema(
             default: 0
         },
         isEnrolled: Boolean,
+        totalDuration: Number,
+        timeSpend: Number
     },
     { timestamps: true }
 )

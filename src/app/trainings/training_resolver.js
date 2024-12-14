@@ -65,10 +65,12 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
 
             if (filterInput.status) filterConditions.status = filterInput.status;
-            if (filterInput.dateFilter === -1) {
-                sortOrder = { updatedAt: "descending" };
-            } else {
-                sortOrder = { updatedAt: "ascending" };
+            if (filterInput?.dateFilter) {
+                if (filterInput.dateFilter === -1) {
+                    sortOrder = { updatedAt: "descending" };
+                } else {
+                    sortOrder = { updatedAt: "ascending" };
+                }
             }
         }
 
@@ -89,8 +91,17 @@ module.exports.queries = {
                             },
                         },
                         {
+                            $lookup: {
+                                from: "overalltrainingprogresses",
+                                localField: "_id",
+                                foreignField: "training",
+                                as: "trainingUsers",
+                            },
+                        },
+                        {
                             $addFields: {
                                 createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                                countOfUsers: { $size: "$trainingUsers" },
                             },
                         },
                         { $project: { createdByDetails: 0 } },
@@ -99,11 +110,10 @@ module.exports.queries = {
             },
             {
                 $project: {
-                    trainings: 1,
+                    trainings: 1
                 },
             },
         ]);
-
 
         const { trainings } = result[0];
         return {
@@ -128,6 +138,10 @@ module.exports.queries = {
             });
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
+
+        const countOfUsers = await OverallTrainingProgress.countDocuments({
+            training: { $in: training._id }
+        });
 
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
@@ -159,7 +173,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-        return training;
+
+        return { ...training, countOfUsers };
     },
 
 };
@@ -182,24 +197,19 @@ module.exports.mutations = {
             );
         }
 
-        const convertToSeconds = duration => {
-            const [hours, minutes, seconds] = duration.split(":").map(Number);
-            return hours * 3600 + minutes * 60 + seconds;
-        };
-
         let totalDurationSeconds = 0;
 
         if (input.trainingModules?.length) {
             for (const module of input.trainingModules) {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
-                    const duration = trainingContent?.duration || "00:00:00";
-                    totalDurationSeconds += convertToSeconds(duration);
+                    const duration = trainingContent?.duration || 0;
+                    totalDurationSeconds += duration;
                 }
             }
         }
 
-        const totalDuration = Math.round(totalDurationSeconds / 60);
+        const totalDuration = Math.round(totalDurationSeconds);
         input.durationHours = totalDuration;
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
@@ -310,10 +320,11 @@ module.exports.mutations = {
         };
     },
     deleteTraining: async ({ id }, context) => {
+
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        const deletedTraining = await Training.findOne({
+        let deletedTraining = await Training.findOne({
             _id: id,
             subscriber: subscriberId,
         });
@@ -330,8 +341,10 @@ module.exports.mutations = {
         try {
             deletedTraining.isDeleted = true;
             deletedTraining.isActive = false;
-            deletedTraining.save();
-        } catch {
+            deletedTraining.deletedDate = new Date();
+            await deletedTraining.save();
+        } catch (error) {
+            console.error("Error while saving:", error);
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
@@ -495,21 +508,19 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            // Don't delete this comment
-            // const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
+            const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
 
-            // if (validateErrors.length > 0) {
-            //     throw CustomError(ErrorName.FAILED, validateErrors[0]);
-            // }
-            // Don't delete this comment
+            if (validateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateErrors[0]);
+            }
 
             let syncContentErrors = [];
             const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
 
             if (syncContentErrors.length > 0) {
-                console.log(syncContentErrors[0]);
+                throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
             }
-            
+
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
 
             if (updateTrainingProgress) {
@@ -519,10 +530,59 @@ module.exports.mutations = {
                 };
             }
 
-
         } catch (error) {
             throw Error(error.message);
         }
 
     },
+    startOverTraining: async ({ overallId, user }, context) => {
+
+        let userId;
+        if (user) {
+            userId = user;
+        } else {
+            userId = AuthUser(context).userId;
+        }
+
+        const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
+
+        const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
+        const attemptType = fetchOverallTraining.training.attemptType;
+        let attemptLimit;
+
+        if (allowMultipleAttempts && attemptType === 'LIMITED_ATTEMPT') {
+            attemptLimit = fetchOverallTraining.training.setLimitAttempt;
+        }
+
+        if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND);
+
+        let updateOverallTrainingProgress;
+        if (fetchOverallTraining.contentData) {
+
+            if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
+                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+            }
+
+            fetchOverallTraining.contentData = [];
+            fetchOverallTraining.progressPercentage = 0.00;
+            fetchOverallTraining.lastConsumedContent = {};
+            fetchOverallTraining.startDate = null;
+            fetchOverallTraining.endDate = null;
+            fetchOverallTraining.status = 'NOT_STARTED';
+            fetchOverallTraining.attemptCount++;
+            fetchOverallTraining.timeSpend = 0;
+
+            updateOverallTrainingProgress = await fetchOverallTraining.save();
+        }
+
+        if (updateOverallTrainingProgress) {
+            return {
+                status: 1,
+                message: "Course restarted successfully!"
+            }
+        } else {
+            throw CustomError(ErrorName.FAILED);
+        }
+
+    }
 };

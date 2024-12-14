@@ -43,6 +43,7 @@ const uploadType = {
     exportExcel: "exportExcel",
     exportLearnersReportAsExcel: "exportLearnersReportAsExcel",
     exportLearnersCoursesReportAsExcel: "exportLearnersCoursesReportAsExcel",
+    exportCustomQuizReport :"exportCustomQuizReport",
     lessonZip: "lessonZip",
 };
 
@@ -80,6 +81,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.exportExcel) return `${rootFolder}/export-users/${folder}/${filename}`;
     else if (type === uploadType.exportLearnersReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
     else if (type === uploadType.exportLearnersCoursesReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
+    else if (type === uploadType.exportCustomQuizReport) return `${rootFolder}/export-reports/Custom-Reports/${folder}/${filename}`;
     else if (type === uploadType.lessonZip) return `${rootFolder}/lessons/${folder}/${filename}`;
 };
 

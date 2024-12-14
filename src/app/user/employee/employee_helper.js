@@ -49,6 +49,7 @@ const NotificationEvent = require("../../notifications/notification_event.json")
 const { sendNodeEmail, generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const { sendNotifications } = require("../../../util/firebase_helper");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -583,6 +584,11 @@ const deleteUsers = async (users, errors) => {
 
             let deleteUsers = await User.deleteMany({ _id: { $in: users } });
 
+            await Employee.updateMany(
+                { user: { $in: users } },
+                { $set: { isDeleted: true } }
+            );
+
             if (deleteUsers) {
 
                 const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
@@ -680,14 +686,7 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
         errors.push(`Duplicate EmployeeID found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
         return errors;
     } else {
-        const empNumber = row["EmployeeID"]?.toLowerCase(); 
-
-        if (employeeNumbers.some(name => name?.toLowerCase() === empNumber)) {
-            errors.push(`EmployeeID already exists in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
-            return errors;
-        } else {
-            empIds.add(row["EmployeeID"]); 
-        }
+        empIds.add(row["EmployeeID"]);
     }
 
 
@@ -1024,7 +1023,10 @@ module.exports = {
             .lean();
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-         
+        
+        const newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
+        if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
+    
         if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
             
           await UserVessel.updateMany(
@@ -1039,7 +1041,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -1054,7 +1056,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1068,6 +1070,13 @@ module.exports = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); 
+            await sendNotifications({
+                userIds: [existingEmployee?.user?._id],
+                title: 'Vessel Updated',
+                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                content: 'Vessel updated successfully',
+                webLink: ""
+            });
         }
         else{
             await UserVessel.findOneAndUpdate(
@@ -1078,7 +1087,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${existingEmployee?.user?.currentVessel?.name}`, 
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
                 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
@@ -1094,7 +1103,7 @@ module.exports = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${existingEmployee?.user?.currentVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -1107,6 +1116,13 @@ module.exports = {
                 employeeNotifiers: [ existingEmployee?.user?._id ],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
+            });
+            await sendNotifications({
+                userIds: [existingEmployee?.user?._id],
+                title: 'Vessel Updated',
+                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                content: 'Vessel updated successfully',
+                webLink: ""
             });
         }
 
@@ -1866,6 +1882,7 @@ module.exports = {
                                     subscriber: subscriberId,
                                     empDesignation: designationMap.get(originalUserData.designation.toLowerCase())?.id,
                                     bulkId: bulkId,
+                                    isDeleted: false,
                                     regType: 2
                                 }
                             },

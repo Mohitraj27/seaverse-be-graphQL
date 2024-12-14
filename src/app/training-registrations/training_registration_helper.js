@@ -30,7 +30,10 @@ const { TrainingModuleContent } = require("../trainings/training_modules/trainin
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
-
+const courseEnrollment = require("../email-template/courseEnrollment");
+const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
+const {Training} = require("../trainings/training_model");
+const {sendNotifications} = require("../../util/firebase_helper")
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -52,7 +55,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     designationIds.push(groupId);
                     break;
                 case groupTypes.role:
-                    roleIds.push(...groupId);
+                    if (Array.isArray(groupId)) {
+                        roleIds.push(...groupId);
+                    } else {
+                        roleIds.push(groupId);
+                    }
                     break;
                 case groupTypes.subRole:
                     subRoleIds.push(groupId);
@@ -61,7 +68,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     vesselIds.push(groupId);
                     break;
                 case groupTypes.vesselStatus:
-                    vesselStatusIds.push(...groupId);
+                    if (Array.isArray(groupId)) {
+                        vesselStatusIds.push(...groupId);
+                    } else {
+                        vesselStatusIds.push(groupId);
+                    }
                     break;
                 case groupTypes.vesselType:
                     vesselTypeIds.push(groupId);
@@ -76,19 +87,35 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
 
-        const roleQuery = roleIds.length
-            ? User.find({
-                $or: roleIds.includes("ADMIN")
-                    ? [
-                        { role: "ADMIN" },
-                        { "subRoles.name": "ADMIN" }
-                    ]
-                    : [
-                        { role: "LEARNER", "subRoles.name": { $ne: "ADMIN" } }
-                    ]
-            }).populate("subRoles", "name")
-            : Promise.resolve([]);
+        const adminUsers = [];
+        const learnerUsers = [];
 
+        const roleUsersQuery = await User.find({ role: "LEARNER" }).populate("subRoles", "name");
+        roleUsersQuery.forEach(user => {
+            if (user.subRoles.length > 0) {
+                user.subRoles.forEach(subRole => {
+                    if (roleIds.includes(subRole.name)) {
+                        if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
+                            adminUsers.push(user);
+                        }
+                        if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
+                            learnerUsers.push(user);
+                        }
+                    }
+                });
+            } else if (roleIds.includes("LEARNER")) {
+                learnerUsers.push(user);
+            }
+        });
+
+        let roleQuery = [];
+        if (roleIds.includes("ADMIN")) {
+            roleQuery = adminUsers;
+        } else if (roleIds.includes("LEARNER")) {
+            roleQuery = learnerUsers;
+        } else {
+            roleQuery = Promise.resolve([]);
+        }
 
         const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
         const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
@@ -244,7 +271,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 
         if (existingTrainings) {
             existingTrainings.forEach(training => {
-                if (userObjectIdStrings.includes(training.user.toString())) {
+                if (userObjectIdStrings.includes(training.user.toString()) && training.isEnrolled === true) {
                     alreadyEnrolledUserIds.push(training.user.toString());
                 } else {
                     notEnrolledUserIds.push(training.user.toString());
@@ -439,6 +466,36 @@ const combineTrainingModules = (data) => {
     return Object.values(mergedData);
 
 }
+const mergeContentDetails = (combineTrainingDetails, contentData) => {
+
+    const contentDataMap = contentData.reduce((map, item) => {
+        map[item._id] = item.contentData.reduce((contentMap, content) => {
+            contentMap[content.contentId] = content;
+            return contentMap;
+        }, {});
+        return map;
+    }, {});
+
+    combineTrainingDetails.forEach(entry => {
+        entry.trainingModules.forEach(module => {
+            module.trainingModuleContents.forEach(content => {
+                content.trainingModuleContentDetails.forEach(detail => {
+                    const moduleContentMap = contentDataMap[module._id];
+                    if (moduleContentMap && moduleContentMap[detail._id]) {
+                        const matchedContent = moduleContentMap[detail._id];
+                        detail.progressPercentage = matchedContent.progressPercentage;
+                        detail.status = matchedContent.status;
+                        detail.lastAccessedDuration = matchedContent.lastAccessedDuration;
+                        detail.quizAttemptDetails = matchedContent.quizAttemptDetails || {};
+                    }
+                });
+            });
+        });
+    });
+
+    return combineTrainingDetails;
+
+}
 
 module.exports = {
     enrolUserVerificationHelper,
@@ -448,6 +505,7 @@ module.exports = {
     fetchUserFromAutoSyncedGroups,
     getAutoSyncUsersOfSingleGroup,
     combineTrainingModules,
+    mergeContentDetails,
     extractTrainingContentData,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -466,7 +524,6 @@ module.exports = {
         }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
         try {
 
             if (!input.groups && !input.users) {
@@ -553,11 +610,10 @@ module.exports = {
                 const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
                 if (alreadyExistInCourse.length > 0) {
                     await OverallTrainingProgress.updateMany(
-                        { user: { $in: userObjectIds }, training: { $in: input.trainings } },
-                        { $set: { isEnrolled: true } }
+                        { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
+                        { $set: { isEnrolled: true, learningPlan: null } }
                     );
                 }
-
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
@@ -612,19 +668,20 @@ module.exports = {
 
                         }
 
-
-                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
+                        const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         users.forEach(user => {
-                            sendEmail({
-                                receiverEmail: user.email,
-                                subject: "Course Enrollment",
-                                htmlContent:
-                                    `<div div style="width: 600px; margin: 0 auto; text-align: center" >
-                                        <p>Hello ${user.firstName}</p>
-                                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">You are assigned to a new course</div>
-                                    </div > `
-                            })
+                            trainingsData.forEach(training => {
+                                const emailContent = courseEnrollment({
+                                    firstName: user.firstName,
+                                    trainingTitle: training?.title?.[0]?.value,
+                                    durationHours: training?.durationHours || '0'
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: "Course Enrollment",
+                                    htmlContent: emailContent,
+                                });
+                            });
                         })
 
                         return savedTrainingRegistration;
@@ -636,24 +693,24 @@ module.exports = {
                     messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: false,
-                    notifiers:[
+                    notifiers: [
                         userId
                     ],
-                    employeeNotifiers:[userId],
+                    employeeNotifiers: [userId],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-        
+
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `New Course Enrollment`,
                     messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: true,
-                    notifiers:[],
-                    employeeNotifiers:[],
+                    notifiers: [],
+                    employeeNotifiers: [],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -679,7 +736,13 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
-
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Enrollment",
+                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
+                    webUrl: ""
+                });
                 return {
                     message: "Course enrollment successful!",
                 };
@@ -752,7 +815,28 @@ module.exports = {
                             { $set: { isEnrolled: false } },
                             { session }
                         );
-
+                        const users = await User.find({
+                            _id: { $in: input.users } 
+                        }).select('firstName email');
+                        const  trainings = await Training.aggregate([
+                            { $match: { _id: { $in: input.trainings } } },
+                            { $project: { title: 1 } }
+                        ]);
+                        users.forEach(user => {
+                            trainings.forEach(training => {
+                                const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                                const emailContent = courseUnenrollmentEmail({
+                                    firstName: user.firstName,
+                                    email: user.email,
+                                    courseTitle: trainingTitle,
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: `Unenrolled from ${trainingTitle}`,
+                                    htmlContent: emailContent,
+                                });
+                            });
+                        });
                         return updateTrainingRegistration;
                     }
                 );
@@ -763,30 +847,36 @@ module.exports = {
                     messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                     notifyAdmin: false,
-                    notifiers:[
+                    notifiers: [
                         userId
                     ],
-                    employeeNotifiers:[userId],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-        
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Course Unenrollment`,
-                    messageValue: `A  Course Unenrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.COURSE_UNENROLLMENT,
-                    notifyAdmin: true,
-                    notifiers:[],
-                    employeeNotifiers:[],
+                    employeeNotifiers: [userId],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
 
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Course Unenrollment`,
+                    messageValue: `A  Course Unenrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    notificationType: NotificationType.COURSE_UNENROLLMENT,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+                await sendNotifications({
+                    userIds: userObjectIds,
+                    title: "Course Unenrollment",
+                    body: `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    content: { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
+                    webUrl: "",
+                });
                 return {
                     message: "Course unenrollment successful!",
                 }

@@ -235,13 +235,13 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: result.learningPlan._id,
+                        target: learningPlan._id,
                     },
                 ],
                 status: 'SENT',
@@ -410,6 +410,7 @@ module.exports.queries = {
                                     approvalStatus: 1,
                                     certifications: 1,
                                     bannerImage: 1,
+                                    coverImage: 1,
                                     appliedAt: 1,
                                     approvedAt: 1,
                                     rejectedAt: 1,
@@ -515,7 +516,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, search }, context) => {
+    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -683,6 +684,7 @@ module.exports.queries = {
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
+                        overallTrainingProgress:1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -702,7 +704,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity,filteredLearnerData);
 
             return detailedPlan;
         } catch (error) {

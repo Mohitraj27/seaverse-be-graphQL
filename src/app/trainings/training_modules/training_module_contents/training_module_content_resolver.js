@@ -320,10 +320,10 @@ module.exports.mutations = {
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         if (thumbnail) {
@@ -373,6 +373,7 @@ module.exports.mutations = {
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         const savedItem = await UploadHelper.uploadDocument({
@@ -419,9 +420,12 @@ module.exports.mutations = {
 
         if (input.duration) {
             const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+
             if (!durationStyleChecked) {
                 throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
             }
+
+            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
         }
 
         const savedItem = await UploadHelper.uploadAudio({
@@ -455,7 +459,7 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
-        const { userId, subscriberId,userInfo } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
 
@@ -601,7 +605,18 @@ module.exports.mutations = {
 
     createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         try {
-            const { userId, subscriberId } = AuthUser(context);
+            const { userId, subscriberId, userInfo } = AuthUser(context);
+
+            const existingContent = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (existingContent) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
 
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
@@ -650,6 +665,7 @@ module.exports.mutations = {
                 if (!durationStyleChecked) {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
             }
             let contentTypeNotification = '';
             if (thumbnail) {
@@ -736,11 +752,11 @@ module.exports.mutations = {
                         target: savedContent._id,
                     },
                 ],
-                status:'SENT',
+                status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-    
+
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -752,6 +768,17 @@ module.exports.mutations = {
 
         try {
             const { title, description, questions = [], percentageCriteria } = input;
+
+            const existingContent = await TrainingModuleContent.findOne({
+                $or: title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (existingContent) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
 
             if (!input.contentStatus || questions.length === 0) {
                 input.contentStatus = (title && description && questions.length > 0)
@@ -807,6 +834,14 @@ module.exports.mutations = {
                 }
             }
 
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            }
+
             const contentData = {
                 ...input,
                 contentType: ContentType.QUIZ,
@@ -833,8 +868,20 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
-        const { userId, subscriberId, userInfo} = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
         try {
+            const alreadyContentExist = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (alreadyContentExist) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
                 subscriber: subscriberId,
@@ -894,6 +941,7 @@ module.exports.mutations = {
                 if (!durationStyleChecked) {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
             }
 
             let updateData = {
@@ -1059,16 +1107,16 @@ module.exports.mutations = {
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
-                    {   
+                    {
                         targetRef: "TrainingModuleContent",
                         target: savedContent._id,
                     },
                 ],
-                status:'SENT',
+                status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-    
+
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1084,6 +1132,18 @@ module.exports.mutations = {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+            const alreadyContentExist = await TrainingModuleContent.findOne({
+                $or: input.title.map(x => ({
+                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                })),
+                UID: { $ne: input.UID },
+                isDeleted: { $ne: true },
+            }).lean().select("_id");
+
+            if (alreadyContentExist) {
+                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
                 subscriber: subscriberId,
@@ -1109,6 +1169,14 @@ module.exports.mutations = {
             let questionsChanged = false;
             let totalScore = 0;
             let questionsIdArr = [];
+
+            if (input.duration) {
+                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+                if (!durationStyleChecked) {
+                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+                }
+                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            }
 
             if (input.questions && input.questions.length > 0) {
 
