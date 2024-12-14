@@ -106,7 +106,8 @@ module.exports = {
             setTimeLimitForModule: Boolean
             approvalStatus: String
             certifications: [MultiMediaInfo]
-            bannerImage: [MultiMediaInfo]
+            bannerImage: MultiMediaInfo
+            coverImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
