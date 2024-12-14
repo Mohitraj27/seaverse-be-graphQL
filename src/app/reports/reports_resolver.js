@@ -1432,6 +1432,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         throw Error(err.message);
     }
 };
+
 const getSingleCourseReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
@@ -1819,6 +1820,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     const worksheet = XLSX.utils.json_to_sheet(parsedData);
                     XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Courses_Report_exports",
@@ -2273,6 +2275,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const firstName = course?.firstName || '';
                             const lastName = course?.lastName || '';
                             const status = course?.status || 'N/A';
+                            const courseName = course?.trainingTitle[0].value;
+
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
                                 const hasQuiz = module.hasQuiz || false;
@@ -2280,6 +2284,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
+                                    Course: courseName,
                                     Designation: designation,
                                     Status: status,
                                     Module: moduleName,
@@ -2289,15 +2294,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                         return flattenedData;
                     };
-                    const exportToExcelWithMultipleSheets = async (coursesData) => {
+                    const exportToExcelWithSingleSheet = async (coursesData) => {
                         const workbook = XLSX.utils.book_new();
+                        const combinedData = [];
 
-                        coursesData.forEach(courses => {
-                            const coursesData = flattenCourseDataForSingleSheet(courses);
-                            const sheetName = `${courses.firstName} ${courses.lastName}` || `Learner_${courses.userId?.toString() || Date.now()}`;
-                            const worksheet = XLSX.utils.json_to_sheet(coursesData);
-                            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        coursesData.forEach(course => {
+                            const courseData = flattenCourseDataForSingleSheet(course);
+                            combinedData.push(...courseData);
                         });
+                        const worksheet = XLSX.utils.json_to_sheet(combinedData);
+                        XLSX.utils.book_append_sheet(workbook, worksheet, 'Course Quiz Report');
                         const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                         const excelFilePath = await UploadHelper.uploadExcel({
                             data: excelBuffer,
@@ -2305,11 +2311,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                             fileName: `COURSE-QUIZ-REPORT-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                             uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                         });
-
                         return excelFilePath;
                     };
 
-                    const excelFilePath = await exportToExcelWithMultipleSheets(data);
+                    const excelFilePath = await exportToExcelWithSingleSheet(data);
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                         await NotificationHelper.createNotificationhelper({
@@ -2355,6 +2360,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         throw Error(err.message);
     }
 };
+
 const getVesselMainReport = async ({ input }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);

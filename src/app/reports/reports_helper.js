@@ -1,6 +1,3 @@
-
-
-
 function generateFileNameTimestamp() {
     const now = new Date();
 
