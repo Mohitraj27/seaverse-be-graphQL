@@ -1164,6 +1164,8 @@ module.exports = {
             } else if (input._id && input.bannerImageDelete) {
                 trainingUpdateData.bannerImage = null;
             }
+        } else if (input._id && input.bannerImageDelete) {
+            trainingUpdateData.bannerImage = null;
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1202,6 +1204,8 @@ module.exports = {
             } else if (input._id && input.coverImageDelete) {
                 trainingUpdateData.coverImage = null;
             }
+        } else if (input._id && input.coverImageDelete) {
+            trainingUpdateData.coverImage = null;
         }
 
         if (input.durationHours != null) {
