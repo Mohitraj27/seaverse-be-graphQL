@@ -363,8 +363,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `SINGLE Learner Report Exported In Progress`,
-                messageValue: `The single learner report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                titleValue: ` Learner's report export In Progress`,
+                messageValue: `The learner's report export has been initiated by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -374,6 +374,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         if (input && Object.keys(input).length > 0) {
+            if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
             if (filterInput.title) {
                 matchStage.push({
@@ -714,7 +715,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
-                    fileName: `learners_Report-${Date.now()}.xlsx`,
+                    fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
 
@@ -1167,7 +1168,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Multiple_Learners_Report_exports",
-                        fileName: `learners_Report-${Date.now()}.xlsx`,
+                        fileName: `l${(input.selectVesselOrLearner).toLowerCase()}_report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
 
@@ -1818,12 +1819,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                     });
                     const workbook = XLSX.utils.book_new();
                     const worksheet = XLSX.utils.json_to_sheet(parsedData);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
+                    XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Courses_Report_exports",
-                        fileName: `Courses_Report-${Date.now()}.xlsx`,
+                        fileName: `Courses_Report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
                     if (excelFilePath) {
@@ -2303,7 +2304,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const excelFilePath = await UploadHelper.uploadExcel({
                             data: excelBuffer,
                             folderName: "COURSE-QUIZ-REPORT",
-                            fileName: `COURSE-QUIZ-REPORT-${Date.now()}.xlsx`,
+                            fileName: `COURSE-QUIZ-REPORT-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                             uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                         });
 
@@ -2625,7 +2626,7 @@ const getVesselMainReport = async ({ input }, context) => {
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Vessel_Progress_Reports",
-                fileName: `Vessel_Progress_Report-${Date.now()}.xlsx`,
+                fileName: `Vessel_Report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
             });
             if (excelFilePath) {
@@ -3546,7 +3547,7 @@ const generateCustomReport = async ({ input }, context) => {
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Custom-Quiz-Reports",
-                fileName: `CUSTOM-REPORT.xlsx`,
+                fileName: `CUSTOM-REPORT_${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportCustomQuizReport,
             });
             if (excelFilePath) {
