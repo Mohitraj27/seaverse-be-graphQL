@@ -10,7 +10,7 @@ function generateFileNameTimestamp() {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
 
-    return `${day}-${month}-${year}_(${hours}-${minutes})`;
+    return `${day}-${month}-${year}_(${hours}:${minutes})`;
 }
 
 module.exports ={
