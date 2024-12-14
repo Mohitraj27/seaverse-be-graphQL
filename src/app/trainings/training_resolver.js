@@ -525,8 +525,6 @@ module.exports.mutations = {
                 })
             })
 
-            console.log(JSON.stringify(input, null, 2));
-
             if (validateErrors.length > 0) {
                 throw CustomError(ErrorName.FAILED, validateErrors[0]);
             }
