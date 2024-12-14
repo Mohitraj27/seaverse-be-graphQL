@@ -410,6 +410,7 @@ module.exports.queries = {
                                     approvalStatus: 1,
                                     certifications: 1,
                                     bannerImage: 1,
+                                    coverImage: 1,
                                     appliedAt: 1,
                                     approvedAt: 1,
                                     rejectedAt: 1,
