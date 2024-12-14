@@ -121,7 +121,7 @@ module.exports = {
         input singleLearnerReportInput {
             learnerIds : [ID]!
             reportType : reportTypeEnum!
-            selectVesselOrLearner : selectVesselOrLearnerEnum!
+            selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean

@@ -704,13 +704,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
             if (input?.export && learnersReports.length > 0) {
                 const workbook = XLSX.utils.book_new();
-
+                const combinedData = [];
                 for (const learnerName in learnerReportsByUser) {
                     const data = learnerReportsByUser[learnerName];
-                    const worksheet = XLSX.utils.json_to_sheet(data);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `${learnerName}`);
+                    combinedData.push(...data);
+                    combinedData.push([]);
                 }
-
+            
+                const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
@@ -718,17 +720,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
-
-                if (excelFilePath) {
+                if (excelFilePath) {  
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                 }
-
                 return {
                     filePath: s3PresignedUrl,
                     fileName: path.basename(excelFilePath),
                     learnerData: learnersReports,
                 };
-            }
+            }            
             else if (input?.export && learnersReports.length == 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
             }
@@ -1045,6 +1045,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             );
             let s3PresignedUrl = "";
             if (input?.export) {
+
                 const flattenLearnerDataForSingleSheet = (learner) => {
                     const flattenedData = [];
 
@@ -1149,35 +1150,32 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     return flattenedData;
                 };
-
-
                 const exportToExcelWithMultipleSheets = async (learnersData) => {
                     const workbook = XLSX.utils.book_new();
 
+                    const combinedData = [];
+
                     learnersData.forEach(learner => {
                         const learnerData = flattenLearnerDataForSingleSheet(learner);
-                        const sheetName = learner?.userName || `Learner_${learner.userId?.toString() || Date.now()}`;
-                        const worksheet = XLSX.utils.json_to_sheet(learnerData);
-                        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        combinedData.push(...learnerData);
+                        combinedData.push([]);
                     });
 
-
+                    const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                    XLSX.utils.book_append_sheet(workbook, worksheet, input.report);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-
 
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Multiple_Learners_Report_exports",
-                        fileName: `l${(input.selectVesselOrLearner).toLowerCase()}_report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                        fileName: `${(input.selectVesselOrLearner).toLowerCase()}_report-${ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
 
                     return excelFilePath;
                 };
-
-
+                
                 const excelFilePath = await exportToExcelWithMultipleSheets(learnersData);
-
 
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
