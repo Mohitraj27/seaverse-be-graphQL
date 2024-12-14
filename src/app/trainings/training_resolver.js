@@ -510,7 +510,6 @@ module.exports.mutations = {
 
             const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
 
-            // Update/validate the progress status based on the progress percentage
             input.forEach((entry) => {
                 entry.trainingModules?.forEach((module) => {
                     module.contentDetails?.forEach((content) => {
