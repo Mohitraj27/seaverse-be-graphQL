@@ -20,7 +20,6 @@ module.exports.queries = {
           }
           return certificate;
         } catch (error) {
-          console.error(error);
           throw new Error('Error fetching certificate layout');
         }
       },

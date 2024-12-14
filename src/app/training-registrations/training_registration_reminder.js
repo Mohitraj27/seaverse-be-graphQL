@@ -20,9 +20,8 @@ const sendTrainingRegistrationReminderMail = async data => {
                     populate: { path: "user" },
                 });
             subscriberLogo = userData?.subscriber?.user?.avatar;
-            subscriberDetails.name = `${userData?.subscriber?.user?.firstName ?? ""} ${
-                userData?.subscriber?.user?.lastName ?? ""
-            }`;
+            subscriberDetails.name = `${userData?.subscriber?.user?.firstName ?? ""} ${userData?.subscriber?.user?.lastName ?? ""
+                }`;
         }
 
         const receiverEmail = data.employeeEmail;
@@ -49,16 +48,10 @@ const sendTrainingRegistrationReminderMail = async data => {
             subject,
             htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
         }).catch(e => {
-            console.log(
-                "training_registration_reminder.sendTrainingRegistrationReminderMail:error:",
-                e?.message
-            );
+            throw Error(e.message);
         });
     } catch (e) {
-        console.log(
-            "training_registration_reminder.sendTrainingRegistrationReminderMail:exception:",
-            e?.message
-        );
+       throw Error(e.message);
     }
 };
 
@@ -116,7 +109,7 @@ const fetchAndSendEmailToTrainingRegistrationEmployeesAboutDue = async () => {
             if (
                 trainingRegistrationEndDate < Moment().utc().startOf("day").toDate() &&
                 trainingRegistrationEndDate >=
-                    Moment().utc().subtract(1, "days").startOf("day").toDate()
+                Moment().utc().subtract(1, "days").startOf("day").toDate()
             ) {
                 emailObject.message += `Due date for your course "${trainingTitle}" has been ended`;
             } else if (
@@ -126,23 +119,16 @@ const fetchAndSendEmailToTrainingRegistrationEmployeesAboutDue = async () => {
                 emailObject.message += `Due date for your course "${trainingTitle}" will be ended today`;
             } else if (
                 trainingRegistrationEndDate >=
-                    Moment().utc().add(1, "days").startOf("day").toDate() &&
+                Moment().utc().add(1, "days").startOf("day").toDate() &&
                 trainingRegistrationEndDate < Moment().utc().add(2, "days").startOf("day").toDate()
             ) {
                 emailObject.message += `Due date for your course "${trainingTitle}" will be end within two days`;
             }
 
-            console.log(
-                "trainingRegistrationRemainder:endDate:",
-                Moment.utc(trainingRegistrationEndDate).format()
-            );
-
-            console.log("trainingRegistrationRemainder:emailObject:", emailObject);
-
             if (emailObject.message?.length) sendTrainingRegistrationReminderMail(emailObject);
         }
     } catch (e) {
-        console.log("training_registration_reminder.trainingRegistrationRemainder:error:", e);
+        throw Error(e.message);
     }
 };
 

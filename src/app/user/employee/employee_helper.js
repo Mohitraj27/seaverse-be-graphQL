@@ -353,7 +353,7 @@ const sendNotificationOnBULK = async notificationData => {
         });
 
     } catch (error) {
-        console.log("employee_helper.sendNotificationOnBULK:exception:", error?.message);
+        throw Error(error.message);
     }
 
 }
@@ -384,7 +384,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
         if (createdNotification) await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
 
     } catch (error) {
-        console.log("employee_helper.sendNotificationOnBULK:exception:", error?.message);
+        throw Error(error.message);
     }
 }
 const sendNotificationOnCRUD = async notificationData => {
@@ -449,7 +449,7 @@ const sendNotificationOnCRUD = async notificationData => {
 
         await NotificationHelper.createNotification(notification);
     } catch (e) {
-        console.log("employee_helper.sendNotificationOnCRUD:exception:", e?.message);
+        throw Error(e?.message);
     }
 };
 
@@ -646,8 +646,7 @@ const deleteUsers = async (users, errors) => {
         }
 
     } catch (error) {
-
-        console.error(error);
+       throw Error(error.message);
 
     }
 

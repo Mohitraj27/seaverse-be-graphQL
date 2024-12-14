@@ -1987,9 +1987,7 @@ module.exports.mutations = {
 
             await transporter.sendMail(mailOptions, (error, info) => {
                 if (error) {
-                    console.error("Error sending email:", error);
-                } else {
-                    console.log("Email sent:", info.response);
+                    throw Error("Error sending email:");
                 }
             });
 

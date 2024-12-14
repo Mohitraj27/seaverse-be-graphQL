@@ -22,7 +22,6 @@ module.exports = {
 
                 s3.getSignedUrl('getObject', params, (error, url) => {
                     if (error) {
-                        console.log("aws_helper.fetchFile:error:", error);
                         reject(error);
                     } else {
                         resolve(url);
@@ -54,7 +53,6 @@ module.exports = {
                     if (data) {
                         resolve(data.Location);
                     } else {
-                        console.log("aws_helper.uploadFile:error:", error);
                         resolve();
                     }
                 });
@@ -81,7 +79,6 @@ module.exports = {
                     if (data) {
                         resolve(data);
                     } else {
-                        console.log("aws_helper.deleteFile:error:", error);
                         resolve();
                     }
                 });
@@ -129,11 +126,10 @@ module.exports = {
 
                 const response = await ses.sendEmail(params).promise();
                 if (response) {
-                    console.log("aws_helper.sendEmail:success");
                     return response;
                 }
             } catch (e) {
-                console.log("aws_helper.sendEmail:error:", e.message);
+                throw Error(e.message);
             }
         }
     },
@@ -163,7 +159,7 @@ module.exports = {
                 let params = { Bucket: "sea_verse", Key: bucketPath, Body: fs.readFileSync(filePath) };
                 s3.putObject(params, function (err, data) {
                     if (err) {
-                        console.log(err)
+                     throw Error(err.message);
                     } else {
                         console.log('Successfully uploaded ' + bucketPath);
                     }

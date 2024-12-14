@@ -1111,7 +1111,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
         return errors;
 
     } catch (error) {
-        console.error("Error evaluating quiz in bulk:", error);
+        throw Error(error.message);
     }
 };
 
@@ -1292,7 +1292,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("training_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };

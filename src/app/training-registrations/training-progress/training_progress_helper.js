@@ -55,9 +55,8 @@ const sendCourseCompletionMail = async data => {
                 .lean()
                 .populate("user");
             subscriberLogo = subscriberData?.user?.avatar;
-            subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${
-                subscriberData?.user?.lastName ?? ""
-            }`;
+            subscriberDetails.name = `${subscriberData?.user?.firstName ?? ""} ${subscriberData?.user?.lastName ?? ""
+                }`;
         }
         const receiverEmail = data.employee?.user?.email;
         const trainingTitle = data.trainingTitle?.find(x => x.lang === "en")?.value;
@@ -84,10 +83,10 @@ const sendCourseCompletionMail = async data => {
             subject: "Course completion",
             htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
         }).catch(error => {
-            console.log("training_progress_helper.sendCourseCompletionMail:error:", error?.message);
+            throw Error(error.message);
         });
     } catch (e) {
-        console.log("training_progress_helper.sendCourseCompletionMail:exception:", e?.message);
+        throw Error(e.message);
     }
 };
 
@@ -261,14 +260,11 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
 
         await NotificationHelper.createNotification(notifications);
     } catch (e) {
-        console.log(
-            "training_progress_helper.sendTrainingProgressNotification:exception:",
-            e?.message
-        );
+       throw Error(e.message);
     }
 };
 
-const calculateTotalDuration = async (moduleContentIds)=>{
+const calculateTotalDuration = async (moduleContentIds) => {
     try {
         const moduleContents = await TrainingModuleContent.find({
             '_id': { $in: moduleContentIds }
@@ -280,14 +276,13 @@ const calculateTotalDuration = async (moduleContentIds)=>{
         let totalDuration = 0;
         moduleContents.forEach(content => {
             const duration = parseFloat(content.duration);
-            
+
             if (!isNaN(duration)) {
                 totalDuration += duration;
             }
         });
         return totalDuration;
     } catch (error) {
-        console.error("Error calculating total duration:", error);
         throw error;
     }
 };
@@ -317,11 +312,11 @@ module.exports = {
             let currentExistingTrainingModuleContent;
             let currentExistingTrainingProgress;
             let quizStatus;
-            let currentOverallTrainingProgress= await OverallTrainingProgress.findOne({
+            let currentOverallTrainingProgress = await OverallTrainingProgress.findOne({
                 trainingRegistration: input.trainingRegistrationId,
                 user: userId,
             });
-            if(!currentOverallTrainingProgress||currentOverallTrainingProgress==undefined)throw CustomError(ErrorName.NOT_FOUND);
+            if (!currentOverallTrainingProgress || currentOverallTrainingProgress == undefined) throw CustomError(ErrorName.NOT_FOUND);
             if (input.currentTrainingModuleContentId) {
                 currentExistingTrainingModuleContent = await TrainingModuleContent.findById(
                     input.currentTrainingModuleContentId
@@ -344,7 +339,7 @@ module.exports = {
                     currentOverallTrainingProgress.completedModules = input.completedModules;
                 }
                 if (!currentOverallTrainingProgress) throw CustomError(ErrorName.NOT_FOUND);
-               
+
                 currentExistingTrainingProgress.updatedBy = userId;
 
                 if (input.currentTrainingModuleContentQuestionAnswers) {
@@ -492,8 +487,8 @@ module.exports = {
                     subscriber: subscriberId,
                     user: userId,
                     trainingRegistration: input.trainingRegistrationId,
-                    overallTrainingProgress : currentOverallTrainingProgress._id,
-                    training : currentOverallTrainingProgress.training,
+                    overallTrainingProgress: currentOverallTrainingProgress._id,
+                    training: currentOverallTrainingProgress.training,
                     trainingModuleContentId: input.nextTrainingModuleContentId,
                     trainingModule: input.nextTrainingModuleId,
                     trainingModuleContentData: {
@@ -676,23 +671,23 @@ module.exports = {
 
                     if (!savedTrainingCertificate) throw CustomError(ErrorName.FAILED);
                 }
-                
+
                 response = {
-                    status :1 ,
-                    message : "updated progress successfully"
+                    status: 1,
+                    message: "updated progress successfully"
                 };
                 return response;
             });
-            
+
             if (!result) throw CustomError(ErrorName.FAILED);
             if (savedTrainingCertificate) {
                 await savedTrainingCertificate
-                .populate({
-                    path: "user",
-                    select: "firstName lastName email languagePreference",
-                })
-                .execPopulate();
-                
+                    .populate({
+                        path: "user",
+                        select: "firstName lastName email languagePreference",
+                    })
+                    .execPopulate();
+
                 sendCourseCompletionMail(savedTrainingCertificate);
             }
 
@@ -718,7 +713,7 @@ module.exports = {
                 notificationsList.push({
                     notificationType:
                         notificationTrainingRegistrationStatus ===
-                        TrainingRegistrationStatus.STARTED
+                            TrainingRegistrationStatus.STARTED
                             ? NotificationType.TRAINING_STARTED
                             : NotificationType.TRAINING_COMPLETED,
                     trainingRegistration: existingTrainingRegistration,

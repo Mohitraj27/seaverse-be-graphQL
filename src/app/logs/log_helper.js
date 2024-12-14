@@ -5,7 +5,7 @@ module.exports = {
         try {
             await new Log(input).save();
         } catch (e) {
-            console.log("log_helper.logActivity:exception:", e.message);
+            throw new Error(e);
         }
     },
 };
