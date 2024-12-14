@@ -269,7 +269,7 @@ module.exports.queries = {
                 isDeleted: false,
             };
             if (filterInput?.title) {
-                queryConditions.title = { $regex: filterInput.title, $options: "i" };
+                delete queryConditions.title;
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
@@ -352,6 +352,18 @@ module.exports.queries = {
                 {
                     $addFields: {
                         createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+                    }
+                },
+                {
+                    $match: {
+                        ...queryConditions,
+                        ...(filterInput?.title?.trim() ? {
+                            $or: [
+                                { title: { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
+                            ]
+                        } : {})
                     }
                 },
                 {
@@ -500,9 +512,9 @@ module.exports.queries = {
                     }
                 }
                 ,
+                { $sort: { updatedAt: -1 } },
                 { $skip: parsedSkip },
                 { $limit: parsedLimit },
-                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
