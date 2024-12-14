@@ -717,6 +717,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1184,6 +1185,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1704,8 +1706,8 @@ module.exports.mutations = {
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
-                certificateLink: `https://example.com/certificates`,  
-                courseImageUrl: `https://example.com/certificates`  
+                certificateLink: `https://example.com/certificates`,
+                courseImageUrl: `https://example.com/certificates`
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
@@ -1806,10 +1808,10 @@ module.exports.mutations = {
 
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
-                _id: { $in: input.userIds } 
+                _id: { $in: input.userIds }
             }).select('firstName email');
-            const  trainings = await Training.aggregate([
-                { $match: { _id:  input.training  } },
+            const trainings = await Training.aggregate([
+                { $match: { _id: input.training } },
                 { $project: { title: 1 } }
             ]);
             users.forEach(user => {
