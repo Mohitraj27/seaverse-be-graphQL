@@ -1444,7 +1444,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Single Course Report Exported In Progress`,
+                titleValue: `Selected Course Report Export In Progress`,
                 messageValue: `The single course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
@@ -1489,7 +1489,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                 }
 
                 if (endDate) {
-                    dateFilter['$lte'] = new Date(endDate);
+                    const endDateObj = new Date(endDate);
+                    endDateObj.setHours(23, 59, 59, 999);
+                    dateFilter['$lte'] = endDateObj;
                 }
 
                 matchStage.push({
@@ -2030,6 +2032,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'designation': {
                                 '$first': '$designationInfo.name'
                             },
+                            'createdAt': {
+                                '$first': '$createdAt'
+                            },
                             'lastSeen': {
                                 '$first': '$updatedAt'
                             },
@@ -2139,6 +2144,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'designation': {
                                 '$first': '$designation'
                             },
+                            'createdAt': {
+                                '$first': '$createdAt'
+                            },
                             'lastSeen': {
                                 '$first': '$lastSeen'
                             },
@@ -2230,6 +2238,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'vesselType': 1,
                             'modules': 1,
                             'empId': 1,
+                            'createdAt':1,
                             'lastSeen': 1,
                             'status': 1
                         }
@@ -2244,6 +2253,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     trainingTitle: item?.trainingTitle,
                     employeeId: item.empId ? item.empId : "Not Found",
                     designation: item?.designation ? item?.designation : "Not Found",
+                    createdAt : new Date(item.createdAt).toLocaleString(),
                     email: item?.email ? item?.email : "Not Found",
                     status: item?.status ? item?.status : "Not Found",
                     currentVessel: item?.currentVessel ? item?.currentVessel : "Not Found",
@@ -2724,7 +2734,9 @@ const generateCustomReport = async ({ input }, context) => {
                 }
 
                 if (endDate) {
-                    dateFilter['$lte'] = new Date(endDate);
+                    const endDateObj = new Date(endDate);
+                    endDateObj.setHours(23, 59, 59, 999);
+                    dateFilter['$lte'] = endDateObj;
                 }
 
                 matchStage.push({
