@@ -1357,4 +1357,5 @@ module.exports.mutations = {
             message: "New content pushed to lessons successfully.",
         };
     },
+
 };
