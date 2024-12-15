@@ -73,6 +73,7 @@ const {registered_status,registered_statusforAdmin} = require("../../email-templ
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
 const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
+const {filterLearningPlans} = require("../employee/employee_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1811,67 +1812,6 @@ module.exports.mutations = {
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
             const learningPlans = await LearningPlan.find();
-            function filterLearningPlans(learningPlans, conditions) {
-                const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
-
-                return learningPlans?.filter(plan => {
-                    const { conditionType, conditionalCustomFields } = plan;
-
-                    let matches = conditionalCustomFields.map(field => {
-                        const { type_of_Field, valueOfField, isOrIsNot,groupIDs } = field;
-
-                        switch (type_of_Field) {
-                            case "DESIGNATION":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(designationID)
-                                    : !valueOfField.includes(designationID);
-
-                            case "VESSEL":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(vesselID)
-                                    : !valueOfField.includes(vesselID);
-
-                            case "VESSEL_TYPE":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(vesselTypeID)
-                                    : !valueOfField.includes(vesselTypeID);
-
-                            case "CURRENT_STATUS":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(currentStatus)
-                                    : !valueOfField.includes(currentStatus);
-                            case "GROUP":
-                                return groupIDs?.some(group => {
-                                    switch (group.groupType) {
-                                        case "designation":
-                                            return group.groupIDs.includes(designationID);
-                                        case "vessel":
-                                            return group.groupIDs.includes(vesselID);
-                                        case "vesselType":
-                                            return group.groupIDs.includes(vesselTypeID);
-                                        case "vesselStatus":
-                                            return group.groupIDs.includes(currentStatus);
-                                        default:
-                                            return false;
-                                        }
-                                    });
-                            default:
-                                return false;
-                        }
-                    });
-
-                    if (conditionType === "MATCH_ANY_CONDITION") {
-                        return matches.some(match => match === true);
-                    }
-
-                    if (conditionType === "MATCH_ALL_CONDITION") {
-                        return matches.every(match => match === true);
-                    }
-
-                    return false;
-                });
-            }
-
 
 
             const conditions = {
@@ -1882,7 +1822,8 @@ module.exports.mutations = {
                 email: savedUser.email
             };
 
-            const filteredPlans = filterLearningPlans(learningPlans, conditions);
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions);
+            // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             const matchedLearningPlans = filteredPlans.map(plan => {
                 return {
                     learningPlanID: plan._id,
