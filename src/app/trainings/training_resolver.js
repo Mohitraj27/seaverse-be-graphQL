@@ -508,19 +508,33 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            // Don't delete this comment
-            // const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
+            const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
+            
+            if (validateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateErrors[0]);
+            }
 
-            // if (validateErrors.length > 0) {
-            //     throw CustomError(ErrorName.FAILED, validateErrors[0]);
-            // }
-            // Don't delete this comment
+
+            input.forEach((entry) => {
+                entry.trainingModules?.forEach((module) => {
+                    module.contentDetails?.forEach((content) => {
+                        if (content.progressPercentage == 100) {
+                            content.contentStatus = 'COMPLETED';
+                        } else if (content.progressPercentage == 0) {
+                            content.contentStatus = 'NOT_STARTED';
+                        } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
+                            content.contentStatus = 'IN_PROGRESS';
+                        }
+                    })
+                })
+            })
+
 
             let syncContentErrors = [];
             const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
 
             if (syncContentErrors.length > 0) {
-                console.log(syncContentErrors[0]);
+                throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
             }
 
             const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
@@ -531,7 +545,6 @@ module.exports.mutations = {
                     message: "Progress updated successfully!"
                 };
             }
-
 
         } catch (error) {
             throw Error(error.message);

@@ -6,6 +6,10 @@ module.exports = {
             QUIZ
             MODULE
         } 
+        enum selectVesselOrLearnerEnum {
+            VESSEL
+            LEARNER
+        } 
         type TrainingProgressQuizReport {
             _id: ID
             trainingModuleContent: TrainingModuleContent
@@ -117,6 +121,7 @@ module.exports = {
         input singleLearnerReportInput {
             learnerIds : [ID]!
             reportType : reportTypeEnum!
+            selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean
@@ -240,7 +245,7 @@ module.exports = {
             vesselType : [ID]
             vesselName : [ID]
             designation :[ID]
-            learnerStatus : Boolean
+            learnerStatus : [String]
             reportType : String!
         }
         type customReportGenerated{

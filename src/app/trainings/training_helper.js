@@ -22,7 +22,7 @@ const TrainingCertificateHelper = require("../training-registrations/training-ce
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
-const {sendNotifications} = require("../../util/firebase_helper");
+const { sendNotifications } = require("../../util/firebase_helper");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -119,6 +119,7 @@ const generateCourseId = (courseType) => {
 const validateSyncOfflineData = async (data) => {
 
     let overallIds = data.map((item) => item.overallId);
+
     let errors = [];
 
     let overallProgresses = [];
@@ -157,32 +158,33 @@ const validateSyncOfflineData = async (data) => {
                 (content) => content.moduleId.toString() == moduleId
             );
 
+
             for (const { contentId } of contentDetails) {
 
                 const contentIdString = ObjectId(contentId);
 
-                const contentDatasArray = Array.from(contentDataMatch.contentIds);
+                let contentDatasArray;
+                if (contentDataMatch) {
+                    contentDatasArray = Array.from(contentDataMatch.contentIds);
+                }
 
                 if (
                     !contentDataMatch ||
-                    !contentDatasArray.contentIds.includes(contentIdString)
+                    !contentDatasArray.includes(contentIdString)
                 ) {
-
                     const key = `${moduleId}-${contentId}`;
                     if (!moduleContentPairs.has(key)) {
                         moduleContentPairs.set(key, { moduleId, contentId });
                     }
                 }
-
             }
-
         }
-
     }
 
     if (moduleContentPairs.size > 0) {
 
         const queries = Array.from(moduleContentPairs.values());
+
         const trainingContentBridges = await TrainingContentBridge.find({
             $or: queries.map(({ moduleId, contentId }) => ({
                 trainingModule: moduleId,
@@ -192,7 +194,7 @@ const validateSyncOfflineData = async (data) => {
 
         const foundPairs = new Set(
             trainingContentBridges.map(
-                (doc) => `${doc.moduleId}-${doc.contentId}`
+                (doc) => `${doc.trainingModule}-${doc.trainingContent}`
             )
         );
 
@@ -555,20 +557,20 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
             for (const doc of overallDocs) {
-                const training = await Training.findById(doc.training); 
-                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value ;
-                if(courseTitle){
+                const training = await Training.findById(doc.training);
+                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
+                if (courseTitle) {
                     await sendNotifications({
                         userIds: [userId],
                         title: `Certificate Generated Successfully`,
                         body: `Your certificate for the course ${courseTitle} has been successfully generated.`,
                         content: "Certificate Details",
                         webLink: ""
-                    });  
+                    });
                 } else {
                     throw new Error(`Course title is missing for training ID ${doc.training}. Cannot send notification.`);
                 }
-               }
+            }
         }
 
     }
@@ -1151,11 +1153,19 @@ module.exports = {
                 folderName: trainingFilterConditions._id,
             });
         }
+
         if (bannerImage) {
-            trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                bannerImage: bannerImage,
-                folderName: trainingFilterConditions._id,
-            });
+            const { filename } = await bannerImage;
+            if (filename && typeof filename == "string") {
+                trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
+                    bannerImage: bannerImage,
+                    folderName: trainingFilterConditions._id,
+                });
+            } else if (input._id && input.bannerImageDelete) {
+                trainingUpdateData.bannerImage = null;
+            }
+        } else if (input._id && input.bannerImageDelete) {
+            trainingUpdateData.bannerImage = null;
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1185,10 +1195,17 @@ module.exports = {
         if (input.description) trainingUpdateData.description = input.description;
 
         if (coverImage) {
-            trainingUpdateData.coverImage = await uploadTrainingImages({
-                coverImage: coverImage,
-                folderName: trainingFilterConditions._id,
-            });
+            const { filename } = await coverImage;
+            if (filename && typeof filename == "string") {
+                trainingUpdateData.coverImage = await uploadTrainingImages({
+                    coverImage: coverImage,
+                    folderName: trainingFilterConditions._id,
+                });
+            } else if (input._id && input.coverImageDelete) {
+                trainingUpdateData.coverImage = null;
+            }
+        } else if (input._id && input.coverImageDelete) {
+            trainingUpdateData.coverImage = null;
         }
 
         if (input.durationHours != null) {

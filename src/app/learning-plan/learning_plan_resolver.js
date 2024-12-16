@@ -269,7 +269,7 @@ module.exports.queries = {
                 isDeleted: false,
             };
             if (filterInput?.title) {
-                queryConditions.title = { $regex: filterInput.title, $options: "i" };
+                delete queryConditions.title;
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
@@ -355,6 +355,18 @@ module.exports.queries = {
                     }
                 },
                 {
+                    $match: {
+                        ...queryConditions,
+                        ...(filterInput?.title?.trim() ? {
+                            $or: [
+                                { title: { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
+                            ]
+                        } : {})
+                    }
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "updatedBy",
@@ -410,6 +422,7 @@ module.exports.queries = {
                                     approvalStatus: 1,
                                     certifications: 1,
                                     bannerImage: 1,
+                                    coverImage: 1,
                                     appliedAt: 1,
                                     approvedAt: 1,
                                     rejectedAt: 1,
@@ -499,9 +512,9 @@ module.exports.queries = {
                     }
                 }
                 ,
+                { $sort: { updatedAt: -1 } },
                 { $skip: parsedSkip },
                 { $limit: parsedLimit },
-                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
