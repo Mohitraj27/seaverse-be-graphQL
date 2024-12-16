@@ -1572,26 +1572,60 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     {
                         $lookup: {
-                            from: "quizevaluations",
-                            localField: "training",
-                            foreignField: "trainingId",
-                            as: "quizevaluationInfo",
+                            from: 'trainingprogresses',
+                            localField: '_id',
+                            foreignField: 'overallTrainingProgress',
+                            as: 'quizevaluationInfo',
+                            let: {
+                                attemptCount: '$attemptCount',
+                            },
                             pipeline: [
                                 {
                                     $match: {
-                                        training: ObjectId(input?.courseId)
-                                    }
+                                        $expr: {
+                                            $eq: ['$attemptCount', '$$attemptCount'],
+                                        },
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: 'trainingmodulecontents',
+                                        localField: 'trainingModuleContent',
+                                        foreignField: '_id',
+                                        as: 'contentInfo',
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    $expr: {
+                                                        $eq: ['$contentType', 'QUIZ'],
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: '$contentInfo',
+                                        preserveNullAndEmptyArrays: true,
+                                    },
                                 },
                                 {
                                     $sort: {
-                                        updatedAt: -1
-                                    }
+                                        updatedAt: -1,
+                                    },
                                 },
                                 {
-                                    $limit: 1
-                                }
-                            ]
-                        }
+                                    $limit: 1,
+                                },
+                                {
+                                    $project: {
+                                        percentage: '$quizAttemptDetails.percentage',
+                                        isPassed: '$quizAttemptDetails.isPassed',
+                                    },
+                                },
+                            ],
+                        },
                     },
                     {
                         $unwind: {
