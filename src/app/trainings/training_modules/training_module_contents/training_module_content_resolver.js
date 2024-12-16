@@ -1289,18 +1289,19 @@ module.exports.mutations = {
             throw Error(error.message);
         }
     },
-    pushLatestContent: async ({ id }, context) => {
-
+    pushLatestContent: async ({ ids }, context) => {
         const { subscriberId, userInfo, userId } = AuthUser(context);
 
-        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        }
 
-        const inputContent = await TrainingModuleContent.findOne({
-            _id: id,
-            subscriber: subscriberId
+        const inputContents = await TrainingModuleContent.find({
+            _id: { $in: ids },
+            subscriber: subscriberId,
         });
 
-        if (!inputContent) {
+        if (!inputContents || inputContents.length === 0) {
             throw CustomError(ErrorName.NOT_FOUND);
         }
 
@@ -1312,46 +1313,49 @@ module.exports.mutations = {
             throw CustomError(ErrorName.NOT_FOUND);
         }
 
-        const bridgesToUpdate = fetchCurrentContents
-            .filter((content) => content.trainingContent && content.trainingContent.UID === inputContent.UID)
-            .map((content) => content._id);
+        let bridgesToUpdate = [];
+        inputContents.forEach((inputContent) => {
+            fetchCurrentContents
+                .filter(
+                    (content) =>
+                        content.trainingContent &&
+                        content.trainingContent.UID === inputContent.UID
+                )
+                .forEach((content) => bridgesToUpdate.push({ bridgeId: content._id, trainingContentId: inputContent._id }));
+        });
 
-        let updateContent;
-        if (bridgesToUpdate.length > 0) {
-            updateContent = await TrainingContentBridge.updateMany(
-                { _id: { $in: bridgesToUpdate } },
-                { trainingContent: inputContent._id }
-            );
+        for (const { bridgeId, trainingContentId } of bridgesToUpdate) {
+            await TrainingContentBridge.findByIdAndUpdate(bridgeId, {
+                trainingContent: trainingContentId,
+            });
         }
-
-        if (!updateContent) {
-            throw CustomError(ErrorName.FAILED);
-        }
-
-        await TrainingModuleContent.findOneAndUpdate(
-            { _id: id, subscriber: subscriberId },
+        await TrainingModuleContent.updateMany(
+            { _id: { $in: ids }, subscriber: subscriberId },
             { $set: { isPublished: false } }
         );
+
         const impactedCoursesCount = bridgesToUpdate.length;
+        const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
+
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Content Successfully Pushed to the Courses`,
-            messageValue: `The content titled ${inputContent.title[0]?.value} has been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
             notificationType: NotificationType.CONTENT_PUSHED,
             notifyAdmin: true,
-            affected: [
-                {
-                    targetRef: "TrainingModuleContent",
-                    target: inputContent._id,
-                },
-            ],
+            affected: inputContents.map((content) => ({
+                targetRef: "TrainingModuleContent",
+                target: content._id,
+            })),
             status: 'SENT',
             icon: notificationiconEnum.SUCCESS,
             createdBy: userId,
         });
+
         return {
             status: 1,
             message: "New content pushed to lessons successfully.",
-        }
-    }
+        };
+    },
+
 };

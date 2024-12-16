@@ -44,6 +44,8 @@ const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
+const courseCompletion = require("../email-template/courseCompletion");
+const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
@@ -715,6 +717,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1182,6 +1185,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1631,8 +1635,10 @@ module.exports.mutations = {
                 }
             );
 
-            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } });
-
+            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
+                path: 'user',
+                select: 'firstName lastName email'
+            });;
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
@@ -1653,8 +1659,9 @@ module.exports.mutations = {
                         { path: "user", select: "firstName lastName email" }
                     ];
 
-                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate(populate);
-
+                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
+                        { path: "user", select: "firstName lastName email" }
+                    ]);;
                     const existingCertificate = await TrainingCertificate.findOne({
                         trainingRegistration: progressUser.trainingRegistration,
                         user: progressUser.user
@@ -1695,6 +1702,18 @@ module.exports.mutations = {
                     }
                 })
             );
+            const emailContent = courseCompletion({
+                firstName: overallTrainingProgressUsers[0].user.firstName,
+                trainingTitle: trainingData.title[0]?.value,
+                durationHours: trainingData.durationHours,
+                certificateLink: `https://example.com/certificates`,
+                courseImageUrl: `https://example.com/certificates`
+            });
+            sendEmail({
+                receiverEmail: overallTrainingProgressUsers[0].user.email,
+                subject: `Congratulations on Completing the ${trainingData.title[0]?.value} Course!`,
+                htmlContent: emailContent,
+            });
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1788,7 +1807,28 @@ module.exports.mutations = {
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
 
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
-
+            const users = await User.find({
+                _id: { $in: input.userIds }
+            }).select('firstName email');
+            const trainings = await Training.aggregate([
+                { $match: { _id: input.training } },
+                { $project: { title: 1 } }
+            ]);
+            users.forEach(user => {
+                trainings.forEach(training => {
+                    const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                    const emailContent = moduleResetNotificationEmail({
+                        firstName: user.firstName,
+                        email: user.email,
+                        courseTitle: trainingTitle,
+                    });
+                    sendEmail({
+                        receiverEmail: user.email,
+                        subject: `Module Reset Notification`,
+                        htmlContent: emailContent,
+                    });
+                });
+            });
             await Promise.all(userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
