@@ -179,7 +179,7 @@ function registered_statusforAdmin({adminfirstName, userfirstName}) {
                 </p>
                 <br>
                 <br>
-                <a href="${process.env.EMPLOYEE_DOMAIN_URL}" class="button">View User</a>
+                <a href="${process.env.APP_URL}/employee-management" class="button">View User</a>
             </div>
             <div class="footer">
                 Sent by Seaverse - Training for Advanced Navigation Techniques
