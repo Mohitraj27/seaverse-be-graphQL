@@ -109,6 +109,7 @@ module.exports = {
             pageInput: PageInput
             export : Boolean
             filterInput : learnerMainReportFilter
+            selectVesselOrLearner : selectVesselOrLearnerEnum
         }
         input learnerMainReportFilter {
             isRegistered : Boolean

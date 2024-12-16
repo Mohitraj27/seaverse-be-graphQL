@@ -46,6 +46,8 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
+
+            if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
             if (searchString.trim() !== '') {
                 const regexSearch = new RegExp(searchString.trim(), 'i');
 
@@ -306,10 +308,11 @@ const getMainLearnersReport = async ({ input }, context) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + input?.selectVesselOrLearner.slice(1).toLowerCase();
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "All_learners_Report_exports",
-                fileName: `Learners Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                fileName: `${fileNameStd}_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
             });
             if (excelFilePath) {
@@ -714,6 +717,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
                 XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
