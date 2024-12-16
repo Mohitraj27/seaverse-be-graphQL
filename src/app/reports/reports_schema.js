@@ -112,7 +112,7 @@ module.exports = {
         }
         input learnerMainReportFilter {
             isRegistered : Boolean
-            isDeleted : Boolean
+            includeDeletedUsers : Boolean
             search : String
             vesselTypes : [ID]
             vesselIds : [ID]
