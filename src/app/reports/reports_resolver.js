@@ -25,8 +25,9 @@ const ReportsHelper = require("./reports_helper");
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-    if (!input?.selectVesselOrLearner){
-        input.selectVesselOrLearner = 'VESSEL';
+    let selectVesselOrLearner = "VESSEL";
+    if (input?.selectVesselOrLearner){
+        selectVesselOrLearner = input?.selectVesselOrLearner;
     } 
     try {
         const matchStage = [];
@@ -301,7 +302,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + input?.selectVesselOrLearner.slice(1).toLowerCase();
+            let fileNameStd = selectVesselOrLearner?.charAt(0).toUpperCase() + selectVesselOrLearner?.slice(1).toLowerCase();
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "All_learners_Report_exports",
@@ -313,7 +314,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${input?.selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
