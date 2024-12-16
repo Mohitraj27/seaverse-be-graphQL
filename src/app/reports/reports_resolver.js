@@ -3669,7 +3669,12 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                         ]
                     }
                 }
-            }
+            },
+            {
+                '$sort': {
+                    'createdAt': -1
+                }
+            },
         ]);
 
         if (data.length > 0) {
