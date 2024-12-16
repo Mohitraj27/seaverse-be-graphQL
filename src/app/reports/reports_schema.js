@@ -109,6 +109,7 @@ module.exports = {
             pageInput: PageInput
             export : Boolean
             filterInput : learnerMainReportFilter
+            selectVesselOrLearner : selectVesselOrLearnerEnum
         }
         input learnerMainReportFilter {
             isRegistered : Boolean
@@ -190,6 +191,7 @@ module.exports = {
             vesselName : [ID]
             vesselType : [ID]
             designation : [ID]
+            learnerIds : [ID]
             courseStatus:[String]
             dateRange : filterDateRange
         }
