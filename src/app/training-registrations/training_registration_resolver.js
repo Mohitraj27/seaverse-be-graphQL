@@ -1694,8 +1694,7 @@ module.exports.mutations = {
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
-                certificateLink: `https://example.com/certificates`,
-                courseImageUrl: `https://example.com/certificates`
+                courseId: trainingData._id,
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
