@@ -25,7 +25,9 @@ const ReportsHelper = require("./reports_helper");
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
+    if (!input?.selectVesselOrLearner){
+        input.selectVesselOrLearner = 'VESSEL';
+    } 
     try {
         const matchStage = [];
 
@@ -45,6 +47,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
+
             if (searchString.trim() !== '') {
                 const regexSearch = new RegExp(searchString.trim(), 'i');
 
@@ -298,18 +301,19 @@ const getMainLearnersReport = async ({ input }, context) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + input?.selectVesselOrLearner.slice(1).toLowerCase();
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "All_learners_Report_exports",
-                fileName: `Learners Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                fileName: `${fileNameStd}_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
-                    titleValue: `Learners Report Exported Successfully`,
-                    messageValue: `The learners report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    titleValue: `${fileNameStd} Report Exported Successfully`,
+                    messageValue: `The ${input?.selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
@@ -331,8 +335,8 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Learners Report Export Failed`,
-                messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+                titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message}.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -665,7 +669,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
-                        'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                        'Enrollment Date (UTC TimeZone)': enrollmentDate,
                         'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
                         'Completion Date (UTC TimeZone)': completionDate,
                         'Started Date (UTC TimeZone)': startDate,
@@ -1523,6 +1527,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+            if (filterInput.learnerIds && Array.isArray(filterInput.learnerIds) && filterInput.learnerIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        user: { $in: filterInput.learnerIds },
+                    },
+                });
+            }
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -1564,26 +1575,60 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     {
                         $lookup: {
-                            from: "quizevaluations",
-                            localField: "training",
-                            foreignField: "trainingId",
-                            as: "quizevaluationInfo",
+                            from: 'trainingprogresses',
+                            localField: '_id',
+                            foreignField: 'overallTrainingProgress',
+                            as: 'quizevaluationInfo',
+                            let: {
+                                attemptCount: '$attemptCount',
+                            },
                             pipeline: [
                                 {
                                     $match: {
-                                        training: ObjectId(input?.courseId)
-                                    }
+                                        $expr: {
+                                            $eq: ['$attemptCount', '$$attemptCount'],
+                                        },
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: 'trainingmodulecontents',
+                                        localField: 'trainingModuleContent',
+                                        foreignField: '_id',
+                                        as: 'contentInfo',
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    $expr: {
+                                                        $eq: ['$contentType', 'QUIZ'],
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: '$contentInfo',
+                                        preserveNullAndEmptyArrays: true,
+                                    },
                                 },
                                 {
                                     $sort: {
-                                        updatedAt: -1
-                                    }
+                                        updatedAt: -1,
+                                    },
                                 },
                                 {
-                                    $limit: 1
-                                }
-                            ]
-                        }
+                                    $limit: 1,
+                                },
+                                {
+                                    $project: {
+                                        percentage: '$quizAttemptDetails.percentage',
+                                        isPassed: '$quizAttemptDetails.isPassed',
+                                    },
+                                },
+                            ],
+                        },
                     },
                     {
                         $unwind: {
