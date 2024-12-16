@@ -59,7 +59,7 @@ function resetPasswordRequest(user, token) {
                                 </tr>
                                 <tr>
                                     <td>
-                                        <a href="https://example.com/login" style="text-decoration: none;">
+                                        <a href="${process.env.APP_URL}/resetpassword?token=${token}" style="text-decoration: none;">
                                             <table border="0" cellpadding="0" cellspacing="0">
                                                 <tr>
                                                     <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
@@ -148,7 +148,7 @@ function resetPasswordRequestforAdmin(user, token) {
                                 </tr>
                                 <tr>
                                     <td>
-                                        <a href="https://example.com/login" style="text-decoration: none;">
+                                        <a href="${process.env.APP_URL}/resetpassword?token=${token}" style="text-decoration: none;">
                                             <table border="0" cellpadding="0" cellspacing="0">
                                                 <tr>
                                                     <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">

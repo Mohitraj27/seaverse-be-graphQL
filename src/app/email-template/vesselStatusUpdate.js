@@ -57,19 +57,6 @@ function vesselStatusUpdateEmail(user) {
                                         <p>Synergy Marine Group</p>
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td>
-                                        <a href="https://example.com/login" style="text-decoration: none;">
-                                            <table border="0" cellpadding="0" cellspacing="0">
-                                                <tr>
-                                                    <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
-                                                        <a href="https://example.com/login" target="_blank" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">View Vessel</a>
-                                                    </td>
-                                                </tr>
-                                            </table>
-                                        </a>
-                                    </td>
-                                </tr>
                             </table>
                         </td>
                     </tr>
@@ -148,11 +135,11 @@ function vesselStatusUpdateEmailAdmin(user) {
                                 </tr>
                                 <tr>
                                     <td>
-                                        <a href="https://example.com/login" style="text-decoration: none;">
+                                        <a href="${process.env.APP_URL}/vesselsetting" style="text-decoration: none;">
                                             <table border="0" cellpadding="0" cellspacing="0">
                                                 <tr>
                                                     <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
-                                                        <a href="${process.env.VIEW_VESSEL_URL}" target="_blank" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">View Vessel</a>
+                                                        <a href="${process.env.APP_URL}/vesselsetting" target="_blank" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">View Vessel</a>
                                                     </td>
                                                 </tr>
                                             </table>
