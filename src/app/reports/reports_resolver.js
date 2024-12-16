@@ -25,7 +25,7 @@ const ReportsHelper = require("./reports_helper");
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
+    if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
     try {
         const matchStage = [];
 
@@ -46,7 +46,6 @@ const getMainLearnersReport = async ({ input }, context) => {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
 
-            if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
             if (searchString.trim() !== '') {
                 const regexSearch = new RegExp(searchString.trim(), 'i');
 
@@ -311,8 +310,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
-                    titleValue: `Learners Report Exported Successfully`,
-                    messageValue: `The learners report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    titleValue: `${fileNameStd} Report Exported Successfully`,
+                    messageValue: `The ${input?.selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
@@ -334,8 +333,8 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Learners Report Export Failed`,
-                messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+                titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message}.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
