@@ -343,19 +343,7 @@ module.exports.queries = {
                         as: "trainingContentsFallback",
                     },
                 },
-                {
-                    $addFields: {
-                        totalDuration: {
-                            $toInt: {
-                                $cond: {
-                                    if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
-                                    then: { $sum: "$trainingProgresses.duration" },
-                                    else: { $sum: "$trainingContentsFallback.duration" },
-                                },
-                            },
-                        },
-                    },
-                }
+                { $sort: { createdAt: -1 } },
             ]);
 
             return {

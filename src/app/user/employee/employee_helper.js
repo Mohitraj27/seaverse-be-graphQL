@@ -83,7 +83,66 @@ const sendCredentialMail = async ({ userData }) => {
         htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
     });
 };
+const filterLearningPlans = async (learningPlans, conditions) => {
+    const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
 
+    return learningPlans?.filter(plan => {
+        const { conditionType, conditionalCustomFields } = plan;
+
+        let matches = conditionalCustomFields.map(field => {
+            const { type_of_Field, valueOfField, isOrIsNot,groupIDs } = field;
+
+            switch (type_of_Field) {
+                case "DESIGNATION":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(designationID)
+                        : !valueOfField.includes(designationID);
+
+                case "VESSEL":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(vesselID)
+                        : !valueOfField.includes(vesselID);
+
+                case "VESSEL_TYPE":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(vesselTypeID)
+                        : !valueOfField.includes(vesselTypeID);
+
+                case "CURRENT_STATUS":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(currentStatus)
+                        : !valueOfField.includes(currentStatus);
+                case "GROUP":
+                    return groupIDs?.some(group => {
+                        switch (group.groupType) {
+                            case "designation":
+                                return group.groupIDs.includes(designationID);
+                            case "vessel":
+                                return group.groupIDs.includes(vesselID);
+                            case "vesselType":
+                                return group.groupIDs.includes(vesselTypeID);
+                            case "vesselStatus":
+                                return group.groupIDs.includes(currentStatus);
+                            default:
+                                return false;
+                            }
+                        });
+                default:
+                    return false;
+            }
+        });
+
+        if (conditionType === "MATCH_ANY_CONDITION") {
+            return matches.some(match => match === true);
+        }
+
+        if (conditionType === "MATCH_ALL_CONDITION") {
+            return matches.every(match => match === true);
+        }
+
+        return false;
+    });
+}
 const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1015,6 +1074,7 @@ module.exports = {
     insertGroupMember,
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
+    filterLearningPlans,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
         const employeeFilterConditions = {subscriber:subscriberId} ; 
         employeeFilterConditions.user = id;
@@ -1137,7 +1197,29 @@ module.exports = {
             },
             { currentRole: role }
         );
+        const existingLearningPlans = await LearningPlan.find({
+            assignedLearnerIDs: existingEmployee.user._id
+        });
+        await LearningPlan.updateMany(
+            { _id: { $in: existingLearningPlans.map(lp => lp._id) } },
+            { $pull: { assignedLearnerIDs: existingEmployee.user._id } }
+        );
+        const conditions = {
+            designationID: input.empDesignation || existingEmployee.empDesignation,
+            vesselID: input?.user?.currentVessel || existingEmployee?.user?.currentVessel?._id,
+            vesselTypeID: newVessel?.typeOfVessel?._id || existingEmployee?.user?.currentVessel?.typeOfVessel?._id,
+            currentStatus: input?.user?.vesselStatus || existingEmployee?.user?.vesselStatus,
+            email: existingEmployee?.user?.email
+        };
+        const learningPlans = await LearningPlan.find();
+        const filteredPlans =  await filterLearningPlans(learningPlans, conditions);
 
+        if (filteredPlans?.length > 0) {
+            await LearningPlan.updateMany(
+                { _id: { $in: filteredPlans.map(lp => lp._id) } },
+                { $addToSet: { assignedLearnerIDs: existingEmployee.user._id } }
+            );
+        }
         let employeeUpdateData = {};
         if (input.empDesignation) {
             const existingDesignation = await Designation.findById(input.empDesignation);
@@ -1818,7 +1900,7 @@ module.exports = {
             //         ? designationMap.get(originalUserData.designation.toUpperCase())?.id
             //         : null;
 
-            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
+            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPagssport);
             //        console.log(vesselData,"vesselData");
 
             //     const vesselId = vesselData?.imoNumber
