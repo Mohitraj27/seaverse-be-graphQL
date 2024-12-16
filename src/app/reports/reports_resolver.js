@@ -3620,6 +3620,11 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
 
         const data = await Export.aggregate([
             {
+                '$sort': {
+                    'createdAt': -1
+                }
+            },
+            {
                 $match: {
                     type_of_export: "CUSTOM_REPORT_EXPORT"
                 }
