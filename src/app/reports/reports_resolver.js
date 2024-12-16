@@ -25,7 +25,9 @@ const ReportsHelper = require("./reports_helper");
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-    if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
+    if (!input?.selectVesselOrLearner){
+        input.selectVesselOrLearner = 'VESSEL';
+    } 
     try {
         const matchStage = [];
 
@@ -667,7 +669,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
-                        'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                        'Enrollment Date (UTC TimeZone)': enrollmentDate,
                         'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
                         'Completion Date (UTC TimeZone)': completionDate,
                         'Started Date (UTC TimeZone)': startDate,
@@ -708,7 +710,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
                 XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-                let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
