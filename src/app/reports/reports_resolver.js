@@ -434,7 +434,18 @@ const getSingleLearnerReport = async ({ input }, context) => {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
-
+        
+        let matchUsers =[];
+        if(learnerIds.length>0){
+            matchUsers.push(
+                {
+                    "$match": {
+                        "user": { $in: learnerIds.map(id => ObjectId(id)) }
+                    }
+                }
+            );
+        }
+          
 
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
@@ -463,11 +474,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "as": "employeeInfo"
                         }
                     },
-                    {
-                        "$match": {
-                            "user": { $in: learnerIds.map(id => ObjectId(id)) }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         $lookup: {
                             from: "trainingprogresses",
@@ -3626,7 +3633,16 @@ const generateCustomReport = async ({ input }, context) => {
             };
 
         } else {
-            throw CustomError(ErrorName.NOT_FOUND, "No data found");
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Custom Report Export Failed`,
+                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
+                notificationType: NotificationType.REPORT_EXPORT_FAILED,
+                notifyAdmin: true,
+                status: 'FAILED',
+                icon: notificationiconEnum.ERROR,
+                createdBy: userInfo,
+            });
         }
 
     } catch (error) {

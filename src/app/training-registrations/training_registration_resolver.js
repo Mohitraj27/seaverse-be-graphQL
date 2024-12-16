@@ -343,6 +343,19 @@ module.exports.queries = {
                         as: "trainingContentsFallback",
                     },
                 },
+                {
+                    $addFields: {
+                        totalDuration: {
+                            $toInt: {
+                                $cond: {
+                                    if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
+                                    then: { $sum: "$trainingProgresses.duration" },
+                                    else: { $sum: "$trainingContentsFallback.duration" },
+                                },
+                            },
+                        },
+                    },
+                },
                 { $sort: { createdAt: -1 } },
             ]);
 
@@ -351,6 +364,7 @@ module.exports.queries = {
                 message: "My Courses fetched successfully",
                 courses: courses,
             }
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
@@ -1694,8 +1708,7 @@ module.exports.mutations = {
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
-                certificateLink: `https://example.com/certificates`,
-                courseImageUrl: `https://example.com/certificates`
+                courseId: trainingData._id,
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
