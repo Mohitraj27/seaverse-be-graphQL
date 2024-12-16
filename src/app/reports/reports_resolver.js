@@ -276,8 +276,6 @@ const getMainLearnersReport = async ({ input }, context) => {
             },
         ]);
 
-        console.log(employeesData);
-
 
         const data = employeesData.map(item => ({
             Name: item.name,
