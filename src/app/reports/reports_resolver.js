@@ -1526,6 +1526,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+            if (filterInput.learnerIds && Array.isArray(filterInput.learnerIds) && filterInput.learnerIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        user: { $in: filterInput.learnerIds },
+                    },
+                });
+            }
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;

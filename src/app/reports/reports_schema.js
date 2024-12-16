@@ -191,6 +191,7 @@ module.exports = {
             vesselName : [ID]
             vesselType : [ID]
             designation : [ID]
+            learnerIds : [ID]
             courseStatus:[String]
             dateRange : filterDateRange
         }
