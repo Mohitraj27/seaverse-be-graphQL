@@ -1,5 +1,5 @@
 const { ObjectId } = require("../../tools");
-const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper } = require("../../util");
+const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper, contentTypes } = require("../../util");
 const mongoose = require('mongoose');
 
 const { Training } = require("./training_model");
@@ -770,13 +770,12 @@ const updateTrainingProgress = async (input, userId) => {
 
     const evaluationData = input.flatMap(overall =>
         overall.trainingModules.flatMap(module =>
-            module.contentDetails.filter(content => content.questionAnswers && content.questionAnswers.length > 0)
-                .map(content => ({
-                    contentId: content.contentId,
-                    trainingModuleId: module.moduleId,
-                    overallId: overall.overallId,
-                    questionAnswers: content.questionAnswers
-                }))
+            module.contentDetails.map(content => ({
+                contentId: content.contentId,
+                trainingModuleId: module.moduleId,
+                overallId: overall.overallId,
+                questionAnswers: content?.questionAnswers || []
+            }))
         )
     );
 
@@ -885,6 +884,10 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 continue;
             }
 
+            if (trainingModuleContent.contentType != contentTypes.QUIZ) {
+                continue;
+            }
+
             let totalScore = 0;
             let acquiredScore = 0;
             let skippedQuestions = 0;
@@ -968,6 +971,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 isPassed,
                 attendedQuestions: questionResults,
             };
+
             quizEvaluations.push(quizEvaluationData);
 
             const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
