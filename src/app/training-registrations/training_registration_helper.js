@@ -33,7 +33,8 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const courseEnrollment = require("../email-template/courseEnrollment");
 const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
 const {Training} = require("../trainings/training_model");
-const {sendNotifications} = require("../../util/firebase_helper")
+const {sendNotifications} = require("../../util/firebase_helper");
+const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -667,7 +668,11 @@ module.exports = {
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
 
                         }
-
+                        
+                        const learningPlan = await LearningPlan.findById(input.learningPlan).select('emailNotification -_id');
+                        if (input.learningPlan && learningPlan?.emailNotification === false ) {
+                            return savedTrainingRegistration; 
+                        }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         users.forEach(user => {
                             trainingsData.forEach(training => {
@@ -688,6 +693,12 @@ module.exports = {
                         return savedTrainingRegistration;
                     }
                 );
+                const learningPlan = await LearningPlan.findById(input.learningPlan).select('pushNotification -_id');
+                if (input.learningPlan && learningPlan?.pushNotification === false ) {
+                    return  {
+                        message: "Course enrollment successful!",
+                    }; 
+                }
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `New Course has been enrolled to you`,
