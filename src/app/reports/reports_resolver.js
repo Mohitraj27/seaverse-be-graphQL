@@ -897,11 +897,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'contentStatus': '$contentProgress.status',
                             'enrollmentDate': '$createdAt',
                             'quizPercentage': '$contentProgress.quizAttemptDetails.percentage',
-                            'timeSpent': {
-                                '$ifNull': [
-                                    '$timeSpent', 0
-                                ]
-                            },
+                            'timeSpent': '$timeSpent',
                             'startDate': '$startDate',
                             'completionDate': '$completionDate'
                         }
@@ -1047,6 +1043,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
                 ]
             );
+
+            console.log(learnerData,"ldata")
             let s3PresignedUrl = "";
             if (input?.export) {
 
@@ -1210,6 +1208,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
+        
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
