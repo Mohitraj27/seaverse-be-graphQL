@@ -692,6 +692,12 @@ module.exports = {
                         return savedTrainingRegistration;
                     }
                 );
+                const learningPlan = await LearningPlan.findById(input.learningPlan).select('pushNotification -_id');
+                if (input.learningPlan && learningPlan?.pushNotification === false ) {
+                    return  {
+                        message: "Course enrollment successful!",
+                    }; 
+                }
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `New Course has been enrolled to you`,
