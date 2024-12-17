@@ -104,7 +104,7 @@ module.exports.QuizContentHelper = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("quiz_content_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };

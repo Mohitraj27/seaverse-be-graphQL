@@ -109,10 +109,11 @@ module.exports = {
             pageInput: PageInput
             export : Boolean
             filterInput : learnerMainReportFilter
+            selectVesselOrLearner : selectVesselOrLearnerEnum
         }
         input learnerMainReportFilter {
             isRegistered : Boolean
-            isDeleted : Boolean
+            includeDeletedUsers : Boolean
             search : String
             vesselTypes : [ID]
             vesselIds : [ID]
@@ -145,7 +146,7 @@ module.exports = {
             status : String
             updatedAt : String
             quizPercentage : Float
-            totalTimeSpent : Int
+            totalTimeSpent : Float
             isPassed : Boolean
         }
         type singleLearnersReportOutput {
@@ -190,6 +191,7 @@ module.exports = {
             vesselName : [ID]
             vesselType : [ID]
             designation : [ID]
+            learnerIds : [ID]
             courseStatus:[String]
             dateRange : filterDateRange
         }
@@ -276,7 +278,9 @@ module.exports = {
             vesselTypeIds : [ID]
             vesselNameIds : [ID]
         }
-
+        type s3PathOutput {
+            url : String
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -291,5 +295,6 @@ module.exports = {
         getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
         getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
+        getS3FilePath(filePath:String!): s3PathOutput
     `,
 };

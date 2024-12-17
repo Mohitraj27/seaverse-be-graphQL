@@ -90,7 +90,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("sub_role_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };

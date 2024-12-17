@@ -35,7 +35,7 @@ const parseDateTime = dateTime => {
             };
         }
     } catch (e) {
-        console.log("util.index:parseDateTime:Exception:", e.message);
+        throw Error(e.message);
     }
 };
 
@@ -48,7 +48,7 @@ const VerifySubscription = async context => {
         context.hasSubscription = hasSubscription;
 
     } catch (e) {
-        console.log("Invalid Subscription Data");
+        throw Error(e.message);
     }
 
     return context ?? {};
@@ -83,7 +83,7 @@ const VerifyUser = async context => {
             }
         }
     } catch (e) {
-        console.log("Invalid User Data");
+        throw Error("Invalid User Data");
     }
 
     return context ?? {};

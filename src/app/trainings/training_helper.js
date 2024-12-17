@@ -278,7 +278,7 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date() } },
+                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length } },
                     },
                 });
             }
@@ -388,107 +388,6 @@ function mergeTrainingData(data) {
 
     return Object.values(mergedData);
 }
-
-// const validateAndUpdateContentData = async (input) => {
-
-//     const overallIds = input.map((item) => item.overallId);
-
-//     let overallDocs = [];
-//     if (overallIds.length > 0) {
-//         overallDocs = await OverallTrainingProgress.find({
-//             _id: { $in: overallIds },
-//         }).lean();
-//     }
-
-//     if (overallDocs.length == 0) {
-//         errors.push(`Training not found`);
-//         return;
-//     }
-
-//     const getTrainingIds = overallDocs.map((doc) => doc.training);
-
-//     if (getTrainingIds.length == 0) {
-//         errors.push(`Training couldn't found`);
-//         return;
-//     }
-
-//     const overallMap = new Map(overallDocs.map((doc) => [doc._id.toString(), doc]));
-
-//     const errors = [];
-//     const missingOverallEntries = [];
-
-//     for (const item of input) {
-
-//         const { overallId, trainingModules } = item;
-
-//         const overallDoc = overallMap.get(overallId.toString());
-
-//         if (!overallDoc) {
-//             errors.push({
-//                 overallId,
-//                 error: `Training not found for overallId`,
-//             });
-//             break;
-//         }
-
-//         for (const trainingModule of trainingModules) {
-//             const { moduleId, contentDetails } = trainingModule;
-
-//             let matchingModuleData;
-//             if (overallDoc) {
-//                 matchingModuleData = overallDoc.contentData?.find(
-//                     (data) => data.moduleId.toString() == moduleId
-//                 );
-//             }
-
-//             if (!matchingModuleData) {
-
-//                 missingOverallEntries.push({
-//                     updateOne: {
-//                         filter: { _id: overallId },
-//                         update: {
-//                             status: "IN_PROGRESS",
-//                             $push: {
-//                                 contentData: {
-//                                     moduleId,
-//                                     contentIds: contentDetails.map((content) => content.contentId),
-//                                 },
-//                             },
-//                         },
-//                         upsert: true,
-//                     },
-//                 });
-
-//                 continue;
-//             }
-
-//             for (const content of contentDetails) {
-
-//                 const { contentId } = content;
-
-//                 const isContentPresent = matchingModuleData.contentIds
-//                     .map((id) => id.toString())
-//                     .includes(contentId.toString());
-
-//                 if (!isContentPresent) {
-//                     errors.push({
-//                         overallId,
-//                         moduleId,
-//                         contentId,
-//                         error: `Content ID ${contentId} not found in contentIds for the module ${moduleId}`,
-//                     });
-//                 }
-
-//             }
-//         }
-//     }
-
-//     if (missingOverallEntries.length > 0) {
-//         await OverallTrainingProgress.bulkWrite(missingOverallEntries);
-//     }
-
-//     return errors;
-// };
 
 const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
@@ -1111,7 +1010,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
         return errors;
 
     } catch (error) {
-        console.error("Error evaluating quiz in bulk:", error);
+        throw Error(error.message);
     }
 };
 
@@ -1296,7 +1195,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("training_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };
