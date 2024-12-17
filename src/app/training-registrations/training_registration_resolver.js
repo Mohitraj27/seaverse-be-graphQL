@@ -425,6 +425,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                overallTrainingProgress: "$_id",
                                 attemptCount: "$attemptCount"
                             },
                             pipeline: [
@@ -432,6 +433,9 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
@@ -896,6 +900,7 @@ module.exports.queries = {
                             from: "trainingprogresses",
                             let: {
                                 moduleId: "$contentData.moduleId",
+                                overallTrainingProgress: "$_id",
                                 contentIds: "$contentData.contentIds",
                                 attemptCount: "$attemptCount",
                             },
@@ -904,6 +909,9 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
