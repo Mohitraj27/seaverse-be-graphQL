@@ -3822,6 +3822,24 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     }
 };
 
+const getS3FilePath = async ({ filePath }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+    try {
+        if (!filePath) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "filePath is required")
+        }
+        const signedUrl = await aws_helper.fetchFile(filePath);
+        return {
+            url: signedUrl
+        };
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
@@ -3830,6 +3848,7 @@ module.exports.queries = {
     getVesselMainReport,
     generateCustomReport,
     getCustomReportLogs,
+    getS3FilePath,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 
