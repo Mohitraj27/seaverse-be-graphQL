@@ -109,6 +109,10 @@ const getTheContent = async (contents) => {
     let zipUrl = null;
     let fetchedData;
 
+    if (contents.length == 1 && contents[0].contentType == contentTypes.QUIZ) {
+        return [];
+    }
+
     fetchedData = fetchFiles(contents);
 
     if (fetchedData.size > 0) {

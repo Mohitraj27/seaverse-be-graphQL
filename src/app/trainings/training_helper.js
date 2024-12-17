@@ -278,7 +278,7 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date() } },
+                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length } },
                     },
                 });
             }

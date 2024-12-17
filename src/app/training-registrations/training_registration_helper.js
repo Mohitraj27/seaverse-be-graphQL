@@ -674,7 +674,8 @@ module.exports = {
                                 const emailContent = courseEnrollment({
                                     firstName: user.firstName,
                                     trainingTitle: training?.title?.[0]?.value,
-                                    durationHours: training?.durationHours || '0'
+                                    durationHours: training?.durationHours || '0',
+                                    courseId: training?._id,
                                 });
                                 sendEmail({
                                     receiverEmail: user.email,

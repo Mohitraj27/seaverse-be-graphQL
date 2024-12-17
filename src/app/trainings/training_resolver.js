@@ -508,11 +508,10 @@ module.exports.mutations = {
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
             const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
-            
+
             if (validateErrors.length > 0) {
                 throw CustomError(ErrorName.FAILED, validateErrors[0]);
             }
-
 
             input.forEach((entry) => {
                 entry.trainingModules?.forEach((module) => {
@@ -527,7 +526,6 @@ module.exports.mutations = {
                     })
                 })
             })
-
 
             let syncContentErrors = [];
             const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);

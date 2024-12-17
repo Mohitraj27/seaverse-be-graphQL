@@ -25,7 +25,10 @@ const ReportsHelper = require("./reports_helper");
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-    if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
+    let selectVesselOrLearner = "VESSEL";
+    if (input?.selectVesselOrLearner){
+        selectVesselOrLearner = input?.selectVesselOrLearner;
+    } 
     try {
         const matchStage = [];
 
@@ -299,7 +302,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             const worksheet = XLSX.utils.json_to_sheet(data);
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + input?.selectVesselOrLearner.slice(1).toLowerCase();
+            let fileNameStd = selectVesselOrLearner?.charAt(0).toUpperCase() + selectVesselOrLearner?.slice(1).toLowerCase();
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "All_learners_Report_exports",
@@ -311,7 +314,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${input?.selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
@@ -431,7 +434,18 @@ const getSingleLearnerReport = async ({ input }, context) => {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
-
+        
+        let matchUsers =[];
+        if(learnerIds.length>0){
+            matchUsers.push(
+                {
+                    "$match": {
+                        "user": { $in: learnerIds.map(id => ObjectId(id)) }
+                    }
+                }
+            );
+        }
+          
 
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
@@ -460,11 +474,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "as": "employeeInfo"
                         }
                     },
-                    {
-                        "$match": {
-                            "user": { $in: learnerIds.map(id => ObjectId(id)) }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         $lookup: {
                             from: "trainingprogresses",
@@ -667,7 +677,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
-                        'Enrollment Date / Unenrollment Date (UTC TimeZone)': enrollmentDate,
+                        'Enrollment Date (UTC TimeZone)': enrollmentDate,
                         'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
                         'Completion Date (UTC TimeZone)': completionDate,
                         'Started Date (UTC TimeZone)': startDate,
@@ -708,7 +718,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
                 XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-                let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
@@ -3624,7 +3633,16 @@ const generateCustomReport = async ({ input }, context) => {
             };
 
         } else {
-            throw CustomError(ErrorName.NOT_FOUND, "No data found");
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Custom Report Export Failed`,
+                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
+                notificationType: NotificationType.REPORT_EXPORT_FAILED,
+                notifyAdmin: true,
+                status: 'FAILED',
+                icon: notificationiconEnum.ERROR,
+                createdBy: userInfo,
+            });
         }
 
     } catch (error) {
