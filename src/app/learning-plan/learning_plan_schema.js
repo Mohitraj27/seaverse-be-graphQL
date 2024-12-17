@@ -166,6 +166,8 @@ module.exports = {
             createdAt: String
             updatedAt: String
             overallProgress: overAllProgress
+            emailNotification: Boolean
+            pushNotification: Boolean
         }
         type userObjectDetails {
             _id: ID
@@ -214,6 +216,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
+            emailNotification: Boolean
+            pushNotification: Boolean
         }
         input UpdateLearningPlanInput {
             title: String
@@ -225,6 +229,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum
             conditionType: ConditionTypeEnum
             conditionalCustomFields: [ConditionalCustomFieldInput]
+            updateemailNotifications: Boolean
+            updatepushNotifications: Boolean
         }
 
         input GetUsersForLearningPlanInput {
