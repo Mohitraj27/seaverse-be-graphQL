@@ -383,7 +383,7 @@ module.exports.queries = {
                 .populate("training").lean();
 
             if (!fetchOverallTrainingProgress) {
-                throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+                throw CustomError(ErrorName.NOT_FOUND, "Course not found");
             }
 
             let trainingDetails;

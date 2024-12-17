@@ -655,7 +655,7 @@ module.exports.queries = {
                     as: "user",
                     pipeline: [
                         {
-                            $match: { superAdmin: { $ne: true }, isRegistered: { $ne: false } },
+                            $match: { superAdmin: { $ne: true } },
                         },
                     ],
                 },
@@ -1366,7 +1366,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 const emailContent =
                     input.type === "Registered"
                         ? registered_status({ firstName: user.firstName})
-                        : Unregistered_status({ firstName: user.firstName});
+                        : Unregistered_Status({ firstName: user.firstName});
                 await SendEmail({
                     receiverEmail: user.email,
                     subject: `Current Status Update: ${input.type}`,
@@ -1842,7 +1842,22 @@ module.exports.mutations = {
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                    [
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $ifNull: ["$assignedLearnerIDs", []]
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
+                                }
+                            }
+                        }
+                    ]
                 );
             }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({

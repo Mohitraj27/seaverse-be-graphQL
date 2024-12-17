@@ -217,7 +217,9 @@ const createLearningPlanHelper = async (input, context) => {
             selectCourses: input.selectCourses,
             assignedLearnerIDs: input.userObjectIds || userIds,
             createdBy: input.createdBy,
-            updatedBy: input.updatedBy
+            updatedBy: input.updatedBy,
+            emailNotification: input.emailNotification,
+            pushNotification: input.pushNotification,
         });
         await newLearningPlan.save();
         if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
@@ -351,6 +353,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.assignedLearnerIDs = input.userObjectIds?.length > 0 ? input.userObjectIds : userIds;
         existingLearningPlan.selectCourses = input.selectCourses || existingLearningPlan.selectCourses;
         existingLearningPlan.status = input.status || existingLearningPlan.status;
+        existingLearningPlan.emailNotification = input.updateemailNotifications;
+        existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
         if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
