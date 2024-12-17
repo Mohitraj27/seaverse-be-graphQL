@@ -353,7 +353,7 @@ module.exports = {
             }
 
         } catch (error) {
-            console.error(error);
+            throw Error(error);
         }
     }
 };

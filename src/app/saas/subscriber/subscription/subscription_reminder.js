@@ -122,7 +122,7 @@ module.exports = {
                 }
             });
         } catch (e) {
-            console.log("subscription_remainder.sendSubscriptionRemainder:error:", e);
+            throw Error(e.message);
         }
     },
 };

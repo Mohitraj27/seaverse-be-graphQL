@@ -48,16 +48,10 @@ const sendTrainingCertificateReminderMail = async data => {
             subject,
             htmlContent: EmailTemplate.emailTemplate(subscriberLogo, subscriberDetails, html),
         }).catch(e => {
-            console.log(
-                "training_certificate_reminder.sendTrainingCertificateReminderMail:error:",
-                e?.message
-            );
+          throw Error(e.message);
         });
     } catch (e) {
-        console.log(
-            "training_certificate_reminder.sendTrainingCertificateReminderMail:exception:",
-            e?.message
-        );
+       throw Error(e.message);
     }
 };
 
@@ -126,18 +120,10 @@ const fetchAndSendEmailToTrainingCertificateEmployeesAboutDue = async () => {
             ) {
                 emailObject.message += `Your certificate for the course "${trainingTitle}" will expire in two days.`;
             }
-
-            console.log(
-                "trainingCertificateRemainder:expiresAt:",
-                Moment.utc(trainingCertificateExpiresAt).format()
-            );
-
-            console.log("trainingCertificateRemainder:emailObject:", emailObject);
-
             if (emailObject.message?.length) sendTrainingCertificateReminderMail(emailObject);
         }
     } catch (e) {
-        console.log("training_certificate_reminder.trainingCertificateRemainder:error:", e);
+        throw Error(e.message);
     }
 };
 

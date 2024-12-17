@@ -344,7 +344,6 @@ module.exports.mutations = {
             deletedTraining.deletedDate = new Date();
             await deletedTraining.save();
         } catch (error) {
-            console.error("Error while saving:", error);
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
