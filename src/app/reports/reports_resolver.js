@@ -317,6 +317,14 @@ const getMainLearnersReport = async ({ input }, context) => {
                     messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType:"EXPORT_URL",
+                            infoData: {
+                                filePath : excelFilePath
+                            }
+                        }
+                    ],
                     status: 'SENT',
                     createdBy: userInfo,
                     icon: notificationiconEnum.SUCCESS
@@ -726,6 +734,23 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 });
                 if (excelFilePath) {  
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                   
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Single Learner Report Exported Successfully`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
+                        notifyAdmin: true,
+                        additionalInfo: [{
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: excelFilePath
+                            }
+                        }],
+                        status: 'SENT',
+                        createdBy: userInfo,
+                        icon: notificationiconEnum.SUCCESS
+                    });
                 }
                 return {
                     filePath: s3PresignedUrl,
@@ -1186,6 +1211,14 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
+                        additionalInfo: [
+                            {
+                                infoType:"EXPORT_URL",
+                                infoData: {
+                                    filePath : excelFilePath
+                                }
+                            }
+                        ],
                         status: 'SENT',
                         createdBy: userInfo,
                         icon: notificationiconEnum.SUCCESS
@@ -1402,6 +1435,14 @@ const getMainCoursesReport = async ({ input }, context) => {
                     messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType:"EXPORT_URL",
+                            infoData: {
+                                filePath : excelFilePath
+                            },
+                        }
+                    ],
                     status: 'SENT',
                     createdBy: userInfo,
                     icon: notificationiconEnum.SUCCESS
@@ -1878,6 +1919,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
+                            additionalInfo: [
+                                {
+                                    infoType:"EXPORT_URL",
+                                    infoData: {
+                                        filePath : excelFilePath
+                                    }
+                                }
+                            ],
                             status: 'SENT',
                             createdBy: userInfo,
                             icon: notificationiconEnum.SUCCESS
@@ -2366,6 +2415,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
+                            additionalInfo: [
+                                {
+                                    infoType:"EXPORT_URL",
+                                    infoData: {
+                                        filePath : excelFilePath
+                                    }
+                                }
+                            ],
                             status: 'SENT',
                             createdBy: userInfo,
                             icon: notificationiconEnum.SUCCESS
@@ -2684,6 +2741,14 @@ const getVesselMainReport = async ({ input }, context) => {
                     messageValue: `The main vessel report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType:"EXPORT_URL",
+                            infoData: {
+                                filePath : excelFilePath
+                            }
+                        }
+                    ],
                     status: 'SENT',
                     createdBy: userInfo,
                     icon: notificationiconEnum.SUCCESS
@@ -3605,6 +3670,14 @@ const generateCustomReport = async ({ input }, context) => {
                     messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                     notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType:"EXPORT_URL",
+                            infoData: {
+                                filePath : excelFilePath
+                            }
+                        }
+                    ],
                     status: 'SENT',
                     createdBy: userInfo,
                     icon: notificationiconEnum.SUCCESS
@@ -3749,6 +3822,24 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
     }
 };
 
+const getS3FilePath = async ({ filePath }, context) => {
+    const { subscriberId } = AuthUser(context);
+    if (!subscriberId) {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+    try {
+        if (!filePath) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "filePath is required")
+        }
+        const signedUrl = await aws_helper.fetchFile(filePath);
+        return {
+            url: signedUrl
+        };
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 module.exports.queries = {
     getMainLearnersReport,
     getSingleLearnerReport,
@@ -3757,6 +3848,7 @@ module.exports.queries = {
     getVesselMainReport,
     generateCustomReport,
     getCustomReportLogs,
+    getS3FilePath,
     getRevenueReports: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
 

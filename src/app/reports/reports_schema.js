@@ -278,7 +278,9 @@ module.exports = {
             vesselTypeIds : [ID]
             vesselNameIds : [ID]
         }
-
+        type s3PathOutput {
+            url : String
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -293,5 +295,6 @@ module.exports = {
         getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
         getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
+        getS3FilePath(filePath:String!): s3PathOutput
     `,
 };
