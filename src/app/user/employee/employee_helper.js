@@ -1670,15 +1670,17 @@ module.exports = {
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
             userCount = allUpdatedUsers?.length || 0;
            
-
+            const automateLearningPlanIds = [];
             //  dont remove this code we need it for automate learning plan  
             // allUpdatedUsers.forEach(user => {
             //     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-            //     const designationId = originalUserData?.designation?.toUpperCase()
-            //         ? designationMap.get(originalUserData.designation.toUpperCase())?.id
+            //     const designationId = originalUserData?.designation?.toLowerCase()
+                
+            //         ? designationMap.get(originalUserData.designation.toLowerCase())?.id
             //         : null;
+            //         console.log(designationId,"designationId");
 
-            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPagssport);
+            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
             //        console.log(vesselData,"vesselData");
 
             //     const vesselId = vesselData?.imoNumber
@@ -1695,7 +1697,7 @@ module.exports = {
             //         vesselStatus: vesselData?.vesselStatus || null,
             //     });
             // });
-            // console.log(automateLearningPlanIds, "automateLearningPlanIds");
+            console.log(automateLearningPlanIds, "automateLearningPlanIds");
             // const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
             // console.log(matchedLearningPlans,"matchedLearningPlans");
             if (allUpdatedUsers.length > 0) {
