@@ -389,7 +389,6 @@ function mergeTrainingData(data) {
     return Object.values(mergedData);
 }
 
-
 const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
     if (overallIds.length > 0) {
