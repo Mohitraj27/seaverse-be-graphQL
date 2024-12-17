@@ -1044,7 +1044,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 ]
             );
 
-            console.log(learnerData,"ldata")
             let s3PresignedUrl = "";
             if (input?.export) {
 
