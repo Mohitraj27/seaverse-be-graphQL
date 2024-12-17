@@ -134,11 +134,9 @@ module.exports = {
 
 
             let fileUploaded = fs.createReadStream(savedFile);
-            console.log('Started ......');
             const data = await new Promise((resolve, reject) => {
                 courseApi.createUploadAndImportCourseJob(id, { file: fileUploaded }, (error, data) => {
                     if (error) {
-                        console.log(error);
                         return reject("Error");
                     }
                     resolve(data);
@@ -146,8 +144,6 @@ module.exports = {
             });
 
             const jobId = data.result;
-
-            console.log(jobId)
 
             const courseInfo = await new Promise((resolve, reject) => {
                 const interval = setInterval(() => {

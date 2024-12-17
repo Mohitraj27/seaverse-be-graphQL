@@ -665,7 +665,8 @@ module.exports.mutations = {
                 if (!durationStyleChecked) {
                     throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
                 }
-                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+                input.duration = Math.round(TrainingModuleContentHelper.convertDurationToMinutes(input.duration));
+
             }
             let contentTypeNotification = '';
             if (thumbnail) {

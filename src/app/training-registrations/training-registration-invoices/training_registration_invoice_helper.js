@@ -96,10 +96,8 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log(
-                "training_registration_invoice_helper.sendNotificationOnCRUD:exception:",
-                e?.message
-            );
+            throw Error(e?.message);
+        
         }
     },
     generateTrainingRegistrationInvoiceNumber: async ({ subscriberId, session }) => {

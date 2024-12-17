@@ -355,7 +355,8 @@ module.exports.queries = {
                             },
                         },
                     },
-                }
+                },
+                { $sort: { createdAt: -1 } },
             ]);
 
             return {
@@ -363,6 +364,7 @@ module.exports.queries = {
                 message: "My Courses fetched successfully",
                 courses: courses,
             }
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
@@ -423,6 +425,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                overallTrainingProgress: "$_id",
                                 attemptCount: "$attemptCount"
                             },
                             pipeline: [
@@ -430,6 +433,9 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
@@ -894,6 +900,7 @@ module.exports.queries = {
                             from: "trainingprogresses",
                             let: {
                                 moduleId: "$contentData.moduleId",
+                                overallTrainingProgress: "$_id",
                                 contentIds: "$contentData.contentIds",
                                 attemptCount: "$attemptCount",
                             },
@@ -902,6 +909,9 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
@@ -1706,8 +1716,7 @@ module.exports.mutations = {
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
-                certificateLink: `https://example.com/certificates`,
-                courseImageUrl: `https://example.com/certificates`
+                courseId: trainingData._id,
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,

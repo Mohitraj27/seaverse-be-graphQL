@@ -50,7 +50,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("training_category_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };

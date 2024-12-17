@@ -33,7 +33,6 @@ module.exports.mutations = {
             };
         }
     } catch (error) {
-        console.error("Error in contactSupport:", error);
         return {
             success: false,
             message: error.message,
@@ -74,7 +73,6 @@ module.exports.mutations = {
                 };
             }
         } catch (error) {
-            console.error("Error in contactSupport:", error);
             return {
                 success: false,
                 message: error.message,

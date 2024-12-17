@@ -679,7 +679,8 @@ module.exports = {
                                 const emailContent = courseEnrollment({
                                     firstName: user.firstName,
                                     trainingTitle: training?.title?.[0]?.value,
-                                    durationHours: training?.durationHours || '0'
+                                    durationHours: training?.durationHours || '0',
+                                    courseId: training?._id,
                                 });
                                 sendEmail({
                                     receiverEmail: user.email,
@@ -951,10 +952,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log(
-                "training_registration_helper.sendNotificationOnCRUD:exception:",
-                e?.message
-            );
+          throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };
