@@ -66,7 +66,7 @@ module.exports.BatchHelper = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log("batch_helper.sendNotificationOnCRUD:exception:", e?.message);
+            throw Error(e.message);
         }
     },
 };

@@ -31,10 +31,10 @@ const sendBatchCompletionReminderMail = async data => {
             subject,
             htmlContent: EmailTemplate.emailTemplate(null, null, html),
         }).catch(e => {
-            console.log("batch_reminder.sendBatchCompletionReminderMail:error:", e?.message);
+            throw Error(e.message);
         });
     } catch (e) {
-        console.log("batch_reminder.sendBatchCompletionReminderMail:exception:", e?.message);
+        throw Error(e.message);
     }
 };
 
@@ -59,7 +59,7 @@ const fetchAndSendEmailToAdminAboutBatchCompletionDue = async () => {
             }
         }
     } catch (e) {
-        console.log("batch_reminder.fetchAndSendEmailToAdminAboutBatchCompletionDue:error:", e);
+        throw Error(e.message);
     }
 };
 

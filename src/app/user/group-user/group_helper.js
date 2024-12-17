@@ -55,12 +55,10 @@ const calculateUniqueMemberCounts = (customGroups, groupData) => {
                 }
 
                 const matchedGroup = relevantGroup.find(g => g.groupId == groupId);
-                console.log("matchedGroup", matchedGroup);
                 if (matchedGroup) {
                     matchedGroup.userIds.forEach(userId => uniqueUserIds.add(userId.toString()));
                 }
             }
-            console.log("uniqueUserIds", uniqueUserIds);
             result.push({
                 _id: customGroup._id,
                 groupName: customGroup.groupName,

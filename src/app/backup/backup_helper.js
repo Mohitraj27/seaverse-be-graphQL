@@ -15,7 +15,6 @@ const archiveOldData = async model => {
                 .endOf("day")
                 .toDate();
 
-            console.log(`backup_helper.archiveOldData:${model.collection.name}:date:`, oldDataDate);
 
             const existingData = await model.find({ createdAt: { $lte: oldDataDate } }).lean();
 
@@ -34,23 +33,12 @@ const archiveOldData = async model => {
                         { _id: { $in: existingData.map(x => x._id) } },
                         { lean: true }
                     );
-
-                    console.log(
-                        `backup_helper.archiveOldData:${model.collection.name}:count:`,
-                        deletedData?.deletedCount
-                    );
-
-                    console.log(
-                        `backup_helper.archiveOldData:${model.collection.name}:url:`,
-                        jsonUrl
-                    );
-
                     return jsonUrl;
                 }
             }
         }
     } catch (e) {
-        console.log("backup_helper.archiveOldData:exception:", e.message);
+        throw Error(e.message);
     }
 };
 
