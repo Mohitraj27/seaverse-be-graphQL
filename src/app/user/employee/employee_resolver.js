@@ -1366,7 +1366,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 const emailContent =
                     input.type === "Registered"
                         ? registered_status({ firstName: user.firstName})
-                        : Unregistered_status({ firstName: user.firstName});
+                        : Unregistered_Status({ firstName: user.firstName});
                 await SendEmail({
                     receiverEmail: user.email,
                     subject: `Current Status Update: ${input.type}`,
