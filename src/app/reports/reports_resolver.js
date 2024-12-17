@@ -20,11 +20,12 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
 const { User } = require("../user/user_model");
+const ReportsHelper = require("./reports_helper");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
+    if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'VESSEL';
     try {
         const matchStage = [];
 
@@ -41,10 +42,10 @@ const getMainLearnersReport = async ({ input }, context) => {
             });
         }
 
-        let includeDeletedUsers = false;
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
+
             if (searchString.trim() !== '') {
                 const regexSearch = new RegExp(searchString.trim(), 'i');
 
@@ -98,10 +99,6 @@ const getMainLearnersReport = async ({ input }, context) => {
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
                 });
             }
-
-            if (filterInput.isDeleted !== undefined) {
-                includeDeletedUsers = true;
-            }
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -126,7 +123,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...(includeDeletedUsers
+            ...(input?.filterInput?.includeDeletedUsers
                 ? [
                     {
                         $lookup: {
@@ -145,12 +142,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                     {
                         $addFields: {
                             userInfo: {
-                                $cond: [
-                                    { $and: [{ $ne: ['$userInfo', null] }, { $ne: ['$userInfo._id', null] }] },
-                                    '$userInfo',
-                                    '$deletedUserInfo',
-                                ],
-                            },
+                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
+                            }
                         },
                     },
                 ]
@@ -250,7 +243,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     averageProgressPercentage: {
                         $cond: {
                             if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                            then: { $avg: '$trainingProgresses.progressPercentage' },
+                            then: { $round: [{ $avg: '$trainingProgresses.progressPercentage' }, 2] },
                             else: 0,
                         },
                     },
@@ -285,6 +278,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             },
         ]);
 
+
         const data = employeesData.map(item => ({
             Name: item.name,
             EmployeeId: item.EmployeeId,
@@ -295,7 +289,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             IsDeleted: item.isDeleted ? 'Yes' : 'No',
             vesselTypeName: item.vesselTypeName,
             CoursesCount: item.coursesCount,
-            AverageProgressPercentage: item?.averageProgressPercentage ? parseInt(item.averageProgressPercentage) : 0,
+            AverageProgressPercentage: item?.averageProgressPercentage ? parseInt(item.averageProgressPercentage).toFixed(2) : 0,
         }));
 
         let s3PresignedUrl = "";
@@ -303,20 +297,21 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
             const worksheet = XLSX.utils.json_to_sheet(data);
-            XLSX.utils.book_append_sheet(workbook, worksheet, `Learners Report-${Date.now()}`);
+            XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + input?.selectVesselOrLearner.slice(1).toLowerCase();
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "All_learners_Report_exports",
-                fileName: `All_learners_Report-${Date.now()}.xlsx`,
+                fileName: `${fileNameStd}_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportLearnersReportAsExcel,
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
-                    titleValue: `Learners Report Exported Successfully`,
-                    messageValue: `The learners report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    titleValue: `${fileNameStd} Report Exported Successfully`,
+                    messageValue: `The ${input?.selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
@@ -338,8 +333,8 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Learners Report Export Failed`,
-                messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+                titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message}.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -362,8 +357,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `SINGLE Learner Report Exported In Progress`,
-                messageValue: `The single learner report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                titleValue: ` Learner's report export In Progress`,
+                messageValue: `The learner's report export has been initiated by ${userInfo.firstName} ${userInfo.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -373,6 +368,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         if (input && Object.keys(input).length > 0) {
+            if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
             if (filterInput.title) {
                 matchStage.push({
@@ -702,31 +698,32 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
             if (input?.export && learnersReports.length > 0) {
                 const workbook = XLSX.utils.book_new();
-
+                const combinedData = [];
                 for (const learnerName in learnerReportsByUser) {
                     const data = learnerReportsByUser[learnerName];
-                    const worksheet = XLSX.utils.json_to_sheet(data);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `${learnerName}`);
+                    combinedData.push(...data);
+                    combinedData.push([]);
                 }
-
+            
+                const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                let fileNameStd = input?.selectVesselOrLearner.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
-                    fileName: `learners_Report-${Date.now()}.xlsx`,
+                    fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
-
-                if (excelFilePath) {
+                if (excelFilePath) {  
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                 }
-
                 return {
                     filePath: s3PresignedUrl,
                     fileName: path.basename(excelFilePath),
                     learnerData: learnersReports,
                 };
-            }
+            }            
             else if (input?.export && learnersReports.length == 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
             }
@@ -1043,6 +1040,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             );
             let s3PresignedUrl = "";
             if (input?.export) {
+
                 const flattenLearnerDataForSingleSheet = (learner) => {
                     const flattenedData = [];
 
@@ -1147,35 +1145,32 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     return flattenedData;
                 };
-
-
                 const exportToExcelWithMultipleSheets = async (learnersData) => {
                     const workbook = XLSX.utils.book_new();
 
+                    const combinedData = [];
+
                     learnersData.forEach(learner => {
                         const learnerData = flattenLearnerDataForSingleSheet(learner);
-                        const sheetName = learner?.userName || `Learner_${learner.userId?.toString() || Date.now()}`;
-                        const worksheet = XLSX.utils.json_to_sheet(learnerData);
-                        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        combinedData.push(...learnerData);
+                        combinedData.push([]);
                     });
 
-
+                    const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                    XLSX.utils.book_append_sheet(workbook, worksheet, input.report);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-
 
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Multiple_Learners_Report_exports",
-                        fileName: `learners_Report-${Date.now()}.xlsx`,
+                        fileName: `${(input.selectVesselOrLearner).toLowerCase()}_report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
 
                     return excelFilePath;
                 };
-
-
+                
                 const excelFilePath = await exportToExcelWithMultipleSheets(learnersData);
-
 
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
@@ -1432,6 +1427,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         throw Error(err.message);
     }
 };
+
 const getSingleCourseReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
@@ -1453,7 +1449,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-        
+
         if (!input?.reportType) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
 
         if (Object.keys(input).length > 0) {
@@ -1530,6 +1526,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+            if (filterInput.learnerIds && Array.isArray(filterInput.learnerIds) && filterInput.learnerIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        user: { $in: filterInput.learnerIds },
+                    },
+                });
+            }
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -1571,26 +1574,60 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     {
                         $lookup: {
-                            from: "quizevaluations",
-                            localField: "training",
-                            foreignField: "trainingId",
-                            as: "quizevaluationInfo",
+                            from: 'trainingprogresses',
+                            localField: '_id',
+                            foreignField: 'overallTrainingProgress',
+                            as: 'quizevaluationInfo',
+                            let: {
+                                attemptCount: '$attemptCount',
+                            },
                             pipeline: [
                                 {
                                     $match: {
-                                        training: ObjectId(input?.courseId)
-                                    }
+                                        $expr: {
+                                            $eq: ['$attemptCount', '$$attemptCount'],
+                                        },
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: 'trainingmodulecontents',
+                                        localField: 'trainingModuleContent',
+                                        foreignField: '_id',
+                                        as: 'contentInfo',
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    $expr: {
+                                                        $eq: ['$contentType', 'QUIZ'],
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: '$contentInfo',
+                                        preserveNullAndEmptyArrays: true,
+                                    },
                                 },
                                 {
                                     $sort: {
-                                        updatedAt: -1
-                                    }
+                                        updatedAt: -1,
+                                    },
                                 },
                                 {
-                                    $limit: 1
-                                }
-                            ]
-                        }
+                                    $limit: 1,
+                                },
+                                {
+                                    $project: {
+                                        percentage: '$quizAttemptDetails.percentage',
+                                        isPassed: '$quizAttemptDetails.isPassed',
+                                    },
+                                },
+                            ],
+                        },
                     },
                     {
                         $unwind: {
@@ -1817,12 +1854,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                     });
                     const workbook = XLSX.utils.book_new();
                     const worksheet = XLSX.utils.json_to_sheet(parsedData);
-                    XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
+                    XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Courses_Report_exports",
-                        fileName: `Courses_Report-${Date.now()}.xlsx`,
+                        fileName: `Courses_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
                     if (excelFilePath) {
@@ -2002,7 +2040,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'training': {
                                 '$first': '$training'
                             },
-                            'trainingTitle':{
+                            'trainingTitle': {
                                 '$first': "$trainingInfo.title",
                             },
                             'userId': {
@@ -2123,8 +2161,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastName': {
                                 '$first': '$lastName'
                             },
-                            'trainingTitle':{
-                                '$first':'$trainingTitle'
+                            'trainingTitle': {
+                                '$first': '$trainingTitle'
                             },
                             'email': {
                                 '$first': '$email'
@@ -2224,7 +2262,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             '_id': 0,
                             'courseId': '$_id.trainingId',
                             'user': '$_id.userId',
-                            'trainingTitle':1,
+                            'trainingTitle': 1,
                             'firstName': 1,
                             'lastName': 1,
                             'status': 1,
@@ -2238,7 +2276,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'vesselType': 1,
                             'modules': 1,
                             'empId': 1,
-                            'createdAt':1,
+                            'createdAt': 1,
                             'lastSeen': 1,
                             'status': 1
                         }
@@ -2253,7 +2291,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     trainingTitle: item?.trainingTitle,
                     employeeId: item.empId ? item.empId : "Not Found",
                     designation: item?.designation ? item?.designation : "Not Found",
-                    createdAt : new Date(item.createdAt).toLocaleString(),
+                    createdAt: new Date(item.createdAt).toLocaleString(),
                     email: item?.email ? item?.email : "Not Found",
                     status: item?.status ? item?.status : "Not Found",
                     currentVessel: item?.currentVessel ? item?.currentVessel : "Not Found",
@@ -2273,6 +2311,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const firstName = course?.firstName || '';
                             const lastName = course?.lastName || '';
                             const status = course?.status || 'N/A';
+                            const courseName = course?.trainingTitle[0].value;
+
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
                                 const hasQuiz = module.hasQuiz || false;
@@ -2280,6 +2320,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
+                                    Course: courseName,
                                     Designation: designation,
                                     Status: status,
                                     Module: moduleName,
@@ -2289,27 +2330,27 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                         return flattenedData;
                     };
-                    const exportToExcelWithMultipleSheets = async (coursesData) => {
+                    const exportToExcelWithSingleSheet = async (coursesData) => {
                         const workbook = XLSX.utils.book_new();
+                        const combinedData = [];
 
-                        coursesData.forEach(courses => {
-                            const coursesData = flattenCourseDataForSingleSheet(courses);
-                            const sheetName = `${courses.firstName} ${courses.lastName}` || `Learner_${courses.userId?.toString() || Date.now()}`;
-                            const worksheet = XLSX.utils.json_to_sheet(coursesData);
-                            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        coursesData.forEach(course => {
+                            const courseData = flattenCourseDataForSingleSheet(course);
+                            combinedData.push(...courseData);
                         });
+                        const worksheet = XLSX.utils.json_to_sheet(combinedData);
+                        XLSX.utils.book_append_sheet(workbook, worksheet, 'Course Quiz Report');
                         const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                         const excelFilePath = await UploadHelper.uploadExcel({
                             data: excelBuffer,
                             folderName: "COURSE-QUIZ-REPORT",
-                            fileName: `COURSE-QUIZ-REPORT-${Date.now()}.xlsx`,
+                            fileName: `COURSE-QUIZ-REPORT-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                             uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                         });
-
                         return excelFilePath;
                     };
 
-                    const excelFilePath = await exportToExcelWithMultipleSheets(data);
+                    const excelFilePath = await exportToExcelWithSingleSheet(data);
                     if (excelFilePath) {
                         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                         await NotificationHelper.createNotificationhelper({
@@ -2355,6 +2396,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         throw Error(err.message);
     }
 };
+
 const getVesselMainReport = async ({ input }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
@@ -2624,7 +2666,7 @@ const getVesselMainReport = async ({ input }, context) => {
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Vessel_Progress_Reports",
-                fileName: `Vessel_Progress_Report-${Date.now()}.xlsx`,
+                fileName: `Vessel_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
             });
             if (excelFilePath) {
@@ -2667,7 +2709,7 @@ const getVesselMainReport = async ({ input }, context) => {
 };
 
 const generateCustomReport = async ({ input }, context) => {
-    const { subscriberId, userId , userInfo } = AuthUser(context);
+    const { subscriberId, userId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -2725,7 +2767,7 @@ const generateCustomReport = async ({ input }, context) => {
                         },
                     });
                 }
-            
+
 
                 const dateFilter = {};
 
@@ -3420,48 +3462,66 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
-           const flattenLearnerDataForSingleSheet = (learner) => {
-            const flattenedData = [];
-            if (learner) {
-                const email = learner?.email || '';
-                const designation = learner?.designation || '';
-                const employeeId = learner?.employeeId || '';
-                const userState = learner?.userState ? learner?.userState : 'N/A';
-                const enrollmentDate = learner?.enrollmentDate ? new Date(learner.enrollmentDate).toLocaleDateString() : '';
-                const startDate = learner?.startDate ? new Date(learner.startDate).toLocaleDateString() : 'N/A';
-                const completionDate = learner?.completionDate ? new Date(learner.completionDate).toLocaleDateString() : 'NA';
+            const flattenLearnerDataForSingleSheet = (learner) => {
+                const flattenedData = [];
+                if (learner) {
+                    const email = learner?.email || '';
+                    const designation = learner?.designation || '';
+                    const employeeId = learner?.employeeId || '';
+                    const userState = learner?.userState ? learner?.userState : 'N/A';
+                    const enrollmentDate = learner?.enrollmentDate ? new Date(learner.enrollmentDate).toLocaleDateString() : '';
+                    const startDate = learner?.startDate ? new Date(learner.startDate).toLocaleDateString() : 'N/A';
+                    const completionDate = learner?.completionDate ? new Date(learner.completionDate).toLocaleDateString() : 'NA';
 
-                if (Array.isArray(learner.courses)) {
-                    learner.courses.forEach(course => {
-                        const courseName = course?.trainingTitle?.[0]?.value || '';
-                        const courseStatus = course?.courseStatus || '';
+                    if (Array.isArray(learner.courses)) {
+                        learner.courses.forEach(course => {
+                            const courseName = course?.trainingTitle?.[0]?.value || '';
+                            const courseStatus = course?.courseStatus || '';
 
-                        if (Array.isArray(course.lessons?.contents)) {
-                            if (course.lessons.contents.length === 0) {
-                                flattenedData.push({
-                                    userName: learner?.userName || '',
-                                    email: email,
-                                    designation: designation,
-                                    employeeId: employeeId,
-                                    userState: userState,
-                                    enrollmentDate: enrollmentDate,
-                                    startDate: startDate,
-                                    completionDate: completionDate,
-                                    courseStatus: courseStatus,
-                                    courseName: courseName,
-                                    lessonName: '',
-                                    contentName: '',
-                                    contentType: '',
-                                    quizScore: '',
-                                });
-                            } else {
-                                course.lessons.contents.forEach(content => {
-                                    if (Array.isArray(content?.contentTitle)) {
-                                        content.contentTitle.forEach(contentTitle => {
-                                            const contentName = contentTitle.value || '';
-                                            const contentType = content.contentType || '';
-                                            const quizScore = (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') ? 'Score not available' : '';
-        
+                            if (Array.isArray(course.lessons?.contents)) {
+                                if (course.lessons.contents.length === 0) {
+                                    flattenedData.push({
+                                        userName: learner?.userName || '',
+                                        email: email,
+                                        designation: designation,
+                                        employeeId: employeeId,
+                                        userState: userState,
+                                        enrollmentDate: enrollmentDate,
+                                        startDate: startDate,
+                                        completionDate: completionDate,
+                                        courseStatus: courseStatus,
+                                        courseName: courseName,
+                                        lessonName: '',
+                                        contentName: '',
+                                        contentType: '',
+                                        quizScore: '',
+                                    });
+                                } else {
+                                    course.lessons.contents.forEach(content => {
+                                        if (Array.isArray(content?.contentTitle)) {
+                                            content.contentTitle.forEach(contentTitle => {
+                                                const contentName = contentTitle.value || '';
+                                                const contentType = content.contentType || '';
+                                                const quizScore = (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') ? 'Score not available' : '';
+
+                                                flattenedData.push({
+                                                    userName: learner?.userName || '',
+                                                    email: email,
+                                                    designation: designation,
+                                                    employeeId: employeeId,
+                                                    userState: userState,
+                                                    enrollmentDate: enrollmentDate,
+                                                    startDate: startDate,
+                                                    completionDate: completionDate,
+                                                    courseStatus: courseStatus,
+                                                    courseName: courseName,
+                                                    lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
+                                                    contentName: contentName,
+                                                    contentType: contentType,
+                                                    quizScore: quizScore,
+                                                });
+                                            });
+                                        } else {
                                             flattenedData.push({
                                                 userName: learner?.userName || '',
                                                 email: email,
@@ -3474,65 +3534,47 @@ const generateCustomReport = async ({ input }, context) => {
                                                 courseStatus: courseStatus,
                                                 courseName: courseName,
                                                 lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                contentName: contentName,
-                                                contentType: contentType,
-                                                quizScore: quizScore,
+                                                contentName: '',
+                                                contentType: '',
+                                                quizScore: '',
                                             });
-                                        });
-                                    } else {
-                                        flattenedData.push({
-                                            userName: learner?.userName || '',
-                                            email: email,
-                                            designation: designation,
-                                            employeeId: employeeId,
-                                            userState: userState,
-                                            enrollmentDate: enrollmentDate,
-                                            startDate: startDate,
-                                            completionDate: completionDate,
-                                            courseStatus: courseStatus,
-                                            courseName: courseName,
-                                            lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                            contentName: '',
-                                            contentType: '',
-                                            quizScore: '',
-                                        });
-                                    }
+                                        }
+                                    });
+                                }
+                            } else {
+                                flattenedData.push({
+                                    userName: learner?.userName || '',
+                                    email: email,
+                                    designation: designation,
+                                    employeeId: employeeId,
+                                    userState: userState,
+                                    enrollmentDate: enrollmentDate,
+                                    startDate: startDate,
+                                    completionDate: completionDate,
+                                    courseStatus: courseStatus,
+                                    courseName: courseName,
+                                    lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
+                                    contentName: '',
+                                    contentType: '',
+                                    quizScore: '',
                                 });
                             }
-                        } else {
-                            flattenedData.push({
-                                userName: learner?.userName || '',
-                                email: email,
-                                designation: designation,
-                                employeeId: employeeId,
-                                userState: userState,
-                                enrollmentDate: enrollmentDate,
-                                startDate: startDate,
-                                completionDate: completionDate,
-                                courseStatus: courseStatus,
-                                courseName: courseName,
-                                lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                contentName: '',
-                                contentType: '',
-                                quizScore: '',
-                            });
-                        }
-                    });
+                        });
+                    }
                 }
-            }
-            return flattenedData;
-        };
-        
-        
-        const flattenAllLearnersData = (learners) => {
-            const allFlattenedData = [];
-            learners.forEach(learner => {
-                const learnerData = flattenLearnerDataForSingleSheet(learner);
-                allFlattenedData.push(...learnerData); 
-            });
-            return allFlattenedData;
-        };
-           dataToExport = flattenAllLearnersData(data);
+                return flattenedData;
+            };
+
+
+            const flattenAllLearnersData = (learners) => {
+                const allFlattenedData = [];
+                learners.forEach(learner => {
+                    const learnerData = flattenLearnerDataForSingleSheet(learner);
+                    allFlattenedData.push(...learnerData);
+                });
+                return allFlattenedData;
+            };
+            dataToExport = flattenAllLearnersData(data);
         }
 
         if (dataToExport.length > 0) {
@@ -3545,7 +3587,7 @@ const generateCustomReport = async ({ input }, context) => {
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Custom-Quiz-Reports",
-                fileName: `CUSTOM-REPORT.xlsx`,
+                fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportCustomQuizReport,
             });
             if (excelFilePath) {
@@ -3553,7 +3595,7 @@ const generateCustomReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
-                    messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                     notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     status: 'SENT',
@@ -3589,7 +3631,7 @@ const generateCustomReport = async ({ input }, context) => {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Custom Report Export Failed`,
-            messageValue: `An error occurred while generating the custom report. ${error?.message}.`,
+            messageValue: `An error occurred while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAdmin: true,
             status: 'FAILED',
@@ -3663,7 +3705,12 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                         ]
                     }
                 }
-            }
+            },
+            {
+                '$sort': {
+                    'createdAt': -1
+                }
+            },
         ]);
 
         if (data.length > 0) {

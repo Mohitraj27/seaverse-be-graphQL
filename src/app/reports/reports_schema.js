@@ -6,6 +6,10 @@ module.exports = {
             QUIZ
             MODULE
         } 
+        enum selectVesselOrLearnerEnum {
+            VESSEL
+            LEARNER
+        } 
         type TrainingProgressQuizReport {
             _id: ID
             trainingModuleContent: TrainingModuleContent
@@ -105,10 +109,11 @@ module.exports = {
             pageInput: PageInput
             export : Boolean
             filterInput : learnerMainReportFilter
+            selectVesselOrLearner : selectVesselOrLearnerEnum
         }
         input learnerMainReportFilter {
             isRegistered : Boolean
-            isDeleted : Boolean
+            includeDeletedUsers : Boolean
             search : String
             vesselTypes : [ID]
             vesselIds : [ID]
@@ -117,6 +122,7 @@ module.exports = {
         input singleLearnerReportInput {
             learnerIds : [ID]!
             reportType : reportTypeEnum!
+            selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
             filter : singleLearnerReportFilter
             export : Boolean
@@ -185,6 +191,7 @@ module.exports = {
             vesselName : [ID]
             vesselType : [ID]
             designation : [ID]
+            learnerIds : [ID]
             courseStatus:[String]
             dateRange : filterDateRange
         }
