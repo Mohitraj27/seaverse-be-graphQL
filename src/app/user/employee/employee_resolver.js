@@ -1842,7 +1842,22 @@ module.exports.mutations = {
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                    [
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $ifNull: ["$assignedLearnerIDs", []]
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
+                                }
+                            }
+                        }
+                    ]
                 );
             }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
