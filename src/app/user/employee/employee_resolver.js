@@ -655,7 +655,7 @@ module.exports.queries = {
                     as: "user",
                     pipeline: [
                         {
-                            $match: { superAdmin: { $ne: true }, isRegistered: { $ne: false } },
+                            $match: { superAdmin: { $ne: true } },
                         },
                     ],
                 },
