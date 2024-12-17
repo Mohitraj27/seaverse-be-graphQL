@@ -22,10 +22,7 @@ module.exports = {
         ).populate("payment").select("-createdAt -updatedAt");
 
         if (existingPendingSubscription?.payment) {
-            console.log(
-                "saas_payment_helper.updatePendingSubscription:existingPendingSubscription:",
-                existingPendingSubscription.toJSON()
-            );
+           
 
             if (
                 input.status.toUpperCase() === "PAID" ||

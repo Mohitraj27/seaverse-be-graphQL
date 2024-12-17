@@ -43,7 +43,7 @@ const refreshCurrencyTable = async ({ appSettings, currentDateTime }) => {
                     }
                 })
                 .catch(error => {
-                    console.log("app_data_resolver.getAppData:currency:catch:", error.message);
+                    throw Error(error.message);
                 });
 
             if (response?.currencyItems) {

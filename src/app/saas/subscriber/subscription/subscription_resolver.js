@@ -141,10 +141,7 @@ module.exports.mutations = {
                 if (response?.data) return response.data;
             })
             .catch(error => {
-                console.error(
-                    "subscription_resolver.createSubscription:error:",
-                    error.response?.data ? error.response.data : error.message
-                );
+              throw CustomError(ErrorName.FAILED, error.message);
             });
 
         if (!response) throw CustomError(ErrorName.FAILED);

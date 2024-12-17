@@ -941,10 +941,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log(
-                "training_registration_helper.sendNotificationOnCRUD:exception:",
-                e?.message
-            );
+          throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };
