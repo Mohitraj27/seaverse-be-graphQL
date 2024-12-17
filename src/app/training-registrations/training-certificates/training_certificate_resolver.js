@@ -247,11 +247,8 @@ module.exports.queries = {
 
         return existingTrainingCertificate;
     },
-    getUserCertificates: async ({ pageInput, id }) => {
+    getUserCertificates: async ({ id }) => {
         try {
-          
-        const skip = pageInput?.skip ?? 0,
-        limit = pageInput?.limit ?? 50;
       
           const certificatesQuery = [
             {
@@ -324,12 +321,6 @@ module.exports.queries = {
                 certificateNumber: 1,
                 expiresAt:1,
               },
-            },
-            {
-              $skip: skip,
-            },
-            {
-              $limit: limit > 0 ? limit : 0,
             },
           ];
       
