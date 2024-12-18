@@ -522,6 +522,43 @@ module.exports.queries = {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
+            function filterData(data, statuses) {
+
+                if (!statuses || statuses.length === 0) {
+                    return data;
+                }
+
+                return data?.filter(item => {
+                    const avgProgress = item.overallProgress?.averageProgress || 0;
+
+
+                    return statuses.some(status => {
+                        if (status === "NOT_STARTED" && avgProgress === 0) {
+                            return true;
+                        }
+
+                        if (status === "IN_PROGRESS" && avgProgress > 0 && avgProgress < 100) {
+                            return true;
+                        }
+
+                        if (status === "COMPLETED" && avgProgress === 100) {
+                            return true;
+                        }
+
+                        return false;
+                    });
+                });
+            }
+
+            const lpData = filterData(learningPlans, status);
+
+            if (status) {
+
+                return {
+                    learningPlans: lpData,
+                    totalCount: lpData?.length,
+                };
+            }
             return {
                 learningPlans: learningPlans,
                 totalCount: learningPlans?.length,
