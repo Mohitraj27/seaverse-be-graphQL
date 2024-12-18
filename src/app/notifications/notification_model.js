@@ -29,6 +29,12 @@ const notificationSchema = new Schema(
                 ref: "User",
             },
         ],
+        excludedUsers: [
+            {
+                type: ObjectId,
+                ref: "User",
+            },
+        ],
         employeeNotifiers: [
             {
                 type: ObjectId,
@@ -67,7 +73,7 @@ const notificationSchema = new Schema(
             type: Boolean,
             default: false,
         },
-        isError:Boolean,
+        isError: Boolean,
         status: {
             type: String,
             default: null
@@ -79,9 +85,9 @@ const notificationSchema = new Schema(
             },
             expires: 60,
         },
-        icon:{
-            type:String,
-            default:"STABLE",
+        icon: {
+            type: String,
+            default: "STABLE",
             enum: Object.values(notificationiconEnum),
         }
     },
