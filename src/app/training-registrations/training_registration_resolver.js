@@ -434,6 +434,12 @@ module.exports.queries = {
                                         $expr: {
                                             $and: [
                                                 {
+                                                    $in: [
+                                                        "$trainingModuleContent",
+                                                        "$$contentIds"
+                                                    ]
+                                                },
+                                                {
                                                     $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
                                                 },
                                                 {
@@ -447,14 +453,15 @@ module.exports.queries = {
                                                         "$attemptCount",
                                                         "$$attemptCount"
                                                     ]
-                                                },
-                                                {
-                                                    $in: [
-                                                        "$trainingModuleContent",
-                                                        "$$contentIds"
-                                                    ]
                                                 }
                                             ]
+                                        }
+                                    }
+                                },
+                                {
+                                    $addFields: {
+                                        sortIndex: {
+                                            $indexOfArray: ["$$contentIds", "$trainingModuleContent"]
                                         }
                                     }
                                 },
@@ -542,6 +549,9 @@ module.exports.queries = {
                                             }
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { sortIndex: 1 }
                                 },
                                 {
                                     $group: {
@@ -935,6 +945,13 @@ module.exports.queries = {
                                     }
                                 },
                                 {
+                                    $addFields: {
+                                        sortIndex: {
+                                            $indexOfArray: ["$$contentIds", "$trainingModuleContent"]
+                                        }
+                                    }
+                                },
+                                {
                                     $lookup: {
                                         from: "trainingmodulecontents",
                                         localField: "trainingModuleContent",
@@ -1018,6 +1035,9 @@ module.exports.queries = {
                                             }
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { sortIndex: 1 }
                                 },
                                 {
                                     $group: {
