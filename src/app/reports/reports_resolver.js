@@ -1188,7 +1188,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     });
 
                     const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
-                    XLSX.utils.book_append_sheet(workbook, worksheet, input.report);
+                    XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
 
                     const excelFilePath = await UploadHelper.uploadExcel({
