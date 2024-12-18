@@ -1653,10 +1653,6 @@ module.exports.mutations = {
                 training: input.training,
             });
 
-            if (!selectedCertificateLayout) {
-                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
-            }
-
             const generateSVCertificateId = async () => {
                 const uuid = uuidv4().replace(/-/g, '').toUpperCase();
                 const certNumber = `SV-${uuid.substring(0, 8)}`;
@@ -1665,9 +1661,6 @@ module.exports.mutations = {
 
             await Promise.all(
                 overallTrainingProgressUsers.map(async (progressUser) => {
-                    const populate = [
-                        { path: "user", select: "firstName lastName email" }
-                    ];
 
                     const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
                         { path: "user", select: "firstName lastName email" }
@@ -1677,7 +1670,7 @@ module.exports.mutations = {
                         user: progressUser.user
                     });
 
-                    if (!existingCertificate) {
+                    if (!existingCertificate && selectedCertificateLayout) {
                         const startDate = overallTrainingProgress.createdAt;
                         const completedAt = CurrentDateTime()?.utcDateTime;
                         const generatedAt = CurrentDateTime()?.utcDateTime;
