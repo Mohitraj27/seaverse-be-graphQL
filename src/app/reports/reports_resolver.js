@@ -784,11 +784,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'as': 'userInfo'
                         }
                     },
-                    {
-                        "$match": {
-                            "user": { $in: learnerIds.map(id => ObjectId(id)) }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         '$lookup': {
                             'from': 'trainings',
