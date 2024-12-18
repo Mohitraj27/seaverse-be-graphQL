@@ -460,14 +460,17 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
             for (const doc of overallDocs) {
                 const training = await Training.findById(doc.training);
                 const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
+                const isCertificate = training?.isCertificate;
                 if (courseTitle) {
-                    await sendNotifications({
-                        userIds: [userId],
-                        title: `Certificate Generated Successfully`,
-                        body: `Your certificate for the course ${courseTitle} has been successfully generated.`,
-                        content: "Certificate Details",
-                        webLink: ""
-                    });
+                    if (isCertificate) {
+                        await sendNotifications({
+                            userIds: [userId],
+                            title: `Certificate Generated Successfully`,
+                            body: `Your certificate for the course ${courseTitle} has been successfully generated.`,
+                            content: "Certificate Details",
+                            webLink: ""
+                        });
+                    }
                 } else {
                     throw new Error(`Course title is missing for training ID ${doc.training}. Cannot send notification.`);
                 }
