@@ -42,9 +42,16 @@ module.exports = {
             dateFrom: String
             dateTo: String
         }
+        type dismissNotificationResponse {
+            status: String
+            message: String
+        }
     `,
     queries: `
         getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput): NotificationList
+    `,
+    mutations: `
+        dismissNotification(notificationId: ID!): dismissNotificationResponse
     `,
     subscriptions: `
         onNotification: Notification

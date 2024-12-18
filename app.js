@@ -38,13 +38,19 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         playground: true,
         uploads: false,
         subscriptions: { keepAlive: 15000 },
+        formatError: error => FormatError(error),
+        formatResponse: (response) => {
+            if (response.errors && response.errors.length > 0) {
+                return { errors: response.errors };
+            }
+            return response;
+        },
         context: async ({ req, connection }) => {
             return {
                 ...IpInfo(req),
                 ...(await VerifyToken(connection ? connection.context : req.headers)),
             };
         },
-        formatError: error => FormatError(error),
     });
 
     apolloServer.applyMiddleware({ app: ExpressServer, cors: false });
