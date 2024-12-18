@@ -24,6 +24,8 @@ const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_mod
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
 const { sendNotifications } = require("../../util/firebase_helper");
 
+const levenshtein = require('fast-levenshtein');
+
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
 
@@ -928,15 +930,35 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                     };
                 }
 
-                const isCorrectAnswer =
-                    question.answerKey.every(correctAnswer =>
+                let isCorrectAnswer;
+                const isAnswerNumber = /^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(userAnswer.answer[0]);
+
+                if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
+
+                    const threshold = 2;
+                    isCorrectAnswer = question.answerKey.some(correctAnswer => {
+                        const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
+                        return distance <= threshold;
+                    });
+
+                    if (isCorrectAnswer) {
+                        acquiredScore += question.points;
+                    } else {
+                        acquiredScore -= question.negativePoints;
+                    }
+
+                } else {
+
+                    isCorrectAnswer = question.answerKey.every(correctAnswer =>
                         userAnswer.answer.includes(correctAnswer)
                     ) && userAnswer.answer.length === question.answerKey.length;
 
-                if (isCorrectAnswer) {
-                    acquiredScore += question.points;
-                } else {
-                    acquiredScore -= question.negativePoints;
+                    if (isCorrectAnswer) {
+                        acquiredScore += question.points;
+                    } else {
+                        acquiredScore -= question.negativePoints;
+                    }
+
                 }
 
                 return {
