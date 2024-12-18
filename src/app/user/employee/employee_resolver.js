@@ -2462,6 +2462,7 @@ module.exports.mutations = {
                             value: `The export user process completed successfully.`,
                         },
                     ],
+
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
                     notifyAdmin: true,
                     notifiers: [],
