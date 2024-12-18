@@ -85,7 +85,7 @@ module.exports = {
     queries: `
         getTrainingCertificates(pageInput: PageInput, filterInput: TrainingCertificateFilterInput): TrainingCertificateList!
         getTrainingCertificate(id: ID!): TrainingCertificate!
-        getUserCertificates(id: ID!,pageInput: PageInput): getCertificateOutput
+        getUserCertificates(id: ID!): getCertificateOutput
     `,
     mutations : `
         generateCertificates(trainingRegistrationId:ID):TrainingCertificateList
