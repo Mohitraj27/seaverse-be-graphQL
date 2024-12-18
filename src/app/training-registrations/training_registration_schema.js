@@ -76,6 +76,7 @@ module.exports = {
             timeSpend: Float
             lastConsumedContent: lastConsumedContent
             trainingModules: [TrainingModule]
+            attemptCount: Int
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
