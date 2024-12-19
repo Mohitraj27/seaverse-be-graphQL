@@ -679,7 +679,7 @@ module.exports = {
                                 const emailContent = courseEnrollment({
                                     firstName: user.firstName,
                                     trainingTitle: training?.title?.[0]?.value,
-                                    durationHours: training?.durationHours || '0',
+                                    durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseId: training?._id,
                                 });
                                 sendEmail({
@@ -725,6 +725,7 @@ module.exports = {
                                     ]
                                 });
                             } catch (error) {
+                              throw Error(error.message);
                                 console.error(`Failed to send notification to user ${userId} for training ${trainingId}`, error);
                             }
                         })
