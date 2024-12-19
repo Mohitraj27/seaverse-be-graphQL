@@ -19,7 +19,6 @@ const questionSchema = new Schema(
         }],
         answerKey: [{
             type: String,
-            lowercase: true,
             required: true,
         }],
         allowMultipleAnswers: {
