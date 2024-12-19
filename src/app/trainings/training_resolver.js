@@ -527,14 +527,19 @@ module.exports.mutations = {
                 })
             })
 
-            let syncContentErrors = [];
-            const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
+            let updateTrainingProgress;
+            const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
-            if (syncContentErrors.length > 0) {
-                throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
-            }
+                let syncContentErrors = [];
+                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+                
+                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, session);
 
-            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
+                if (syncContentErrors.length > 0) {
+                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                }
+                
+            });
 
             if (updateTrainingProgress) {
                 return {
