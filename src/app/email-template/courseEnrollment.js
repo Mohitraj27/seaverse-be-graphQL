@@ -112,7 +112,7 @@ function courseEnrollment({firstName,trainingTitle,durationHours,courseId}) {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="text-align: center;">
-                                        <a href=" ${process.env.APP_URL}/course-preview/${courseId}"
+                                        <a href="${process.env.APP_URL}/course-preview/${courseId}"
                                             style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
                                             Start Training
                                         </a>
