@@ -134,7 +134,7 @@ module.exports = {
         ...AuthHelper.requiresEmployee(SubRoleResolver.queries),
         ...AuthHelper.requiresLogin(UserProfileResolver.queries),
         ...AuthHelper.requiresLogin(NotificationResolver.queries),
-        ...AuthHelper.requiresLogin(ReportResolver.queries),
+        ...AuthHelper.requiresAdmin(ReportResolver.queries),
         ...AuthHelper.requiresLogin(SubscriberProfileResolver.queries),
         ...AuthHelper.requiresLogin(TrainingAttendanceResolver.queries),
         ...AuthHelper.requiresLogin(CertificateLayoutResolver.queries),

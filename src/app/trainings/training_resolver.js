@@ -42,6 +42,10 @@ module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
+        if (role && role === Role.LEARNER) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
         const skip = pageInput?.skip ?? 0;
         let limit = pageInput?.limit ?? 50;
 
@@ -532,13 +536,13 @@ module.exports.mutations = {
 
                 let syncContentErrors = [];
                 const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
-                
+
                 updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, session);
 
                 if (syncContentErrors.length > 0) {
                     throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
                 }
-                
+
             });
 
             if (updateTrainingProgress) {
