@@ -84,7 +84,7 @@ const sendCredentialMail = async ({ userData }) => {
     });
 };
 const filterLearningPlans = async (learningPlans, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
 
     return learningPlans?.filter(plan => {
         const { conditionType, conditionalCustomFields } = plan;
@@ -114,8 +114,8 @@ const filterLearningPlans = async (learningPlans, conditions) => {
                         : !valueOfField.includes(currentStatus);
                 case "EMAIL":
                     return isOrIsNot === "IS"
-                        ? valueOfField.includes(userData.email)
-                        : !valueOfField.includes(userData.email);
+                        ? valueOfField.includes(email)
+                        : !valueOfField.includes(email);
                 case "GROUP":
                     return groupIDs?.some(group => {
                         switch (group.groupType) {
@@ -1837,7 +1837,7 @@ module.exports = {
                             email: user.email,
                         };
                          function filterLearningPlans (learningPlans, conditions)  {
-                            const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
+                            const { designationID, vesselID, vesselTypeID, currentStatus ,email } = conditions;
                         
                             return learningPlans?.filter(plan => {
                                 const { conditionType, conditionalCustomFields } = plan;
@@ -1867,8 +1867,8 @@ module.exports = {
                                                 : !valueOfField.includes(currentStatus);
                                         case "EMAIL":
                                             return isOrIsNot === "IS"
-                                                ? valueOfField.includes(userData.email)
-                                                : !valueOfField.includes(userData.email);
+                                                ? valueOfField.includes(email)
+                                                : !valueOfField.includes(email);
                                         case "GROUP":
                                             return groupIDs?.some(group => {
                                                 switch (group.groupType) {
