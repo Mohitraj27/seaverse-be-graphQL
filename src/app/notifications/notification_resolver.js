@@ -89,7 +89,6 @@ module.exports.queries = {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { notifiers: userId },
                 { excludedUsers: { $ne: userId } },
             ];
 
@@ -101,7 +100,6 @@ module.exports.queries = {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { notifiers: userId },
                 { excludedUsers: { $ne: userId } },
             ];
 
