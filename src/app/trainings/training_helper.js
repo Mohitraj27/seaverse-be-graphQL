@@ -646,14 +646,28 @@ const updateTrainingProgress = async (input, userId, session) => {
                     bulkOps.push({
                         updateOne: {
                             filter: { _id: existingProgress._id },
-                            update: {
-                                $set: {
-                                    status: content.contentStatus,
-                                    lastAccessedDuration: content.duration,
-                                    progressPercentage: content.progressPercentage,
-                                    playerSettings: content.playerSettings,
-                                },
-                            },
+                            update: [
+                                {
+                                    $set: {
+                                        status: {
+                                            $cond: {
+                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                then: "$status",
+                                                else: content.contentStatus
+                                            }
+                                        },
+                                        lastAccessedDuration: content.duration,
+                                        playerSettings: content.playerSettings,
+                                        progressPercentage: {
+                                            $cond: {
+                                                if: { $gt: [content.progressPercentage, "$progressPercentage"] },
+                                                then: content.progressPercentage,
+                                                else: "$progressPercentage"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         },
                     });
 
@@ -825,7 +839,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
             _id: { $in: overallIds }
         }).lean();
 
-        if (!overallTrainingProgress) {
+        if (!overallTrainingProgress || overallTrainingProgress.length == 0) {
             errors.push("Overall training progress data not found!");
             return;
         }
@@ -1053,7 +1067,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
         }
 
         results = await QuizEvaluation.insertMany(quizEvaluations, { session });
-        const udpateTrainingProgress = await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
+        await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
 
         return errors;
 
