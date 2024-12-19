@@ -706,13 +706,22 @@ module.exports = {
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: false,
                     notifiers: [
-                        userId
+                        userIds
                     ],
-                    employeeNotifiers: [userId],
+                    employeeNotifiers: [userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
+                    additionalInfo:[
+                        {
+                            infoType:"VIEW_COURSE",
+                            infoData: {
+                                filePath : `${input.trainings[0]}`
+                            }
+                        }
+                        
+                    ]
                 });
 
                 await NotificationHelper.createNotificationhelper({
@@ -860,9 +869,9 @@ module.exports = {
                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                     notifyAdmin: false,
                     notifiers: [
-                        userId
+                        userIds
                     ],
-                    employeeNotifiers: [userId],
+                    employeeNotifiers: [userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,

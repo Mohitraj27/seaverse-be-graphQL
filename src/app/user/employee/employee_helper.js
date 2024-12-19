@@ -84,7 +84,7 @@ const sendCredentialMail = async ({ userData }) => {
     });
 };
 const filterLearningPlans = async (learningPlans, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
 
     return learningPlans?.filter(plan => {
         const { conditionType, conditionalCustomFields } = plan;
@@ -112,6 +112,10 @@ const filterLearningPlans = async (learningPlans, conditions) => {
                     return isOrIsNot === "IS"
                         ? valueOfField.includes(currentStatus)
                         : !valueOfField.includes(currentStatus);
+                case "EMAIL":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(email)
+                        : !valueOfField.includes(email);
                 case "GROUP":
                     return groupIDs?.some(group => {
                         switch (group.groupType) {
@@ -1796,7 +1800,130 @@ module.exports = {
                 );
             }
 
+            const userIDs = allUpdatedUsers.map(user => user._id);
+            const employees = await Employee.find(
+                { user: { $in: userIDs } },
+                { user: 1, empDesignation: 1, _id: 0 }
+            );
 
+            const empDesignationMap = {};
+            employees.forEach(employee => {
+                empDesignationMap[employee.user] = employee.empDesignation;
+            });
+
+            const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
+            const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
+            const vesselTypeMap = {};
+            vessels.forEach(vessel => {
+                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+            });
+
+
+            const learningPlans = await LearningPlan.find();
+            async function processAutoEnrollmentLearningPlans() {
+                try {
+                 
+                    let filteredPlans = [];
+                    allUpdatedUsers.forEach(user => {
+                        const empDesignation = empDesignationMap[user._id];
+                       
+                        const typeOfVesselIds = vesselTypeMap[user.currentVessel];
+                       
+                        const conditions = {
+                            designationID: empDesignation,
+                            vesselID: user.currentVessel,
+                            vesselTypeID: typeOfVesselIds,
+                            currentStatus: user.vesselStatus,
+                            email: user.email,
+                        };
+                         function filterLearningPlans (learningPlans, conditions)  {
+                            const { designationID, vesselID, vesselTypeID, currentStatus ,email } = conditions;
+                        
+                            return learningPlans?.filter(plan => {
+                                const { conditionType, conditionalCustomFields } = plan;
+                        
+                                let matches = conditionalCustomFields.map(field => {
+                                    const { type_of_Field, valueOfField, isOrIsNot,groupIDs } = field;
+                        
+                                    switch (type_of_Field) {
+                                        case "DESIGNATION":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(designationID)
+                                                : !valueOfField.includes(designationID);
+                        
+                                        case "VESSEL":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(vesselID)
+                                                : !valueOfField.includes(vesselID);
+                        
+                                        case "VESSEL_TYPE":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(vesselTypeID)
+                                                : !valueOfField.includes(vesselTypeID);
+                        
+                                        case "CURRENT_STATUS":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(currentStatus)
+                                                : !valueOfField.includes(currentStatus);
+                                        case "EMAIL":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(email)
+                                                : !valueOfField.includes(email);
+                                        case "GROUP":
+                                            return groupIDs?.some(group => {
+                                                switch (group.groupType) {
+                                                    case "designation":
+                                                        return group.groupIDs.includes(designationID);
+                                                    case "vessel":
+                                                        return group.groupIDs.includes(vesselID);
+                                                    case "vesselType":
+                                                        return group.groupIDs.includes(vesselTypeID);
+                                                    case "vesselStatus":
+                                                        return group.groupIDs.includes(currentStatus);
+                                                    default:
+                                                        return false;
+                                                    }
+                                                });
+                                        default:
+                                            return false;
+                                    }
+                                });
+                        
+                                if (conditionType === "MATCH_ANY_CONDITION") {
+                                    return matches.some(match => match === true);
+                                }
+                        
+                                if (conditionType === "MATCH_ALL_CONDITION") {
+                                    return matches.every(match => match === true);
+                                }
+                        
+                                return false;
+                            });
+                        }
+                        
+                    const plans =   filterLearningPlans(learningPlans, conditions);
+                    if (plans?.length > 0) {
+                            filteredPlans.push(...plans);
+                        }
+                    });
+                        
+                       if (filteredPlans.length > 0) {
+                             const allUserIds = allUpdatedUsers.map(user => user._id);
+                            await LearningPlan.updateMany(
+                                { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+                                {
+                                    $addToSet: {
+                                        assignedLearnerIDs: { $each: allUserIds } 
+                                    }
+                                }
+                            );
+                         
+                        }
+                } catch (error) {
+                    console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
+                }
+            }
+         processAutoEnrollmentLearningPlans();
 
 
             if (passwordEmailList.length > 0) {

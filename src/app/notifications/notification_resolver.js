@@ -77,7 +77,7 @@ module.exports.queries = {
             });
         };
 
-        
+
         const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
 
         const checkIfAdmin = await User.findOne({
@@ -89,7 +89,6 @@ module.exports.queries = {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { notifiers: userId },
                 { excludedUsers: { $ne: userId } },
             ];
 
@@ -101,7 +100,6 @@ module.exports.queries = {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { notifiers: userId },
                 { excludedUsers: { $ne: userId } },
             ];
 
@@ -112,13 +110,14 @@ module.exports.queries = {
         } else if (context.platform === Role.LEARNER) {
 
             filterConditions.$and = [
-                { notifiers: { $elemMatch: { $eq: userId } } },
-                { excludedUsers: { $elemMatch: { $ne: userId } } },
+                { notifiers: userId },
+                { excludedUsers: { $ne: userId } }
             ];
 
             const pipeline = [{ $match: filterConditions }];
+            const result = await fetchResult(pipeline);
 
-            return fetchResult(pipeline);
+            return result;
         }
 
         return {

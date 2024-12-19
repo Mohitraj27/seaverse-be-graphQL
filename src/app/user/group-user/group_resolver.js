@@ -406,7 +406,12 @@ module.exports.queries = {
         }
     },
     getUsersAndAutoSyncedGroups: async ({ search }, context) => {
-        const { subscriberId } = AuthUser(context);
+
+        const { subscriberId, role } = AuthUser(context);
+
+        if (role && role === Role.LEARNER) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
 
         const users = await User.aggregate([
             { $match: { isRegistered: true, isDeleted: false } },
