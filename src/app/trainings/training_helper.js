@@ -518,8 +518,6 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
         }
 
-        console.log(overallIdContentPercentagesMap);
-
     });
 
     let bulkOperations = [];
