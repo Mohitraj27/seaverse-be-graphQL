@@ -867,14 +867,16 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     _id: "$learningPlan",
                     averageProgress: { $avg: "$progressPercentage" },
                     totalTimeSpend: { $sum: "$timeSpend" },
-                    participantsCompleted: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+                    participantsCompleted: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
                     users: {
                         $push: {
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
                             userDetails: "$userDetails",
-                            status: "$status"
+                            status: "$status",
+                            totalTrainingModules: "$totalTrainingModules",
+                            timeSpend: "$timeSpend"
                         }
                     },
                     overallTrainingprogressStatus: { $addToSet: "$status" }
