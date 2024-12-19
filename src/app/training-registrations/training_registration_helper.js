@@ -713,6 +713,15 @@ module.exports = {
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
+                    additionalInfo:[
+                        {
+                            infoType:"VIEW_COURSE",
+                            infoData: {
+                                filePath : `${input.trainings[0]}`
+                            }
+                        }
+                        
+                    ]
                 });
 
                 await NotificationHelper.createNotificationhelper({
