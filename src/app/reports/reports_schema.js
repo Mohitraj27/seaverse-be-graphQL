@@ -294,7 +294,7 @@ module.exports = {
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
         getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
-        getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
+        getCustomReportLogs(pageInput : PageInput,searchQuery:String):[customReportLogOutput]
         getS3FilePath(filePath:String!): s3PathOutput
     `,
 };
