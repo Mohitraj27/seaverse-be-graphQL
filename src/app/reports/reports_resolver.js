@@ -3727,7 +3727,7 @@ const generateCustomReport = async ({ input }, context) => {
     }
 }
 
-const getCustomReportLogs = async ({ pageInput }, context) => {
+const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
@@ -3736,7 +3736,56 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
         const limit = pageInput?.limit ? pageInput.limit : 50;
         let matchStage = [];
         if (limit > 0) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            matchStage.push({ $skip: skip });
+            matchStage.push({ $limit: limit });
+        }
+
+        
+        if (searchQuery) {
+            
+            const searchTerms = searchQuery.split(/\s+/).map(term => term.trim()).filter(Boolean);
+
+            
+            if (searchTerms.length > 0) {
+                matchStage.unshift({
+                    $match: {
+                        $or: [
+                            {
+                                $and: [
+                                    {
+                                        "usersInfo.firstName": {
+                                            $regex: `.*${searchTerms[0]}.*`,
+                                            $options: "i"  
+                                        }
+                                    },
+                                    {
+                                        "usersInfo.lastName": {
+                                            $regex: `.*${searchTerms[1] || ""}.*`,
+                                            $options: "i"  
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                $and: [
+                                    {
+                                        "usersInfo.firstName": {
+                                            $regex: `.*${searchTerms[1] || ""}.*`,
+                                            $options: "i"  
+                                        }
+                                    },
+                                    {
+                                        "usersInfo.lastName": {
+                                            $regex: `.*${searchTerms[0]}.*`,
+                                            $options: "i"  
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                });
+            }
         }
 
         const data = await Export.aggregate([
@@ -3771,7 +3820,7 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
-            ...matchStage,
+            ...matchStage, 
             {
                 $project: {
                     from: {
@@ -3792,8 +3841,8 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                 }
             },
             {
-                '$sort': {
-                    'createdAt': -1
+                $sort: {
+                    createdAt: -1
                 }
             },
         ]);
