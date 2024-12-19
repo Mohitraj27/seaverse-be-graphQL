@@ -140,11 +140,13 @@ module.exports = {
             totalModules : Int
             status:String
             updatedAt: String
+            timeSpend: Float
         }
         type overAllProgress {
             participantsCompleted: Int
             learningPlan:ID
             averageProgress:Float
+            totalTimeSpend: Float
             users:[learnerData]
             overallTrainingprogressStatus: [TrainingProgressStatusEnum]
         }
