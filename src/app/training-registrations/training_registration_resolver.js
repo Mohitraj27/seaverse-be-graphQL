@@ -1673,10 +1673,6 @@ module.exports.mutations = {
                 training: input.training,
             });
 
-            if (!selectedCertificateLayout) {
-                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
-            }
-
             const generateSVCertificateId = async () => {
                 const uuid = uuidv4().replace(/-/g, '').toUpperCase();
                 const certNumber = `SV-${uuid.substring(0, 8)}`;
@@ -1685,9 +1681,6 @@ module.exports.mutations = {
 
             await Promise.all(
                 overallTrainingProgressUsers.map(async (progressUser) => {
-                    const populate = [
-                        { path: "user", select: "firstName lastName email" }
-                    ];
 
                     const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
                         { path: "user", select: "firstName lastName email" }
@@ -1697,7 +1690,7 @@ module.exports.mutations = {
                         user: progressUser.user
                     });
 
-                    if (!existingCertificate) {
+                    if (!existingCertificate && selectedCertificateLayout) {
                         const startDate = overallTrainingProgress.createdAt;
                         const completedAt = CurrentDateTime()?.utcDateTime;
                         const generatedAt = CurrentDateTime()?.utcDateTime;
@@ -1750,8 +1743,8 @@ module.exports.mutations = {
                     messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
+                    notifiers: [input.userIds],
+                    employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -1865,8 +1858,8 @@ module.exports.mutations = {
                     messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
                     notificationType: NotificationType.COURSE_MODULES_RESET,
                     notifyAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
+                    notifiers: [input.userIds],
+                    employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,

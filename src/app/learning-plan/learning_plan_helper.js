@@ -894,7 +894,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 email: "$$user.userDetails.email",
                                 firstName: "$$user.userDetails.firstName",
                                 lastName: "$$user.userDetails.lastName",
-                                updatedAt: "$$user.userDetails.updatedAt",
+                                updatedAt: "$$user.userDetails.lastLoginAt",
                                 status: "$$user.status"
                             }
                         }
