@@ -706,9 +706,9 @@ module.exports = {
                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                     notifyAdmin: false,
                     notifiers: [
-                        userId
+                        userIds
                     ],
-                    employeeNotifiers: [userId],
+                    employeeNotifiers: [userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -860,9 +860,9 @@ module.exports = {
                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                     notifyAdmin: false,
                     notifiers: [
-                        userId
+                        userIds
                     ],
-                    employeeNotifiers: [userId],
+                    employeeNotifiers: [userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
