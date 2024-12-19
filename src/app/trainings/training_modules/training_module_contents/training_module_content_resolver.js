@@ -610,7 +610,7 @@ module.exports.mutations = {
 
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 isDeleted: { $ne: true },
             }).lean().select("_id");
@@ -794,7 +794,7 @@ module.exports.mutations = {
 
             const existingContent = await TrainingModuleContent.findOne({
                 $or: title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 isDeleted: { $ne: true },
             }).lean().select("_id");
@@ -932,7 +932,7 @@ module.exports.mutations = {
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 UID: { $ne: input.UID },
                 isDeleted: { $ne: true },
@@ -1215,7 +1215,7 @@ module.exports.mutations = {
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 UID: { $ne: input.UID },
                 isDeleted: { $ne: true },
