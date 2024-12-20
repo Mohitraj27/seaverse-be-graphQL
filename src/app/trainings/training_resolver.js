@@ -582,7 +582,7 @@ module.exports.mutations = {
         if (fetchOverallTraining.contentData) {
 
             if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
-                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+                throw CustomError(ErrorName.FAILED, "Your attempt limit has reached!");
             }
 
             fetchOverallTraining.contentData = [];
@@ -593,6 +593,7 @@ module.exports.mutations = {
             fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
             fetchOverallTraining.timeSpend = 0;
+            fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
