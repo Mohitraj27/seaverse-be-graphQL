@@ -709,7 +709,7 @@ module.exports = {
                         message: "Course enrollment successful!",
                     }; 
                 }
-                for (const userId of userIds) {
+                for (const userId of userObjectIds) {
                     await Promise.all(
                         input.trainings.map(async (trainingId) => {
                             try {
@@ -736,7 +736,6 @@ module.exports = {
                                 });
                             } catch (error) {
                               throw Error(error.message);
-                                console.error(`Failed to send notification to user ${userId} for training ${trainingId}`, error);
                             }
                         })
                     );
@@ -853,14 +852,12 @@ module.exports = {
                             { $set: { isEnrolled: false } },
                             { session }
                         );
-                        const users = await User.find({
-                            _id: { $in: input.users } 
-                        }).select('firstName email');
+
                         const  trainings = await Training.aggregate([
                             { $match: { _id: { $in: input.trainings } } },
                             { $project: { title: 1 } }
                         ]);
-                        users.forEach(user => {
+                        inputUsers.forEach(user => {
                             trainings.forEach(training => {
                                 const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
                                 const emailContent = courseUnenrollmentEmail({
@@ -878,7 +875,7 @@ module.exports = {
                         return updateTrainingRegistration;
                     }
                 );
-                for (const userId of userIds) {
+                for (const userId of userObjectIds) {
                     await Promise.all(
                         input.trainings.map(async (trainingId) => {
                             try {
@@ -906,7 +903,7 @@ module.exports = {
                                     ]
                                 });
                             } catch (error) {
-                                console.error(`Failed to send notification to user ${userId} for training ${trainingId}`, error);
+                                throw Error(error.message);
                             }
                         })
                     );
