@@ -30,7 +30,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
-            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARD"];
+            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARDED"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
             if (invalidStatus.length > 0) {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
@@ -380,6 +380,9 @@ const getUsersAndCount = async (input) => {
         filter.superAdmin = false;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
@@ -455,7 +458,7 @@ const getUsersAndCount = async (input) => {
                         } else if (condition.type_of_Field === "DESIGNATION") {
                             const designationIds = condition.valueOfField.map(id => ObjectId(id));
                             const employees = await Employee.find(
-                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { empDesignation: { $in: designationIds }, isDeleted: {$ne: true} },
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);

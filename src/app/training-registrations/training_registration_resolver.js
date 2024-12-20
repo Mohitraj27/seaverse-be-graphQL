@@ -291,33 +291,6 @@ module.exports.queries = {
                 { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
                     $lookup: {
-                        from: "trainingprogresses",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingModuleContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $addFields: {
-                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
-                                },
-                            },
-                        ],
-                        as: "trainingProgresses",
-                    },
-                },
-                {
-                    $lookup: {
                         from: "trainingcontentbridges",
                         let: { moduleIds: "$trainingModules._id" },
                         pipeline: [
@@ -335,7 +308,7 @@ module.exports.queries = {
                                 },
                             },
                             {
-                                $addFields: {
+                                $project: {
                                     duration: { $sum: "$trainingModuleContentDetails.duration" },
                                 },
                             },
@@ -346,17 +319,11 @@ module.exports.queries = {
                 {
                     $addFields: {
                         totalDuration: {
-                            $toInt: {
-                                $cond: {
-                                    if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
-                                    then: { $sum: "$trainingProgresses.duration" },
-                                    else: { $sum: "$trainingContentsFallback.duration" },
-                                },
-                            },
+                            $toInt: { $sum: "$trainingContentsFallback.duration" },
                         },
                     },
                 },
-                { $sort: { createdAt: -1 } },
+                { $sort: { createdAt: -1 } }
             ]);
 
             return {
