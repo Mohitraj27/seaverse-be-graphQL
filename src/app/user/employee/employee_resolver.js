@@ -67,8 +67,14 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
+const {Unregistered_Status} = require("../../email-template/Unregistered_status");
+const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
+const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
+const {filterLearningPlans} = require("../employee/employee_helper");
+const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -649,7 +655,7 @@ module.exports.queries = {
                     as: "user",
                     pipeline: [
                         {
-                            $match: { superAdmin: { $ne: true }, isRegistered: { $ne: false } },
+                            $match: { superAdmin: { $ne: true } },
                         },
                     ],
                 },
@@ -1060,14 +1066,11 @@ module.exports.queries = {
 
                 let html = ``;
                 if (currentUserData.isResetPasswordDialog) {
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendWelcomeEmailsToLearner({
+                        firstName: currentUserData.firstName,
+                        buttonLink: `${process.env.APP_URL}/learner`,
+                    });
+                    html = htmlContent;
                 } else {
                     const generatePassword = generateRandomString(10);
                     currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
@@ -1077,16 +1080,18 @@ module.exports.queries = {
                         messages.push(`Failed to create new dummy password for ${email}`);
                         return;
                     }
-                    html = `<div style="width: 600px; margin: 0 auto; text-align: center">
-                    <p>Welcome</p>
-                    <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">Welcome.
-                    Get ready for a great career journey with our Learning Management System</div>
-                    <h4>User Name: ${currentUserData.email}</h4>
-                    <h4>Temporary Password: ${generatePassword}</h4>
-                    <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}" target="_blank">
-                        Click Here
-                    </a>
-                    </div>`;
+                    const htmlContent = sendEmailToLearner({
+                        firstName: currentUserData.firstName,
+                        email: currentUserData.email,
+                        temp_password: generatePassword,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                    });
+                    html = htmlContent;
+                    await SendEmail({
+                        receiverEmail: userInfo.email,
+                        subject: "Registration Invitation",
+                        htmlContent: html,
+                    })
                 }
 
                 try {
@@ -1318,7 +1323,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
             { _id: { $in: input.users } },
             { isRegistered: true }
         );
-
+        const emailContentforAdmin = registered_statusforAdmin(
+            {
+                adminfirstName: userInfo.firstName,
+                userfirstName: users[0].firstName
+            }
+        );
+        await SendEmail({
+            receiverEmail: userInfo.email,
+            subject: `User Status Update: ${input.type}`,
+            htmlContent: emailContentforAdmin,
+        });
     } else if (input.type === "Unregistered") {
         const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
         if (alreadyUnregisteredUsers.length > 0) {
@@ -1347,7 +1362,17 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 type: input.type,
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-
+            for (const user of users) {
+                const emailContent =
+                    input.type === "Registered"
+                        ? registered_status({ firstName: user.firstName})
+                        : Unregistered_Status({ firstName: user.firstName});
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Current Status Update: ${input.type}`,
+                    htmlContent: emailContent,
+                });
+            }
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -1788,185 +1813,70 @@ module.exports.mutations = {
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
             const learningPlans = await LearningPlan.find();
-            function filterLearningPlans(learningPlans, conditions) {
-                const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
-
-                return learningPlans?.filter(plan => {
-                    const { conditionType, conditionalCustomFields } = plan;
-
-                    let matches = conditionalCustomFields.map(field => {
-                        const { type_of_Field, valueOfField, isOrIsNot } = field;
-
-                        switch (type_of_Field) {
-                            case "DESIGNATION":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(designationID)
-                                    : !valueOfField.includes(designationID);
-
-                            case "VESSEL":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(vesselID)
-                                    : !valueOfField.includes(vesselID);
-
-                            case "VESSEL_TYPE":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(vesselTypeID)
-                                    : !valueOfField.includes(vesselTypeID);
-
-                            case "CURRENT_STATUS":
-                                return isOrIsNot === "IS"
-                                    ? valueOfField.includes(currentStatus)
-                                    : !valueOfField.includes(currentStatus);
-
-                            default:
-                                return false;
-                        }
-                    });
-
-                    if (conditionType === "MATCH_ANY_CONDITION") {
-                        return matches.some(match => match === true);
-                    }
-
-                    if (conditionType === "MATCH_ALL_CONDITION") {
-                        return matches.every(match => match === true);
-                    }
-
-                    return false;
-                });
-            }
-
 
 
             const conditions = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel.vessel,
                 vesselTypeID: vessel?.typeOfVessel?._id,
-                currentStatus: savedUserVessel.vesselStatus
+                currentStatus: savedUserVessel.vesselStatus,
+                email: savedUser.email
             };
 
-            const filteredPlans = filterLearningPlans(learningPlans, conditions);
-
-
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions);
+            // Below  matchedLearningPlans is for testing purpose to check which matches the LP
+            const matchedLearningPlans = filteredPlans.map(plan => {
+                return {
+                    learningPlanID: plan._id,
+                    learningPlanName: plan.title,
+                    employeeID: savedUser._id,
+                    email: savedUser.email,
+                    designationID: input.empDesignation,
+                    vesselID: savedUserVessel.vessel,
+                    vesselTypeID: vessel?.typeOfVessel?._id,
+                    currentStatus: savedUserVessel.vesselStatus
+                };
+            });
+            
+            
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                    { $addToSet: { assignedLearnerIDs: savedUser._id } }
+                    [
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $ifNull: ["$assignedLearnerIDs", []]
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                assignedLearnerIDs: {
+                                    $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
+                                }
+                            }
+                        }
+                    ]
                 );
             }
+            const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
+                firstName: savedUser.firstName,
+                email: savedUser.email,
+                templategeneratePassword: generatePassword,
+            });
             const mailOptions = {
                 from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
                 to: savedUser.email,
                 subject: "Welcome to SeaVerse!",
                 text: "",
-                html: `<!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Welcome to SeaVerse</title>
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            line-height: 1.6;
-                            color: #333;
-                            margin: 0;
-                            padding: 0;
-                            background-color: #f4f4f4;
-                        }
-                        .email-container {
-                            max-width: 600px;
-                            margin: 20px auto;
-                            background: #ffffff;
-                            border: 1px solid #ddd;
-                            border-radius: 8px;
-                            overflow: hidden;
-                        }
-                        .header {
-                            background-color: #0056b3;
-                            color: #ffffff;
-                            text-align: center;
-                            padding: 20px;
-                        }
-                        .header h1 {
-                            margin: 0;
-                            font-size: 24px;
-                        }
-                        .content {
-                            padding: 20px;
-                        }
-                        .content p {
-                            margin: 0 0 15px;
-                        }
-                        .cta-button {
-                            display: inline-block;
-                            background-color: #0056b3;
-                            color: #ffffff;
-                            text-decoration: none;
-                            padding: 10px 20px;
-                            border-radius: 5px;
-                            font-size: 16px;
-                            margin: 20px 0;
-                            display: block;
-                            text-align: center;
-                        }
-                        .footer {
-                            text-align: center;
-                            padding: 10px;
-                            background: #f4f4f4;
-                            font-size: 12px;
-                            color: #555;
-                        }
-                        ul {
-                            padding-left: 20px;
-                        }
-                        ul li {
-                            margin-bottom: 10px;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="email-container">
-                        <div class="header">
-                            <h1>Welcome to SeaVerse!</h1>
-                        </div>
-                        <div class="content">
-                            <p>Dear <strong>${savedUser.firstName}</strong>,</p>
-                            <p>Welcome aboard <strong>SeaVerse</strong>! We’re thrilled to have you join us on this journey of learning and growth.</p>
-                            <p>To get started, log in with these details:</p>
-                            <p><strong>Email:</strong> ${savedUser.email}</p>
-                            <p><strong>Temporary Password:</strong> ${generatePassword}</p>
-                            <p><em>Please set a new password upon your first login for security.</em></p>
-                            <a href="${process.env.APP_URL}/login?isResetPasswordDialog=${savedUser.isResetPasswordDialog}" target="_blank" class="cta-button">Web Access</a>
-                            <p>Or, if you prefer learning on the go, download the SeaVerse app:</p>
-                            <ul>
-                                <li>
-                                    <a href="https://play.google.com/store/games?hl=en&pli=1">
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play Store" style="width: 120px; height: auto;">
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="https://www.apple.com/in/app-store/">
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Download_on_the_App_Store_Badge.svg" alt="App Store" style="width: 120px; height: auto;">
-                                    </a>
-                                </li>
-                            </ul>
-                            <p>Explore courses, track your progress, and unlock new skills today! For any assistance, feel free to reach out to our support team at <strong>[support email/phone]</strong>.</p>
-                        </div>
-                        <div class="footer">
-                            <p>Happy sailing and learning,</p>
-                            <p>The SeaVerse Team</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                `
+                html: emailContentforNewEmployee,
+                
             };
 
             await transporter.sendMail(mailOptions, (error, info) => {
                 if (error) {
-                    console.error("Error sending email:", error);
-                } else {
-                    console.log("Email sent:", info.response);
+                    throw Error("Error sending email:");
                 }
             });
 
@@ -2372,6 +2282,25 @@ module.exports.mutations = {
                     await user.save();
                 })
             );
+            const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
+            await AwsHelper.sendEmail({
+                receiverEmail: usersToUpdate[0].email,
+                subject: "Your Role Updated",
+                htmlContent: resetPasswordHtml,
+            });
+            await Promise.all(
+                usersToUpdate.map(async user => {
+                    const emailContentforAdmin = roleUpdateNotifyAdmin({
+                        firstName: userInfo?.firstName,
+                        usersUpdated: [{user: user.firstName}],
+                    });
+                    await SendEmail({
+                        receiverEmail: userInfo?.email,
+                        subject: `User Role Updated`,
+                        htmlContent: emailContentforAdmin,
+                    })
+                })
+            );
             const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
             const adminNotification = {
                 subscriber: subscriberId,
@@ -2530,12 +2459,21 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully. You can download the file from the link: ${s3PresignedUrl}.`,
+                            value: `The export user process completed successfully.`,
                         },
                     ],
+
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
                     notifyAdmin: true,
                     notifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType:"EXPORT_URL",
+                            infoData: {
+                                filePath : excelFilePath
+                            }
+                        }
+                    ],
                     employeeNotifiers: [],
                     affected: [{ targetRef: "Export", target: exportEntry._id }],
                     icon: notificationiconEnum.SUCCESS,

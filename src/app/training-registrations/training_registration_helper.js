@@ -30,7 +30,11 @@ const { TrainingModuleContent } = require("../trainings/training_modules/trainin
 const { TrainingModule } = require("../trainings/training_modules/training_module_model")
 const { TrainingContentBridge } = require("../trainings/training_content_bridge/training_content_model")
 const notificationiconEnum = require("../notifications/notification_icon.json");
-const {sendNotifications} = require("../../util/firebase_helper")
+const courseEnrollment = require("../email-template/courseEnrollment");
+const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
+const {Training} = require("../trainings/training_model");
+const {sendNotifications} = require("../../util/firebase_helper");
+const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -664,41 +668,68 @@ module.exports = {
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
 
                         }
-
-
-                        if (!savedTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
+                        
+                        const learningPlan = await LearningPlan.findById(input.learningPlan).select('emailNotification -_id');
+                        if (input.learningPlan && learningPlan?.emailNotification === false ) {
+                            return savedTrainingRegistration; 
+                        }
+                        const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         users.forEach(user => {
-                            sendEmail({
-                                receiverEmail: user.email,
-                                subject: "Course Enrollment",
-                                htmlContent:
-                                    `<div div style="width: 600px; margin: 0 auto; text-align: center" >
-                                        <p>Hello ${user.firstName}</p>
-                                        <div style="font-weight: 400;font-size: 12px;font-family: sans-serif;color: #281166;margin: 20px;">You are assigned to a new course</div>
-                                    </div > `
-                            })
+                            trainingsData.forEach(training => {
+                                const emailContent = courseEnrollment({
+                                    firstName: user.firstName,
+                                    trainingTitle: training?.title?.[0]?.value,
+                                    durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                                    courseId: training?._id,
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: "Course Enrollment",
+                                    htmlContent: emailContent,
+                                });
+                            });
                         })
 
                         return savedTrainingRegistration;
                     }
                 );
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `New Course has been enrolled to you`,
-                    messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                    notifyAdmin: false,
-                    notifiers: [
-                        userId
-                    ],
-                    employeeNotifiers: [userId],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-
+                const learningPlan = await LearningPlan.findById(input.learningPlan).select('pushNotification -_id');
+                if (input.learningPlan && learningPlan?.pushNotification === false ) {
+                    return  {
+                        message: "Course enrollment successful!",
+                    }; 
+                }
+                for (const userId of userObjectIds) {
+                    await Promise.all(
+                        input.trainings.map(async (trainingId) => {
+                            try {
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `New Course has been enrolled to you`,
+                                    messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                                    notifyAdmin: false,
+                                    notifiers: [userId],
+                                    employeeNotifiers: [userId],
+                                    affected: [],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                    additionalInfo: [
+                                        {
+                                            infoType: "VIEW_COURSE",
+                                            infoData: {
+                                                filePath: trainingId
+                                            }
+                                        }
+                                    ]
+                                });
+                            } catch (error) {
+                              throw Error(error.message);
+                            }
+                        })
+                    );
+                }
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `New Course Enrollment`,
@@ -812,26 +843,61 @@ module.exports = {
                             { session }
                         );
 
+                        const  trainings = await Training.aggregate([
+                            { $match: { _id: { $in: input.trainings } } },
+                            { $project: { title: 1 } }
+                        ]);
+                        inputUsers.forEach(user => {
+                            trainings.forEach(training => {
+                                const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                                const emailContent = courseUnenrollmentEmail({
+                                    firstName: user.firstName,
+                                    email: user.email,
+                                    courseTitle: trainingTitle,
+                                });
+                                sendEmail({
+                                    receiverEmail: user.email,
+                                    subject: `Unenrolled from ${trainingTitle}`,
+                                    htmlContent: emailContent,
+                                });
+                            });
+                        });
                         return updateTrainingRegistration;
                     }
                 );
-
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `A Course has been unenrolled to you`,
-                    messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.COURSE_UNENROLLMENT,
-                    notifyAdmin: false,
-                    notifiers: [
-                        userId
-                    ],
-                    employeeNotifiers: [userId],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-
+                for (const userId of userObjectIds) {
+                    await Promise.all(
+                        input.trainings.map(async (trainingId) => {
+                            try {
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `A Course has been unenrolled to you`,
+                                    messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                                    notificationType: NotificationType.COURSE_UNENROLLMENT,
+                                    notifyAdmin: false,
+                                    notifiers: [
+                                        userId
+                                    ],
+                                    employeeNotifiers: [userId],
+                                    affected: [],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                    additionalInfo: [
+                                        {
+                                            infoType: "VIEW_COURSE",
+                                            infoData: {
+                                                filePath: trainingId
+                                            }
+                                        }
+                                    ]
+                                });
+                            } catch (error) {
+                                throw Error(error.message);
+                            }
+                        })
+                    );
+                }
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Unenrollment`,
@@ -915,10 +981,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-            console.log(
-                "training_registration_helper.sendNotificationOnCRUD:exception:",
-                e?.message
-            );
+          throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };

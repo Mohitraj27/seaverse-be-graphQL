@@ -44,6 +44,8 @@ const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
+const courseCompletion = require("../email-template/courseCompletion");
+const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
@@ -97,10 +99,12 @@ module.exports.queries = {
             {
                 $match: input?.search
                     ? {
-                        $or: [
-                            { 'userInfo.firstName': { $regex: input.search, $options: 'i' } },
-                            { 'userInfo.lastName': { $regex: input.search, $options: 'i' } },
-                        ]
+                        $or: input.search.split(' ').map(term => ({
+                            $or: [
+                                { 'userInfo.firstName': { $regex: term, $options: 'i' } },
+                                { 'userInfo.lastName': { $regex: term, $options: 'i' } },
+                            ]
+                        }))
                     }
                     : {}
             },
@@ -287,33 +291,6 @@ module.exports.queries = {
                 { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
                     $lookup: {
-                        from: "trainingprogresses",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingModuleContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $addFields: {
-                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
-                                },
-                            },
-                        ],
-                        as: "trainingProgresses",
-                    },
-                },
-                {
-                    $lookup: {
                         from: "trainingcontentbridges",
                         let: { moduleIds: "$trainingModules._id" },
                         pipeline: [
@@ -331,7 +308,7 @@ module.exports.queries = {
                                 },
                             },
                             {
-                                $addFields: {
+                                $project: {
                                     duration: { $sum: "$trainingModuleContentDetails.duration" },
                                 },
                             },
@@ -342,16 +319,11 @@ module.exports.queries = {
                 {
                     $addFields: {
                         totalDuration: {
-                            $toInt: {
-                                $cond: {
-                                    if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
-                                    then: { $sum: "$trainingProgresses.duration" },
-                                    else: { $sum: "$trainingContentsFallback.duration" },
-                                },
-                            },
+                            $toInt: { $sum: "$trainingContentsFallback.duration" },
                         },
                     },
-                }
+                },
+                { $sort: { createdAt: -1 } }
             ]);
 
             return {
@@ -359,6 +331,7 @@ module.exports.queries = {
                 message: "My Courses fetched successfully",
                 courses: courses,
             }
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
@@ -377,7 +350,7 @@ module.exports.queries = {
                 .populate("training").lean();
 
             if (!fetchOverallTrainingProgress) {
-                throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+                throw CustomError(ErrorName.NOT_FOUND, "Course not found");
             }
 
             let trainingDetails;
@@ -419,6 +392,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
+                                overallTrainingProgress: "$_id",
                                 attemptCount: "$attemptCount"
                             },
                             pipeline: [
@@ -426,6 +400,15 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $in: [
+                                                        "$trainingModuleContent",
+                                                        "$$contentIds"
+                                                    ]
+                                                },
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
@@ -437,14 +420,15 @@ module.exports.queries = {
                                                         "$attemptCount",
                                                         "$$attemptCount"
                                                     ]
-                                                },
-                                                {
-                                                    $in: [
-                                                        "$trainingModuleContent",
-                                                        "$$contentIds"
-                                                    ]
                                                 }
                                             ]
+                                        }
+                                    }
+                                },
+                                {
+                                    $addFields: {
+                                        sortIndex: {
+                                            $indexOfArray: ["$$contentIds", "$trainingModuleContent"]
                                         }
                                     }
                                 },
@@ -532,6 +516,9 @@ module.exports.queries = {
                                             }
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { sortIndex: 1 }
                                 },
                                 {
                                     $group: {
@@ -713,6 +700,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -889,6 +877,7 @@ module.exports.queries = {
                             from: "trainingprogresses",
                             let: {
                                 moduleId: "$contentData.moduleId",
+                                overallTrainingProgress: "$_id",
                                 contentIds: "$contentData.contentIds",
                                 attemptCount: "$attemptCount",
                             },
@@ -897,6 +886,9 @@ module.exports.queries = {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {
+                                                    $eq: ["$overallTrainingProgress", "$$overallTrainingProgress"]
+                                                },
                                                 {
                                                     $eq: [
                                                         "$trainingModule",
@@ -916,6 +908,13 @@ module.exports.queries = {
                                                     ]
                                                 }
                                             ]
+                                        }
+                                    }
+                                },
+                                {
+                                    $addFields: {
+                                        sortIndex: {
+                                            $indexOfArray: ["$$contentIds", "$trainingModuleContent"]
                                         }
                                     }
                                 },
@@ -1003,6 +1002,9 @@ module.exports.queries = {
                                             }
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { sortIndex: 1 }
                                 },
                                 {
                                     $group: {
@@ -1180,6 +1182,7 @@ module.exports.queries = {
                                                             questionType: "$$question.questionType",
                                                             points: "$$question.points",
                                                             negativePoints: "$$question.negativePoints",
+                                                            allowMultipleAnswers: "$$question.allowMultipleAnswers"
                                                         },
                                                     },
                                                 },
@@ -1629,15 +1632,13 @@ module.exports.mutations = {
                 }
             );
 
-            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } });
-
+            const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
+                path: 'user',
+                select: 'firstName lastName email'
+            });;
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
-
-            if (!selectedCertificateLayout) {
-                throw CustomError(ErrorName.NOT_FOUND, "Layout Not Found");
-            }
 
             const generateSVCertificateId = async () => {
                 const uuid = uuidv4().replace(/-/g, '').toUpperCase();
@@ -1647,18 +1648,16 @@ module.exports.mutations = {
 
             await Promise.all(
                 overallTrainingProgressUsers.map(async (progressUser) => {
-                    const populate = [
+
+                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
                         { path: "user", select: "firstName lastName email" }
-                    ];
-
-                    const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate(populate);
-
+                    ]);;
                     const existingCertificate = await TrainingCertificate.findOne({
                         trainingRegistration: progressUser.trainingRegistration,
                         user: progressUser.user
                     });
 
-                    if (!existingCertificate) {
+                    if (!existingCertificate && selectedCertificateLayout) {
                         const startDate = overallTrainingProgress.createdAt;
                         const completedAt = CurrentDateTime()?.utcDateTime;
                         const generatedAt = CurrentDateTime()?.utcDateTime;
@@ -1693,6 +1692,17 @@ module.exports.mutations = {
                     }
                 })
             );
+            const emailContent = courseCompletion({
+                firstName: overallTrainingProgressUsers[0].user.firstName,
+                trainingTitle: trainingData.title[0]?.value,
+                durationHours: trainingData.durationHours,
+                courseId: trainingData._id,
+            });
+            sendEmail({
+                receiverEmail: overallTrainingProgressUsers[0].user.email,
+                subject: `Congratulations on Completing the ${trainingData.title[0]?.value} Course!`,
+                htmlContent: emailContent,
+            });
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1700,8 +1710,8 @@ module.exports.mutations = {
                     messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
+                    notifiers: [input.userIds],
+                    employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -1786,7 +1796,28 @@ module.exports.mutations = {
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
 
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
-
+            const users = await User.find({
+                _id: { $in: input.userIds }
+            }).select('firstName email');
+            const trainings = await Training.aggregate([
+                { $match: { _id: input.training } },
+                { $project: { title: 1 } }
+            ]);
+            users.forEach(user => {
+                trainings.forEach(training => {
+                    const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
+                    const emailContent = moduleResetNotificationEmail({
+                        firstName: user.firstName,
+                        email: user.email,
+                        courseTitle: trainingTitle,
+                    });
+                    sendEmail({
+                        receiverEmail: user.email,
+                        subject: `Module Reset Notification`,
+                        htmlContent: emailContent,
+                    });
+                });
+            });
             await Promise.all(userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1794,8 +1825,8 @@ module.exports.mutations = {
                     messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
                     notificationType: NotificationType.COURSE_MODULES_RESET,
                     notifyAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
+                    notifiers: [input.userIds],
+                    employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,

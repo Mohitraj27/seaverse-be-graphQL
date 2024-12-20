@@ -79,6 +79,7 @@ module.exports = {
             trainingModules: [TrainingModule]
             isFromMigration:Boolean
             createdAt: String
+            attemptCount: Int
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]

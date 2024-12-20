@@ -269,7 +269,7 @@ module.exports.queries = {
                 isDeleted: false,
             };
             if (filterInput?.title) {
-                queryConditions.title = { $regex: filterInput.title, $options: "i" };
+                delete queryConditions.title;
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
@@ -355,6 +355,18 @@ module.exports.queries = {
                     }
                 },
                 {
+                    $match: {
+                        ...queryConditions,
+                        ...(filterInput?.title?.trim() ? {
+                            $or: [
+                                { title: { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
+                                { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
+                            ]
+                        } : {})
+                    }
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "updatedBy",
@@ -410,6 +422,7 @@ module.exports.queries = {
                                     approvalStatus: 1,
                                     certifications: 1,
                                     bannerImage: 1,
+                                    coverImage: 1,
                                     appliedAt: 1,
                                     approvedAt: 1,
                                     rejectedAt: 1,
@@ -486,6 +499,8 @@ module.exports.queries = {
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
+                        emailNotification:1,
+                        pushNotification:1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -499,13 +514,50 @@ module.exports.queries = {
                     }
                 }
                 ,
+                { $sort: { updatedAt: -1 } },
                 { $skip: parsedSkip },
                 { $limit: parsedLimit },
-                { $sort: { updatedAt: -1 } }
             ]);
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
+            }
+            function filterData(data, statuses) {
+
+                if (!statuses || statuses.length === 0) {
+                    return data;
+                }
+
+                return data?.filter(item => {
+                    const avgProgress = item.overallProgress?.averageProgress || 0;
+
+
+                    return statuses.some(status => {
+                        if (status === "NOT_STARTED" && avgProgress === 0) {
+                            return true;
+                        }
+
+                        if (status === "IN_PROGRESS" && avgProgress > 0 && avgProgress < 100) {
+                            return true;
+                        }
+
+                        if (status === "COMPLETED" && avgProgress === 100) {
+                            return true;
+                        }
+
+                        return false;
+                    });
+                });
+            }
+
+            const lpData = filterData(learningPlans, status);
+
+            if (status) {
+
+                return {
+                    learningPlans: lpData,
+                    totalCount: lpData?.length,
+                };
             }
             return {
                 learningPlans: learningPlans,
@@ -684,6 +736,8 @@ module.exports.queries = {
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
                         overallTrainingProgress:1,
+                        emailNotification:1,
+                        pushNotification:1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",

@@ -21,7 +21,7 @@ module.exports = {
                 }
             }
         } catch (e) {
-            console.log("notification_helper.createNotification:exception:", e.message);
+            throw Error(e.message);
         }
     },
     createNotificationhelper :async function({
@@ -31,6 +31,7 @@ module.exports = {
         notificationType,
         notifyAdmin = false,
         notifiers = [],
+        additionalInfo =[],
         employeeNotifiers = [],
         affected = [],
         icon = NotificationIcon.STABLE,
@@ -46,6 +47,7 @@ module.exports = {
             notificationType,
             notifyAdmin,
             notifiers,
+            additionalInfo,
             employeeNotifiers,
             affected,
             icon,
@@ -57,7 +59,7 @@ module.exports = {
             try {
                  this.createNotification(notifications);
             } catch (error) {
-                console.error("Failed to create notifications:", error);
+                throw Error(error.message);
             }
         }
     }, 

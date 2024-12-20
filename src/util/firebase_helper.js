@@ -75,10 +75,7 @@ module.exports = {
                                     }
                                 });
 
-                                console.log(
-                                    "firebase_helper.sendMulticastNotification:failedTokens: " +
-                                        failedTokens
-                                );
+                          
                             }
                         })
                         .catch(error => {

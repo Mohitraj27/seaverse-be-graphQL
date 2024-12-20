@@ -247,12 +247,19 @@ module.exports.queries = {
 
         return existingTrainingCertificate;
     },
-    getUserCertificates: async ({ pageInput, id }) => {
+    getUserCertificates: async ({ id , filterInput }) => {
         try {
-          
-        const skip = pageInput?.skip ?? 0,
-        limit = pageInput?.limit ?? 50;
-      
+            
+            let matchStage =[];
+
+            if (filterInput?.name) {
+                matchStage.push( {
+                    $match: {
+                      'layoutInfo.title.value': { $regex: filterInput?.name, $options: 'i' } 
+                    },
+                  },)
+            }
+
           const certificatesQuery = [
             {
               $match: {
@@ -303,6 +310,7 @@ module.exports.queries = {
             {
               $unwind: { path: '$layoutInfo', preserveNullAndEmptyArrays: true },
             },
+            ...matchStage,
             {
               $project: {
                 'training.title': 1,
@@ -318,18 +326,12 @@ module.exports.queries = {
                 'layoutInfo.certificateReference': 1,
                 'layoutInfo.logos': 1,
                 'layoutInfo.additionalData': 1,
-                createdAt: 1,
-                trainingCertificateValidity: 1,
-                generatedAt: 1,
-                certificateNumber: 1,
-                expiresAt:1,
+                'createdAt': 1,
+                'trainingCertificateValidity': 1,
+                'generatedAt': 1,
+                'certificateNumber': 1,
+                'expiresAt':1,
               },
-            },
-            {
-              $skip: skip,
-            },
-            {
-              $limit: limit > 0 ? limit : 0,
             },
           ];
       
@@ -341,21 +343,7 @@ module.exports.queries = {
               totalCount: 0,
             };
           }
-      
-          const totalCountQuery = [
-            {
-              $match: {
-                user: id,
-                isDeleted: false,
-              },
-            },
-            {
-              $count: 'totalCount',
-            },
-          ];
-      
-          const totalCountResult = await TrainingCertificate.aggregate(totalCountQuery);
-          const totalCount = totalCountResult.length > 0 ? totalCountResult[0].totalCount : 0;
+          const totalCount = certificates?.length;
       
           return {
             trainingCertificates: certificates,

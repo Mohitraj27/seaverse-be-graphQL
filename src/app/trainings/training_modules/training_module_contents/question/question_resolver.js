@@ -12,7 +12,6 @@ const { Question } = require("./question_model");
 module.exports.mutations = {
     addQuestion: async ({ input }, context) => {
         const { userId, subscriberId } = AuthUser(context);
-        console.log("input", input);
         try {
             const question = new Question({
                 ...input,
@@ -23,7 +22,6 @@ module.exports.mutations = {
             await question.save();
             return question;
         } catch (error) {
-            console.log("error", error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },

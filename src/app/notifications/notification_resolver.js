@@ -7,6 +7,8 @@ const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
 
 const NotificationEvent = require("./notification_event.json");
 const Permission = require("../user/sub-roles/permission.json");
+const { SubRole } = require("../user/sub-roles/sub_role_model");
+const { User } = require("../user/user_model");
 
 module.exports.queries = {
     getNotifications: async ({ pageInput, filterInput }, context) => {
@@ -22,7 +24,7 @@ module.exports.queries = {
 
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
-        let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
+        let filterConditions = { /* subscriber: subscriberId, */ isDeleted: { $ne: true } };
 
         if (filterInput) {
             if (filterInput.notificationType) {
@@ -75,44 +77,48 @@ module.exports.queries = {
             });
         };
 
-        if (/* context.platform === Role.ADMIN &&  */role === Role.ADMIN) {
-            filterConditions.notifyAdmin = true;
 
-            const pipeline = [{ $match: filterConditions }];
+        const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
 
-            return fetchResult(pipeline);
-        } else if (/* context.platform === Role.ADMIN &&  */role === Role.EMPLOYEE) {
-            filterConditions.$or = [
-                { notifiers: { $elemMatch: { $eq: userId } } },
-                { employeeNotifiers: { $elemMatch: { $eq: employeeId } } },
-            ];
+        const checkIfAdmin = await User.findOne({
+            _id: userId,
+            subRoles: subRoleAdminId._id
+        }).lean();
+        
+        if (context.platform === Role.ADMIN) {
 
-            if (
-                SubRoleHelper.hasPermission({
-                    currentRole: role,
-                    currentPermissions: userPermissions,
-                    requiredPermission: Permission.GET_NOTIFICATIONS,
-                })
-            ) {
-                filterConditions.$or.push({ notifyAdmin: true });
-            }
-
-            if (isOrganizationManager) {
-                filterConditions.organization = managingOrganization;
-            }
-
-            const pipeline = [{ $match: filterConditions }];
-
-            return fetchResult(pipeline);
-        } else if (/* context.platform === Role.EMPLOYEE && */ role === Role.EMPLOYEE) {
-            filterConditions.$or = [
-                { notifiers: { $elemMatch: { $eq: userId } } },
-                { employeeNotifiers: { $elemMatch: { $eq: employeeId } } },
+            filterConditions.$and = [
+                { notifyAdmin: true },
+                { excludedUsers: { $ne: userId } },
             ];
 
             const pipeline = [{ $match: filterConditions }];
 
             return fetchResult(pipeline);
+
+        } else if (context.platform === Role.ADMIN && checkIfAdmin) {
+
+            filterConditions.$and = [
+                { notifyAdmin: true },
+                { excludedUsers: { $ne: userId } },
+            ];
+
+            const pipeline = [{ $match: filterConditions }];
+
+            return fetchResult(pipeline);
+            
+        } else if (context.platform === Role.LEARNER) {
+
+            filterConditions.$and = [
+                { notifyAdmin: false },
+                { notifiers: userId },
+                { excludedUsers: { $ne: userId } }
+            ];
+
+            const pipeline = [{ $match: filterConditions }];
+            const result = await fetchResult(pipeline);
+
+            return result;
         }
 
         return {
@@ -120,6 +126,44 @@ module.exports.queries = {
             totalCount: 0,
         };
     },
+};
+module.exports.mutations = {
+    dismissNotification: async ({ notificationId }, context) => {
+
+        if (!notificationId) throw new CustomError(ErrorName.BAD_REQUEST, "Notification ID is required");
+
+        try {
+
+            const { userId } = AuthUser(context);
+            if (!userId) throw new CustomError(ErrorName.BAD_REQUEST, "User not found");
+
+            const notification = await Notification.findById(notificationId);
+
+            if (!notification) throw new CustomError(ErrorName.BAD_REQUEST, "Notification not found");
+
+            if (!notification.excludedUsers.includes(userId)) {
+                notification.excludedUsers.push(userId);
+            }
+
+            const updatedNotification = await notification.save();
+
+            if (updatedNotification) {
+                return {
+                    status: "01",
+                    message: "Notification dismissed successfully"
+                }
+            } else {
+                return {
+                    status: "00",
+                    message: "Notification dismiss failed"
+                }
+            }
+
+        } catch (error) {
+            throw Error(error.message);
+        }
+
+    }
 };
 
 module.exports.subscriptions = {

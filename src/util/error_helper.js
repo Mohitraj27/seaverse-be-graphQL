@@ -486,10 +486,7 @@ const errorType = {
 };
 
 const formatError = error => {
-    try {
-        console.log(Date(), error.extensions.exception.stacktrace);
-    } catch (e) { }
-
+ 
     let errorObject;
     try {
         errorObject = JSON.parse(error.message);

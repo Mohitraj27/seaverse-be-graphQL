@@ -42,6 +42,10 @@ module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
 
+        if (role && role === Role.LEARNER) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
         const skip = pageInput?.skip ?? 0;
         let limit = pageInput?.limit ?? 50;
 
@@ -65,10 +69,12 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
 
             if (filterInput.status) filterConditions.status = filterInput.status;
-            if (filterInput.dateFilter === -1) {
-                sortOrder = { updatedAt: "descending" };
-            } else {
-                sortOrder = { updatedAt: "ascending" };
+            if (filterInput?.dateFilter) {
+                if (filterInput.dateFilter === -1) {
+                    sortOrder = { updatedAt: "descending" };
+                } else {
+                    sortOrder = { updatedAt: "ascending" };
+                }
             }
         }
 
@@ -342,7 +348,6 @@ module.exports.mutations = {
             deletedTraining.deletedDate = new Date();
             await deletedTraining.save();
         } catch (error) {
-            console.error("Error while saving:", error);
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
@@ -506,22 +511,39 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            // Don't delete this comment
-            // const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
+            const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
 
-            // if (validateErrors.length > 0) {
-            //     throw CustomError(ErrorName.FAILED, validateErrors[0]);
-            // }
-            // Don't delete this comment
-
-            let syncContentErrors = [];
-            const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
-
-            if (syncContentErrors.length > 0) {
-                console.log(syncContentErrors[0]);
+            if (validateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateErrors[0]);
             }
 
-            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
+            input.forEach((entry) => {
+                entry.trainingModules?.forEach((module) => {
+                    module.contentDetails?.forEach((content) => {
+                        if (content.progressPercentage == 100) {
+                            content.contentStatus = 'COMPLETED';
+                        } else if (content.progressPercentage == 0) {
+                            content.contentStatus = 'NOT_STARTED';
+                        } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
+                            content.contentStatus = 'IN_PROGRESS';
+                        }
+                    })
+                })
+            })
+
+            let updateTrainingProgress;
+            const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+
+                let syncContentErrors = [];
+                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+
+                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, session);
+
+                if (syncContentErrors.length > 0) {
+                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                }
+
+            });
 
             if (updateTrainingProgress) {
                 return {
@@ -529,7 +551,6 @@ module.exports.mutations = {
                     message: "Progress updated successfully!"
                 };
             }
-
 
         } catch (error) {
             throw Error(error.message);
@@ -561,7 +582,7 @@ module.exports.mutations = {
         if (fetchOverallTraining.contentData) {
 
             if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
-                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+                throw CustomError(ErrorName.FAILED, "Your attempt limit has reached!");
             }
 
             fetchOverallTraining.contentData = [];
@@ -572,6 +593,7 @@ module.exports.mutations = {
             fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
             fetchOverallTraining.timeSpend = 0;
+            fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }

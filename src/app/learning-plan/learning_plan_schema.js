@@ -106,7 +106,8 @@ module.exports = {
             setTimeLimitForModule: Boolean
             approvalStatus: String
             certifications: [MultiMediaInfo]
-            bannerImage: [MultiMediaInfo]
+            bannerImage: MultiMediaInfo
+            coverImage: MultiMediaInfo
             appliedAt: String
             approvedAt: String
             rejectedAt: String
@@ -139,11 +140,13 @@ module.exports = {
             totalModules : Int
             status:String
             updatedAt: String
+            timeSpend: Float
         }
         type overAllProgress {
             participantsCompleted: Int
             learningPlan:ID
             averageProgress:Float
+            totalTimeSpend: Float
             users:[learnerData]
             overallTrainingprogressStatus: [TrainingProgressStatusEnum]
         }
@@ -165,6 +168,8 @@ module.exports = {
             createdAt: String
             updatedAt: String
             overallProgress: overAllProgress
+            emailNotification: Boolean
+            pushNotification: Boolean
         }
         type userObjectDetails {
             _id: ID
@@ -213,6 +218,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum!
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomFieldInput]
+            emailNotification: Boolean
+            pushNotification: Boolean
         }
         input UpdateLearningPlanInput {
             title: String
@@ -224,6 +231,8 @@ module.exports = {
             audienceSelection: AudienceSelectionEnum
             conditionType: ConditionTypeEnum
             conditionalCustomFields: [ConditionalCustomFieldInput]
+            updateemailNotifications: Boolean
+            updatepushNotifications: Boolean
         }
 
         input GetUsersForLearningPlanInput {

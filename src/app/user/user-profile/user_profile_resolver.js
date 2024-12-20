@@ -24,7 +24,7 @@ const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, genera
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
-
+const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -43,6 +43,7 @@ const transporter = nodemailer.createTransport({
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
+        
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
@@ -56,13 +57,18 @@ module.exports.queries = {
             if (existingUser.avatar) {
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
-            const employeeData = await Employee.findOne({ user: userId }).lean().populate({
+            let employeeData = {};
+            employeeData = await Employee.findOne({ user: userId }).lean().populate({
                 path: "empDesignation",
                 select: "_id name",
             });
             if (employeeData && employeeData.empDesignation) {
                 employeeData.designation = employeeData.empDesignation.name;
+            } else if (role === Role.ADMIN) {
+                employeeData = {};
+                employeeData.designation = 'MANAGER';
             }
+
             existingUser.employee = employeeData || null;
             return existingUser;
         };
@@ -276,7 +282,7 @@ module.exports.queries = {
     },
     resetPassword: async (_, context) => {
 
-        const { userId } = AuthUser(context);
+        const { userId,userInfo } = AuthUser(context);
 
         const user = await User.findById(userId);
 
@@ -291,29 +297,19 @@ module.exports.queries = {
         await user.save();
 
         let errors = [];
-
+        const resetPasswordHtml = resetPasswordRequest(user, token);
+        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user,token);
         const result = await AwsHelper.sendEmail({
             receiverEmail: user.email,
-            subject: "Reset Password",
-            htmlContent: `<!DOCTYPE html>
-                <html lang="en">
-                    <head>
-                        <meta charset="UTF-8" />
-                        <title>Reset Password</title>
-                    </head>
-                    <body>
-                        <div style="width: 600px; margin: 0 auto; text-align: center">
-            
-                            <p>Please visit the link below to reset your password</p>
-            
-                            <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
-                                Click Here
-                            </a>
-                        </div>
-                    </body>
-                </html>`,
-        });
+            subject: "Reset Password Request",
+            htmlContent: resetPasswordHtml,
 
+        });
+         await AwsHelper.sendEmail({
+            receiverEmail: userInfo.email,
+            subject: "Reset Password Request",
+            htmlContent: resetPasswordHtmlforAdmin,
+        })
         if (errors.length > 0) {
             throw new CustomError(ErrorName.FAILED);
         }

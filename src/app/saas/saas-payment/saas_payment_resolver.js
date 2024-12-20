@@ -178,10 +178,7 @@ module.exports.mutations = {
                 if (response?.data) return response.data;
             })
             .catch(error => {
-                console.error(
-                    "saas_payment_resolver:initiatePayment:error:",
-                    error.response?.data ? error.response.data : error.message
-                );
+  throw Error(error.response?.data ? error.response.data : error.message);
             });
 
         if (!response?.transaction) throw CustomError(ErrorName.EXTERNAL_API_ERROR);

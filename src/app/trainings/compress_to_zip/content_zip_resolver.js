@@ -22,7 +22,7 @@ module.exports.mutations = {
 
             if (!input.training || !input.trainingModule) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            const existingTraining = await Training.findById(input.training, { isDeleted: false });
+            const existingTraining = await Training.findById(input.training);
 
             if (!existingTraining) throw CustomError(ErrorName.NOT_FOUND, "Course not found");
 
@@ -39,6 +39,7 @@ module.exports.mutations = {
                 if (content.moduleId.toString() === input.trainingModule.toString()) {
                     trainingContentIds.push(...content.contentIds);
                 }
+
             });
 
             let trainingModuleContentsFromTrainingContent = [];
@@ -69,6 +70,13 @@ module.exports.mutations = {
                 })
 
                 getContent = await getTheContent(trainingContents, 'contentCollection');
+            }
+
+            if (getContent.length == 0) {
+                return {
+                    status: "01",
+                    zipUrl: null
+                }
             }
 
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
