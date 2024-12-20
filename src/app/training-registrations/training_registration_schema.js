@@ -50,6 +50,7 @@ module.exports = {
             trainingCertificate: TrainingCertificate
             scorm:Scorm
             users: [ID]
+            isFromMigration: Boolean
         }
         type lastConsumedContent {
             moduleId: ID
@@ -76,6 +77,8 @@ module.exports = {
             timeSpend: Float
             lastConsumedContent: lastConsumedContent
             trainingModules: [TrainingModule]
+            isFromMigration:Boolean
+            createdAt: String
             attemptCount: Int
         }
         type TrainingRegistrationList {
