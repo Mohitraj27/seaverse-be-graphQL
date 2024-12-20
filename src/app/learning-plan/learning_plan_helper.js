@@ -30,7 +30,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
-            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARD"];
+            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARDED"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
             if (invalidStatus.length > 0) {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
