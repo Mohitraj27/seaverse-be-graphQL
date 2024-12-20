@@ -16,8 +16,8 @@ module.exports.queries = {
                 totalCount,
                 skip,
             };
-        } catch (errorName) {
-            throw CustomError(`${ErrorName.MIGRATION_COURSES_NOT_FOUND}`);
+        } catch (error) {
+            throw CustomError(ErrorName.MIGRATION_COURSES_NOT_FOUND,error.message);
         }
     },
 };

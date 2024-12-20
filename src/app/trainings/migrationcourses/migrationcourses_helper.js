@@ -7,7 +7,6 @@ const {
     OverallTrainingProgress,
 } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { CustomError, ErrorName, AuthUser } = require("../../../util");
-const { ConsoleLog, ObjectId } = require("../../../tools");
 
 async function createOrUpdateTrainingMigrationCourses({ input }, context) {
     const { subscriberId } = AuthUser(context);
