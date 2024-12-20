@@ -458,7 +458,7 @@ const getUsersAndCount = async (input) => {
                         } else if (condition.type_of_Field === "DESIGNATION") {
                             const designationIds = condition.valueOfField.map(id => ObjectId(id));
                             const employees = await Employee.find(
-                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { empDesignation: { $in: designationIds }, isDeleted: {$ne: true} },
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);
