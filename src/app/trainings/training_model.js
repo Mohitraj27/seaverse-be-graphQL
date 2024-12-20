@@ -184,6 +184,12 @@ const trainingSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
+        isFromMigration: { 
+            type: Boolean
+        },
+        migrationcoursesId: {
+            type: ObjectId
+         },
         isDeleted: {
             type: Boolean,
             default: false,

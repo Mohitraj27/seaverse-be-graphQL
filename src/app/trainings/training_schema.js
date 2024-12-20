@@ -95,7 +95,9 @@ module.exports = {
             courseTag: String
             countOfUsers: Int
             deletedDate: String
-        }
+            migrationcoursesId: ID
+            isFromMigration: Boolean  
+} 
         type Scorm {
             type:String
             launchUrl:String
