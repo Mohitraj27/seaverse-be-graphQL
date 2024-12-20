@@ -110,6 +110,7 @@ module.exports.queries = {
         } else if (context.platform === Role.LEARNER) {
 
             filterConditions.$and = [
+                { notifyAdmin: false },
                 { notifiers: userId },
                 { excludedUsers: { $ne: userId } }
             ];
