@@ -50,12 +50,12 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             }
             switch (group.groupType) {
                 case 'custom':
-                   group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
-                   break;
-                case 'designation': 
+                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    break;
+                case 'designation':
                 case 'subRole':
                 case 'vessel':
-                case 'vesselType': 
+                case 'vesselType':
                     group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     break;
                 case 'role':
@@ -65,7 +65,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                         group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     }
                     break;
-                case 'regStatus': 
+                case 'regStatus':
                     if (group.groupIDs !== "true" && group.groupIDs !== "false") {
                         errors.push(errorMessages.INVALID_REG_STATUS);
                     } else {
@@ -73,8 +73,8 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                     }
                     break;
                 case 'vesselStatus':
-                      group.groupIDS = group.groupIDs.map((vesselStatus) => vesselStatusEnum[vesselStatus]);
-                        break;
+                    group.groupIDS = group.groupIDs.map((vesselStatus) => vesselStatusEnum[vesselStatus]);
+                    break;
                 default:
                     errors.push(errorMessages.INVALID_GROUP_TYPE);
             }
@@ -377,8 +377,12 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isActive = true;
         filter.isRegistered = true;
+        filter.superAdmin = false;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
@@ -454,7 +458,7 @@ const getUsersAndCount = async (input) => {
                         } else if (condition.type_of_Field === "DESIGNATION") {
                             const designationIds = condition.valueOfField.map(id => ObjectId(id));
                             const employees = await Employee.find(
-                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { empDesignation: { $in: designationIds }, isDeleted: {$ne: true} },
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);
@@ -782,7 +786,7 @@ const getUsersAndCount = async (input) => {
 };
 
 
-const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity,filteredLearnerData = []) => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = []) => {
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
         let activityFilter;
@@ -844,34 +848,38 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             },
             {
                 $unwind: "$userDetails"
-            },  
-                ...(filteredLearnerData.length > 0
-                    ? [
-                        {
-                            $match: {
-                                $or: filteredLearnerData.map(field => ({
-                                    $or: [
-                                        { "userDetails.email": { $regex: field, $options: 'i' } }, 
-                                        { "userDetails.firstName": { $regex: field, $options: 'i' } }, 
-                                        { "userDetails.lastName": { $regex: field, $options: 'i' } } 
-                                    ]
-                                }))
-                            }
+            },
+            ...(filteredLearnerData.length > 0
+                ? [
+                    {
+                        $match: {
+                            $or: filteredLearnerData.map(field => ({
+                                $or: [
+                                    { "userDetails.email": { $regex: field, $options: 'i' } },
+                                    { "userDetails.firstName": { $regex: field, $options: 'i' } },
+                                    { "userDetails.lastName": { $regex: field, $options: 'i' } }
+                                ]
+                            }))
                         }
-                    ]
-                    : []),
-                
+                    }
+                ]
+                : []),
+
             {
                 $group: {
                     _id: "$learningPlan",
                     averageProgress: { $avg: "$progressPercentage" },
+                    totalTimeSpend: { $sum: "$timeSpend" },
+                    participantsCompleted: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
                     users: {
                         $push: {
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
                             userDetails: "$userDetails",
-                            status: "$status"
+                            status: "$status",
+                            totalTrainingModules: "$totalTrainingModules",
+                            timeSpend: "$timeSpend"
                         }
                     },
                     overallTrainingprogressStatus: { $addToSet: "$status" }
@@ -882,6 +890,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     _id: 0,
                     learningPlan: "$_id",
                     averageProgress: { $round: ["$averageProgress", 2] },
+                    totalTimeSpend: 1,
+                    participantsCompleted: 1,
                     users: {
                         $map: {
                             input: "$users",
@@ -890,12 +900,13 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 _id: "$$user.userId",
                                 progressPercentage: "$$user.progressPercentage",
                                 completedModules: "$$user.completedModules",
-                                totalModules: "$$user.totalModules",
+                                totalModules: "$$user.totalTrainingModules",
                                 email: "$$user.userDetails.email",
                                 firstName: "$$user.userDetails.firstName",
                                 lastName: "$$user.userDetails.lastName",
-                                updatedAt: "$$user.userDetails.updatedAt",
-                                status: "$$user.status"
+                                updatedAt: "$$user.userDetails.lastLoginAt",
+                                status: "$$user.status",
+                                timeSpend: "$$user.timeSpend"
                             }
                         }
                     },

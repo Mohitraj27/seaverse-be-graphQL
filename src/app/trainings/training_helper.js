@@ -214,7 +214,7 @@ const validateSyncOfflineData = async (data) => {
 
 }
 
-const addDataToOverallTrainingProgress = async (input, errors) => {
+const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -287,7 +287,7 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
         }
 
         if (bulkOperations.length > 0) {
-            await OverallTrainingProgress.bulkWrite(bulkOperations);
+            await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
         }
 
     }
@@ -308,7 +308,7 @@ const addDataToOverallTrainingProgress = async (input, errors) => {
     }
 
     if (updateOverallTrainingProgress.length > 0) {
-        await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress);
+        await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress, { session });
     }
 
 }
@@ -453,7 +453,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null }
-        });
+        }).session(session);
 
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
@@ -500,7 +500,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         }))
     };
 
-    const trainingProgresses = await TrainingProgress.find(query).populate('trainingModuleContent');
+    const trainingProgresses = await TrainingProgress.find(query).populate('trainingModuleContent').session(session);
 
     if (trainingProgresses.length === 0) return;
 
@@ -514,10 +514,10 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
             const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
             const durations = trainingProgress.map(prog => prog.trainingModuleContent?.duration || 0);
-
             overallIdContentPercentagesMap.set(overallId.toString(), { progressPercentages, durations });
 
         }
+
     });
 
     let bulkOperations = [];
@@ -555,7 +555,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
 }
 
-const updateTrainingProgress = async (input, userId) => {
+const updateTrainingProgress = async (input, userId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -563,7 +563,7 @@ const updateTrainingProgress = async (input, userId) => {
 
     const overallDocs = await OverallTrainingProgress.find({
         _id: { $in: overallIds },
-    }).lean();
+    }).session(session).lean();
 
     if (overallDocs.length == 0) return;
 
@@ -603,7 +603,7 @@ const updateTrainingProgress = async (input, userId) => {
         }))
     };
 
-    trainingProgressDocs = await TrainingProgress.find(query);
+    trainingProgressDocs = await TrainingProgress.find(query).session(session);
 
     let overallContentMap;
 
@@ -646,14 +646,28 @@ const updateTrainingProgress = async (input, userId) => {
                     bulkOps.push({
                         updateOne: {
                             filter: { _id: existingProgress._id },
-                            update: {
-                                $set: {
-                                    status: content.contentStatus,
-                                    lastAccessedDuration: content.duration,
-                                    progressPercentage: content.progressPercentage,
-                                    playerSettings: content.playerSettings,
-                                },
-                            },
+                            update: [
+                                {
+                                    $set: {
+                                        status: {
+                                            $cond: {
+                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                then: "$status",
+                                                else: content.contentStatus
+                                            }
+                                        },
+                                        lastAccessedDuration: content.duration,
+                                        playerSettings: content.playerSettings,
+                                        progressPercentage: {
+                                            $cond: {
+                                                if: { $gt: [content.progressPercentage, "$progressPercentage"] },
+                                                then: content.progressPercentage,
+                                                else: "$progressPercentage"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         },
                     });
 
@@ -684,7 +698,7 @@ const updateTrainingProgress = async (input, userId) => {
     // Update/add all the contents to the trainingprogresses collection
     let updateTrainingProgress;
     if (bulkOps.length > 0) {
-        updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps);
+        updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps, { session });
     }
 
     const overallTrainingMap = new Map(
@@ -693,7 +707,7 @@ const updateTrainingProgress = async (input, userId) => {
 
     const arrayOfTrainingIds = [...overallTrainingMap.values()];
 
-    const trainingModules = await TrainingModule.find({ training: { $in: arrayOfTrainingIds } });
+    const trainingModules = await TrainingModule.find({ training: { $in: arrayOfTrainingIds } }).session(session);
 
     let trainingModuleIds = trainingModules.map((mod) => mod._id.toString());
 
@@ -712,7 +726,7 @@ const updateTrainingProgress = async (input, userId) => {
 
     const trainingModuleContents = await TrainingContentBridge.find({
         trainingModule: { $in: trainingModuleIds }
-    });
+    }).session(session);
 
     const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
         const { trainingModule, trainingContent } = doc;
@@ -731,7 +745,7 @@ const updateTrainingProgress = async (input, userId) => {
         overallTrainingProgress: { $in: overallIds },
         trainingModule: { $in: trainingModuleIds },
         trainingModuleContent: { $in: Object.values(trainingModuleContentMap).flat() },
-    });
+    }).session(session);
 
     const existingSet = new Set(
         existingProgresses.map(
@@ -784,30 +798,26 @@ const updateTrainingProgress = async (input, userId) => {
         )
     );
 
-    const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+    let updatedTrainingProgress;
+    if (newProgresses.length > 0) {
+        updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses, { session });
+    }
 
-        let updatedTrainingProgress;
-        if (newProgresses.length > 0) {
-            updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses);
-        }
+    let quizErrors = [];
+    if (evaluationData) {
+        quizErrors = await quizEvaluationBulk(evaluationData, userId, overallDocs, session);
+    }
 
-        if (overallIds) {
-            await updateOverallProgressPercentage(overallDocs, session);
-        }
+    if (quizErrors && quizErrors.length > 0) {
+        errors.push(quizErrors[0]);
+        return;
+    }
 
-        let quizErrors = [];
-        if (evaluationData) {
-            quizErrors = await quizEvaluationBulk(evaluationData, userId, overallDocs, session);
-        }
+    if (overallIds) {
+        await updateOverallProgressPercentage(overallDocs, session);
+    }
 
-        if (quizErrors && quizErrors.length > 0) {
-            errors.push(quizErrors[0]);
-            return;
-        }
-        const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
-
-    });
-
+    const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
 
     return { updatedCount: bulkOps.length };
 };
@@ -829,7 +839,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
             _id: { $in: overallIds }
         }).lean();
 
-        if (!overallTrainingProgress) {
+        if (!overallTrainingProgress || overallTrainingProgress.length == 0) {
             errors.push("Overall training progress data not found!");
             return;
         }
@@ -1014,27 +1024,50 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 attendedQuestions: questionResults,
             }
 
-            updateTrainingProgressData.push({
-                updateOne: {
-                    filter: {
-                        overallTrainingProgress: overallId,
-                        trainingModuleContent: trainingModuleContent,
-                        attemptCount: attemptCount,
-                    },
-                    update: {
-                        $set: {
-                            quizAttemptDetails: trainingProgressUpdates,
-                        },
-                    },
-                    upsert: true,
-                },
-            });
+            if (!isPassed) {
 
+                updateTrainingProgressData.push({
+                    updateOne: {
+                        filter: {
+                            overallTrainingProgress: overallId,
+                            trainingModuleContent: trainingModuleContent,
+                            attemptCount: attemptCount,
+                        },
+                        update: {
+                            $set: {
+                                quizAttemptDetails: trainingProgressUpdates,
+                                progressPercentage: 0,
+                                status: "NOT_STARTED",
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+
+            } else {
+
+                updateTrainingProgressData.push({
+                    updateOne: {
+                        filter: {
+                            overallTrainingProgress: overallId,
+                            trainingModuleContent: trainingModuleContent,
+                            attemptCount: attemptCount,
+                        },
+                        update: {
+                            $set: {
+                                quizAttemptDetails: trainingProgressUpdates,
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+
+            }
 
         }
 
         results = await QuizEvaluation.insertMany(quizEvaluations, { session });
-        const udpateTrainingProgress = await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
+        await TrainingProgress.bulkWrite(updateTrainingProgressData, { session });
 
         return errors;
 
