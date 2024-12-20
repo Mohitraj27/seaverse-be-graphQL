@@ -289,7 +289,42 @@ module.exports.queries = {
                     },
                 },
                 { $addFields: { moduleCount: { $size: "$trainingModules" } } },
+                {
+                    $lookup: {
+                        from: "trainingcontentbridges",
+                        let: { moduleIds: "$trainingModules._id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "trainingmodulecontents",
+                                    localField: "trainingContent",
+                                    foreignField: "_id",
+                                    as: "trainingModuleContentDetails",
+                                },
+                            },
+                            {
+                                $project: {
+                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
+                                },
+                            },
+                        ],
+                        as: "trainingContentsFallback",
+                    },
+                },
+                {
+                    $addFields: {
+                        totalDuration: {
+                            $toInt: { $sum: "$trainingContentsFallback.duration" },
+                        },
+                    },
+                },
                 { $sort: { createdAt: -1 } },
+                { $match: { _id: ObjectId('676150355956fa00139a329d') } }
             ]);
 
             return {
