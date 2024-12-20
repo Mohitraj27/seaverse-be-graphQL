@@ -2,11 +2,11 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /home/apiweb-seaverse-backend
+    destination: /home/apiuat-seaverse-backend
     file_exists_behavior: OVERWRITE
 permissions:
   
-  - object: /home/apiweb-seaverse-backend/scripts
+  - object: /home/apiuat-seaverse-backend/scripts
     pattern: "*.sh"
     mode: "755"
     type:
