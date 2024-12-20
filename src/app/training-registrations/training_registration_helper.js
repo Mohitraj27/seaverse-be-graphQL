@@ -32,8 +32,8 @@ const { TrainingContentBridge } = require("../trainings/training_content_bridge/
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const courseEnrollment = require("../email-template/courseEnrollment");
 const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
-const {Training} = require("../trainings/training_model");
-const {sendNotifications} = require("../../util/firebase_helper");
+const { Training } = require("../trainings/training_model");
+const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -349,11 +349,21 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
                 if (existingProgressSet.has(progressKey)) {
+
+                    if (learningPlanId) {
+                        return {
+                            $addToSet: {
+                                learningPlan: learningPlanId,
+                            },
+                        };
+                    }
+
                     return null;
                 }
 
                 return {
                     learningPlan: learningPlanId ? learningPlanId : null,
+                    directEnrollment: learningPlanId ? false : true,
                     training: training,
                     user: user._id,
                     trainingRegistration: registrationId,
@@ -581,27 +591,27 @@ module.exports = {
                     new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
                 );
 
-                if (input.learningPlan) {
+                // if (input.learningPlan) {
 
-                    if (users.length > 0) {
+                if (users.length > 0) {
 
-                        const verifiedUsers = await enrolUserVerificationHelper(users, existingTrainings);
+                    const verifiedUsers = await enrolUserVerificationHelper(users, existingTrainings);
 
-                        if (verifiedUsers.unRegEmails.length > 0) {
-                            throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
-                        }
+                    if (verifiedUsers.unRegEmails.length > 0) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
+                    }
 
-                        if (verifiedUsers.invalidEmails.length > 0) {
-                            throw CustomError(ErrorName.INVALID_EMAIL);
-                        }
+                    if (verifiedUsers.invalidEmails.length > 0) {
+                        throw CustomError(ErrorName.INVALID_EMAIL);
+                    }
 
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
-                            throw CustomError(ErrorName.ALREADY_EXIST);
-                        }
-
+                    if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
+                        throw CustomError(ErrorName.ALREADY_EXIST);
                     }
 
                 }
+                
+                // }
 
                 let userObjectIds = [];
                 if (users.length > 0) {
@@ -612,7 +622,7 @@ module.exports = {
                 if (alreadyExistInCourse.length > 0) {
                     await OverallTrainingProgress.updateMany(
                         { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
-                        { $set: { isEnrolled: true, learningPlan: null } }
+                        { $set: { isEnrolled: true, learningPlan: null, directEnrollment: true } }
                     );
                 }
 
@@ -984,7 +994,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-          throw CustomError(ErrorName.FAILED, e.message);
+            throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };

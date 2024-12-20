@@ -7,9 +7,15 @@ const overallProgressSchema = new Schema(
             type: ObjectId,
             ref: "Subscriber"
         },
-        learningPlan: {
-            type: ObjectId,
-            ref: "LearninPlan"
+        learningPlan: [
+            {
+                type: ObjectId,
+                ref: "LearninPlan"
+            }
+        ],
+        directEnrollment: {
+            type: Boolean,
+            default: false
         },
         training: {
             type: ObjectId,
