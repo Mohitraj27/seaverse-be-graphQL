@@ -323,8 +323,7 @@ module.exports.queries = {
                         },
                     },
                 },
-                { $sort: { createdAt: -1 } },
-                { $match: { _id: ObjectId('676150355956fa00139a329d') } }
+                { $sort: { createdAt: -1 } }
             ]);
 
             return {
