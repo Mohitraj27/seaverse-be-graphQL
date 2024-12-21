@@ -344,6 +344,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             });
 
         }
+        const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
+        console.log('This is the length of existing ID ',oldAssignedLearnerIDs.length);
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
         existingLearningPlan.audienceSelection = input.audienceSelection || existingLearningPlan.audienceSelection;
@@ -356,6 +358,15 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.emailNotification = input.updateemailNotifications;
         existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
+
+        const newAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs;
+        console.log('This is the length of new ID ',newAssignedLearnerIDs.length);
+        const removedLearnersID = newAssignedLearnerIDs.filter(
+            id => !oldAssignedLearnerIDs.includes(id.toString())  
+        );
+        console.log(removedLearnersID);
+        console.log(removedLearnersID.length);
+        
         if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
@@ -365,6 +376,29 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }
             await createTrainingRegistration(enrollData, context);
         }
+        const data = await OverallTrainingProgress.find(
+            { user: { $in: removedLearnersID }, learningPlan: { $in: existingLearningPlan._id}, isDeleted: { $ne: true } },
+            // {
+            //     $pull: {
+            //         learningPlan: existingLearningPlan._id 
+            //     }
+            // }
+          
+        );
+        console.log(data);
+        console.log(`Before update`);
+        console.log(existingLearningPlan._id);
+        const data2 = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnersID }, learningPlan: { $in: existingLearningPlan._id}, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id 
+                }
+            }
+          
+        );
+        console.log(`After update`);
+        console.log(data2);
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
