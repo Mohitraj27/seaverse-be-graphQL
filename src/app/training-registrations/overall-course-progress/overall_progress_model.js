@@ -64,6 +64,18 @@ const overallProgressSchema = new Schema(
             type: Number,
             default: 0
         },
+        isFromMigration:{
+            type:Boolean
+        },
+        pdfUrl:{
+            type:String
+        },
+        certificateNumber:{
+            type:String
+        },
+        createdAt:{
+            type:String
+        },
         isEnrolled: Boolean,
         totalDuration: Number,
         timeSpend: Number
