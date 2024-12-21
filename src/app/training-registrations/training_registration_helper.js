@@ -32,8 +32,8 @@ const { TrainingContentBridge } = require("../trainings/training_content_bridge/
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const courseEnrollment = require("../email-template/courseEnrollment");
 const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
-const {Training} = require("../trainings/training_model");
-const {sendNotifications} = require("../../util/firebase_helper");
+const { Training } = require("../trainings/training_model");
+const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
@@ -668,10 +668,10 @@ module.exports = {
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
 
                         }
-                        
+
                         const learningPlan = await LearningPlan.findById(input.learningPlan).select('emailNotification -_id');
-                        if (input.learningPlan && learningPlan?.emailNotification === false ) {
-                            return savedTrainingRegistration; 
+                        if (input.learningPlan && learningPlan?.emailNotification === false) {
+                            return savedTrainingRegistration;
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         users.forEach(user => {
@@ -694,10 +694,10 @@ module.exports = {
                     }
                 );
                 const learningPlan = await LearningPlan.findById(input.learningPlan).select('pushNotification -_id');
-                if (input.learningPlan && learningPlan?.pushNotification === false ) {
-                    return  {
+                if (input.learningPlan && learningPlan?.pushNotification === false) {
+                    return {
                         message: "Course enrollment successful!",
-                    }; 
+                    };
                 }
                 for (const userId of userObjectIds) {
                     await Promise.all(
@@ -725,7 +725,7 @@ module.exports = {
                                     ]
                                 });
                             } catch (error) {
-                              throw Error(error.message);
+                                throw Error(error.message);
                             }
                         })
                     );
@@ -837,13 +837,36 @@ module.exports = {
 
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
-                        const unenrolledUsers = await OverallTrainingProgress.updateMany(
+                        const unenrollUsers = await OverallTrainingProgress.updateMany(
                             { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
-                            { $set: { isEnrolled: false } },
+                            {
+                                $set: {
+                                    isEnrolled: false,
+                                    contentData: [],
+                                    progressPercentage: 0.00,
+                                    lastConsumedContent: {},
+                                    startDate: null,
+                                    endDate: null,
+                                    status: 'NOT_STARTED',
+                                    attemptCount: 1,
+                                    timeSpend: 0
+                                }
+                            },
                             { session }
                         );
 
-                        const  trainings = await Training.aggregate([
+                        const unenrolledUsers = await OverallTrainingProgress.find({
+                            user: { $in: userObjectIds },
+                            training: { $in: existingTrainings.map(t => t.training) }
+                        }, { session });
+
+                        const unenrolledUserIds = unenrolledUsers.map(user => user._id);
+
+                        const deleteTrainingProgresses = await TrainingProgress.deleteMany({
+                            overallTrainingProgress: { $in: unenrolledUserIds }
+                        });
+
+                        const trainings = await Training.aggregate([
                             { $match: { _id: { $in: input.trainings } } },
                             { $project: { title: 1 } }
                         ]);
@@ -981,7 +1004,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-          throw CustomError(ErrorName.FAILED, e.message);
+            throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };
