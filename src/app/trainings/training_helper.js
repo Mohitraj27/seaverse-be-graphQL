@@ -528,11 +528,14 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
         const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
+        
+        const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
 
         const updateFields = {
             progressPercentage: average,
             totalDuration,
-            timeSpend
+            timeSpend,
+            completedModules: completedCount
         };
 
         if (average == 100) {

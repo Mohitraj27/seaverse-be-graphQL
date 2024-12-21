@@ -591,6 +591,9 @@ const getUsersAndCount = async (input) => {
                 }
                 filter._id = { $in: groupIDs };
             } else if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
