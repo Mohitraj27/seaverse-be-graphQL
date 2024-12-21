@@ -1292,9 +1292,9 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
-
+        const pageLimit =[];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
 
@@ -1397,6 +1397,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                     },
                 },
             },
+            ...pageLimit,
         ]);
 
         const coursesData = data.map(item => ({
