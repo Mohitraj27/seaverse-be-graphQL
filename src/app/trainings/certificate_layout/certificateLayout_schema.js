@@ -44,11 +44,19 @@ module.exports = {
         additionalData: [genericObjectOutput]
         createdAt: String
         updatedAt: String
+        certificateNumber:String
+        pdfUrl:String
+        user:ID
+        isFromMigration:Boolean
     }
-
+        type CertificateLayoutData {
+        success:Boolean
+        message:String
+    }
 `,
     queries:`
     getCertificateLayoutByTrainingId(trainingId:ID!):CertificateLayout
+    getMigrationcoursesToCertificateLayout:CertificateLayoutData
 `,
     mutations: `
     createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput

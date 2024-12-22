@@ -7,9 +7,12 @@ const {
     OverallTrainingProgress,
 } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { CustomError, ErrorName, AuthUser } = require("../../../util");
+const NotificationHelper = require("../../notifications/notification_helper");
+const NotificationType = require("../../notifications/notification_type.json");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
 
 async function createOrUpdateTrainingMigrationCourses({ input }, context) {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId, userInfo } = AuthUser(context);
     try {
         const { trainingId, migrationcourseId } = input;
         const migrationCourse = await MigrationCourses.findById({ _id: migrationcourseId });
@@ -58,8 +61,41 @@ async function createOrUpdateTrainingMigrationCourses({ input }, context) {
             isFromMigration: true,
             createdAt: item.createdAt
         }));
-        const result = await OverallTrainingProgress.insertMany(userCourseArray);
-
+        const result = await OverallTrainingProgress.insertMany(userCourseArray); 
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `New Course has been enrolled to you`,
+            messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.NEW_MIGRATION_COURSE_ENROLLMENT,
+            notifyAdmin: false,
+            notifiers: [userIds],
+            employeeNotifiers: [userIds],
+            affected: [],
+            status: 'SENT',
+            icon: notificationiconEnum.SUCCESS,
+            createdBy: userInfo,
+            additionalInfo: [
+                {
+                    infoType: "VIEW_COURSE",
+                    infoData: {
+                        filePath: savedTraining._id
+                    }
+                }
+            ]
+        });
+        await NotificationHelper.createNotificationhelper({
+            subscriber: subscriberId,
+            titleValue: `New Course Enrollment`,
+            messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
+            notificationType: NotificationType.NEW_MIGRATION_COURSE_ENROLLMENT,
+            notifyAdmin: true,
+            notifiers: [],
+            employeeNotifiers: [],
+            affected: [],
+            status: 'SENT',
+            icon: notificationiconEnum.SUCCESS,
+            createdBy: userInfo,
+        });
         return {
             migrationCourse,
             savedTraining,
