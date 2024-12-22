@@ -278,20 +278,20 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
                     notEnrolledUserIds.push(training.user.toString());
                 }
             });
+            alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+            notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+            if (alreadyEnrolledUserIds.length > 0) {
+                const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+                alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
+            }
+
+            if (notEnrolledUserIds.length > 0) {
+                const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+                notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+            }
         }
 
-        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
-        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
-
-        if (alreadyEnrolledUserIds.length > 0) {
-            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
-            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
-        }
-
-        if (notEnrolledUserIds.length > 0) {
-            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
-            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
-        }
 
         return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
     } catch (error) {
@@ -560,10 +560,12 @@ module.exports = {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
-            let existingTrainings = [];
+            let existingTrainingRegs = [];
             if (input.trainings && input.trainings.length > 0) {
-                existingTrainings = await OverallTrainingProgress.find({ training: { $in: input.trainings } });
+                existingTrainingRegs = await TrainingRegistration.find({ training: { $in: input.trainings } });
             }
+
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: input.users } });
 
             if (input.type === "ENROLL") {
 
@@ -613,7 +615,7 @@ module.exports = {
                 if (input.learningPlan) {
                     if (users.length > 0) {
 
-                        const verifiedUsers = await enrolUserVerificationHelper(users, existingTrainings);
+                        const verifiedUsers = await enrolUserVerificationHelper(users /* existingTrainings */);
 
                         if (verifiedUsers.unRegEmails.length > 0) {
                             throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
@@ -623,9 +625,9 @@ module.exports = {
                             throw CustomError(ErrorName.INVALID_EMAIL);
                         }
 
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
-                            throw CustomError(ErrorName.ALREADY_EXIST);
-                        }
+                        // if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
+                        //     throw CustomError(ErrorName.ALREADY_EXIST);
+                        // }
 
                     }
                 }
@@ -652,7 +654,8 @@ module.exports = {
 
                         const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-                        const existingTrainingIds = existingTrainings.map(t => t.training.toString());
+                        const existingTrainingIds = existingTrainingRegs.map(t => t.training.toString());
+                        const existingTrainingRegIds = existingTrainingRegs.map(t => t._id);
 
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
@@ -665,11 +668,11 @@ module.exports = {
                         }
 
                         let savedTrainingRegistration;
-                        let trainingRegistrationIds;
+                        let trainingRegistrationIds = [];
 
-                        if (existingTrainingIds.length > 0) {
+                        if (existingTrainingRegs.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
-                                { training: { $in: existingTrainingIds } },
+                                { training: { $in: existingTrainingRegIds } },
                                 updateFields,
                                 { session }
                             );
@@ -696,6 +699,7 @@ module.exports = {
                             let trainingProgressData;
 
                             let learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
 
                         }
@@ -834,7 +838,7 @@ module.exports = {
                 if (inputUsers.length > 0) {
                     userObjectIds = inputUsers.map(user => user._id);
 
-                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingTrainings);
+                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses);
 
                     if (verifiedUsers.unRegEmails.length > 0) {
                         throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
@@ -851,7 +855,7 @@ module.exports = {
                 const unenrollTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
-                        if (!existingTrainings) {
+                        if (!existingOverallProgresses) {
                             throw CustomError(ErrorName.NOT_FOUND, "Pass the training ID");
                         }
 
@@ -868,7 +872,7 @@ module.exports = {
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
                         const unenrolledUsers = await OverallTrainingProgress.updateMany(
-                            { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
+                            { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) } },
                             { $set: { isEnrolled: false, learningPlan: [], directEnrollment: false } },
                             { session }
                         );
