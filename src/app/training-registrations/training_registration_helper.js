@@ -4,7 +4,7 @@ const { AuthUser, Role, CustomError, ErrorName, SendEmail, DbTransactionHelper }
 const { TrainingRegistration } = require("./training_registration_model");
 const { Employee } = require("../user/employee/employee_model");
 const { User } = require("../user/user_model");
-
+const { SubRole } = require("../user/sub-roles/sub_role_model");
 const NotificationHelper = require("../notifications/notification_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
@@ -35,6 +35,8 @@ const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
 const { Training } = require("../trainings/training_model");
 const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
+const Roles = require("../../util/role.json");
+
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -709,13 +711,16 @@ module.exports = {
                             return savedTrainingRegistration;
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
+                        const subRoleAdminId = await SubRole.findOne({ name:   Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
                         users.forEach(user => {
+                            const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
                             trainingsData.forEach(training => {
                                 const emailContent = courseEnrollment({
                                     firstName: user.firstName,
                                     trainingTitle: training?.title?.[0]?.value,
                                     durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseId: training?._id,
+                                    isAdmin: isAdmin,
                                 });
                                 sendEmail({
                                     receiverEmail: user.email,
@@ -871,11 +876,34 @@ module.exports = {
 
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
-                        const unenrolledUsers = await OverallTrainingProgress.updateMany(
-                            { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) } },
-                            { $set: { isEnrolled: false, learningPlan: [], directEnrollment: false } },
+                        const unenrollUsers = await OverallTrainingProgress.updateMany(
+                            { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
+                            {
+                                $set: {
+                                    isEnrolled: false,
+                                    contentData: [],
+                                    progressPercentage: 0.00,
+                                    lastConsumedContent: {},
+                                    startDate: null,
+                                    endDate: null,
+                                    status: 'NOT_STARTED',
+                                    attemptCount: 1,
+                                    timeSpend: 0
+                                }
+                            },
                             { session }
                         );
+
+                        const unenrolledUsers = await OverallTrainingProgress.find({
+                            user: { $in: userObjectIds },
+                            training: { $in: existingTrainings.map(t => t.training) }
+                        }, { session });
+
+                        const unenrolledUserIds = unenrolledUsers.map(user => user._id);
+
+                        const deleteTrainingProgresses = await TrainingProgress.deleteMany({
+                            overallTrainingProgress: { $in: unenrolledUserIds }
+                        });
 
                         const trainings = await Training.aggregate([
                             { $match: { _id: { $in: input.trainings } } },

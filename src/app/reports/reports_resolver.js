@@ -276,9 +276,15 @@ const getMainLearnersReport = async ({ input }, context) => {
                     vesselTypeId: '$vesselTypeInfo._id',
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
+                    createdAt :1,
                     averageProgressPercentage: 1,
                 },
             },
+            {
+                '$sort' :{
+                    'createdAt' :-1
+                }
+            }
         ]);
 
 
@@ -655,6 +661,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 ]
                             },
                             'totalTimeSpent': "$timeSpend"
+                        }
+                    },
+                    {
+                        '$sort' :{
+                            'createdAt' :-1
                         }
                     }
                 ]
@@ -1292,13 +1303,18 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
-
+        const pageLimit =[];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
 
         const data = await Training.aggregate([
+            {
+                $sort: {
+                  updatedAt: -1
+                }
+            },
             {
                 $lookup: {
                     from: 'overalltrainingprogresses',
@@ -1343,8 +1359,13 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             ...matchStage,
             {
+                '$sort' :{
+                    'updatedAt' :-1
+                }
+            },
+            {
                 $group: {
-                    _id: '$_id',
+                    _id: '$progress.training',
                     title: { $first: '$title' },
                     updatedAt: { $first: '$updatedAt' },
                     updatedBy: { $first: '$updatedByUser.firstName' },
@@ -1357,7 +1378,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 $project: {
                     _id: 1,
                     title: 1,
-                    updatedAt: 1,
+                    'updatedAt': 1,
                     updatedBy: {
                         $concat: [
                             '$updatedBy',
@@ -1397,6 +1418,12 @@ const getMainCoursesReport = async ({ input }, context) => {
                     },
                 },
             },
+            ...pageLimit,
+            {
+                '$sort' :{
+                    'updatedAt' :-1
+                }
+            }
         ]);
 
         const coursesData = data.map(item => ({
