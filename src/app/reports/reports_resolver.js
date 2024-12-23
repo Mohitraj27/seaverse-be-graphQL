@@ -1939,7 +1939,6 @@ const getSingleCourseReport = async ({ input }, context) => {
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                                 ? Math.round(item.quizPercentage) 
                                 : 'Not Applicable'; 
-
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
@@ -3802,16 +3801,25 @@ const generateCustomReport = async ({ input }, context) => {
             };
 
         } else {
-            await NotificationHelper.createNotificationhelper({
+            let notificationData = {
                 subscriber: subscriberId,
                 titleValue: `Custom Report Export Failed`,
-                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
+                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}).`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
-            });
+            }
+
+            await NotificationHelper.createNotificationhelper(notificationData);
+
+            return {
+                status: false,
+                fileName:" ",
+                filePath: " ",
+                message: "No data present corresponding to the Request"
+            };
         }
 
     } catch (error) {
