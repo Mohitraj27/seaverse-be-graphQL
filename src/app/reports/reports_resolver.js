@@ -1939,7 +1939,6 @@ const getSingleCourseReport = async ({ input }, context) => {
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                                 ? Math.round(item.quizPercentage) 
                                 : 'Not Applicable'; 
-
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
