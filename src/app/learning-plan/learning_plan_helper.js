@@ -839,10 +839,20 @@ const mergeUsersData = (inputData) => {
     const mergedUsers = Object.values(aggregatedUsers).map((user) => {
         const avgProgress = user.progressPercentage / user.totalTrainings;
 
+        let finalStatus;
+        const statusKeys = Object.keys(user.statusCount);
+
+        if (statusKeys.length === 1) {
+            finalStatus = statusKeys[0];
+        } else {
+            finalStatus = "IN_PROGRESS";
+        }
+
         return {
             ...user,
             progressPercentage: avgProgress,
             completedTrainings: user.statusCount["COMPLETED"] || 0,
+            status: finalStatus,
         };
     });
 
@@ -860,9 +870,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
         let activityFilter;
-        if (status && Array.isArray(status) && status.length > 0) {
-            matchCriteria.status = { $in: status };
-        }
+
         let startDate, endDate;
 
         if (lastActivity) {
@@ -995,10 +1003,20 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             });
         }
 
-        
+
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
 
+        if (!groupedProgress || groupedProgress.length === 0) {
+            return [];
+        }
+
         let mergedData = mergeUsersData(groupedProgress?.[0]);
+
+        if (status && status.length > 0) {
+            mergedData.users = mergedData.users.filter((user) =>
+                status.includes(user.status)
+            );
+        }
 
         return mergedData || [];
 
