@@ -570,6 +570,9 @@ module.exports = {
             const userIds = [];
             const emails = [];
             let allUsersFetched = [];
+            let autoSyncUsers;
+            let customGroups;
+            let customGroupUsers = [];
 
             if (input.users && input.users.length > 0) {
                 for (const user of input.users) {
@@ -589,27 +592,24 @@ module.exports = {
                 allUsersFetched = [...allUsersFetched, ...inputUsers];
             }
 
+            if (input.groups && input.groups.length > 0) {
+
+                autoSyncUsers = await getAutoSyncUsers(input.groups);
+
+                customGroups = input.groups.filter(group => group.groupType === 'custom');
+
+                if (customGroups && customGroups.length > 0) {
+                    customGroupUsers = await getCustomGroupUsers(customGroups);
+                }
+
+                allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
+            }
+
             const fetchedUserIds = allUsersFetched.map(user => user._id);
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
 
             if (input.type === "ENROLL") {
-
-                let autoSyncUsers, customGroups;
-                let customGroupUsers = [];
-
-                if (input.groups) {
-
-                    autoSyncUsers = await getAutoSyncUsers(input.groups);
-
-                    customGroups = input.groups.filter(group => group.groupType === 'custom');
-
-                    if (customGroups && customGroups.length > 0) {
-                        customGroupUsers = await getCustomGroupUsers(customGroups);
-                    }
-
-                    allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
-                }
 
                 let users = [];
 
@@ -659,23 +659,26 @@ module.exports = {
 
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
-                        const updateFields = { subscriber: subscriberId };
+                        const updateFields = { subscriber: subscriberId, $addToSet: {} };
                         if (userObjectIds && userObjectIds.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, users: { $each: userObjectIds } };
+                            updateFields.$addToSet.users = { $each: userObjectIds };
                         }
+
                         if (input.groups && input.groups.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, groups: { $each: input.groups } };
+                            updateFields.$addToSet.groups = { $each: input.groups };
                         }
 
                         let savedTrainingRegistration;
                         let trainingRegistrationIds = [];
 
                         if (existingTrainingRegs.length > 0) {
+
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
-                                { training: { $in: existingTrainingRegIds } },
+                                { _id: { $in: existingTrainingRegIds } },
                                 updateFields,
                                 { session }
                             );
+
                             const updatedRegistrations = await TrainingRegistration.find({
                                 training: { $in: existingTrainingIds }
                             }).session(session);
@@ -690,7 +693,9 @@ module.exports = {
                         }));
 
                         if (newRegistrations.length > 0) {
+
                             savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
+
                             trainingRegistrationIds = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
                         }
 

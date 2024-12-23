@@ -995,6 +995,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             });
         }
 
+        
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
 
         let mergedData = mergeUsersData(groupedProgress?.[0]);
