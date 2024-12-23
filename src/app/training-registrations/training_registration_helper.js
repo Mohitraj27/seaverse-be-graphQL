@@ -567,13 +567,36 @@ module.exports = {
                 existingTrainingRegs = await TrainingRegistration.find({ training: { $in: input.trainings } });
             }
 
-            let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: input.users } });
+            const userIds = [];
+            const emails = [];
+            let allUsersFetched = [];
+
+            if (input.users && input.users.length > 0) {
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
+                }
+
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
+
+                const inputUsers = await User.find({ $or: criteria });
+
+                allUsersFetched = [...allUsersFetched, ...inputUsers];
+            }
+
+            const fetchedUserIds = allUsersFetched.map(user => user._id);
+
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
 
             if (input.type === "ENROLL") {
 
                 let autoSyncUsers, customGroups;
                 let customGroupUsers = [];
-                let allUsersFetched = [];
 
                 if (input.groups) {
 
@@ -588,27 +611,7 @@ module.exports = {
                     allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
                 }
 
-                const userIds = [];
-                const emails = [];
                 let users = [];
-
-                if (input.users && input.users.length > 0) {
-                    for (const user of input.users) {
-                        if (ObjectId.isValid(user)) {
-                            userIds.push(user);
-                        } else {
-                            emails.push(user);
-                        }
-                    }
-
-                    const criteria = [];
-                    if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                    if (emails.length) criteria.push({ email: { $in: emails } });
-
-                    const inputUsers = await User.find({ $or: criteria });
-
-                    allUsersFetched = [...allUsersFetched, ...inputUsers];
-                }
 
                 users = Array.from(
                     new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
@@ -644,7 +647,6 @@ module.exports = {
                             { $set: { isEnrolled: true, directEnrollment: true } }
                         );
                     }
-
                 }
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
