@@ -1531,6 +1531,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+        const pageLimit = [];
 
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -1634,7 +1635,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         if (input?.reportType === "ENROLLMENT") {
@@ -1881,7 +1882,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                         {
                             createdAt: -1
                         }
-                    }
+                    },
+                    ...pageLimit
                 ]
 
             );
@@ -2391,7 +2393,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastSeen': 1,
                             'status': 1
                         }
-                    }
+                    },
+                    { $sort: { createdAt: -1 } },
+                    ...pageLimit
                 ]
             );
             if (data.length > 0) {
