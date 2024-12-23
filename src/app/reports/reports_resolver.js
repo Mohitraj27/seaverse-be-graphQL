@@ -3205,7 +3205,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
-
+            console.log(data);
             data.forEach(item => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
                 const formatDate = (date) => {
@@ -3801,16 +3801,25 @@ const generateCustomReport = async ({ input }, context) => {
             };
 
         } else {
-            await NotificationHelper.createNotificationhelper({
+            let notificationData = {
                 subscriber: subscriberId,
                 titleValue: `Custom Report Export Failed`,
-                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
+                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}).`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
-            });
+            }
+            console.log(notificationData);
+            await NotificationHelper.createNotificationhelper(notificationData);
+
+            return {
+                status: false,
+                fileName:" ",
+                filePath: " ",
+                message: "No data present corresponding to the Request"
+            };
         }
 
     } catch (error) {
