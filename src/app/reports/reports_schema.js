@@ -118,6 +118,7 @@ module.exports = {
             vesselTypes : [ID]
             vesselIds : [ID]
             designations : [ID]
+            userVesselStatus : [String]
         } 
         input singleLearnerReportInput {
             learnerIds : [ID]!

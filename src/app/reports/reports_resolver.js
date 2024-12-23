@@ -97,6 +97,14 @@ const getMainLearnersReport = async ({ input }, context) => {
                 });
             }
 
+            if (filterInput.userVesselStatus && Array.isArray(filterInput.userVesselStatus) && filterInput.userVesselStatus.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselInfo.vesselStatus': { $in: filterInput.userVesselStatus },
+                    },
+                });
+            }
+
             if (filterInput.isRegistered !== undefined) {
                 matchStage.push({
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
@@ -246,7 +254,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     averageProgressPercentage: {
                         $cond: {
                             if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                            then: { $round: [{ $avg: '$trainingProgresses.progressPercentage' }, 2] },
+                            then: {  $toInt: { $avg: '$trainingProgresses.progressPercentage' } },
                             else: 0,
                         },
                     },
@@ -678,10 +686,27 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     if (!learnerReportsByUser[learnerName]) {
                         learnerReportsByUser[learnerName] = [];
                     }
-                    const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                    const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
-                    const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
-                    const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                    const formatDate = (date) => {
+                        if (date) {
+                            const formattedDate = new Date(date);
+                            return formattedDate.toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true, 
+                            });
+                        }
+                        return null;
+                    };
+                
+                    const enrollmentDate = formatDate(item.createdAt);
+                    const completionDate = formatDate(item.completionDate);
+                    const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
+                    const unenrollmentDate = formatDate(item.unenrolmentDate);
+                
                     const quizScore = (typeof item.quizPercentage === 'string')
                         ? item.quizPercentage
                         : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
@@ -696,15 +721,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
-                        'Enrollment Date (UTC TimeZone)': enrollmentDate,
-                        'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
-                        'Completion Date (UTC TimeZone)': completionDate,
-                        'Started Date (UTC TimeZone)': startDate,
+                        'Enrollment Date': enrollmentDate,
+                        'Unenrollment Date': unenrollmentDate,
+                        'Completion Date': completionDate,
+                        'Started Date': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
                     });
-                });
+                });                
             } else {
                 learnersReports.forEach(item => {
                     const learnerName = `${item.firstName} ${item.lastName}`;
@@ -1081,16 +1106,29 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 const flattenLearnerDataForSingleSheet = (learner) => {
                     const flattenedData = [];
-
+                    const formatDate = (date) => {
+                        if (date) {
+                            const formattedDate = new Date(date);
+                            return formattedDate.toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true, 
+                            });
+                        }
+                        return '';
+                    };
                     if (learner) {
                         const email = learner?.email || '';
                         const designation = learner?.designation || '';
                         const employeeId = learner?.employeeId || '';
-                        const userState = learner?.userState ? 'Active' : 'Inactive';
-                        const enrollmentDate = learner?.enrollmentDate ? new Date(learner.enrollmentDate).toLocaleDateString() : '';
-                        const startDate = learner?.startDate ? new Date(learner.startDate).toLocaleDateString() : 'NA';
-                        const completionDate = learner?.completionDate ? new Date(learner.completionDate).toLocaleDateString() : 'NA';
-
+                        const userState = learner?.userState ? 'Registered' : 'Unregistered';
+                        const enrollmentDate = formatDate(learner?.enrollmentDate);
+                        const startDate = learner?.startDate ? formatDate(learner.startDate) : 'NA';
+                        const completionDate = learner?.completionDate ? formatDate(learner.completionDate) : 'NA';
                         if (Array.isArray(learner.courses)) {
                             learner.courses.forEach(course => {
                                 const courseName = course?.trainingTitle?.[0]?.value || '';
@@ -1116,47 +1154,33 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                         });
                                     } else {
                                         course.lessons.contents.forEach(content => {
-                                            if (Array.isArray(content?.contentTitle)) {
-                                                content.contentTitle.forEach(contentTitle => {
-                                                    const contentName = contentTitle.value || '';
-                                                    const contentType = content.contentType || '';
-                                                    const quizScore = (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') ? 'Score not available' : '';
-
-                                                    flattenedData.push({
-                                                        userName: learner?.userName || '',
-                                                        email: email,
-                                                        designation: designation,
-                                                        employeeId: employeeId,
-                                                        userState: userState,
-                                                        enrollmentDate: enrollmentDate,
-                                                        startDate: startDate,
-                                                        completionDate: completionDate,
-                                                        courseStatus: courseStatus,
-                                                        courseName: courseName,
-                                                        lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                        contentName: contentName,
-                                                        contentType: contentType,
-                                                        quizScore: quizScore,
-                                                    });
-                                                });
-                                            } else {
-                                                flattenedData.push({
-                                                    userName: learner?.userName || '',
-                                                    email: email,
-                                                    designation: designation,
-                                                    employeeId: employeeId,
-                                                    userState: userState,
-                                                    enrollmentDate: enrollmentDate,
-                                                    startDate: startDate,
-                                                    completionDate: completionDate,
-                                                    courseStatus: courseStatus,
-                                                    courseName: courseName,
-                                                    lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                    contentName: '',
-                                                    contentType: '',
-                                                    quizScore: '',
-                                                });
+                                            const contentName = content?.contentTitle?.[0]?.value || '';
+                                            const contentType = content?.contentType || '';
+                                            let quizScore = '';
+                
+                                            if (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') {
+                                                
+                                                quizScore = content.quizPercentage
+                                                    ? Math.round(content.quizPercentage) 
+                                                    : 'Score not available';
                                             }
+                
+                                            flattenedData.push({
+                                                userName: learner?.userName || '',
+                                                email: email,
+                                                designation: designation,
+                                                employeeId: employeeId,
+                                                userState: userState,
+                                                enrollmentDate: enrollmentDate,
+                                                startDate: startDate,
+                                                completionDate: completionDate,
+                                                courseStatus: courseStatus,
+                                                courseName: courseName,
+                                                lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
+                                                contentName: contentName,
+                                                contentType: contentType,
+                                                quizScore: quizScore,
+                                            });
                                         });
                                     }
                                 } else {
@@ -1312,7 +1336,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         const data = await Training.aggregate([
             {
                 $sort: {
-                  updatedAt: -1
+                    updatedAt: -1, 
                 }
             },
             {
@@ -1357,20 +1381,20 @@ const getMainCoursesReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...matchStage,
+            ...matchStage, 
             {
-                '$sort' :{
-                    'updatedAt' :-1
+                $sort: {
+                    updatedAt: -1, 
                 }
             },
             {
                 $group: {
-                    _id: '$progress.training',
+                    _id: '$progress.training', 
                     title: { $first: '$title' },
-                    updatedAt: { $first: '$updatedAt' },
+                    updatedAt: { $max: '$updatedAt' }, 
                     updatedBy: { $first: '$updatedByUser.firstName' },
                     updatedByLastName: { $first: '$updatedByUser.lastName' },
-                    uniqueUsers: { $addToSet: '$progress.user' },
+                    uniqueUsers: { $addToSet: '$progress.user' }, 
                     usersByStatus: { $push: { user: '$progress.user', status: '$progress.status' } },
                 },
             },
@@ -1378,7 +1402,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 $project: {
                     _id: 1,
                     title: 1,
-                    'updatedAt': 1,
+                    updatedAt: 1,
                     updatedBy: {
                         $concat: [
                             '$updatedBy',
@@ -1420,8 +1444,8 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             ...pageLimit,
             {
-                '$sort' :{
-                    'updatedAt' :-1
+                $sort: {
+                    updatedAt: -1, 
                 }
             }
         ]);
@@ -1891,17 +1915,30 @@ const getSingleCourseReport = async ({ input }, context) => {
                     if (!data) throw CustomError(ErrorName.NOT_FOUND, "No there is no data present");
                     const parsedData = data.map(item => {
 
-                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
-
-                        const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                        const completionDate = item.endDate ? new Date(item.endDate).toISOString() : null;
+                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`; 
+                        const formatDate = (date) => {
+                            if (date) {
+                                const formattedDate = new Date(date);
+                                return formattedDate.toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    hour12: true, 
+                                });
+                            }
+                            return null;
+                        };
+                        const enrollmentDate = formatDate(item.createdAt);
+                        const completionDate = formatDate(item.endDate);
                         const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
-
                         const quizScore = (typeof item.quizPercentage === 'string')
-                            ? item.quizPercentage
+                            ? parseInt(item.quizPercentage, 10) 
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
-                                ? item.quizPercentage.toFixed(2)
-                                : 'Not Applicable';
+                                ? Math.round(item.quizPercentage) 
+                                : 'Not Applicable'; 
 
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
@@ -2586,7 +2623,30 @@ const getVesselMainReport = async ({ input }, context) => {
                     from: "uservessels",
                     localField: "_id",
                     foreignField: "vessel",
-                    as: "userVesselsInfo"
+                    as: "userVesselsInfo",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "employees",
+                                localField: "user",
+                                foreignField: "user",
+                                as: "employeeInfo"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$employeeInfo",
+                                preserveNullAndEmptyArrays: false
+                            }
+                        },
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$employeeInfo.isDeleted", false]
+                                }
+                            }
+                        }
+                    ]
                 }
             },
             {
@@ -3149,10 +3209,25 @@ const generateCustomReport = async ({ input }, context) => {
 
             data.forEach(item => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
-                const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
-                const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
-                const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                const formatDate = (date) => {
+                    if (date) {
+                        const formattedDate = new Date(date);
+                        return formattedDate.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true, 
+                        });
+                    }
+                    return null;
+                };
+                const enrollmentDate = formatDate(item.createdAt);
+                const completionDate = formatDate(item.completionDate);
+                const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
+                const unenrollmentDate = formatDate(item.unenrolmentDate);
                 const quizScore = (typeof item.quizPercentage === 'string')
                     ? item.quizPercentage
                     : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
