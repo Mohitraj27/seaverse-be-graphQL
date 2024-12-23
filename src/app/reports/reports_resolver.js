@@ -1442,12 +1442,12 @@ const getMainCoursesReport = async ({ input }, context) => {
                     },
                 },
             },
-            ...pageLimit,
             {
                 $sort: {
                     updatedAt: -1, 
                 }
-            }
+            },
+            ...pageLimit,
         ]);
 
         const coursesData = data.map(item => ({
