@@ -344,6 +344,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             });
 
         }
+        const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
+        
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
         existingLearningPlan.audienceSelection = input.audienceSelection || existingLearningPlan.audienceSelection;
@@ -356,6 +358,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.emailNotification = input.updateemailNotifications;
         existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
+
+        const newAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs;
+
+        const removedLearnersID = oldAssignedLearnerIDs.filter(
+            id => !newAssignedLearnerIDs.includes(id.toString())  
+        );
+        
         if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
@@ -363,8 +372,19 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 type: "ENROLL",
                 learningPlan: existingLearningPlan._id
             }
+            
             await createTrainingRegistration(enrollData, context);
         }
+
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnersID }, learningPlan: { $in: existingLearningPlan._id}, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id 
+                }
+            }
+        );
+
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
