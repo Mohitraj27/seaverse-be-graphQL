@@ -454,14 +454,14 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null }
         }).session(session);
-
+        
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
             for (const doc of overallDocs) {
                 const training = await Training.findById(doc.training);
                 const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
                 const isCertificate = training?.isCertificate;
-                if (courseTitle) {
+                if (courseTitle && !doc.isCertificateGenerated) {
                     if (isCertificate) {
                         await sendNotifications({
                             userIds: [userId],
@@ -470,11 +470,15 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                             content: "Certificate Details",
                             webLink: ""
                         });
+
                     }
-                } else {
-                    throw new Error(`Course title is missing for training ID ${doc.training}. Cannot send notification.`);
                 }
             }
+
+            await OverallTrainingProgress.updateMany(
+                { _id: { $in: overallDocs.map(doc => doc._id) } },
+                { $set: { isCertificateGenerated: true } }
+            ).session(session);
         }
 
     }
@@ -529,10 +533,13 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
 
+        const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
+
         const updateFields = {
             progressPercentage: average,
             totalDuration,
-            timeSpend
+            timeSpend,
+            completedModules: completedCount
         };
 
         if (average == 100) {

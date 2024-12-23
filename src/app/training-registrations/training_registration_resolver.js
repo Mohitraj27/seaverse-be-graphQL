@@ -71,12 +71,6 @@ module.exports.queries = {
                 }
             },
             {
-                $unwind: {
-                    path: '$learningPlanInfo',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
                 $lookup: {
                     from: 'users',
                     localField: 'user',
@@ -102,24 +96,53 @@ module.exports.queries = {
                         $or: input.search.split(' ').map(term => ({
                             $or: [
                                 { 'userInfo.firstName': { $regex: term, $options: 'i' } },
-                                { 'userInfo.lastName': { $regex: term, $options: 'i' } },
+                                { 'userInfo.lastName': { $regex: term, $options: 'i' } }
                             ]
                         }))
                     }
                     : {}
             },
             {
+                $addFields: {
+                    learningPlanNames: {
+                        $setUnion: [
+                            {
+                                $cond: {
+                                    if: { $eq: ['$directEnrollment', true] },
+                                    then: ['NIL'],
+                                    else: []
+                                }
+                            },
+                            {
+                                $ifNull: [
+                                    {
+                                        $map: {
+                                            input: '$learningPlanInfo',
+                                            as: 'plan',
+                                            in: '$$plan.title'
+                                        }
+                                    },
+                                    []
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                $unwind: '$learningPlanNames'
+            },
+            {
                 $group: {
                     _id: {
-                        learningPlanId: "$learningPlan",
-                        learningPlanName: { $ifNull: ["$learningPlanInfo.title", "NIL"] }
+                        learningPlanName: '$learningPlanNames'
                     },
                     users: {
                         $push: {
-                            id: "$userInfo._id",
-                            firstName: "$userInfo.firstName",
-                            lastName: "$userInfo.lastName",
-                            status: "$status"
+                            id: '$userInfo._id',
+                            firstName: '$userInfo.firstName',
+                            lastName: '$userInfo.lastName',
+                            status: '$status'
                         }
                     }
                 }

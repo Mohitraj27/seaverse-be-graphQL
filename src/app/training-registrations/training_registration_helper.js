@@ -4,7 +4,7 @@ const { AuthUser, Role, CustomError, ErrorName, SendEmail, DbTransactionHelper }
 const { TrainingRegistration } = require("./training_registration_model");
 const { Employee } = require("../user/employee/employee_model");
 const { User } = require("../user/user_model");
-
+const { SubRole } = require("../user/sub-roles/sub_role_model");
 const NotificationHelper = require("../notifications/notification_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
@@ -32,9 +32,11 @@ const { TrainingContentBridge } = require("../trainings/training_content_bridge/
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const courseEnrollment = require("../email-template/courseEnrollment");
 const courseUnenrollmentEmail = require("../email-template/courseUnenrollment");
-const {Training} = require("../trainings/training_model");
-const {sendNotifications} = require("../../util/firebase_helper");
+const { Training } = require("../trainings/training_model");
+const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
+const Roles = require("../../util/role.json");
+
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -278,20 +280,20 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
                     notEnrolledUserIds.push(training.user.toString());
                 }
             });
+            alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
+            notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
+
+            if (alreadyEnrolledUserIds.length > 0) {
+                const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
+                alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
+            }
+
+            if (notEnrolledUserIds.length > 0) {
+                const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
+                notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+            }
         }
 
-        alreadyEnrolledUserIds = [...new Set(alreadyEnrolledUserIds)];
-        notEnrolledUserIds = [...new Set(notEnrolledUserIds)];
-
-        if (alreadyEnrolledUserIds.length > 0) {
-            const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
-            alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
-        }
-
-        if (notEnrolledUserIds.length > 0) {
-            const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
-            notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
-        }
 
         return { invalidEmails, unRegEmails, alreadyEnrolledEmails, notEnrolledEmails };
     } catch (error) {
@@ -349,31 +351,60 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
                 if (existingProgressSet.has(progressKey)) {
+                    if (learningPlanId) {
+                        return {
+                            updateOne: {
+                                filter: { training, user: user._id },
+                                update: {
+                                    $addToSet: { learningPlan: learningPlanId },
+                                    $set: { isEnrolled: true },
+                                },
+                            },
+                        };
+                    }
+
+                    if (!learningPlanId) {
+                        return {
+                            updateOne: {
+                                filter: { training, user: user._id },
+                                update: {
+                                    $set: { directEnrollment: true },
+                                },
+                            },
+                        };
+                    }
+
                     return null;
                 }
 
                 return {
-                    learningPlan: learningPlanId ? learningPlanId : null,
-                    training: training,
-                    user: user._id,
-                    trainingRegistration: registrationId,
-                    subscriberId: subscriberId.toString(),
-                    status: 'NOT_STARTED',
-                    isEnrolled: true,
-                    progressPercentage: 0.0,
-                    completedModules: 0,
-                    contentData: [],
-                    totalTrainingModules: 0,
-                    startDate: null,
-                    endDate: null,
+                    insertOne: {
+                        document: {
+                            learningPlan: learningPlanId ? [learningPlanId] : [],
+                            directEnrollment: learningPlanId ? false : true,
+                            training: training,
+                            user: user._id,
+                            trainingRegistration: registrationId,
+                            subscriberId: subscriberId.toString(),
+                            status: 'NOT_STARTED',
+                            isEnrolled: true,
+                            progressPercentage: 0.0,
+                            completedModules: 0,
+                            contentData: [],
+                            totalTrainingModules: 0,
+                            startDate: null,
+                            endDate: null,
+                        },
+                    },
                 };
             })
         ).filter(entry => entry !== null);
 
         if (newProgressEntries.length > 0) {
-            trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries);
+            trainingProgressData = await OverallTrainingProgress.bulkWrite(newProgressEntries);
         }
     } catch (error) {
+        console.log(error);
         throw Error(error.message);
     }
 
@@ -531,16 +562,41 @@ module.exports = {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
 
-            let existingTrainings = [];
+            let existingTrainingRegs = [];
             if (input.trainings && input.trainings.length > 0) {
-                existingTrainings = await OverallTrainingProgress.find({ training: { $in: input.trainings } });
+                existingTrainingRegs = await TrainingRegistration.find({ training: { $in: input.trainings } });
             }
+
+            const userIds = [];
+            const emails = [];
+            let allUsersFetched = [];
+
+            if (input.users && input.users.length > 0) {
+                for (const user of input.users) {
+                    if (ObjectId.isValid(user)) {
+                        userIds.push(user);
+                    } else {
+                        emails.push(user);
+                    }
+                }
+
+                const criteria = [];
+                if (userIds.length) criteria.push({ _id: { $in: userIds } });
+                if (emails.length) criteria.push({ email: { $in: emails } });
+
+                const inputUsers = await User.find({ $or: criteria });
+
+                allUsersFetched = [...allUsersFetched, ...inputUsers];
+            }
+
+            const fetchedUserIds = allUsersFetched.map(user => user._id);
+
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
 
             if (input.type === "ENROLL") {
 
                 let autoSyncUsers, customGroups;
                 let customGroupUsers = [];
-                let allUsersFetched = [];
 
                 if (input.groups) {
 
@@ -555,37 +611,16 @@ module.exports = {
                     allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
                 }
 
-                const userIds = [];
-                const emails = [];
                 let users = [];
-
-                if (input.users && input.users.length > 0) {
-                    for (const user of input.users) {
-                        if (ObjectId.isValid(user)) {
-                            userIds.push(user);
-                        } else {
-                            emails.push(user);
-                        }
-                    }
-
-                    const criteria = [];
-                    if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                    if (emails.length) criteria.push({ email: { $in: emails } });
-
-                    const inputUsers = await User.find({ $or: criteria });
-
-                    allUsersFetched = [...allUsersFetched, ...inputUsers];
-                }
 
                 users = Array.from(
                     new Map(allUsersFetched.map(user => [user._id.toString(), user])).values()
                 );
 
                 if (input.learningPlan) {
-
                     if (users.length > 0) {
 
-                        const verifiedUsers = await enrolUserVerificationHelper(users, existingTrainings);
+                        const verifiedUsers = await enrolUserVerificationHelper(users);
 
                         if (verifiedUsers.unRegEmails.length > 0) {
                             throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
@@ -595,12 +630,7 @@ module.exports = {
                             throw CustomError(ErrorName.INVALID_EMAIL);
                         }
 
-                        if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
-                            throw CustomError(ErrorName.ALREADY_EXIST);
-                        }
-
                     }
-
                 }
 
                 let userObjectIds = [];
@@ -608,12 +638,15 @@ module.exports = {
                     userObjectIds = users.map(user => user._id);
                 }
 
-                const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
-                if (alreadyExistInCourse.length > 0) {
-                    await OverallTrainingProgress.updateMany(
-                        { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
-                        { $set: { isEnrolled: true, learningPlan: null } }
-                    );
+                if (!input.learningPlan) {
+
+                    const alreadyExistInCourse = await OverallTrainingProgress.find({ user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false });
+                    if (alreadyExistInCourse.length > 0) {
+                        await OverallTrainingProgress.updateMany(
+                            { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
+                            { $set: { isEnrolled: true, directEnrollment: true } }
+                        );
+                    }
                 }
 
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
@@ -621,7 +654,8 @@ module.exports = {
 
                         const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
 
-                        const existingTrainingIds = existingTrainings.map(t => t.training.toString());
+                        const existingTrainingIds = existingTrainingRegs.map(t => t.training.toString());
+                        const existingTrainingRegIds = existingTrainingRegs.map(t => t._id);
 
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
@@ -634,11 +668,11 @@ module.exports = {
                         }
 
                         let savedTrainingRegistration;
-                        let trainingRegistrationIds;
+                        let trainingRegistrationIds = [];
 
-                        if (existingTrainingIds.length > 0) {
+                        if (existingTrainingRegs.length > 0) {
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
-                                { training: { $in: existingTrainingIds } },
+                                { training: { $in: existingTrainingRegIds } },
                                 updateFields,
                                 { session }
                             );
@@ -664,23 +698,27 @@ module.exports = {
 
                             let trainingProgressData;
 
-                            learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+                            let learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
 
                         }
-                        
+
                         const learningPlan = await LearningPlan.findById(input.learningPlan).select('emailNotification -_id');
-                        if (input.learningPlan && learningPlan?.emailNotification === false ) {
-                            return savedTrainingRegistration; 
+                        if (input.learningPlan && learningPlan?.emailNotification === false) {
+                            return savedTrainingRegistration;
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
+                        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
                         users.forEach(user => {
+                            const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
                             trainingsData.forEach(training => {
                                 const emailContent = courseEnrollment({
                                     firstName: user.firstName,
                                     trainingTitle: training?.title?.[0]?.value,
                                     durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseId: training?._id,
+                                    isAdmin: isAdmin,
                                 });
                                 sendEmail({
                                     receiverEmail: user.email,
@@ -694,10 +732,10 @@ module.exports = {
                     }
                 );
                 const learningPlan = await LearningPlan.findById(input.learningPlan).select('pushNotification -_id');
-                if (input.learningPlan && learningPlan?.pushNotification === false ) {
-                    return  {
+                if (input.learningPlan && learningPlan?.pushNotification === false) {
+                    return {
                         message: "Course enrollment successful!",
-                    }; 
+                    };
                 }
                 for (const userId of userObjectIds) {
                     await Promise.all(
@@ -725,7 +763,7 @@ module.exports = {
                                     ]
                                 });
                             } catch (error) {
-                              throw Error(error.message);
+                                throw Error(error.message);
                             }
                         })
                     );
@@ -803,7 +841,7 @@ module.exports = {
                 if (inputUsers.length > 0) {
                     userObjectIds = inputUsers.map(user => user._id);
 
-                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingTrainings);
+                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses);
 
                     if (verifiedUsers.unRegEmails.length > 0) {
                         throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
@@ -812,7 +850,6 @@ module.exports = {
                     if (verifiedUsers.invalidEmails.length > 0) {
                         throw CustomError(ErrorName.INVALID_EMAIL);
                     }
-
                     if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
                         throw CustomError(ErrorName.EMPLOYEE_NOT_ENROLLED, "Selected employee is not enrolled before!");
                     }
@@ -821,7 +858,7 @@ module.exports = {
                 const unenrollTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
-                        if (!existingTrainings) {
+                        if (!existingOverallProgresses) {
                             throw CustomError(ErrorName.NOT_FOUND, "Pass the training ID");
                         }
 
@@ -837,13 +874,36 @@ module.exports = {
 
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
-                        const unenrolledUsers = await OverallTrainingProgress.updateMany(
-                            { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
-                            { $set: { isEnrolled: false } },
+                        const unenrollUsers = await OverallTrainingProgress.updateMany(
+                            { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) } },
+                            {
+                                $set: {
+                                    isEnrolled: false,
+                                    contentData: [],
+                                    progressPercentage: 0.00,
+                                    lastConsumedContent: {},
+                                    startDate: null,
+                                    endDate: null,
+                                    status: 'NOT_STARTED',
+                                    attemptCount: 1,
+                                    timeSpend: 0
+                                }
+                            },
                             { session }
                         );
 
-                        const  trainings = await Training.aggregate([
+                        const unenrolledUsers = await OverallTrainingProgress.find({
+                            user: { $in: userObjectIds },
+                            training: { $in: existingOverallProgresses.map(t => t.training) }
+                        }).session(session);
+
+                        const unenrolledUserIds = unenrolledUsers.map(user => user._id);
+
+                        const deleteTrainingProgresses = await TrainingProgress.deleteMany({
+                            overallTrainingProgress: { $in: unenrolledUserIds }
+                        });
+
+                        const trainings = await Training.aggregate([
                             { $match: { _id: { $in: input.trainings } } },
                             { $project: { title: 1 } }
                         ]);
@@ -981,7 +1041,7 @@ module.exports = {
 
             await NotificationHelper.createNotification(notification);
         } catch (e) {
-          throw CustomError(ErrorName.FAILED, e.message);
+            throw CustomError(ErrorName.FAILED, e.message);
         }
     }
 };

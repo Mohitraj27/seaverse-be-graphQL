@@ -118,6 +118,7 @@ module.exports = {
             vesselTypes : [ID]
             vesselIds : [ID]
             designations : [ID]
+            userVesselStatus : [String]
         } 
         input singleLearnerReportInput {
             learnerIds : [ID]!
@@ -219,7 +220,7 @@ module.exports = {
             updatedAt : String
             completionDate : String
             timeSpent : Int
-            quizPercentage : Int
+            quizPercentage : Float
             isPassed :Boolean
             modules : [moduleQuizInfo]
             

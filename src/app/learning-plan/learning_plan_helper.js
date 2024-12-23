@@ -344,6 +344,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             });
 
         }
+        const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
+
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
         existingLearningPlan.audienceSelection = input.audienceSelection || existingLearningPlan.audienceSelection;
@@ -356,6 +358,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.emailNotification = input.updateemailNotifications;
         existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
+
+        const newAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs;
+
+        const removedLearnersID = oldAssignedLearnerIDs.filter(
+            id => !newAssignedLearnerIDs.includes(id.toString())
+        );
+
         if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
@@ -363,8 +372,19 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 type: "ENROLL",
                 learningPlan: existingLearningPlan._id
             }
+
             await createTrainingRegistration(enrollData, context);
         }
+
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnersID }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        );
+
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
@@ -458,7 +478,7 @@ const getUsersAndCount = async (input) => {
                         } else if (condition.type_of_Field === "DESIGNATION") {
                             const designationIds = condition.valueOfField.map(id => ObjectId(id));
                             const employees = await Employee.find(
-                                { empDesignation: { $in: designationIds }, isDeleted: {$ne: true} },
+                                { empDesignation: { $in: designationIds }, isDeleted: { $ne: true } },
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);
@@ -591,6 +611,9 @@ const getUsersAndCount = async (input) => {
                 }
                 filter._id = { $in: groupIDs };
             } else if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
@@ -785,8 +808,55 @@ const getUsersAndCount = async (input) => {
 
 };
 
+const mergeUsersData = (inputData) => {
+    const aggregatedUsers = {};
+
+    inputData.users.forEach((user) => {
+        const userId = user._id;
+
+        if (!aggregatedUsers[userId]) {
+            aggregatedUsers[userId] = {
+                ...user,
+                progressPercentage: 0,
+                totalModules: 0,
+                completedModules: 0,
+                completedTrainings: 0,
+                totalTrainings: 0,
+                statusCount: {},
+            };
+        }
+
+        const userData = aggregatedUsers[userId];
+
+        userData.progressPercentage += user.progressPercentage;
+
+        userData.totalModules += user.totalModules;
+        userData.completedModules += user.completedModules;
+        userData.totalTrainings += 1;
+        userData.statusCount[user.status] = (userData.statusCount[user.status] || 0) + 1;
+    });
+
+    const mergedUsers = Object.values(aggregatedUsers).map((user) => {
+        const avgProgress = user.progressPercentage / user.totalTrainings;
+
+        return {
+            ...user,
+            progressPercentage: avgProgress,
+            completedTrainings: user.statusCount["COMPLETED"] || 0,
+        };
+    });
+
+    let participantsCompleted = mergedUsers.filter((user) => user.completedTrainings === user.totalTrainings).length;
+
+    return {
+        ...inputData,
+        participantsCompleted: participantsCompleted,
+        users: mergedUsers,
+    };
+};
 
 const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = []) => {
+
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
         let activityFilter;
@@ -794,6 +864,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             matchCriteria.status = { $in: status };
         }
         let startDate, endDate;
+
         if (lastActivity) {
             const today = Moment();
             switch (lastActivity) {
@@ -870,7 +941,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     _id: "$learningPlan",
                     averageProgress: { $avg: "$progressPercentage" },
                     totalTimeSpend: { $sum: "$timeSpend" },
-                    participantsCompleted: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
                     users: {
                         $push: {
                             userId: "$user",
@@ -891,7 +961,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     learningPlan: "$_id",
                     averageProgress: { $round: ["$averageProgress", 2] },
                     totalTimeSpend: 1,
-                    participantsCompleted: 1,
                     users: {
                         $map: {
                             input: "$users",
@@ -926,18 +995,15 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             });
         }
 
-
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
-        return groupedProgress?.[0] || [];
+
+        let mergedData = mergeUsersData(groupedProgress?.[0]);
+
+        return mergedData || [];
+
     } catch (error) {
         throw new Error(error.message);
     }
 };
-
-
-
-
-
-
 
 module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress };

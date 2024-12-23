@@ -342,9 +342,10 @@ module.exports.queries = {
                 'generatedAt': 1,
                 'overalltraining.certificateNumber': 1,
                 'expiresAt':1,
-                'overalltraining.pdfUrl':1,
-                'overalltraining.isFromMigartion':1,
-              },
+                'layoutInfo.pdfUrl':1,
+                'layoutInfo.isFromMigration':1,
+                'layoutInfo.certificateNumber':1
+                },
             },
           ];
       
