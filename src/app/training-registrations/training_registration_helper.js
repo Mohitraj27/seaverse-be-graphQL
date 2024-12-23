@@ -36,7 +36,7 @@ const { Training } = require("../trainings/training_model");
 const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const Roles = require("../../util/role.json");
-
+const AWS_HELPER = require("../../util/aws_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -708,23 +708,30 @@ module.exports = {
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-                        users.forEach(user => {
+                        users.forEach(async user => {
                             const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
-                            trainingsData.forEach(training => {
-                                const emailContent = courseEnrollment({
-                                    firstName: user.firstName,
-                                    trainingTitle: training?.title?.[0]?.value,
-                                    durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                                    courseId: training?._id,
-                                    isAdmin: isAdmin,
-                                });
-                                sendEmail({
-                                    receiverEmail: user.email,
-                                    subject: "Course Enrollment",
-                                    htmlContent: emailContent,
-                                });
+                            const coursesData = await Promise.all(
+                                trainingsData.map(async (training) => {
+                                    const courseImage = await AWS_HELPER.fetchFile(training?.bannerImage?.url) ||
+                                        'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
+                                    return {
+                                        trainingTitle: training?.title?.[0]?.value || ' ',
+                                        durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                                        courseImage,
+                                    };
+                                })
+                            );
+                            const emailContent = courseEnrollment({
+                                firstName: user.firstName,
+                                courses: coursesData, 
+                                isAdmin: isAdmin
                             });
-                        })
+                            sendEmail({
+                                receiverEmail: user.email,
+                                subject: "Course Enrollment",
+                                htmlContent: emailContent,
+                            });
+                        });
 
                         return savedTrainingRegistration;
                     }
