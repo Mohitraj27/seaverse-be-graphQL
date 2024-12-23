@@ -2615,7 +2615,30 @@ const getVesselMainReport = async ({ input }, context) => {
                     from: "uservessels",
                     localField: "_id",
                     foreignField: "vessel",
-                    as: "userVesselsInfo"
+                    as: "userVesselsInfo",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "employees",
+                                localField: "user",
+                                foreignField: "user",
+                                as: "employeeInfo"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$employeeInfo",
+                                preserveNullAndEmptyArrays: false
+                            }
+                        },
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$employeeInfo.isDeleted", false]
+                                }
+                            }
+                        }
+                    ]
                 }
             },
             {
