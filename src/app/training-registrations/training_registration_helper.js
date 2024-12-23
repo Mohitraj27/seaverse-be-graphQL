@@ -617,7 +617,7 @@ module.exports = {
                 if (input.learningPlan) {
                     if (users.length > 0) {
 
-                        const verifiedUsers = await enrolUserVerificationHelper(users /* existingTrainings */);
+                        const verifiedUsers = await enrolUserVerificationHelper(users);
 
                         if (verifiedUsers.unRegEmails.length > 0) {
                             throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
@@ -626,10 +626,6 @@ module.exports = {
                         if (verifiedUsers.invalidEmails.length > 0) {
                             throw CustomError(ErrorName.INVALID_EMAIL);
                         }
-
-                        // if (verifiedUsers.alreadyEnrolledEmails.length > 0 && !input.learningPlan) {
-                        //     throw CustomError(ErrorName.ALREADY_EXIST);
-                        // }
 
                     }
                 }
