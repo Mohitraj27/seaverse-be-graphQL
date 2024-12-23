@@ -141,6 +141,8 @@ module.exports = {
             status:String
             updatedAt: String
             timeSpend: Float
+            completedTrainings: Int
+            totalTrainings: Int
         }
         type overAllProgress {
             participantsCompleted: Int
