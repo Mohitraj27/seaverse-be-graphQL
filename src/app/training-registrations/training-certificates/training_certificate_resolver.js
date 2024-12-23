@@ -310,6 +310,17 @@ module.exports.queries = {
             {
               $unwind: { path: '$layoutInfo', preserveNullAndEmptyArrays: true },
             },
+            {
+                $lookup: {
+                  from: 'overalltrainingprogresses',
+                  localField: 'OverallTrainingProgress',
+                  foreignField: '_id',
+                  as: 'overalltraining',
+                },
+              },
+              {
+                $unwind: { path: '$overalltraining', preserveNullAndEmptyArrays: true },
+              },
             ...matchStage,
             {
               $project: {
@@ -329,8 +340,10 @@ module.exports.queries = {
                 'createdAt': 1,
                 'trainingCertificateValidity': 1,
                 'generatedAt': 1,
-                'certificateNumber': 1,
+                'overalltraining.certificateNumber': 1,
                 'expiresAt':1,
+                'overalltraining.pdfUrl':1,
+                'overalltraining.isFromMigartion':1,
               },
             },
           ];

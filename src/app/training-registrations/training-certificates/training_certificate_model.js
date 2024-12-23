@@ -99,6 +99,8 @@ const trainingCertificateSchema = new Schema(
         completedAt: Date,
         generatedAt: Date,
         expiresAt: Date,
+        pdfUrl: String,
+        isFromMigration:Boolean,
         trainingMode: {
             type: String, 
             uppercase: true,

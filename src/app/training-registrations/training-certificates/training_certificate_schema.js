@@ -42,6 +42,8 @@ module.exports = {
             contactInfo: String
             subscriberInfo: SubscriberProfile
             htmlTemplate: String
+            isFromMigration:Boolean
+            pdfUrl:String
         }
         type TrainingCertificateList {
             trainingCertificates: [TrainingCertificate]
