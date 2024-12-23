@@ -1873,17 +1873,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     null
                                 ]
                             },
-                            totalTimeSpent: {
-                                $sum: {
-                                    $map: {
-                                        input: "$trainingProgressInfo.duration",
-                                        as: "duration",
-                                        in: {
-                                            $toDouble: "$$duration"
-                                        }
-                                    }
-                                }
-                            }
+                            totalTimeSpent: "$timeSpend"
+                        }
+                    },
+                    {
+                        $sort:
+                        {
+                            createdAt: -1
                         }
                     }
                 ]
