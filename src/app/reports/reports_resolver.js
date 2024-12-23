@@ -2675,6 +2675,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     name: 1,
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     ownerName: 1,
                     vesselType: "$vesselTypesInfo.name",
                     vesselTypeId: "$vesselTypesInfo._id",
@@ -2757,6 +2758,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselName: "$name",
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
@@ -2781,9 +2783,11 @@ const getVesselMainReport = async ({ input }, context) => {
                     ownerName: { $first: "$ownerName" },
                     onboardedCount: { $first: "$onboardedCount" },
                     progress: { $avg: "$progress" },
+                    createdAt: { $max: "$createdAt" }
                 }
             },
-            ...matchStage
+            ...matchStage,
+            { $sort: { createdAt: -1 } },
         ]);
 
         let s3PresignedUrl = "";
