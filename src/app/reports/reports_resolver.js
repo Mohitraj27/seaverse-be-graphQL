@@ -3205,7 +3205,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
-            console.log(data);
+
             data.forEach(item => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
                 const formatDate = (date) => {
@@ -3811,7 +3811,7 @@ const generateCustomReport = async ({ input }, context) => {
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
             }
-            console.log(notificationData);
+
             await NotificationHelper.createNotificationhelper(notificationData);
 
             return {
