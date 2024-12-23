@@ -999,10 +999,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
 
         let mergedData = mergeUsersData(groupedProgress?.[0]);
 
-        console.log(groupedProgress?.[0]);
-
-        console.log(JSON.stringify(mergedData, null, 2));
-
         return mergedData || [];
 
     } catch (error) {
