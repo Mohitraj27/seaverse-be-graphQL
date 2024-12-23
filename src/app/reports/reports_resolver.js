@@ -97,6 +97,14 @@ const getMainLearnersReport = async ({ input }, context) => {
                 });
             }
 
+            if (filterInput.userVesselStatus && Array.isArray(filterInput.userVesselStatus) && filterInput.userVesselStatus.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselInfo.vesselStatus': { $in: filterInput.userVesselStatus },
+                    },
+                });
+            }
+
             if (filterInput.isRegistered !== undefined) {
                 matchStage.push({
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
