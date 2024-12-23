@@ -711,7 +711,7 @@ module.exports = {
                             return savedTrainingRegistration;
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
-                        const subRoleAdminId = await SubRole.findOne({ name:   Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+                        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
                         users.forEach(user => {
                             const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
                             trainingsData.forEach(training => {
@@ -877,7 +877,7 @@ module.exports = {
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
 
                         const unenrollUsers = await OverallTrainingProgress.updateMany(
-                            { user: { $in: userObjectIds }, training: { $in: existingTrainings.map(t => t.training) } },
+                            { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) } },
                             {
                                 $set: {
                                     isEnrolled: false,
@@ -896,8 +896,8 @@ module.exports = {
 
                         const unenrolledUsers = await OverallTrainingProgress.find({
                             user: { $in: userObjectIds },
-                            training: { $in: existingTrainings.map(t => t.training) }
-                        }, { session });
+                            training: { $in: existingOverallProgresses.map(t => t.training) }
+                        }).session(session);
 
                         const unenrolledUserIds = unenrolledUsers.map(user => user._id);
 
