@@ -21,6 +21,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
 const { User } = require("../user/user_model");
 const ReportsHelper = require("./reports_helper");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -126,6 +127,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: '_id',
                     as: 'userInfo',
+                    pipeline : [
+                        {
+                            $match :{
+                                role : "LEARNER"
+                            }
+                        }
+                    ]
                 },
             },
             {
