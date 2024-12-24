@@ -83,6 +83,10 @@ const overallProgressSchema = new Schema(
             type: Boolean,
             default: false
         },
+        isAdminResetModule: {
+            type: Number,
+            default: 0
+        },
         isEnrolled: Boolean,
         totalDuration: Number,
         timeSpend: Number

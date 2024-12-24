@@ -1779,8 +1779,13 @@ module.exports.mutations = {
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
             if (input.userIds && input.userIds.length > 0) {
-                await OverallTrainingProgress.updateMany(
-                    { training: input.training, user: { $in: input.userIds } },
+
+                const result = await OverallTrainingProgress.updateMany(
+                    {
+                        training: input.training,
+                        user: { $in: input.userIds },
+                        status: { $ne: "COMPLETED" }
+                    },
                     {
                         $set: {
                             status: "NOT_STARTED",
@@ -1792,13 +1797,31 @@ module.exports.mutations = {
                             endDate: null,
                             lastConsumedContent: {},
                             totalDuration: 0,
-                            timeSpend: 0
+                            timeSpend: 0,
+                            attemptCount: 1
                         }
-                    }
+                    },
                 );
+
+                const updatedTrainingProgresses = await OverallTrainingProgress.find(
+                    {
+                        training: input.training,
+                        user: { $in: input.userIds },
+                        status: { $ne: "COMPLETED" }
+                    }
+                )
+
+                if (updatedTrainingProgresses) {
+
+                    const deleteTrainingProgresses = await TrainingProgress.deleteMany(
+                        { overallTrainingProgress: { $in: updatedTrainingProgresses.map((progress) => progress._id) } }
+                    )
+
+                }
+
             } else {
                 await OverallTrainingProgress.updateMany(
-                    { training: input.training },
+                    { training: input.training, status: { $ne: "COMPLETED" } },
                     {
                         $set: {
                             status: "NOT_STARTED",
@@ -1810,10 +1833,24 @@ module.exports.mutations = {
                             endDate: null,
                             lastConsumedContent: {},
                             totalDuration: 0,
-                            timeSpend: 0
+                            timeSpend: 0,
+                            attemptCount: 1,
                         }
                     }
                 );
+
+                const updatedTrainingProgresses = await OverallTrainingProgress.find(
+                    { training: input.training, status: { $ne: "COMPLETED" } },
+                )
+
+                if (updatedTrainingProgresses) {
+
+                    const deleteTrainingProgresses = await TrainingProgress.deleteMany(
+                        { overallTrainingProgress: { $in: updatedTrainingProgresses.map((progress) => progress._id) } }
+                    )
+
+                }
+
             }
             const trainingData = await Training.findById(input.training);
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
