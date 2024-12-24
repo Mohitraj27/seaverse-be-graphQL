@@ -1506,7 +1506,6 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             ...pageLimit,
         ]);
-
         const coursesData = data.map(item => ({
             _id: item._id,
             title: item.title,
