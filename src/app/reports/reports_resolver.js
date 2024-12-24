@@ -1396,15 +1396,43 @@ const getMainCoursesReport = async ({ input }, context) => {
                 }
             },
             {
+                $project: {
+                    id: 1,
+                    title: 1,
+                    updatedAt: 1,
+                    training: "$progress.training",
+                    updatedBy: "$updatedByUser.firstName",
+                    updatedByLastName:
+                        "$updatedByUser.lastName",
+                    user: "$progress.user",
+                    status: "$progress.status"
+                }
+            },
+            {
                 $group: {
-                    _id: '$progress.training', 
-                    title: { $first: '$title' },
-                    updatedAt: { $max: '$updatedAt' }, 
-                    updatedBy: { $first: '$updatedByUser.firstName' },
-                    updatedByLastName: { $first: '$updatedByUser.lastName' },
-                    uniqueUsers: { $addToSet: '$progress.user' }, 
-                    usersByStatus: { $push: { user: '$progress.user', status: '$progress.status' } },
-                },
+                    _id: "$training",
+                    title: {
+                        $first: "$title"
+                    },
+                    updatedAt: {
+                        $max: "$updatedAt"
+                    },
+                    updatedBy: {
+                        $first: "$updatedBy"
+                    },
+                    updatedByLastName: {
+                        $first: "$updatedByLastName"
+                    },
+                    uniqueUsers: {
+                        $addToSet: "$user"
+                    },
+                    usersByStatus: {
+                        $push: {
+                            user: "$user",
+                            status: "$status"
+                        }
+                    }
+                }
             },
             {
                 $project: {
