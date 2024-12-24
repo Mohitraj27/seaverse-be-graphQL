@@ -70,17 +70,21 @@ const overallProgressSchema = new Schema(
             type: Number,
             default: 0
         },
-        isFromMigration:{
-            type:Boolean
+        isFromMigration: {
+            type: Boolean
         },
-        pdfUrl:{
-            type:String
+        pdfUrl: {
+            type: String
         },
-        certificateNumber:{
-            type:String
+        certificateNumber: {
+            type: String
         },
-        createdAt:{
-            type:String
+        createdAt: {
+            type: String
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
         },
         isEnrolled: Boolean,
         totalDuration: Number,
