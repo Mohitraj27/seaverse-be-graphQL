@@ -79,9 +79,6 @@ const overallProgressSchema = new Schema(
         certificateNumber: {
             type: String
         },
-        createdAt: {
-            type: String
-        },
         isDeleted: {
             type: Boolean,
             default: false
