@@ -3315,7 +3315,7 @@ const generateCustomReport = async ({ input }, context) => {
                         ? item.quizPercentage.toFixed(2)
                         : null;
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0;
+                const timeSpent = item.totalTimeSpent ? item.totalTimeSpent?.toFixed(2) : 0;
 
                 dataToExport.push({
                     Name: learnerName,
