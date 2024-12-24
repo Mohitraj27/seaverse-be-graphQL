@@ -1818,7 +1818,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "employees",
                             localField: "user",
                             foreignField: "user",
-                            as: "empDetails"
+                            as: "empDetails",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -2081,7 +2088,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'employees',
                             'localField': 'user',
                             'foreignField': 'user',
-                            'as': 'employeeInfo'
+                            'as': 'employeeInfo',
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     }, {
                         '$unwind': {
@@ -3713,7 +3727,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
-            
+
             const flattenLearnerDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
