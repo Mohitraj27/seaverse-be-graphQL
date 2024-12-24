@@ -1348,6 +1348,11 @@ const getMainCoursesReport = async ({ input }, context) => {
                 }
             },
             {
+                $match :{
+                    status : "PUBLISHED"
+                }
+            },
+            {
                 $lookup: {
                     from: 'overalltrainingprogresses',
                     localField: '_id',
