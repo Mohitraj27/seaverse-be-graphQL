@@ -850,7 +850,7 @@ const mergeUsersData = (inputData) => {
 
         return {
             ...user,
-            progressPercentage: avgProgress,
+            progressPercentage: avgProgress.toFixed(2),
             completedTrainings: user.statusCount["COMPLETED"] || 0,
             status: finalStatus,
         };
@@ -869,6 +869,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
 
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+
         let activityFilter;
 
         let startDate, endDate;
@@ -908,9 +909,16 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     break;
             }
         }
+
         const pipeline = [
             {
                 $match: matchCriteria,
+            },
+            {
+                $unwind: "$learningPlan"
+            },
+            {
+                $match: { learningPlan: learningPlanId }
             },
             {
                 $lookup: {
@@ -991,6 +999,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             }
         ];
+
         if (search != null && search) {
             pipeline.push({
                 $match: {
@@ -1002,7 +1011,6 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             });
         }
-
 
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
 
