@@ -1377,8 +1377,24 @@ const getMainCoursesReport = async ({ input }, context) => {
             {
                 $unwind: {
                     path: '$userInfo',
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: false,
                 },
+            },
+            {
+                $lookup:
+                {
+                    from: "employees",
+                    localField: "progress.user",
+                    foreignField: "_id",
+                    as: "empDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
+                        }
+                    ]
+                }
             },
             {
                 $lookup: {
@@ -1490,7 +1506,6 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             ...pageLimit,
         ]);
-
         const coursesData = data.map(item => ({
             _id: item._id,
             title: item.title,
@@ -1818,7 +1833,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "employees",
                             localField: "user",
                             foreignField: "user",
-                            as: "empDetails"
+                            as: "empDetails",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -2081,7 +2103,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'employees',
                             'localField': 'user',
                             'foreignField': 'user',
-                            'as': 'employeeInfo'
+                            'as': 'employeeInfo',
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     }, {
                         '$unwind': {
@@ -3713,7 +3742,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
-            
+
             const flattenLearnerDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
