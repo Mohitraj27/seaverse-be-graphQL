@@ -21,6 +21,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
 const { User } = require("../user/user_model");
 const ReportsHelper = require("./reports_helper");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -126,6 +127,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: '_id',
                     as: 'userInfo',
+                    pipeline : [
+                        {
+                            $match :{
+                                role : "LEARNER"
+                            }
+                        }
+                    ]
                 },
             },
             {
@@ -1442,12 +1450,12 @@ const getMainCoursesReport = async ({ input }, context) => {
                     },
                 },
             },
-            ...pageLimit,
             {
                 $sort: {
                     updatedAt: -1, 
                 }
-            }
+            },
+            ...pageLimit,
         ]);
 
         const coursesData = data.map(item => ({
@@ -1531,6 +1539,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+        const pageLimit = [];
 
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -1634,7 +1643,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         if (input?.reportType === "ENROLLMENT") {
@@ -1873,19 +1882,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     null
                                 ]
                             },
-                            totalTimeSpent: {
-                                $sum: {
-                                    $map: {
-                                        input: "$trainingProgressInfo.duration",
-                                        as: "duration",
-                                        in: {
-                                            $toDouble: "$$duration"
-                                        }
-                                    }
-                                }
-                            }
+                            totalTimeSpent: "$timeSpend"
                         }
-                    }
+                    },
+                    {
+                        $sort:
+                        {
+                            createdAt: -1
+                        }
+                    },
+                    ...pageLimit
                 ]
 
             );
@@ -2395,7 +2401,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastSeen': 1,
                             'status': 1
                         }
-                    }
+                    },
+                    { $sort: { createdAt: -1 } },
+                    ...pageLimit
                 ]
             );
             if (data.length > 0) {
@@ -2675,6 +2683,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     name: 1,
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     ownerName: 1,
                     vesselType: "$vesselTypesInfo.name",
                     vesselTypeId: "$vesselTypesInfo._id",
@@ -2757,6 +2766,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselName: "$name",
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
@@ -2781,9 +2791,11 @@ const getVesselMainReport = async ({ input }, context) => {
                     ownerName: { $first: "$ownerName" },
                     onboardedCount: { $first: "$onboardedCount" },
                     progress: { $avg: "$progress" },
+                    createdAt: { $max: "$createdAt" }
                 }
             },
-            ...matchStage
+            ...matchStage,
+            { $sort: { createdAt: -1 } },
         ]);
 
         let s3PresignedUrl = "";
