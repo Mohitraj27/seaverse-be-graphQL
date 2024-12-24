@@ -2796,6 +2796,41 @@ const getVesselMainReport = async ({ input }, context) => {
                 }
             },
             {
+                $group: {
+                    _id: "$_id",
+                    name: {
+                        $first: "$name"
+                    },
+                    imoNumber: {
+                        $first: "$imoNumber"
+                    },
+                    companyName: {
+                        $first: "$companyName"
+                    },
+                    createdAt: {
+                        $first: "$createdAt"
+                    },
+                    vesselType: {
+                        $first: "$vesselType"
+                    },
+                    vesselTypeId: {
+                        $first: "$vesselTypeId"
+                    },
+                    ownerName: {
+                        $first: "$ownerName"
+                    },
+                    onboardedUsers: {
+                        $first: "$onboardedUsers"
+                    },
+                    filteredTrainingProgress: {
+                        $first: "$filteredTrainingProgress"
+                    },
+                    averageProgress: {
+                        $first: "$averageProgress"
+                    }
+                }
+            },
+            {
                 $project: {
                     vesselName: "$name",
                     imoNumber: 1,
