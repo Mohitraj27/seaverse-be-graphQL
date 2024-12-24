@@ -1377,8 +1377,24 @@ const getMainCoursesReport = async ({ input }, context) => {
             {
                 $unwind: {
                     path: '$userInfo',
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: false,
                 },
+            },
+            {
+                $lookup:
+                {
+                    from: "employees",
+                    localField: "progress.user",
+                    foreignField: "_id",
+                    as: "empDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
+                        }
+                    ]
+                }
             },
             {
                 $lookup: {
