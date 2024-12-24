@@ -1348,6 +1348,11 @@ const getMainCoursesReport = async ({ input }, context) => {
                 }
             },
             {
+                $match :{
+                    status : "PUBLISHED"
+                }
+            },
+            {
                 $lookup: {
                     from: 'overalltrainingprogresses',
                     localField: '_id',
@@ -2791,6 +2796,41 @@ const getVesselMainReport = async ({ input }, context) => {
                 }
             },
             {
+                $group: {
+                    _id: "$_id",
+                    name: {
+                        $first: "$name"
+                    },
+                    imoNumber: {
+                        $first: "$imoNumber"
+                    },
+                    companyName: {
+                        $first: "$companyName"
+                    },
+                    createdAt: {
+                        $first: "$createdAt"
+                    },
+                    vesselType: {
+                        $first: "$vesselType"
+                    },
+                    vesselTypeId: {
+                        $first: "$vesselTypeId"
+                    },
+                    ownerName: {
+                        $first: "$ownerName"
+                    },
+                    onboardedUsers: {
+                        $first: "$onboardedUsers"
+                    },
+                    filteredTrainingProgress: {
+                        $first: "$filteredTrainingProgress"
+                    },
+                    averageProgress: {
+                        $first: "$averageProgress"
+                    }
+                }
+            },
+            {
                 $project: {
                     vesselName: "$name",
                     imoNumber: 1,
@@ -2827,6 +2867,7 @@ const getVesselMainReport = async ({ input }, context) => {
             { $sort: { createdAt: -1 } },
             ...pageLimit,
         ]);
+        
         let s3PresignedUrl = "";
 
         if (input?.export) {
