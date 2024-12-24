@@ -3713,6 +3713,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
+            
             const flattenLearnerDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
