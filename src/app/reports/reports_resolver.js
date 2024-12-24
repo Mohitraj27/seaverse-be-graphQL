@@ -2536,6 +2536,7 @@ const getVesselMainReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+        const pageLimit = [];
 
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -2607,7 +2608,7 @@ const getVesselMainReport = async ({ input }, context) => {
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         const data = await Vessel.aggregate([
@@ -2781,7 +2782,7 @@ const getVesselMainReport = async ({ input }, context) => {
             },
             {
                 $group: {
-                    _id: "$_id",
+                    _id: "$vesselId",
                     vesselName: { $first: "$vesselName" },
                     vesselTypeId: { $first: "$vesselTypeId" },
                     imoNumber: { $first: "$imoNumber" },
@@ -2789,13 +2790,14 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselId: { $first: "$vesselId" },
                     typeOfVessel: { $first: "$typeOfVessel" },
                     ownerName: { $first: "$ownerName" },
-                    onboardedCount: { $first: "$onboardedCount" },
+                    onboardedCount: { $sum: "$onboardedCount" },
                     progress: { $avg: "$progress" },
                     createdAt: { $max: "$createdAt" }
                 }
             },
             ...matchStage,
             { $sort: { createdAt: -1 } },
+            ...pageLimit,
         ]);
 
         let s3PresignedUrl = "";
