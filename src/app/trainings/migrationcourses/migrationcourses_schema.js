@@ -63,8 +63,5 @@ module.exports = {
      `,
     queries: `
     getMigrationCourses(pageInput: PaginationInput): MigrationCoursePage!   
-`,
-    mutations: `
-    addMigrationcoursesToTraining(input: MigrationCoursesinput) : MigrationaTrainininginput!
-`,
+`
 };

@@ -196,6 +196,8 @@ module.exports = {
             isOrdered : Boolean
             bannerImageDelete: Boolean
             coverImageDelete: Boolean
+            migrationcoursesId: ID
+            isFromMigration:Boolean
         }
         input TrainingFilterInput {
             search: String
