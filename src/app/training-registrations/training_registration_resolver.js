@@ -54,7 +54,32 @@ module.exports.queries = {
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
         let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
-
+        const totalUsersResult = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    training: input.training,
+                    isEnrolled: input.isEnrolled
+                }
+            },
+            {
+                $group: {
+                    _id: null, 
+                    uniqueUsers: { $addToSet: '$user' } 
+                }
+            },
+            {
+                $addFields: {
+                    countOfUsers: { $size: '$uniqueUsers' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0, 
+                    countOfUsers: 1 
+                }
+            }
+        ]);
+        const totalUsersCount = totalUsersResult[0]?.countOfUsers || 0;   
         const results = await OverallTrainingProgress.aggregate([
             {
                 $match: {
@@ -126,7 +151,8 @@ module.exports.queries = {
                                 ]
                             }
                         ]
-                    }
+                    },
+                    
                 }
             },
             {
@@ -138,13 +164,13 @@ module.exports.queries = {
                         learningPlanName: '$learningPlanNames'
                     },
                     users: {
-                        $push: {
+                        $addToSet: {
                             id: '$userInfo._id',
                             firstName: '$userInfo.firstName',
                             lastName: '$userInfo.lastName',
                             status: '$status'
                         }
-                    }
+                    },
                 }
             },
             {
@@ -154,12 +180,13 @@ module.exports.queries = {
 
         const formattedResults = results.map(group => ({
             learningPlanName: group._id.learningPlanName,
-            users: group.users,
+            users: group.users
         }));
-
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
-        return formattedResults;
-
+        return {
+            countOfUsers: totalUsersCount, 
+            learningPlans: formattedResults
+        };
     },
     getTrainingRegistration: async ({ id }, context) => {
         const { role, subscriberId, employeeId } = AuthUser(context);

@@ -51,6 +51,7 @@ module.exports = {
             scorm:Scorm
             users: [ID]
             isFromMigration: Boolean
+            countOfUsers: Int
         }
         type lastConsumedContent {
             moduleId: ID
@@ -231,9 +232,13 @@ module.exports = {
             status: Boolean
             message: String
         }
+        type getTrainingLearningPlan{
+            countOfUsers: Int,
+            learningPlans: [getTrainingRegsRes!]!
+        }
     `,
     queries: `
-        getTrainingRegistrations(input: getTrainingRegsInput!): [getTrainingRegsRes!]!
+        getTrainingRegistrations(input: getTrainingRegsInput!): getTrainingLearningPlan
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
         myCourses(filterInput: myCourseFilterInput): myCoursesRes!
