@@ -509,7 +509,6 @@ module.exports = {
         const empDesignationGroups = await Employee.aggregate([
             {
                 $match: {
-                    // subscriber: subscriberId,
                     isDeleted: { $ne: true },
                     empDesignation: { $ne: null },
                 },
@@ -545,8 +544,9 @@ module.exports = {
             {
                 $group: {
                     _id: "$empDesignation",
-                    groupName: { $first: "$designationDetails.name" },
+                    groupName: { $first: { $concat: ["All ", "$designationDetails.name"] } },
                     members: { $push: "$userDetails._id" },
+                    designationName: { $first: "$designationDetails.name" },
                 },
             },
             {
@@ -556,7 +556,7 @@ module.exports = {
                     description: {
                         $concat: [
                             "All the members in ",
-                            "$groupName",
+                            "$designationName",
                             " group which is based on designation.",
                         ],
                     },
@@ -581,7 +581,6 @@ module.exports = {
         const roleGroups = await User.aggregate([
             {
                 $match: {
-                    // subscriber: subscriberId,
                     isDeleted: { $ne: true },
                     firstName: { $ne: null },
                     email: { $ne: null },
@@ -621,7 +620,7 @@ module.exports = {
             {
                 $group: {
                     _id: "$effectiveRole",
-                    groupName: { $first: "$effectiveRole" },
+                    groupName: { $first: { $concat: ["All ", "$effectiveRole"] } },
                     members: {
                         $addToSet: {
                             _id: "$_id",
@@ -630,6 +629,7 @@ module.exports = {
                             email: "$email",
                         },
                     },
+                    roleName: { $first: "$effectiveRole" },
                 },
             },
             {
@@ -639,7 +639,7 @@ module.exports = {
                     description: {
                         $concat: [
                             "All the members in ",
-                            "$groupName",
+                            "$roleName",
                             " group which is based on role.",
                         ],
                     },
