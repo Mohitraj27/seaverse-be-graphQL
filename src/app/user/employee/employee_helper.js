@@ -1911,30 +1911,51 @@ module.exports = {
 
 
         });
+        if(insertedUsers.length > 0){
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "BULK IMPORT",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `${insertedUsers.length} User data created`,
+                notificationType: 'BULK_IMPORT',
+                status: "SUCCESS"
+            })
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: userCount,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `${insertedUsers.length} User data created`
+            })
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
+        if(updatedUsers.length > 0){
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "BULK IMPORT",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `${updatedUsers.length} User data updated`,
+                notificationType: 'BULK_IMPORT',
+                status: "SUCCESS"
+            })
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: userCount,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `${updatedUsers.length} User data  updated`
+            })
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        await sendNotificationOnBULK({
-            subscriber: subscriberId,
-            action: "BULK IMPORT",
-            createdBy: adminUser?._id,
-            uploadedBy: adminUser?._id,
-            isError: false,
-            description: `New data(s) created/updated`,
-            notificationType: 'BULK_IMPORT',
-            status: "SUCCESS"
-        })
-
-        const createImportLog = await ImportLog.create({
-            subscriber: subscriberId,
-            usersCount: userCount,
-            uploadedBy: userId,
-            fileName: newFileName,
-            filePath: { url: saveCSV },
-            importStatus: "SUCCESS",
-            description: `New data(s) created/updated`
-        })
-
-
-        if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
 
     },
 
