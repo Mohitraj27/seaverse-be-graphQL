@@ -57,6 +57,8 @@ const { ContentZipResolver } = require("../app/trainings/compress_to_zip");
 const { CompanyResolver } = require("../app/vessle/company");
 const { OwnerResolver } = require("../app/vessle/owner");
 const { convertMinutesToHHMMSS } = require("../util/string_helper");
+const {migrationcoursesResolver} = require("../app/trainings/migrationcourses")
+
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -134,7 +136,7 @@ module.exports = {
         ...AuthHelper.requiresEmployee(SubRoleResolver.queries),
         ...AuthHelper.requiresLogin(UserProfileResolver.queries),
         ...AuthHelper.requiresLogin(NotificationResolver.queries),
-        ...AuthHelper.requiresLogin(ReportResolver.queries),
+        ...AuthHelper.requiresAdmin(ReportResolver.queries),
         ...AuthHelper.requiresLogin(SubscriberProfileResolver.queries),
         ...AuthHelper.requiresLogin(TrainingAttendanceResolver.queries),
         ...AuthHelper.requiresLogin(CertificateLayoutResolver.queries),
@@ -149,6 +151,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
         ...AuthHelper.requiresAdmin(CompanyResolver.queries),
         ...AuthHelper.requiresAdmin(OwnerResolver.queries),
+        ...AuthHelper.simplify(migrationcoursesResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -192,6 +195,9 @@ module.exports = {
         ...AuthHelper.requiresAdmin(CompanyResolver.mutations),
         ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
         ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
+        ...AuthHelper.requiresAdmin(migrationcoursesResolver.mutations),
+        
+        ...AuthHelper.requiresEmployee(NotificationResolver.mutations)
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

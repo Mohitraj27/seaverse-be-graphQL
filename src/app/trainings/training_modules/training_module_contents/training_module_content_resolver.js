@@ -7,6 +7,7 @@ const { Question } = require("./question/question_model");
 const TrainingModuleContentHelper = require("./training_module_content_helper");
 const SubRoleHelper = require("../../../user/sub-roles/sub_role_helper");
 const LogHelper = require("../../../logs/log_helper");
+const LogType = require("../../../logs/log_type.json")
 
 const Permission = require("../../../user/sub-roles/permission");
 const { ObjectId } = require("../../../../tools");
@@ -609,7 +610,7 @@ module.exports.mutations = {
 
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 isDeleted: { $ne: true },
             }).lean().select("_id");
@@ -741,6 +742,27 @@ module.exports.mutations = {
             });
 
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
+
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "TRAINING_MODULE_CONTENT_INFO",
+                        infoData: JSON.stringify(savedContent),
+                    },
+                ],
+                createdBy: userInfo,
+            });
+
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Training Module Content Created`,
@@ -765,14 +787,14 @@ module.exports.mutations = {
     },
 
     createTrainingModuleContentQuiz: async ({ input }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
 
         try {
             const { title, description, questions = [], percentageCriteria } = input;
 
             const existingContent = await TrainingModuleContent.findOne({
                 $or: title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 isDeleted: { $ne: true },
             }).lean().select("_id");
@@ -862,6 +884,43 @@ module.exports.mutations = {
 
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
 
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+                operation: "CREATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "TRAINING_MODULE_CONTENT_INFO",
+                        infoData: JSON.stringify(savedContent),
+                    },
+                ],
+                createdBy: userInfo,
+            });
+
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Training Module Content Created`,
+                messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
+                notifyAdmin: true,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                status: 'SENT',
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -873,7 +932,7 @@ module.exports.mutations = {
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 UID: { $ne: input.UID },
                 isDeleted: { $ne: true },
@@ -1101,6 +1160,27 @@ module.exports.mutations = {
                     { new: true, setDefaultsOnInsert: true, runValidators: true }
                 );
             }
+
+            LogHelper.logActivity({
+                subscriber: subscriberId,
+                logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+                operation: "UPDATE",
+                ipInfo: context.ipInfo,
+                affected: [
+                    {
+                        targetRef: "TrainingModuleContent",
+                        target: savedContent._id,
+                    },
+                ],
+                additionalInfo: [
+                    {
+                        infoType: "TRAINING_MODULE_CONTENT_INFO",
+                        infoData: JSON.stringify(savedContent),
+                    },
+                ],
+                createdBy: userInfo,
+            });
+
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
@@ -1130,12 +1210,12 @@ module.exports.mutations = {
     },
 
     updateTrainingModuleContentQuiz: async ({ input }, context) => {
-        const { userId, subscriberId } = AuthUser(context);
+        const { userId, subscriberId, userInfo } = AuthUser(context);
 
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
-                    "title.value": { $regex: x.value.trim(), $options: "i" },
+                    "title.value": x.value.trim(),
                 })),
                 UID: { $ne: input.UID },
                 isDeleted: { $ne: true },
@@ -1262,6 +1342,43 @@ module.exports.mutations = {
                 existingContent.updatedAt = new Date();
                 await existingContent.save();
 
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+                    operation: "UPDATE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: newContent._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "TRAINING_MODULE_CONTENT_INFO",
+                            infoData: JSON.stringify(newContent),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Training Module Content Updated`,
+                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: savedContent._id,
+                        },
+                    ],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
                 return {
                     success: true,
                     message: "Quiz content updated with a new version.",
@@ -1280,6 +1397,44 @@ module.exports.mutations = {
                     { $set: updateData },
                     { new: true, setDefaultsOnInsert: true, runValidators: true }
                 );
+
+                LogHelper.logActivity({
+                    subscriber: subscriberId,
+                    logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+                    operation: "UPDATE",
+                    ipInfo: context.ipInfo,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: savedContent._id,
+                        },
+                    ],
+                    additionalInfo: [
+                        {
+                            infoType: "TRAINING_MODULE_CONTENT_INFO",
+                            infoData: JSON.stringify(savedContent),
+                        },
+                    ],
+                    createdBy: userInfo,
+                });
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Training Module Content Updated`,
+                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "TrainingModuleContent",
+                            target: savedContent._id,
+                        },
+                    ],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",

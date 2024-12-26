@@ -21,6 +21,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const Export = require("../user/exportUser/exportUser_model");
 const { User } = require("../user/user_model");
 const ReportsHelper = require("./reports_helper");
+const { pipeline } = require("stream");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -97,6 +98,14 @@ const getMainLearnersReport = async ({ input }, context) => {
                 });
             }
 
+            if (filterInput.userVesselStatus && Array.isArray(filterInput.userVesselStatus) && filterInput.userVesselStatus.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselInfo.vesselStatus': { $in: filterInput.userVesselStatus },
+                    },
+                });
+            }
+
             if (filterInput.isRegistered !== undefined) {
                 matchStage.push({
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
@@ -118,6 +127,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: '_id',
                     as: 'userInfo',
+                    pipeline : [
+                        {
+                            $match :{
+                                role : "LEARNER"
+                            }
+                        }
+                    ]
                 },
             },
             {
@@ -246,7 +262,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     averageProgressPercentage: {
                         $cond: {
                             if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                            then: { $round: [{ $avg: '$trainingProgresses.progressPercentage' }, 2] },
+                            then: {  $toInt: { $avg: '$trainingProgresses.progressPercentage' } },
                             else: 0,
                         },
                     },
@@ -276,9 +292,15 @@ const getMainLearnersReport = async ({ input }, context) => {
                     vesselTypeId: '$vesselTypeInfo._id',
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
+                    createdAt :1,
                     averageProgressPercentage: 1,
                 },
             },
+            {
+                '$sort' :{
+                    'createdAt' :-1
+                }
+            }
         ]);
 
 
@@ -656,6 +678,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             },
                             'totalTimeSpent': "$timeSpend"
                         }
+                    },
+                    {
+                        '$sort' :{
+                            'createdAt' :-1
+                        }
                     }
                 ]
             );
@@ -667,10 +694,27 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     if (!learnerReportsByUser[learnerName]) {
                         learnerReportsByUser[learnerName] = [];
                     }
-                    const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                    const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
-                    const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
-                    const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                    const formatDate = (date) => {
+                        if (date) {
+                            const formattedDate = new Date(date);
+                            return formattedDate.toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true, 
+                            });
+                        }
+                        return null;
+                    };
+                
+                    const enrollmentDate = formatDate(item.createdAt);
+                    const completionDate = formatDate(item.completionDate);
+                    const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
+                    const unenrollmentDate = formatDate(item.unenrolmentDate);
+                
                     const quizScore = (typeof item.quizPercentage === 'string')
                         ? item.quizPercentage
                         : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
@@ -685,15 +729,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
-                        'Enrollment Date (UTC TimeZone)': enrollmentDate,
-                        'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
-                        'Completion Date (UTC TimeZone)': completionDate,
-                        'Started Date (UTC TimeZone)': startDate,
+                        'Enrollment Date': enrollmentDate,
+                        'Unenrollment Date': unenrollmentDate,
+                        'Completion Date': completionDate,
+                        'Started Date': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
                     });
-                });
+                });                
             } else {
                 learnersReports.forEach(item => {
                     const learnerName = `${item.firstName} ${item.lastName}`;
@@ -784,11 +828,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'as': 'userInfo'
                         }
                     },
-                    {
-                        "$match": {
-                            "user": { $in: learnerIds.map(id => ObjectId(id)) }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         '$lookup': {
                             'from': 'trainings',
@@ -1074,16 +1114,29 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 const flattenLearnerDataForSingleSheet = (learner) => {
                     const flattenedData = [];
-
+                    const formatDate = (date) => {
+                        if (date) {
+                            const formattedDate = new Date(date);
+                            return formattedDate.toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true, 
+                            });
+                        }
+                        return '';
+                    };
                     if (learner) {
                         const email = learner?.email || '';
                         const designation = learner?.designation || '';
                         const employeeId = learner?.employeeId || '';
-                        const userState = learner?.userState ? 'Active' : 'Inactive';
-                        const enrollmentDate = learner?.enrollmentDate ? new Date(learner.enrollmentDate).toLocaleDateString() : '';
-                        const startDate = learner?.startDate ? new Date(learner.startDate).toLocaleDateString() : 'NA';
-                        const completionDate = learner?.completionDate ? new Date(learner.completionDate).toLocaleDateString() : 'NA';
-
+                        const userState = learner?.userState ? 'Registered' : 'Unregistered';
+                        const enrollmentDate = formatDate(learner?.enrollmentDate);
+                        const startDate = learner?.startDate ? formatDate(learner.startDate) : 'NA';
+                        const completionDate = learner?.completionDate ? formatDate(learner.completionDate) : 'NA';
                         if (Array.isArray(learner.courses)) {
                             learner.courses.forEach(course => {
                                 const courseName = course?.trainingTitle?.[0]?.value || '';
@@ -1109,47 +1162,33 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                         });
                                     } else {
                                         course.lessons.contents.forEach(content => {
-                                            if (Array.isArray(content?.contentTitle)) {
-                                                content.contentTitle.forEach(contentTitle => {
-                                                    const contentName = contentTitle.value || '';
-                                                    const contentType = content.contentType || '';
-                                                    const quizScore = (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') ? 'Score not available' : '';
-
-                                                    flattenedData.push({
-                                                        userName: learner?.userName || '',
-                                                        email: email,
-                                                        designation: designation,
-                                                        employeeId: employeeId,
-                                                        userState: userState,
-                                                        enrollmentDate: enrollmentDate,
-                                                        startDate: startDate,
-                                                        completionDate: completionDate,
-                                                        courseStatus: courseStatus,
-                                                        courseName: courseName,
-                                                        lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                        contentName: contentName,
-                                                        contentType: contentType,
-                                                        quizScore: quizScore,
-                                                    });
-                                                });
-                                            } else {
-                                                flattenedData.push({
-                                                    userName: learner?.userName || '',
-                                                    email: email,
-                                                    designation: designation,
-                                                    employeeId: employeeId,
-                                                    userState: userState,
-                                                    enrollmentDate: enrollmentDate,
-                                                    startDate: startDate,
-                                                    completionDate: completionDate,
-                                                    courseStatus: courseStatus,
-                                                    courseName: courseName,
-                                                    lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                    contentName: '',
-                                                    contentType: '',
-                                                    quizScore: '',
-                                                });
+                                            const contentName = content?.contentTitle?.[0]?.value || '';
+                                            const contentType = content?.contentType || '';
+                                            let quizScore = '';
+                
+                                            if (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') {
+                                                
+                                                quizScore = content.quizPercentage
+                                                    ? Math.round(content.quizPercentage) 
+                                                    : 'Score not available';
                                             }
+                
+                                            flattenedData.push({
+                                                userName: learner?.userName || '',
+                                                email: email,
+                                                designation: designation,
+                                                employeeId: employeeId,
+                                                userState: userState,
+                                                enrollmentDate: enrollmentDate,
+                                                startDate: startDate,
+                                                completionDate: completionDate,
+                                                courseStatus: courseStatus,
+                                                courseName: courseName,
+                                                lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
+                                                contentName: contentName,
+                                                contentType: contentType,
+                                                quizScore: quizScore,
+                                            });
                                         });
                                     }
                                 } else {
@@ -1188,7 +1227,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     });
 
                     const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
-                    XLSX.utils.book_append_sheet(workbook, worksheet, input.report);
+                    XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
 
                     const excelFilePath = await UploadHelper.uploadExcel({
@@ -1296,13 +1335,23 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
-
+        const pageLimit =[];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
 
         const data = await Training.aggregate([
+            {
+                $sort: {
+                    updatedAt: -1, 
+                }
+            },
+            {
+                $match :{
+                    status : "PUBLISHED"
+                }
+            },
             {
                 $lookup: {
                     from: 'overalltrainingprogresses',
@@ -1328,8 +1377,24 @@ const getMainCoursesReport = async ({ input }, context) => {
             {
                 $unwind: {
                     path: '$userInfo',
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: false,
                 },
+            },
+            {
+                $lookup:
+                {
+                    from: "employees",
+                    localField: "progress.user",
+                    foreignField: "_id",
+                    as: "empDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
+                        }
+                    ]
+                }
             },
             {
                 $lookup: {
@@ -1345,17 +1410,50 @@ const getMainCoursesReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...matchStage,
+            ...matchStage, 
+            {
+                $sort: {
+                    updatedAt: -1, 
+                }
+            },
+            {
+                $project: {
+                    id: 1,
+                    title: 1,
+                    updatedAt: 1,
+                    training: "$progress.training",
+                    updatedBy: "$updatedByUser.firstName",
+                    updatedByLastName:
+                        "$updatedByUser.lastName",
+                    user: "$progress.user",
+                    status: "$progress.status"
+                }
+            },
             {
                 $group: {
-                    _id: '$_id',
-                    title: { $first: '$title' },
-                    updatedAt: { $first: '$updatedAt' },
-                    updatedBy: { $first: '$updatedByUser.firstName' },
-                    updatedByLastName: { $first: '$updatedByUser.lastName' },
-                    uniqueUsers: { $addToSet: '$progress.user' },
-                    usersByStatus: { $push: { user: '$progress.user', status: '$progress.status' } },
-                },
+                    _id: "$training",
+                    title: {
+                        $first: "$title"
+                    },
+                    updatedAt: {
+                        $max: "$updatedAt"
+                    },
+                    updatedBy: {
+                        $first: "$updatedBy"
+                    },
+                    updatedByLastName: {
+                        $first: "$updatedByLastName"
+                    },
+                    uniqueUsers: {
+                        $addToSet: "$user"
+                    },
+                    usersByStatus: {
+                        $push: {
+                            user: "$user",
+                            status: "$status"
+                        }
+                    }
+                }
             },
             {
                 $project: {
@@ -1401,8 +1499,13 @@ const getMainCoursesReport = async ({ input }, context) => {
                     },
                 },
             },
+            {
+                $sort: {
+                    updatedAt: -1, 
+                }
+            },
+            ...pageLimit,
         ]);
-
         const coursesData = data.map(item => ({
             _id: item._id,
             title: item.title,
@@ -1484,6 +1587,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+        const pageLimit = [];
 
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -1587,7 +1691,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         if (input?.reportType === "ENROLLMENT") {
@@ -1729,7 +1833,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "employees",
                             localField: "user",
                             foreignField: "user",
-                            as: "empDetails"
+                            as: "empDetails",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -1826,19 +1937,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     null
                                 ]
                             },
-                            totalTimeSpent: {
-                                $sum: {
-                                    $map: {
-                                        input: "$trainingProgressInfo.duration",
-                                        as: "duration",
-                                        in: {
-                                            $toDouble: "$$duration"
-                                        }
-                                    }
-                                }
-                            }
+                            totalTimeSpent: "$timeSpend"
                         }
-                    }
+                    },
+                    {
+                        $sort:
+                        {
+                            createdAt: -1
+                        }
+                    },
+                    ...pageLimit
                 ]
 
             );
@@ -1868,18 +1976,30 @@ const getSingleCourseReport = async ({ input }, context) => {
                     if (!data) throw CustomError(ErrorName.NOT_FOUND, "No there is no data present");
                     const parsedData = data.map(item => {
 
-                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
-
-                        const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                        const completionDate = item.endDate ? new Date(item.endDate).toISOString() : null;
+                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`; 
+                        const formatDate = (date) => {
+                            if (date) {
+                                const formattedDate = new Date(date);
+                                return formattedDate.toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    hour12: true, 
+                                });
+                            }
+                            return null;
+                        };
+                        const enrollmentDate = formatDate(item.createdAt);
+                        const completionDate = formatDate(item.endDate);
                         const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
-
                         const quizScore = (typeof item.quizPercentage === 'string')
-                            ? item.quizPercentage
+                            ? parseInt(item.quizPercentage, 10) 
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
-                                ? item.quizPercentage.toFixed(2)
-                                : 'Not Applicable';
-
+                                ? Math.round(item.quizPercentage) 
+                                : 'Not Applicable'; 
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
@@ -1983,7 +2103,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'employees',
                             'localField': 'user',
                             'foreignField': 'user',
-                            'as': 'employeeInfo'
+                            'as': 'employeeInfo',
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted : false
+                                    }
+                                }
+                            ]
                         }
                     }, {
                         '$unwind': {
@@ -2336,7 +2463,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastSeen': 1,
                             'status': 1
                         }
-                    }
+                    },
+                    { $sort: { createdAt: -1 } },
+                    ...pageLimit
                 ]
             );
             if (data.length > 0) {
@@ -2469,6 +2598,7 @@ const getVesselMainReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
+        const pageLimit = [];
 
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -2540,7 +2670,7 @@ const getVesselMainReport = async ({ input }, context) => {
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
 
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         const data = await Vessel.aggregate([
@@ -2563,7 +2693,30 @@ const getVesselMainReport = async ({ input }, context) => {
                     from: "uservessels",
                     localField: "_id",
                     foreignField: "vessel",
-                    as: "userVesselsInfo"
+                    as: "userVesselsInfo",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "employees",
+                                localField: "user",
+                                foreignField: "user",
+                                as: "employeeInfo"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$employeeInfo",
+                                preserveNullAndEmptyArrays: false
+                            }
+                        },
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$employeeInfo.isDeleted", false]
+                                }
+                            }
+                        }
+                    ]
                 }
             },
             {
@@ -2593,6 +2746,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     name: 1,
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     ownerName: 1,
                     vesselType: "$vesselTypesInfo.name",
                     vesselTypeId: "$vesselTypesInfo._id",
@@ -2671,10 +2825,46 @@ const getVesselMainReport = async ({ input }, context) => {
                 }
             },
             {
+                $group: {
+                    _id: "$_id",
+                    name: {
+                        $first: "$name"
+                    },
+                    imoNumber: {
+                        $first: "$imoNumber"
+                    },
+                    companyName: {
+                        $first: "$companyName"
+                    },
+                    createdAt: {
+                        $first: "$createdAt"
+                    },
+                    vesselType: {
+                        $first: "$vesselType"
+                    },
+                    vesselTypeId: {
+                        $first: "$vesselTypeId"
+                    },
+                    ownerName: {
+                        $first: "$ownerName"
+                    },
+                    onboardedUsers: {
+                        $first: "$onboardedUsers"
+                    },
+                    filteredTrainingProgress: {
+                        $first: "$filteredTrainingProgress"
+                    },
+                    averageProgress: {
+                        $first: "$averageProgress"
+                    }
+                }
+            },
+            {
                 $project: {
                     vesselName: "$name",
                     imoNumber: 1,
                     companyName: 1,
+                    createdAt: 1,
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
@@ -2689,7 +2879,7 @@ const getVesselMainReport = async ({ input }, context) => {
             },
             {
                 $group: {
-                    _id: "$_id",
+                    _id: "$vesselId",
                     vesselName: { $first: "$vesselName" },
                     vesselTypeId: { $first: "$vesselTypeId" },
                     imoNumber: { $first: "$imoNumber" },
@@ -2697,13 +2887,16 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselId: { $first: "$vesselId" },
                     typeOfVessel: { $first: "$typeOfVessel" },
                     ownerName: { $first: "$ownerName" },
-                    onboardedCount: { $first: "$onboardedCount" },
+                    onboardedCount: { $sum: "$onboardedCount" },
                     progress: { $avg: "$progress" },
+                    createdAt: { $max: "$createdAt" }
                 }
             },
-            ...matchStage
+            ...matchStage,
+            { $sort: { createdAt: -1 } },
+            ...pageLimit,
         ]);
-
+        
         let s3PresignedUrl = "";
 
         if (input?.export) {
@@ -3126,17 +3319,32 @@ const generateCustomReport = async ({ input }, context) => {
 
             data.forEach(item => {
                 const learnerName = `${item.firstName} ${item.lastName}`;
-                const enrollmentDate = item.createdAt ? new Date(item.createdAt).toISOString() : null;
-                const completionDate = item.completionDate ? new Date(item.completionDate).toISOString() : null;
-                const startDate = item.startDate && item.startDate !== 'startDate' ? new Date(item.startDate).toISOString() : null;
-                const unenrollmentDate = item.unenrolmentDate ? new Date(item.unenrolmentDate).toISOString() : null;
+                const formatDate = (date) => {
+                    if (date) {
+                        const formattedDate = new Date(date);
+                        return formattedDate.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true, 
+                        });
+                    }
+                    return null;
+                };
+                const enrollmentDate = formatDate(item.createdAt);
+                const completionDate = formatDate(item.completionDate);
+                const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
+                const unenrollmentDate = formatDate(item.unenrolmentDate);
                 const quizScore = (typeof item.quizPercentage === 'string')
                     ? item.quizPercentage
                     : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                         ? item.quizPercentage.toFixed(2)
                         : null;
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0;
+                const timeSpent = item.totalTimeSpent ? item.totalTimeSpent?.toFixed(2) : 0;
 
                 dataToExport.push({
                     Name: learnerName,
@@ -3534,6 +3742,7 @@ const generateCustomReport = async ({ input }, context) => {
                     }
                 ]
             );
+
             const flattenLearnerDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
@@ -3722,7 +3931,7 @@ const generateCustomReport = async ({ input }, context) => {
     }
 }
 
-const getCustomReportLogs = async ({ pageInput }, context) => {
+const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     const { subscriberId } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     try {
@@ -3731,7 +3940,56 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
         const limit = pageInput?.limit ? pageInput.limit : 50;
         let matchStage = [];
         if (limit > 0) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            matchStage.push({ $skip: skip });
+            matchStage.push({ $limit: limit });
+        }
+
+        
+        if (searchQuery) {
+            
+            const searchTerms = searchQuery.split(/\s+/).map(term => term.trim()).filter(Boolean);
+
+            
+            if (searchTerms.length > 0) {
+                matchStage.unshift({
+                    $match: {
+                        $or: [
+                            {
+                                $and: [
+                                    {
+                                        "usersInfo.firstName": {
+                                            $regex: `.*${searchTerms[0]}.*`,
+                                            $options: "i"  
+                                        }
+                                    },
+                                    {
+                                        "usersInfo.lastName": {
+                                            $regex: `.*${searchTerms[1] || ""}.*`,
+                                            $options: "i"  
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                $and: [
+                                    {
+                                        "usersInfo.firstName": {
+                                            $regex: `.*${searchTerms[1] || ""}.*`,
+                                            $options: "i"  
+                                        }
+                                    },
+                                    {
+                                        "usersInfo.lastName": {
+                                            $regex: `.*${searchTerms[0]}.*`,
+                                            $options: "i"  
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                });
+            }
         }
 
         const data = await Export.aggregate([
@@ -3766,7 +4024,7 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
-            ...matchStage,
+            ...matchStage, 
             {
                 $project: {
                     from: {
@@ -3787,8 +4045,8 @@ const getCustomReportLogs = async ({ pageInput }, context) => {
                 }
             },
             {
-                '$sort': {
-                    'createdAt': -1
+                $sort: {
+                    createdAt: -1
                 }
             },
         ]);

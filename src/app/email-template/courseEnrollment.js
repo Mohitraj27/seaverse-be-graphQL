@@ -1,4 +1,31 @@
-function courseEnrollment({firstName,trainingTitle,durationHours,courseId}) {
+function courseEnrollment({firstName, courses, isAdmin }) {
+    const coursesHTML = courses.map(course => `
+        <tr>
+            <td style="padding: 10px;" class="content-inner">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td style="text-align: center; vertical-align: top;">
+                            <img src="${course.courseImage}" alt="Course Image" style="display: block; margin: 0 0 0 auto; height: auto; width:100px;">
+                        </td>
+                        <td style="padding-left: 24px; vertical-align: top;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
+                                        ${course.trainingTitle}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
+                                        Duration: ${course.durationHours} Hours
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    `).join(''); 
     return `
     <html lang="en">
 <head>
@@ -79,40 +106,14 @@ function courseEnrollment({firstName,trainingTitle,durationHours,courseId}) {
                             </table>
                         </td>
                     </tr>
-
-                    <tr>
-                        <td style="padding: 10px;" class="content-inner">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                <tr>
-                                    <td style="text-align: center; vertical-align: top;">
-                                        <img src="https://squadra-media-assets.s3.amazonaws.com/public/course-image.png" alt="Course Image" style="display: block; margin: 0 0 0 auto; height: auto;">
-                                    </td>
-                                    <td style="padding-left: 24px; vertical-align: top;">
-                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                            <tr>
-                                                <td
-                                                    style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
-                                                    ${trainingTitle}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td
-                                                    style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
-                                                    Duration: ${durationHours} Hours
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
+                    ${coursesHTML}
+                 
                     <tr>
                         <td style="padding: 35px 0 40px 0;" class="content-inner">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="text-align: center;">
-                                        <a href=" ${process.env.APP_URL}/course-preview/${courseId}"
+                                        <a href="${isAdmin ? `${process.env.APP_URL}/course` : `${process.env.APP_URL}/learner`}"
                                             style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
                                             Start Training
                                         </a>

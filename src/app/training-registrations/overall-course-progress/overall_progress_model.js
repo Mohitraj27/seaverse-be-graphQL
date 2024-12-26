@@ -7,9 +7,15 @@ const overallProgressSchema = new Schema(
             type: ObjectId,
             ref: "Subscriber"
         },
-        learningPlan: {
-            type: ObjectId,
-            ref: "LearninPlan"
+        learningPlan: [
+            {
+                type: ObjectId,
+                ref: "LearninPlan"
+            }
+        ],
+        directEnrollment: {
+            type: Boolean,
+            default: false
         },
         training: {
             type: ObjectId,
@@ -61,6 +67,23 @@ const overallProgressSchema = new Schema(
         completionDate: Date,
         retryCount: Number,
         progressPercentage: {
+            type: Number,
+            default: 0
+        },
+        isFromMigration: {
+            type: Boolean
+        },
+        pdfUrl: {
+            type: String
+        },
+        certificateNumber: {
+            type: String
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
+        isAdminResetModule: {
             type: Number,
             default: 0
         },

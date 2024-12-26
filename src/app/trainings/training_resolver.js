@@ -37,10 +37,15 @@ const { TrainingRegistration } = require("../training-registrations/training_reg
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const { populate, validate } = require("../contact-support/contact_support_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
+const {createOrUpdateTrainingMigrationCourses}=require("../../app/trainings/migrationcourses/migrationcourses_helper");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
+
+        if (role && role === Role.LEARNER) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
 
         const skip = pageInput?.skip ?? 0;
         let limit = pageInput?.limit ?? 50;
@@ -184,7 +189,6 @@ module.exports.mutations = {
 
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
         const moduleContentIds = [];
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
@@ -279,12 +283,11 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-
+            const migrationCourseResult = await createOrUpdateTrainingMigrationCourses({ input }, session, context);
             return savedTraining;
         });
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
-
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: savedTraining,
@@ -342,7 +345,17 @@ module.exports.mutations = {
             deletedTraining.isDeleted = true;
             deletedTraining.isActive = false;
             deletedTraining.deletedDate = new Date();
-            await deletedTraining.save();
+            const updateTraining = await deletedTraining.save();
+
+            if (updateTraining) {
+
+                const updateOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                    { training: id },
+                    { isDeleted: true }
+                )
+
+            }
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
@@ -527,14 +540,19 @@ module.exports.mutations = {
                 })
             })
 
-            let syncContentErrors = [];
-            const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors);
+            let updateTrainingProgress;
+            const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
-            if (syncContentErrors.length > 0) {
-                throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
-            }
+                let syncContentErrors = [];
+                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
-            const updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId);
+                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, session);
+
+                if (syncContentErrors.length > 0) {
+                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                }
+
+            });
 
             if (updateTrainingProgress) {
                 return {
@@ -573,7 +591,7 @@ module.exports.mutations = {
         if (fetchOverallTraining.contentData) {
 
             if (attemptLimit && attemptLimit > 0 && fetchOverallTraining.attemptCount > attemptLimit) {
-                throw CustomError(ErrorName.FORBIDDEN, "Your attempt limit has reached!");
+                throw CustomError(ErrorName.FAILED, "Your attempt limit has reached!");
             }
 
             fetchOverallTraining.contentData = [];
@@ -584,6 +602,7 @@ module.exports.mutations = {
             fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
             fetchOverallTraining.timeSpend = 0;
+            fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }

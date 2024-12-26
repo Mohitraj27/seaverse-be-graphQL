@@ -118,6 +118,7 @@ module.exports = {
             vesselTypes : [ID]
             vesselIds : [ID]
             designations : [ID]
+            userVesselStatus : [String]
         } 
         input singleLearnerReportInput {
             learnerIds : [ID]!
@@ -218,8 +219,8 @@ module.exports = {
             createdAt : String
             updatedAt : String
             completionDate : String
-            timeSpent : Int
-            quizPercentage : Int
+            timeSpent : Float
+            quizPercentage : Float
             isPassed :Boolean
             modules : [moduleQuizInfo]
             
@@ -294,7 +295,7 @@ module.exports = {
         getMainCoursesReport(input: MainCoursesReportInput): mainCourseReportOutput
         getVesselMainReport(input: mainVesselReportInput): mainVesselReportOutput
         generateCustomReport(input: customReportInput!): customReportGenerated
-        getCustomReportLogs(pageInput : PageInput):[customReportLogOutput]
+        getCustomReportLogs(pageInput : PageInput,searchQuery:String):[customReportLogOutput]
         getS3FilePath(filePath:String!): s3PathOutput
     `,
 };

@@ -499,6 +499,8 @@ module.exports.queries = {
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
+                        emailNotification: 1,
+                        pushNotification: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -733,7 +735,9 @@ module.exports.queries = {
                         selectCourses: 1,
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
-                        overallTrainingProgress:1,
+                        overallTrainingProgress: 1,
+                        emailNotification: 1,
+                        pushNotification: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
@@ -753,7 +757,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity,filteredLearnerData);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData);
 
             return detailedPlan;
         } catch (error) {

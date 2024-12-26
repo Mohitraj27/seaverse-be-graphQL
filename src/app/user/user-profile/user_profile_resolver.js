@@ -43,6 +43,7 @@ const transporter = nodemailer.createTransport({
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
+        
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
@@ -56,13 +57,18 @@ module.exports.queries = {
             if (existingUser.avatar) {
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
-            const employeeData = await Employee.findOne({ user: userId }).lean().populate({
+            let employeeData = {};
+            employeeData = await Employee.findOne({ user: userId }).lean().populate({
                 path: "empDesignation",
                 select: "_id name",
             });
             if (employeeData && employeeData.empDesignation) {
                 employeeData.designation = employeeData.empDesignation.name;
+            } else if (role === Role.ADMIN) {
+                employeeData = {};
+                employeeData.designation = 'MANAGER';
             }
+
             existingUser.employee = employeeData || null;
             return existingUser;
         };

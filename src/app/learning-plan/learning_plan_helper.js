@@ -30,7 +30,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
         if (type_of_Field === typeOfConditionalCustomFieldEnum.CURRENT_STATUS) {
-            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARD"];
+            const validStatus = ["ASSIGNED", "ONSHORE", "ONBOARDED"];
             const invalidStatus = valueOfField.filter(status => !validStatus.includes(status));
             if (invalidStatus.length > 0) {
                 errors.push(`Invalid status provided for type ${type_of_Field}.`);
@@ -50,12 +50,12 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             }
             switch (group.groupType) {
                 case 'custom':
-                   group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
-                   break;
-                case 'designation': 
+                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    break;
+                case 'designation':
                 case 'subRole':
                 case 'vessel':
-                case 'vesselType': 
+                case 'vesselType':
                     group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     break;
                 case 'role':
@@ -65,7 +65,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                         group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     }
                     break;
-                case 'regStatus': 
+                case 'regStatus':
                     if (group.groupIDs !== "true" && group.groupIDs !== "false") {
                         errors.push(errorMessages.INVALID_REG_STATUS);
                     } else {
@@ -73,8 +73,8 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                     }
                     break;
                 case 'vesselStatus':
-                      group.groupIDS = group.groupIDs.map((vesselStatus) => vesselStatusEnum[vesselStatus]);
-                        break;
+                    group.groupIDS = group.groupIDs.map((vesselStatus) => vesselStatusEnum[vesselStatus]);
+                    break;
                 default:
                     errors.push(errorMessages.INVALID_GROUP_TYPE);
             }
@@ -344,6 +344,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             });
 
         }
+        const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
+
         existingLearningPlan.title = input.title || existingLearningPlan.title;
         existingLearningPlan.targetAudience = input.targetAudience || existingLearningPlan.targetAudience;
         existingLearningPlan.audienceSelection = input.audienceSelection || existingLearningPlan.audienceSelection;
@@ -356,6 +358,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.emailNotification = input.updateemailNotifications;
         existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
+
+        const newAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs;
+
+        const removedLearnersID = oldAssignedLearnerIDs.filter(
+            id => !newAssignedLearnerIDs.includes(id.toString())
+        );
+
         if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
@@ -363,8 +372,19 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 type: "ENROLL",
                 learningPlan: existingLearningPlan._id
             }
+
             await createTrainingRegistration(enrollData, context);
         }
+
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnersID }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        );
+
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
@@ -377,8 +397,12 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isActive = true;
         filter.isRegistered = true;
+        filter.superAdmin = false;
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
@@ -454,7 +478,7 @@ const getUsersAndCount = async (input) => {
                         } else if (condition.type_of_Field === "DESIGNATION") {
                             const designationIds = condition.valueOfField.map(id => ObjectId(id));
                             const employees = await Employee.find(
-                                { empDesignation: { $in: designationIds }, isDeleted: false },
+                                { empDesignation: { $in: designationIds }, isDeleted: { $ne: true } },
                                 { user: 1 }
                             ).exec();
                             const value = employees.map(user => user.user);
@@ -587,6 +611,9 @@ const getUsersAndCount = async (input) => {
                 }
                 filter._id = { $in: groupIDs };
             } else if (input.audienceSelection === audienceSelection.AUTOMATIC) {
+                if (!input.conditionType || input.conditionalCustomFields.length === 0) {
+                    return { userIds: [], count: 0 };
+                }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
@@ -781,15 +808,72 @@ const getUsersAndCount = async (input) => {
 
 };
 
+const mergeUsersData = (inputData) => {
+    const aggregatedUsers = {};
 
-const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity,filteredLearnerData = []) => {
+    inputData.users.forEach((user) => {
+        const userId = user._id;
+
+        if (!aggregatedUsers[userId]) {
+            aggregatedUsers[userId] = {
+                ...user,
+                progressPercentage: 0,
+                totalModules: 0,
+                completedModules: 0,
+                completedTrainings: 0,
+                totalTrainings: 0,
+                statusCount: {},
+            };
+        }
+
+        const userData = aggregatedUsers[userId];
+
+        userData.progressPercentage += user.progressPercentage;
+
+        userData.totalModules += user.totalModules;
+        userData.completedModules += user.completedModules;
+        userData.totalTrainings += 1;
+        userData.statusCount[user.status] = (userData.statusCount[user.status] || 0) + 1;
+    });
+
+    const mergedUsers = Object.values(aggregatedUsers).map((user) => {
+        const avgProgress = user.progressPercentage / user.totalTrainings;
+
+        let finalStatus;
+        const statusKeys = Object.keys(user.statusCount);
+
+        if (statusKeys.length === 1) {
+            finalStatus = statusKeys[0];
+        } else {
+            finalStatus = "IN_PROGRESS";
+        }
+
+        return {
+            ...user,
+            progressPercentage: avgProgress.toFixed(2),
+            completedTrainings: user.statusCount["COMPLETED"] || 0,
+            status: finalStatus,
+        };
+    });
+
+    let participantsCompleted = mergedUsers.filter((user) => user.completedTrainings === user.totalTrainings).length;
+
+    return {
+        ...inputData,
+        participantsCompleted: participantsCompleted,
+        users: mergedUsers,
+    };
+};
+
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = []) => {
+
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+
         let activityFilter;
-        if (status && Array.isArray(status) && status.length > 0) {
-            matchCriteria.status = { $in: status };
-        }
+
         let startDate, endDate;
+
         if (lastActivity) {
             const today = Moment();
             switch (lastActivity) {
@@ -825,9 +909,16 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     break;
             }
         }
+
         const pipeline = [
             {
                 $match: matchCriteria,
+            },
+            {
+                $unwind: "$learningPlan"
+            },
+            {
+                $match: { learningPlan: learningPlanId }
             },
             {
                 $lookup: {
@@ -844,34 +935,37 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             },
             {
                 $unwind: "$userDetails"
-            },  
-                ...(filteredLearnerData.length > 0
-                    ? [
-                        {
-                            $match: {
-                                $or: filteredLearnerData.map(field => ({
-                                    $or: [
-                                        { "userDetails.email": { $regex: field, $options: 'i' } }, 
-                                        { "userDetails.firstName": { $regex: field, $options: 'i' } }, 
-                                        { "userDetails.lastName": { $regex: field, $options: 'i' } } 
-                                    ]
-                                }))
-                            }
+            },
+            ...(filteredLearnerData.length > 0
+                ? [
+                    {
+                        $match: {
+                            $or: filteredLearnerData.map(field => ({
+                                $or: [
+                                    { "userDetails.email": { $regex: field, $options: 'i' } },
+                                    { "userDetails.firstName": { $regex: field, $options: 'i' } },
+                                    { "userDetails.lastName": { $regex: field, $options: 'i' } }
+                                ]
+                            }))
                         }
-                    ]
-                    : []),
-                
+                    }
+                ]
+                : []),
+
             {
                 $group: {
                     _id: "$learningPlan",
                     averageProgress: { $avg: "$progressPercentage" },
+                    totalTimeSpend: { $sum: "$timeSpend" },
                     users: {
                         $push: {
                             userId: "$user",
                             progressPercentage: "$progressPercentage",
                             completedModules: "$completedModules",
                             userDetails: "$userDetails",
-                            status: "$status"
+                            status: "$status",
+                            totalTrainingModules: "$totalTrainingModules",
+                            timeSpend: "$timeSpend"
                         }
                     },
                     overallTrainingprogressStatus: { $addToSet: "$status" }
@@ -882,6 +976,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     _id: 0,
                     learningPlan: "$_id",
                     averageProgress: { $round: ["$averageProgress", 2] },
+                    totalTimeSpend: 1,
                     users: {
                         $map: {
                             input: "$users",
@@ -890,12 +985,13 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 _id: "$$user.userId",
                                 progressPercentage: "$$user.progressPercentage",
                                 completedModules: "$$user.completedModules",
-                                totalModules: "$$user.totalModules",
+                                totalModules: "$$user.totalTrainingModules",
                                 email: "$$user.userDetails.email",
                                 firstName: "$$user.userDetails.firstName",
                                 lastName: "$$user.userDetails.lastName",
-                                updatedAt: "$$user.userDetails.updatedAt",
-                                status: "$$user.status"
+                                updatedAt: "$$user.userDetails.lastLoginAt",
+                                status: "$$user.status",
+                                timeSpend: "$$user.timeSpend"
                             }
                         }
                     },
@@ -903,6 +999,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                 }
             }
         ];
+
         if (search != null && search) {
             pipeline.push({
                 $match: {
@@ -915,18 +1012,25 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             });
         }
 
-
         const groupedProgress = await OverallTrainingProgress.aggregate(pipeline);
-        return groupedProgress?.[0] || [];
+
+        if (!groupedProgress || groupedProgress.length === 0) {
+            return [];
+        }
+
+        let mergedData = mergeUsersData(groupedProgress?.[0]);
+
+        if (status && status.length > 0) {
+            mergedData.users = mergedData.users.filter((user) =>
+                status.includes(user.status)
+            );
+        }
+
+        return mergedData || [];
+
     } catch (error) {
         throw new Error(error.message);
     }
 };
-
-
-
-
-
-
 
 module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress };

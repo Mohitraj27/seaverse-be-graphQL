@@ -13,6 +13,18 @@ const certificateLayout = new Schema(
             ref: "Training",
             required: true,
         },
+        certificateNumber:{
+            type:String
+        },
+        pdfUrl:{
+            type:String
+        },
+        isFromMigration:{
+            type:Boolean
+        },
+        user:{
+            type:ObjectId
+        },
         authorName: String,
         title: [LocalisedDataSchema],
         authorName: String,

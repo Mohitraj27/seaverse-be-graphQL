@@ -84,13 +84,13 @@ const sendCredentialMail = async ({ userData }) => {
     });
 };
 const filterLearningPlans = async (learningPlans, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
 
     return learningPlans?.filter(plan => {
         const { conditionType, conditionalCustomFields } = plan;
 
         let matches = conditionalCustomFields.map(field => {
-            const { type_of_Field, valueOfField, isOrIsNot,groupIDs } = field;
+            const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
 
             switch (type_of_Field) {
                 case "DESIGNATION":
@@ -112,6 +112,10 @@ const filterLearningPlans = async (learningPlans, conditions) => {
                     return isOrIsNot === "IS"
                         ? valueOfField.includes(currentStatus)
                         : !valueOfField.includes(currentStatus);
+                case "EMAIL":
+                    return isOrIsNot === "IS"
+                        ? valueOfField.includes(email)
+                        : !valueOfField.includes(email);
                 case "GROUP":
                     return groupIDs?.some(group => {
                         switch (group.groupType) {
@@ -125,8 +129,8 @@ const filterLearningPlans = async (learningPlans, conditions) => {
                                 return group.groupIDs.includes(currentStatus);
                             default:
                                 return false;
-                            }
-                        });
+                        }
+                    });
                 default:
                     return false;
             }
@@ -233,7 +237,7 @@ const sendDeleteNotification = async (notificationsData) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
                 notifyAdmin: true,
-                notifiers: [], 
+                notifiers: [],
                 employeeNotifiers: [],
                 affected: [
                     {
@@ -267,7 +271,7 @@ const sendDeleteNotification = async (notificationsData) => {
         await NotificationHelper.createNotification(notifications);
     }
 };
-const notifyEmployeeStatusChange = async ( notificationsData  ) => {
+const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
@@ -285,7 +289,7 @@ const notifyEmployeeStatusChange = async ( notificationsData  ) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
                 notifyAdmin: true,
-                notifiers: [], 
+                notifiers: [],
                 employeeNotifiers: [],
                 affected: [
                     {
@@ -439,7 +443,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
         };
 
         const createdNotification = await Notification.create(notification);
-     
+
         if (createdNotification) await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
 
     } catch (error) {
@@ -705,13 +709,13 @@ const deleteUsers = async (users, errors) => {
         }
 
     } catch (error) {
-       throw Error(error.message);
+        throw Error(error.message);
 
     }
 
 }
 
-const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames,  imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -854,32 +858,32 @@ module.exports = {
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
-        const employeeFilterConditions = {subscriber:subscriberId} ; 
+        const employeeFilterConditions = { subscriber: subscriberId };
         employeeFilterConditions.user = id;
-        
-        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName",populate:({path:"currentVessel",select:"name isActive"}) })
+
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName", populate: ({ path: "currentVessel", select: "name isActive" }) })
             .lean();
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
-        
+
         const newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
         if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
-    
-        if (String(input.user.currentVessel) !==  String(existingEmployee?.user?.currentVessel?._id)) {
-            
-          await UserVessel.updateMany(
-                {user:existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel,isActive: true },
+
+        if (String(input.user.currentVessel) !== String(existingEmployee?.user?.currentVessel?._id)) {
+
+            await UserVessel.updateMany(
+                { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel, isActive: true },
                 { isActive: false }
             );
-             await UserVessel.create({
+            await UserVessel.create({
                 user: existingEmployee?.user?._id,
                 vessel: input?.user?.currentVessel,
                 vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
             })
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
+                titleValue: `User Vessel Updated Successfully`,
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -890,11 +894,11 @@ module.exports = {
                 ],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            }); 
+            });
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Your Vessel has been Updated`, 
-                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                titleValue: `Your Vessel has been Updated`,
+                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -903,11 +907,11 @@ module.exports = {
                         target: existingEmployee?.user?._id,
                     },
                 ],
-                notifiers: [ existingEmployee?.user?._id ],
-                employeeNotifiers: [ existingEmployee?.user?._id ],
+                notifiers: [existingEmployee?.user?._id],
+                employeeNotifiers: [existingEmployee?.user?._id],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            }); 
+            });
             await sendNotifications({
                 userIds: [existingEmployee?.user?._id],
                 title: 'Vessel Updated',
@@ -916,7 +920,7 @@ module.exports = {
                 webLink: ""
             });
         }
-        else{
+        else {
             await UserVessel.findOneAndUpdate(
                 { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
                 { vesselStatus: input?.user?.vesselStatus }
@@ -924,9 +928,9 @@ module.exports = {
 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `User Vessel Updated Successfully`, 
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`, 
-                
+                titleValue: `User Vessel Updated Successfully`,
+                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: true,
                 affected: [
@@ -937,11 +941,11 @@ module.exports = {
                 ],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            }); 
+            });
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `Your Vessel has been Updated`, 
-                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`, 
+                titleValue: `Your Vessel has been Updated`,
+                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 notificationType: NotificationType.USER_VESSEL_UPDATE,
                 notifyAdmin: false,
                 affected: [
@@ -950,8 +954,8 @@ module.exports = {
                         target: existingEmployee?.user?._id,
                     },
                 ],
-                notifiers: [ existingEmployee?.user?._id ],
-                employeeNotifiers: [ existingEmployee?.user?._id ],
+                notifiers: [existingEmployee?.user?._id],
+                employeeNotifiers: [existingEmployee?.user?._id],
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
@@ -990,7 +994,7 @@ module.exports = {
             email: existingEmployee?.user?.email
         };
         const learningPlans = await LearningPlan.find();
-        const filteredPlans =  await filterLearningPlans(learningPlans, conditions);
+        const filteredPlans = await filterLearningPlans(learningPlans, conditions);
 
         if (filteredPlans?.length > 0) {
             await LearningPlan.updateMany(
@@ -1509,7 +1513,7 @@ module.exports = {
 
 
         for (const user of users) {
-          
+
 
             const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
 
@@ -1538,6 +1542,8 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
+                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    currentVessel: vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
                         },
@@ -1578,6 +1584,7 @@ module.exports = {
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
                         currentVessel: vesselMap.get(user.imoNumber)?.id,
+                        vesselStatus: user.vesselStatus?.toUpperCase(),
                         password: await CryptoHelper.hash(password, 10)
                     });
 
@@ -1613,16 +1620,16 @@ module.exports = {
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
 
-            // await sendNotificationOnBULK({
-            //     subscriber: subscriberId,
-            //     action: "BULK IMPORT",
-            //     createdBy: adminUser?._id,
-            //     uploadedBy: adminUser?._id,
-            //     isError: true,
-            //     description: `${errors[0]}`,
-            //     notificationType: 'BULK_IMPORT',
-            //     status: "FAILED"
-            // })
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "BULK IMPORT",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: true,
+                description: `${errors[0]}`,
+                notificationType: 'BULK_IMPORT',
+                status: "FAILED"
+            })
 
 
             throw CustomError(
@@ -1669,37 +1676,9 @@ module.exports = {
             const bulkId = uuidv4();
             const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
             userCount = allUpdatedUsers?.length || 0;
-           
+
             const automateLearningPlanIds = [];
-            //  dont remove this code we need it for automate learning plan  
-            // allUpdatedUsers.forEach(user => {
-            //     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-            //     const designationId = originalUserData?.designation?.toLowerCase()
-                
-            //         ? designationMap.get(originalUserData.designation.toLowerCase())?.id
-            //         : null;
-            //         console.log(designationId,"designationId");
 
-            //     const vesselData = vesselAssociations.find(v => v.civilIdOrPassport === user.civilIdOrPassport);
-            //        console.log(vesselData,"vesselData");
-
-            //     const vesselId = vesselData?.imoNumber
-            //         ? vesselMap.get(vesselData.imoNumber)?.id
-            //         : null;
-
-
-            //     automateLearningPlanIds.push({
-            //         userId: user._id,
-            //         email: user.email,
-            //         designationId,
-            //         vesselId,
-            //         vesselTypeId: vesselData?.typeOfVessel || null,
-            //         vesselStatus: vesselData?.vesselStatus || null,
-            //     });
-            // });
-            console.log(automateLearningPlanIds, "automateLearningPlanIds");
-            // const matchedLearningPlans = await getLearningPlansInBulk(automateLearningPlanIds);
-            // console.log(matchedLearningPlans,"matchedLearningPlans");
             if (allUpdatedUsers.length > 0) {
 
                 const userVesselsInsert = [];
@@ -1796,7 +1775,130 @@ module.exports = {
                 );
             }
 
+            const userIDs = allUpdatedUsers.map(user => user._id);
+            const employees = await Employee.find(
+                { user: { $in: userIDs } },
+                { user: 1, empDesignation: 1, _id: 0 }
+            );
 
+            const empDesignationMap = {};
+            employees.forEach(employee => {
+                empDesignationMap[employee.user] = employee.empDesignation;
+            });
+
+            const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
+            const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
+            const vesselTypeMap = {};
+            vessels.forEach(vessel => {
+                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+            });
+
+
+            const learningPlans = await LearningPlan.find();
+            async function processAutoEnrollmentLearningPlans() {
+                try {
+
+                    let filteredPlans = [];
+                    allUpdatedUsers.forEach(user => {
+                        const empDesignation = empDesignationMap[user._id];
+
+                        const typeOfVesselIds = vesselTypeMap[user.currentVessel];
+
+                        const conditions = {
+                            designationID: empDesignation,
+                            vesselID: user.currentVessel,
+                            vesselTypeID: typeOfVesselIds,
+                            currentStatus: user.vesselStatus,
+                            email: user.email,
+                        };
+                        function filterLearningPlans(learningPlans, conditions) {
+                            const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
+
+                            return learningPlans?.filter(plan => {
+                                const { conditionType, conditionalCustomFields } = plan;
+
+                                let matches = conditionalCustomFields.map(field => {
+                                    const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
+
+                                    switch (type_of_Field) {
+                                        case "DESIGNATION":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(designationID)
+                                                : !valueOfField.includes(designationID);
+
+                                        case "VESSEL":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(vesselID)
+                                                : !valueOfField.includes(vesselID);
+
+                                        case "VESSEL_TYPE":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(vesselTypeID)
+                                                : !valueOfField.includes(vesselTypeID);
+
+                                        case "CURRENT_STATUS":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(currentStatus)
+                                                : !valueOfField.includes(currentStatus);
+                                        case "EMAIL":
+                                            return isOrIsNot === "IS"
+                                                ? valueOfField.includes(email)
+                                                : !valueOfField.includes(email);
+                                        case "GROUP":
+                                            return groupIDs?.some(group => {
+                                                switch (group.groupType) {
+                                                    case "designation":
+                                                        return group.groupIDs.includes(designationID);
+                                                    case "vessel":
+                                                        return group.groupIDs.includes(vesselID);
+                                                    case "vesselType":
+                                                        return group.groupIDs.includes(vesselTypeID);
+                                                    case "vesselStatus":
+                                                        return group.groupIDs.includes(currentStatus);
+                                                    default:
+                                                        return false;
+                                                }
+                                            });
+                                        default:
+                                            return false;
+                                    }
+                                });
+
+                                if (conditionType === "MATCH_ANY_CONDITION") {
+                                    return matches.some(match => match === true);
+                                }
+
+                                if (conditionType === "MATCH_ALL_CONDITION") {
+                                    return matches.every(match => match === true);
+                                }
+
+                                return false;
+                            });
+                        }
+
+                        const plans = filterLearningPlans(learningPlans, conditions);
+                        if (plans?.length > 0) {
+                            filteredPlans.push(...plans);
+                        }
+                    });
+
+                    if (filteredPlans.length > 0) {
+                        const allUserIds = allUpdatedUsers.map(user => user._id);
+                        await LearningPlan.updateMany(
+                            { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+                            {
+                                $addToSet: {
+                                    assignedLearnerIDs: { $each: allUserIds }
+                                }
+                            }
+                        );
+
+                    }
+                } catch (error) {
+                    console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
+                }
+            }
+            processAutoEnrollmentLearningPlans();
 
 
             if (passwordEmailList.length > 0) {
@@ -1810,8 +1912,16 @@ module.exports = {
 
         });
 
-
-
+        await sendNotificationOnBULK({
+            subscriber: subscriberId,
+            action: "BULK IMPORT",
+            createdBy: adminUser?._id,
+            uploadedBy: adminUser?._id,
+            isError: false,
+            description: `New data(s) created/updated`,
+            notificationType: 'BULK_IMPORT',
+            status: "SUCCESS"
+        })
 
         const createImportLog = await ImportLog.create({
             subscriber: subscriberId,
@@ -1828,7 +1938,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames ,imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 

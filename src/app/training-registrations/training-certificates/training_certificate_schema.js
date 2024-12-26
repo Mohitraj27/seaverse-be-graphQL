@@ -42,6 +42,8 @@ module.exports = {
             contactInfo: String
             subscriberInfo: SubscriberProfile
             htmlTemplate: String
+            isFromMigration:Boolean
+            pdfUrl:String
         }
         type TrainingCertificateList {
             trainingCertificates: [TrainingCertificate]
@@ -79,13 +81,15 @@ module.exports = {
             title : [LocalisedData]
             description : [LocalisedData]
         }
-
+        input certificateFilters {
+            name : String
+        }
         
     `,
     queries: `
         getTrainingCertificates(pageInput: PageInput, filterInput: TrainingCertificateFilterInput): TrainingCertificateList!
         getTrainingCertificate(id: ID!): TrainingCertificate!
-        getUserCertificates(id: ID!,pageInput: PageInput): getCertificateOutput
+        getUserCertificates(id: ID!,filterInput:certificateFilters): getCertificateOutput
     `,
     mutations : `
         generateCertificates(trainingRegistrationId:ID):TrainingCertificateList
