@@ -238,7 +238,7 @@ module.exports = {
         }
     `,
     queries: `
-        getTrainingRegistrations(input: getTrainingRegsInput!): getTrainingLearningPlan
+        getTrainingRegistrations(input: getTrainingRegsInput!): getTrainingLearningPlan!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
         myCourses(filterInput: myCourseFilterInput): myCoursesRes!
