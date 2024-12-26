@@ -3649,7 +3649,7 @@ const generateCustomReport = async ({ input }, context) => {
             dataToExport = flattenAllLearnersData(data);
         }
 
-        if (dataToExport.length > 0) {
+       
             let s3PresignedUrl = "";
 
             const workbook = XLSX.utils.book_new();
@@ -3703,18 +3703,9 @@ const generateCustomReport = async ({ input }, context) => {
                 message: "report generated successfully"
             };
 
-        } else {
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Custom Report Export Failed`,
-                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
-                notificationType: NotificationType.REPORT_EXPORT_FAILED,
-                notifyAdmin: true,
-                status: 'FAILED',
-                icon: notificationiconEnum.ERROR,
-                createdBy: userInfo,
-            });
-        }
+        
+        
+       
 
     } catch (error) {
         await NotificationHelper.createNotificationhelper({
