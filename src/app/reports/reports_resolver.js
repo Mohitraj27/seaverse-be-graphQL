@@ -27,9 +27,9 @@ const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
     let selectVesselOrLearner = "VESSEL";
-    if (input?.selectVesselOrLearner){
+    if (input?.selectVesselOrLearner) {
         selectVesselOrLearner = input?.selectVesselOrLearner;
-    } 
+    }
     try {
         const matchStage = [];
 
@@ -127,10 +127,11 @@ const getMainLearnersReport = async ({ input }, context) => {
                     localField: 'user',
                     foreignField: '_id',
                     as: 'userInfo',
-                    pipeline : [
+                    pipeline: [
                         {
-                            $match :{
-                                role : "LEARNER"
+                            $match: {
+                                role: "LEARNER",
+                                superAdmin: false
                             }
                         }
                     ]
@@ -262,7 +263,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     averageProgressPercentage: {
                         $cond: {
                             if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                            then: {  $toInt: { $avg: '$trainingProgresses.progressPercentage' } },
+                            then: { $toInt: { $avg: '$trainingProgresses.progressPercentage' } },
                             else: 0,
                         },
                     },
@@ -292,13 +293,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     vesselTypeId: '$vesselTypeInfo._id',
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
-                    createdAt :1,
+                    createdAt: 1,
                     averageProgressPercentage: 1,
                 },
             },
             {
-                '$sort' :{
-                    'createdAt' :-1
+                '$sort': {
+                    'createdAt': -1
                 }
             }
         ]);
@@ -341,9 +342,9 @@ const getMainLearnersReport = async ({ input }, context) => {
                     notifyAdmin: true,
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             }
                         }
                     ],
@@ -464,9 +465,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
             matchStage.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
-        
-        let matchUsers =[];
-        if(learnerIds.length>0){
+
+        let matchUsers = [];
+        if (learnerIds.length > 0) {
             matchUsers.push(
                 {
                     "$match": {
@@ -475,7 +476,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 }
             );
         }
-          
+
 
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
@@ -680,8 +681,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        '$sort' :{
-                            'createdAt' :-1
+                        '$sort': {
+                            'createdAt': -1
                         }
                     }
                 ]
@@ -704,24 +705,24 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 hour: '2-digit',
                                 minute: '2-digit',
                                 second: '2-digit',
-                                hour12: true, 
+                                hour12: true,
                             });
                         }
                         return null;
                     };
-                
+
                     const enrollmentDate = formatDate(item.createdAt);
                     const completionDate = formatDate(item.completionDate);
                     const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
                     const unenrollmentDate = formatDate(item.unenrolmentDate);
-                
+
                     const quizScore = (typeof item.quizPercentage === 'string')
                         ? item.quizPercentage
                         : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                             ? item.quizPercentage.toFixed(2)
                             : null;
                     const userState = item.isRegistered ? "Registered" : "Unregistered";
-                    const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : 0;
+                    const timeSpent = item.totalTimeSpent ? Math.round(item.totalTimeSpent) : 0;
 
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
@@ -737,7 +738,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
                     });
-                });                
+                });
             } else {
                 learnersReports.forEach(item => {
                     const learnerName = `${item.firstName} ${item.lastName}`;
@@ -766,7 +767,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     combinedData.push(...data);
                     combinedData.push([]);
                 }
-            
+
                 const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
                 XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -776,9 +777,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
-                if (excelFilePath) {  
+                if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                   
+
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Single Learner Report Exported Successfully`,
@@ -801,7 +802,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     fileName: path.basename(excelFilePath),
                     learnerData: learnersReports,
                 };
-            }            
+            }
             else if (input?.export && learnersReports.length == 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
             }
@@ -1124,7 +1125,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 hour: '2-digit',
                                 minute: '2-digit',
                                 second: '2-digit',
-                                hour12: true, 
+                                hour12: true,
                             });
                         }
                         return '';
@@ -1165,14 +1166,14 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                             const contentName = content?.contentTitle?.[0]?.value || '';
                                             const contentType = content?.contentType || '';
                                             let quizScore = '';
-                
+
                                             if (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') {
-                                                
+
                                                 quizScore = content.quizPercentage
-                                                    ? Math.round(content.quizPercentage) 
+                                                    ? Math.round(content.quizPercentage)
                                                     : 'Score not available';
                                             }
-                
+
                                             flattenedData.push({
                                                 userName: learner?.userName || '',
                                                 email: email,
@@ -1239,7 +1240,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     return excelFilePath;
                 };
-                
+
                 const excelFilePath = await exportToExcelWithMultipleSheets(learnersData);
 
                 if (excelFilePath) {
@@ -1252,9 +1253,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         notifyAdmin: true,
                         additionalInfo: [
                             {
-                                infoType:"EXPORT_URL",
+                                infoType: "EXPORT_URL",
                                 infoData: {
-                                    filePath : excelFilePath
+                                    filePath: excelFilePath
                                 }
                             }
                         ],
@@ -1279,7 +1280,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
-        
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
@@ -1335,7 +1335,7 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
-        const pageLimit =[];
+        const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
         }
@@ -1344,12 +1344,12 @@ const getMainCoursesReport = async ({ input }, context) => {
         const data = await Training.aggregate([
             {
                 $sort: {
-                    updatedAt: -1, 
+                    updatedAt: -1,
                 }
             },
             {
-                $match :{
-                    status : "PUBLISHED"
+                $match: {
+                    status: "PUBLISHED"
                 }
             },
             {
@@ -1410,10 +1410,10 @@ const getMainCoursesReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...matchStage, 
+            ...matchStage,
             {
                 $sort: {
-                    updatedAt: -1, 
+                    updatedAt: -1,
                 }
             },
             {
@@ -1501,7 +1501,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             {
                 $sort: {
-                    updatedAt: -1, 
+                    updatedAt: -1,
                 }
             },
             ...pageLimit,
@@ -1540,9 +1540,9 @@ const getMainCoursesReport = async ({ input }, context) => {
                     notifyAdmin: true,
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             },
                         }
                     ],
@@ -1837,7 +1837,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             pipeline: [
                                 {
                                     $match: {
-                                        isDeleted : false
+                                        isDeleted: false
                                     }
                                 }
                             ]
@@ -1976,7 +1976,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     if (!data) throw CustomError(ErrorName.NOT_FOUND, "No there is no data present");
                     const parsedData = data.map(item => {
 
-                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`; 
+                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
                         const formatDate = (date) => {
                             if (date) {
                                 const formattedDate = new Date(date);
@@ -1987,7 +1987,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     hour: '2-digit',
                                     minute: '2-digit',
                                     second: '2-digit',
-                                    hour12: true, 
+                                    hour12: true,
                                 });
                             }
                             return null;
@@ -1996,10 +1996,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const completionDate = formatDate(item.endDate);
                         const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
                         const quizScore = (typeof item.quizPercentage === 'string')
-                            ? parseInt(item.quizPercentage, 10) 
+                            ? parseInt(item.quizPercentage, 10)
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
-                                ? Math.round(item.quizPercentage) 
-                                : 'Not Applicable'; 
+                                ? Math.round(item.quizPercentage)
+                                : 'Not Applicable';
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
@@ -2041,9 +2041,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             notifyAdmin: true,
                             additionalInfo: [
                                 {
-                                    infoType:"EXPORT_URL",
+                                    infoType: "EXPORT_URL",
                                     infoData: {
-                                        filePath : excelFilePath
+                                        filePath: excelFilePath
                                     }
                                 }
                             ],
@@ -2107,7 +2107,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             pipeline: [
                                 {
                                     $match: {
-                                        isDeleted : false
+                                        isDeleted: false
                                     }
                                 }
                             ]
@@ -2546,9 +2546,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             notifyAdmin: true,
                             additionalInfo: [
                                 {
-                                    infoType:"EXPORT_URL",
+                                    infoType: "EXPORT_URL",
                                     infoData: {
-                                        filePath : excelFilePath
+                                        filePath: excelFilePath
                                     }
                                 }
                             ],
@@ -2896,7 +2896,7 @@ const getVesselMainReport = async ({ input }, context) => {
             { $sort: { createdAt: -1 } },
             ...pageLimit,
         ]);
-        
+
         let s3PresignedUrl = "";
 
         if (input?.export) {
@@ -2936,9 +2936,9 @@ const getVesselMainReport = async ({ input }, context) => {
                     notifyAdmin: true,
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             }
                         }
                     ],
@@ -3329,7 +3329,7 @@ const generateCustomReport = async ({ input }, context) => {
                             hour: '2-digit',
                             minute: '2-digit',
                             second: '2-digit',
-                            hour12: true, 
+                            hour12: true,
                         });
                     }
                     return null;
@@ -3881,9 +3881,9 @@ const generateCustomReport = async ({ input }, context) => {
                     notifyAdmin: true,
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             }
                         }
                     ],
@@ -3928,7 +3928,7 @@ const generateCustomReport = async ({ input }, context) => {
 
             return {
                 status: false,
-                fileName:" ",
+                fileName: " ",
                 filePath: " ",
                 message: "No data present corresponding to the Request"
             };
@@ -3962,12 +3962,12 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
             matchStage.push({ $limit: limit });
         }
 
-        
+
         if (searchQuery) {
-            
+
             const searchTerms = searchQuery.split(/\s+/).map(term => term.trim()).filter(Boolean);
 
-            
+
             if (searchTerms.length > 0) {
                 matchStage.unshift({
                     $match: {
@@ -3977,13 +3977,13 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                                     {
                                         "usersInfo.firstName": {
                                             $regex: `.*${searchTerms[0]}.*`,
-                                            $options: "i"  
+                                            $options: "i"
                                         }
                                     },
                                     {
                                         "usersInfo.lastName": {
                                             $regex: `.*${searchTerms[1] || ""}.*`,
-                                            $options: "i"  
+                                            $options: "i"
                                         }
                                     }
                                 ]
@@ -3993,13 +3993,13 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                                     {
                                         "usersInfo.firstName": {
                                             $regex: `.*${searchTerms[1] || ""}.*`,
-                                            $options: "i"  
+                                            $options: "i"
                                         }
                                     },
                                     {
                                         "usersInfo.lastName": {
                                             $regex: `.*${searchTerms[0]}.*`,
-                                            $options: "i"  
+                                            $options: "i"
                                         }
                                     }
                                 ]
@@ -4042,7 +4042,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                     preserveNullAndEmptyArrays: true
                 }
             },
-            ...matchStage, 
+            ...matchStage,
             {
                 $project: {
                     from: {
