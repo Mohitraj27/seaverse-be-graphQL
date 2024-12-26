@@ -1,36 +1,32 @@
 const { MigrationCourses, UserCourses } = require("./migrationcourses_model");
-const {
-    TrainingRegistration,
-} = require("../../training-registrations/training_registration_model");
+const { TrainingRegistration } = require("../../training-registrations/training_registration_model");
 const { Training } = require("../training_model");
-const {
-    OverallTrainingProgress,
-} = require("../../training-registrations/overall-course-progress/overall_progress_model");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { CustomError, ErrorName, AuthUser } = require("../../../util");
 const NotificationHelper = require("../../notifications/notification_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 
-async function createOrUpdateTrainingMigrationCourses({ input }, context) {
+async function createOrUpdateTrainingMigrationCourses({ input }, session, context) {
     const { subscriberId, userInfo } = AuthUser(context);
     try {
-        const { trainingId, migrationcourseId } = input;
-        const migrationCourse = await MigrationCourses.findById({ _id: migrationcourseId });
-        const trainings = await Training.findById({ _id: trainingId });
-        if (!trainings || trainings.length === 0) {
-            throw CustomError(ErrorName.TRAINING_ID_ALREADY_EXISTS);
+        const { migrationcoursesId } = input
+        const trainingId = input._id; 
+        const migrationCourse = await MigrationCourses.findById({_id:migrationcoursesId});
+        if (!migrationCourse) {
+            throw CustomError(ErrorName.MIGRATION_COURSES_NOT_FOUND, "Migration course not found");
         }
+        const trainings = await Training.findById({_id:trainingId});
         const trainingObject = {
-            migrationcoursesId: migrationCourse._id,
+            migrationcoursesId1: migrationCourse._id,
             isFromMigration: migrationCourse.isFromMigration,
         };
         trainings.isDeleted = false;
         trainings.subscriber = subscriberId;
-        trainings.migrationcoursesId = trainingObject.migrationcoursesId;
+        trainings.migrationcoursesId = trainingObject.migrationcoursesId1;
         trainings.isFromMigration = trainingObject.isFromMigration;
-
-        const savedTraining = await trainings.save();
-        const userCourse = await UserCourses.find({ course: migrationcourseId });
+        const savedTrainingData = await trainings.save({session});
+        const userCourse = await UserCourses.find({ course: migrationcoursesId });
         const userIds = userCourse?.map(user => user.user);
         const userDetails = userCourse?.map(data => ({
             user: data.user,
@@ -43,13 +39,13 @@ async function createOrUpdateTrainingMigrationCourses({ input }, context) {
             isActive: true,
             isDeleted: false,
             isFromMigration: true,
-            training: savedTraining._id,
+            training: savedTrainingData._id,
             users: userIds,
         });
-        const savedTrainingRegistration = await newTrainingRegistration.save();
+        const savedTrainingRegistration = await newTrainingRegistration.save({session});
         const userCourseArray = userDetails.map(item => ({
             user: item.user,
-            training: savedTraining._id,
+            training: savedTrainingData._id,
             trainingRegistration: savedTrainingRegistration._id,
             subscriber: subscriberId,
             isComplete: false,
@@ -61,7 +57,7 @@ async function createOrUpdateTrainingMigrationCourses({ input }, context) {
             isFromMigration: true,
             createdAt: item.createdAt
         }));
-        const result = await OverallTrainingProgress.insertMany(userCourseArray); 
+        const result = await OverallTrainingProgress.insertMany(userCourseArray,{session}); 
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `New Course has been enrolled to you`,
@@ -78,11 +74,11 @@ async function createOrUpdateTrainingMigrationCourses({ input }, context) {
                 {
                     infoType: "VIEW_COURSE",
                     infoData: {
-                        filePath: savedTraining._id
+                        filePath: savedTrainingData._id
                     }
                 }
             ]
-        });
+        },session);
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `New Course Enrollment`,
@@ -95,10 +91,10 @@ async function createOrUpdateTrainingMigrationCourses({ input }, context) {
             status: 'SENT',
             icon: notificationiconEnum.SUCCESS,
             createdBy: userInfo,
-        });
+        },session);
         return {
             migrationCourse,
-            savedTraining,
+            savedTrainingData,
             savedTrainingRegistration,
             result,
         };
