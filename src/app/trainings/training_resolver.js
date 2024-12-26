@@ -345,7 +345,17 @@ module.exports.mutations = {
             deletedTraining.isDeleted = true;
             deletedTraining.isActive = false;
             deletedTraining.deletedDate = new Date();
-            await deletedTraining.save();
+            const updateTraining = await deletedTraining.save();
+
+            if (updateTraining) {
+
+                const updateOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                    { training: id },
+                    { isDeleted: true }
+                )
+
+            }
+
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }

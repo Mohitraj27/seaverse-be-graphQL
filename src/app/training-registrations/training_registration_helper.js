@@ -36,7 +36,7 @@ const { Training } = require("../trainings/training_model");
 const { sendNotifications } = require("../../util/firebase_helper");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const Roles = require("../../util/role.json");
-
+const AWS_HELPER = require("../../util/aws_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -570,6 +570,9 @@ module.exports = {
             const userIds = [];
             const emails = [];
             let allUsersFetched = [];
+            let autoSyncUsers;
+            let customGroups;
+            let customGroupUsers = [];
 
             if (input.users && input.users.length > 0) {
                 for (const user of input.users) {
@@ -589,27 +592,24 @@ module.exports = {
                 allUsersFetched = [...allUsersFetched, ...inputUsers];
             }
 
+            if (input.groups && input.groups.length > 0) {
+
+                autoSyncUsers = await getAutoSyncUsers(input.groups);
+
+                customGroups = input.groups.filter(group => group.groupType === 'custom');
+
+                if (customGroups && customGroups.length > 0) {
+                    customGroupUsers = await getCustomGroupUsers(customGroups);
+                }
+
+                allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
+            }
+
             const fetchedUserIds = allUsersFetched.map(user => user._id);
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
 
             if (input.type === "ENROLL") {
-
-                let autoSyncUsers, customGroups;
-                let customGroupUsers = [];
-
-                if (input.groups) {
-
-                    autoSyncUsers = await getAutoSyncUsers(input.groups);
-
-                    customGroups = input.groups.filter(group => group.groupType === 'custom');
-
-                    if (customGroups && customGroups.length > 0) {
-                        customGroupUsers = await getCustomGroupUsers(customGroups);
-                    }
-
-                    allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
-                }
 
                 let users = [];
 
@@ -659,23 +659,26 @@ module.exports = {
 
                         const newTrainingIds = input.trainings.filter(id => !existingTrainingIds.includes(id.toString()));
 
-                        const updateFields = { subscriber: subscriberId };
+                        const updateFields = { subscriber: subscriberId, $addToSet: {} };
                         if (userObjectIds && userObjectIds.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, users: { $each: userObjectIds } };
+                            updateFields.$addToSet.users = { $each: userObjectIds };
                         }
+
                         if (input.groups && input.groups.length > 0) {
-                            updateFields.$addToSet = { ...updateFields.$addToSet, groups: { $each: input.groups } };
+                            updateFields.$addToSet.groups = { $each: input.groups };
                         }
 
                         let savedTrainingRegistration;
                         let trainingRegistrationIds = [];
 
                         if (existingTrainingRegs.length > 0) {
+
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
-                                { training: { $in: existingTrainingRegIds } },
+                                { _id: { $in: existingTrainingRegIds } },
                                 updateFields,
                                 { session }
                             );
+
                             const updatedRegistrations = await TrainingRegistration.find({
                                 training: { $in: existingTrainingIds }
                             }).session(session);
@@ -690,7 +693,9 @@ module.exports = {
                         }));
 
                         if (newRegistrations.length > 0) {
+
                             savedTrainingRegistration = await TrainingRegistration.insertMany(newRegistrations, { session });
+
                             trainingRegistrationIds = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
                         }
 
@@ -710,23 +715,30 @@ module.exports = {
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-                        users.forEach(user => {
+                        users.forEach(async user => {
                             const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
-                            trainingsData.forEach(training => {
-                                const emailContent = courseEnrollment({
-                                    firstName: user.firstName,
-                                    trainingTitle: training?.title?.[0]?.value,
-                                    durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                                    courseId: training?._id,
-                                    isAdmin: isAdmin,
-                                });
-                                sendEmail({
-                                    receiverEmail: user.email,
-                                    subject: "Course Enrollment",
-                                    htmlContent: emailContent,
-                                });
+                            const coursesData = await Promise.all(
+                                trainingsData.map(async (training) => {
+                                    const courseImage = await AWS_HELPER.fetchFile(training?.bannerImage?.url) ||
+                                        'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
+                                    return {
+                                        trainingTitle: training?.title?.[0]?.value || ' ',
+                                        durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                                        courseImage,
+                                    };
+                                })
+                            );
+                            const emailContent = courseEnrollment({
+                                firstName: user.firstName,
+                                courses: coursesData, 
+                                isAdmin: isAdmin
                             });
-                        })
+                            sendEmail({
+                                receiverEmail: user.email,
+                                subject: "Course Enrollment",
+                                htmlContent: emailContent,
+                            });
+                        });
 
                         return savedTrainingRegistration;
                     }
