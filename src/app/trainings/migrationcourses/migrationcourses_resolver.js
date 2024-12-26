@@ -23,19 +23,5 @@ module.exports.queries = {
 };
 
 module.exports.mutations = {
-    addMigrationcoursesToTraining: async ({ input }, context) => {
-        const { subscriberId } = AuthUser(context);
-        try {
-            const { migrationCourse, savedTraining, savedTrainingRegistration, result } =
-                await createOrUpdateTrainingMigrationCourses({ input }, context);
-            return {
-                MigrationCourses: [migrationCourse],
-                Training: [savedTraining],
-                TrainingRegistration: [savedTrainingRegistration],
-                OverallTrainingProgressdata: result,
-            };
-        } catch (error) {
-            throw CustomError(ErrorName.OVERALLTRAININGPROGRESSES_NOT_REGISTERED, error.message);
-        }
-    },
+    
 };
