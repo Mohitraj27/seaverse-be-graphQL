@@ -66,6 +66,9 @@ const trainingRegistrationSchema = new Schema(
             default: false,
         },
         totalProgress: String,
+        isFromMigration:{
+            type:Boolean
+        }
     },
     { timestamps: true }
 );
