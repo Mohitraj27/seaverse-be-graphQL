@@ -37,6 +37,7 @@ const { TrainingRegistration } = require("../training-registrations/training_reg
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const { populate, validate } = require("../contact-support/contact_support_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
+const {createOrUpdateTrainingMigrationCourses}=require("../../app/trainings/migrationcourses/migrationcourses_helper");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -188,7 +189,6 @@ module.exports.mutations = {
 
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
         const moduleContentIds = [];
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
@@ -283,12 +283,11 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-
+            const migrationCourseResult = await createOrUpdateTrainingMigrationCourses({ input }, session, context);
             return savedTraining;
         });
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
-
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: savedTraining,
