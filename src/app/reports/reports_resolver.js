@@ -3318,8 +3318,7 @@ const generateCustomReport = async ({ input }, context) => {
             );
 
             data.forEach(item => {
-                const learnerName = `${item.firstName} ${item.lastName}`;
-                const formatDate = (date) => {
+                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";                const formatDate = (date) => {
                     if (date) {
                         const formattedDate = new Date(date);
                         return formattedDate.toLocaleString('en-US', {
@@ -3347,7 +3346,7 @@ const generateCustomReport = async ({ input }, context) => {
                 const timeSpent = item.totalTimeSpent ? item.totalTimeSpent?.toFixed(2) : 0;
 
                 dataToExport.push({
-                    Name: learnerName,
+                    Name: learnerName ?? "-",
                     Email: item.email || null,
                     Designation: item.designation || null,
                     'Course Name': item.courseName ? item.courseName[0] : null,
@@ -3762,8 +3761,8 @@ const generateCustomReport = async ({ input }, context) => {
                             if (Array.isArray(course.lessons?.contents)) {
                                 if (course.lessons.contents.length === 0) {
                                     flattenedData.push({
-                                        userName: learner?.userName || '',
-                                        email: email,
+                                        userName: learner?.userName ?? '',
+                                        email: email ?? '',
                                         designation: designation,
                                         employeeId: employeeId,
                                         userState: userState,
@@ -3786,8 +3785,8 @@ const generateCustomReport = async ({ input }, context) => {
                                                 const quizScore = (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') ? 'Score not available' : '';
 
                                                 flattenedData.push({
-                                                    userName: learner?.userName || '',
-                                                    email: email,
+                                                    userName: learner?.userName ?? '',
+                                                    email: email ?? '',
                                                     designation: designation,
                                                     employeeId: employeeId,
                                                     userState: userState,
@@ -3804,8 +3803,8 @@ const generateCustomReport = async ({ input }, context) => {
                                             });
                                         } else {
                                             flattenedData.push({
-                                                userName: learner?.userName || '',
-                                                email: email,
+                                                userName: learner?.userName ??  '',
+                                                email: email ?? "",
                                                 designation: designation,
                                                 employeeId: employeeId,
                                                 userState: userState,
@@ -3824,8 +3823,8 @@ const generateCustomReport = async ({ input }, context) => {
                                 }
                             } else {
                                 flattenedData.push({
-                                    userName: learner?.userName || '',
-                                    email: email,
+                                    userName: learner?.userName ??  '',
+                                    email: email ?? "",
                                     designation: designation,
                                     employeeId: employeeId,
                                     userState: userState,
@@ -3858,11 +3857,40 @@ const generateCustomReport = async ({ input }, context) => {
             dataToExport = flattenAllLearnersData(data);
         }
 
-        if (dataToExport.length > 0) {
+       
             let s3PresignedUrl = "";
 
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        let worksheet;
+        if (dataToExport.length === 0) {
+            const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
+            worksheet = XLSX.utils.aoa_to_sheet([
+                [message] 
+            ]);
+
+            const columnSpan = 20; 
+
+            const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+            if (!worksheet['!merges']) worksheet['!merges'] = [];
+            worksheet['!merges'].push(range);
+
+          
+            worksheet['A1'].s = {
+                font: {
+                    bold: true, 
+                    size: 14,   
+                },
+                alignment: {
+                    horizontal: 'center', 
+                    vertical: 'center',   
+                }
+            };
+
+            worksheet['!rows'] = [{ hpt: 30 }]; 
+        }
+ else {
+            worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        }
             XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
@@ -3912,27 +3940,9 @@ const generateCustomReport = async ({ input }, context) => {
                 message: "report generated successfully"
             };
 
-        } else {
-            let notificationData = {
-                subscriber: subscriberId,
-                titleValue: `Custom Report Export Failed`,
-                messageValue: `No data was found while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}).`,
-                notificationType: NotificationType.REPORT_EXPORT_FAILED,
-                notifyAdmin: true,
-                status: 'FAILED',
-                icon: notificationiconEnum.ERROR,
-                createdBy: userInfo,
-            }
-
-            await NotificationHelper.createNotificationhelper(notificationData);
-
-            return {
-                status: false,
-                fileName:" ",
-                filePath: " ",
-                message: "No data present corresponding to the Request"
-            };
-        }
+        
+        
+       
 
     } catch (error) {
         await NotificationHelper.createNotificationhelper({
