@@ -62,7 +62,7 @@ const usercourseSchema = new Schema({
         type:String
     }
 });
-
+migrationCourseSchema.index({ courseName: 1 });
 module.exports.UserCourses = Model("UserCourses", usercourseSchema, "usercourses");
 module.exports.MigrationCourses = Model(
     "MigrationCourses",
