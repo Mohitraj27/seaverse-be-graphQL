@@ -1137,6 +1137,9 @@ module.exports = {
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
+        if (typeof input.isOrdered === 'boolean') {
+            trainingUpdateData.isOrdered = input.isOrdered;
+        } 
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 

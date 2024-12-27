@@ -283,8 +283,8 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-            if (input.migrationcoursesId && input.isFromMigration == "true") {
-                await createOrUpdateTrainingMigrationCourses({ input }, session, context);
+            if (input.migrationcoursesId) {
+               await createOrUpdateTrainingMigrationCourses({ input }, session, context);
             }
             return savedTraining;
         });
