@@ -178,8 +178,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-
-        return { ...training, countOfUsers };
+        const migrationCoursesId = training.migrationCoursesId || null;
+        return { ...training, countOfUsers, migrationCoursesId };
     },
 
 };
