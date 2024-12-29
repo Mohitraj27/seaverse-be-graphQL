@@ -1,32 +1,20 @@
 const { MigrationCourses } = require("./migrationcourses_model");
-const { CustomError, ErrorName } = require("../../../util");
-const { ObjectId } = require("../../../tools");
+const { CustomError, ErrorName, AuthUser } = require("../../../util");
+const { createOrUpdateTrainingMigrationCourses } = require("./migrationcourses_helper");
 module.exports.queries = {
-    getMigrationCourses: async ({ pageInput, filterInput }) => {
+    getMigrationCourses: async (_, { pageInput }) => {
         const skip = pageInput?.skip ?? 0;
-        const limit = pageInput?.limit ?? 50; 
-            let filterConditions = {};
-            if (filterInput?.search && filterInput.search.trim()) {
-                const searchTerm = filterInput.search.trim();
-                if (ObjectId.isValid(searchTerm)) { 
-                    filterConditions["_id"] = ObjectId(searchTerm);
-                } else {
-                    const searchRegex = {
-                        $regex: searchTerm,  
-                        $options: "i",       
-                    };
-                    filterConditions["courseName"] = searchRegex;
-                }
-            }
+        const limit = pageInput?.limit ?? 50;
         try {
-            const MigrationCourse = await MigrationCourses.find(filterConditions)
+            const MigrationCourse = await MigrationCourses.find()
                 .skip(skip)
                 .limit(limit)
                 .sort({ createdAt: -1 });
-            const totalCount = await MigrationCourses.countDocuments(filterConditions);
+            const totalCount = await MigrationCourses.countDocuments();
             return {
                 MigrationCourses: MigrationCourse,
                 totalCount,
+                skip,
             };
         } catch (error) {
             throw CustomError(ErrorName.MIGRATION_COURSES_NOT_FOUND,error.message);
