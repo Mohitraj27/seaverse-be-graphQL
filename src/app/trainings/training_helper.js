@@ -1100,7 +1100,13 @@ module.exports = {
 
         const trainingUpdateData = {};
         let trainingData;
-
+        const existingTraining = await Training.findOne({  subscriber: subscriberId, "title.value": input.title[0].value, 
+             _id: { $ne: input._id || null }, 
+            isDeleted: { $ne: true }, 
+        });
+        if (existingTraining) {
+            throw CustomError(ErrorName.COURSE_TITLE_ALREADY_EXIST, `A training with this title "${input.title[0].value}" already exists.`);
+        }
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
                 subscriberId,
