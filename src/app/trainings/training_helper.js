@@ -1115,6 +1115,7 @@ module.exports = {
         trainingUpdateData.isCertificate = input?.isCertificate ? true : false;
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
+        if(input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
         if (input.certifications && input.isCertification) {
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
@@ -1137,6 +1138,9 @@ module.exports = {
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
+        if (typeof input.isOrdered === 'boolean') {
+            trainingUpdateData.isOrdered = input.isOrdered;
+        } 
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 

@@ -178,8 +178,8 @@ module.exports.queries = {
         training.trainingModules.forEach(module => {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
-
-        return { ...training, countOfUsers };
+        const migrationCoursesId = training.migrationCoursesId || null;
+        return { ...training, countOfUsers, migrationCoursesId };
     },
 
 };
@@ -283,9 +283,9 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-            if (input.migrationcoursesId && input.isFromMigration == "true") {
+            if (input._id && input.migrationCoursesId) {
                 await createOrUpdateTrainingMigrationCourses({ input }, session, context);
-            }
+            }  
             return savedTraining;
         });
 
