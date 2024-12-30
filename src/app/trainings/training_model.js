@@ -188,7 +188,8 @@ const trainingSchema = new Schema(
             type: Boolean
         },
         migrationcoursesId: {
-            type: ObjectId
+            type: ObjectId,
+            default:null
          },
         isDeleted: {
             type: Boolean,
