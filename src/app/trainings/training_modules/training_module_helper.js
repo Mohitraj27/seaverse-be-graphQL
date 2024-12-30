@@ -6,6 +6,7 @@ const { TrainingModule } = require("./training_module_model");
 
 module.exports = {
     createOrUpdateTrainingModule: async ({ input, session }, context) => {
+    try{
         const { userId, subscriberId } = AuthUser(context);
 
         const trainingModuleContentUpdateData = [];
@@ -38,18 +39,16 @@ module.exports = {
             };
 
         });
-
-        const updatedModules = await TrainingModule.bulkWrite(trainingModuleBulkOperations, {
-            session,
-            setDefaultsOnInsert: true,
-            runValidators: true,
-        });
-
-        if (!updatedModules) {
-            throw CustomError(ErrorName.FAILED);
+            await TrainingModule.deleteMany({ training: trainingId }).session(session);
+            const updatedModules = await TrainingModule.bulkWrite(trainingModuleBulkOperations, {
+                session,
+                setDefaultsOnInsert: true,
+                runValidators: true,
+            });
+           if(!updatedModules) throw CustomError(ErrorName.CREATE_OR_UPDATE_TRAINING_MODULE);
+            return updatedModules;
+        } catch (error) {
+            throw CustomError(ErrorName.CREATE_OR_UPDATE_TRAINING_MODULE, error.message);
         }
-        
-
-        return updatedModules;
     }
 };

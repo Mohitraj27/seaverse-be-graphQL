@@ -356,6 +356,11 @@ module.exports.mutations = {
                     { isDeleted: true }
                 )
 
+                await TrainingContentBridge.updateMany(
+                    { training: id },
+                    { isDeleted: true }
+                );
+
             }
 
         } catch (error) {
