@@ -1115,6 +1115,7 @@ module.exports = {
         trainingUpdateData.isCertificate = input?.isCertificate ? true : false;
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
+        if(input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
         if (input.certifications && input.isCertification) {
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
