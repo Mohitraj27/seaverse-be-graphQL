@@ -1716,7 +1716,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "users",
                             localField: "user",
                             foreignField: "_id",
-                            as: "userInfo"
+                            as: "userInfo",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        superAdmin: false
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -1790,7 +1797,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     {
                         $unwind: {
                             path: "$userInfo",
-                            preserveNullAndEmptyArrays: true
+                            preserveNullAndEmptyArrays: false
                         }
                     },
                     {
@@ -2091,12 +2098,19 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'users',
                             'localField': 'user',
                             'foreignField': '_id',
-                            'as': 'userInfo'
+                            'as': 'userInfo',
+                            pipeline: [
+                                {
+                                    $match: {
+                                        superAdmin: false
+                                    }
+                                }
+                            ]
                         }
                     }, {
                         '$unwind': {
                             'path': '$userInfo',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
                     }, {
                         '$lookup': {
@@ -2195,6 +2209,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'path': '$contentInfo',
                                         'preserveNullAndEmptyArrays': true
                                     }
+                                },
+                                {
+                                    '$group': {
+                                        '_id': '$trainingModule',
+                                        'moduleInfo': { '$first': '$moduleInfo' },
+                                        'contentInfo': { '$first': '$contentInfo' },
+                                        'quizAttemptDetails': { '$first': '$quizAttemptDetails' },
+                                        'updatedAt': { '$first': '$updatedAt' }
+                                    }
                                 }, {
                                     '$project': {
                                         'moduleId': '$moduleInfo._id',
@@ -2259,80 +2282,43 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastSeen': {
                                 '$first': '$updatedAt'
                             },
-                            'moduleContents': {
-                                '$push': {
-                                    '$cond': {
-                                        'if': {
-                                            '$eq': [
-                                                '$quizEvaluations.contentType', 'QUIZ'
-                                            ]
-                                        },
-                                        'then': {
-                                            'moduleName': '$quizEvaluations.moduleName',
-                                            'percentage': '$quizEvaluations.percentage',
-                                            'isQuizPassed': '$quizEvaluations.isPassed',
-                                            'contentType': '$quizEvaluations.contentType',
-                                            'updatedAt': '$quizEvaluations.updatedAt'
-                                        },
-                                        'else': {
-                                            'moduleName': '$quizEvaluations.moduleName',
-                                            'percentage': 'NOT APPLICABLE',
-                                            'isQuizPassed': false,
-                                            'contentType': '$quizEvaluations.contentType'
+                            'moduleData': {
+                                '$first': {
+                                    'moduleName': '$quizEvaluations.moduleName',
+                                    'percentage': {
+                                        '$cond': {
+                                            'if': {
+                                                '$and': [
+                                                    { '$eq': ['$quizEvaluations.contentType', 'QUIZ'] },
+                                                    { '$ne': ['$quizEvaluations.percentage', null] }
+                                                ]
+                                            },
+                                            'then': '$quizEvaluations.percentage',
+                                            'else': 'NOT APPLICABLE'
                                         }
-                                    }
+                                    },
+                                    'isQuizPassed': {
+                                        '$cond': {
+                                            'if': {
+                                                '$and': [
+                                                    { '$eq': ['$quizEvaluations.contentType', 'QUIZ'] },
+                                                    { '$eq': ['$quizEvaluations.isPassed', true] }
+                                                ]
+                                            },
+                                            'then': true,
+                                            'else': false
+                                        }
+                                    },
+                                    'hasQuiz': {
+                                        '$eq': ['$quizEvaluations.contentType', 'QUIZ']
+                                    },
+                                    'contentType': '$quizEvaluations.contentType',
+                                    'updatedAt': '$quizEvaluations.updatedAt'
                                 }
                             }
                         }
-                    }, {
-                        '$addFields': {
-                            'hasQuiz': {
-                                '$gt': [
-                                    {
-                                        '$size': {
-                                            '$filter': {
-                                                'input': '$moduleContents',
-                                                'as': 'item',
-                                                'cond': {
-                                                    '$eq': [
-                                                        '$$item.contentType', 'QUIZ'
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    }, 0
-                                ]
-                            }
-                        }
-                    }, {
-                        '$addFields': {
-                            'moduleContents': {
-                                '$cond': {
-                                    'if': {
-                                        '$eq': [
-                                            '$hasQuiz', true
-                                        ]
-                                    },
-                                    'then': {
-                                        '$slice': [
-                                            {
-                                                '$filter': {
-                                                    'input': '$moduleContents',
-                                                    'as': 'module',
-                                                    'cond': {
-                                                        '$eq': [
-                                                            '$$module.contentType', 'QUIZ'
-                                                        ]
-                                                    }
-                                                }
-                                            }, 1
-                                        ]
-                                    },
-                                    'else': '$moduleContents'
-                                }
-                            }
-                        }
-                    }, {
+                    },
+                    {
                         '$group': {
                             '_id': {
                                 'userId': '$userId',
@@ -2372,75 +2358,16 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 '$first': '$lastSeen'
                             },
                             'modules': {
-                                '$push': {
-                                    'moduleName': '$moduleContents',
-                                    'hasQuiz': '$hasQuiz',
-                                    'moduleName': {
-                                        '$arrayElemAt': [
-                                            '$moduleContents.moduleName', 0
-                                        ]
-                                    },
-                                    'moduleId': {
-                                        '$arrayElemAt': [
-                                            {
-                                                '$arrayElemAt': [
-                                                    '$moduleContents.moduleName._id', 0
-                                                ]
-                                            }, 0
-                                        ]
-                                    },
-                                    'percentage': {
-                                        '$cond': {
-                                            'if': {
-                                                '$eq': [
-                                                    '$hasQuiz', false
-                                                ]
-                                            },
-                                            'then': 'NOT APPLICABLE',
-                                            'else': {
-                                                '$cond': {
-                                                    'if': {
-                                                        '$gt': [
-                                                            {
-                                                                '$size': '$moduleContents.percentage'
-                                                            }, 0
-                                                        ]
-                                                    },
-                                                    'then': '---',
-                                                    'else': {
-                                                        '$ifNull': [
-                                                            {
-                                                                '$arrayElemAt': [
-                                                                    '$moduleContents.percentage', 0
-                                                                ]
-                                                            }, 0.0
-                                                        ]
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    'isPassed': {
-                                        '$cond': {
-                                            'if': {
-                                                '$gt': [
-                                                    {
-                                                        '$size': '$moduleContents.isPassed'
-                                                    }, 0
-                                                ]
-                                            },
-                                            'then': {
-                                                '$arrayElemAt': [
-                                                    '$moduleContents.isPassed', 0
-                                                ]
-                                            },
-                                            'else': false
-                                        }
-                                    }
+                                '$addToSet': {
+                                    'moduleName': '$moduleData.moduleName',
+                                    'hasQuiz': '$moduleData.hasQuiz',
+                                    'percentage': '$moduleData.percentage',
+                                    'isPassed': '$moduleData.isQuizPassed'
                                 }
                             }
                         }
-                    }, {
+                    },
+                    {
                         '$project': {
                             '_id': 0,
                             'courseId': '$_id.trainingId',
@@ -2450,24 +2377,18 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'lastName': 1,
                             'status': 1,
                             'designation': 1,
-                            'hasQuiz': 1,
-                            'moduleName': 1,
-                            'percentage': 1,
-                            'iaPassed': 1,
                             'email': 1,
                             'currentVessel': 1,
                             'vesselType': 1,
                             'modules': 1,
                             'empId': 1,
                             'createdAt': 1,
-                            'lastSeen': 1,
-                            'status': 1
+                            'lastSeen': 1
                         }
                     },
                     { $sort: { createdAt: -1 } },
                     ...pageLimit
-                ]
-            );
+                ]);
             if (data.length > 0) {
 
                 const coursesData = data.map(item => ({
@@ -3318,7 +3239,7 @@ const generateCustomReport = async ({ input }, context) => {
             );
 
             data.forEach(item => {
-                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";                
+                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
                 const formatDate = (date) => {
                     if (date) {
                         const formattedDate = new Date(date);
@@ -3804,7 +3725,7 @@ const generateCustomReport = async ({ input }, context) => {
                                             });
                                         } else {
                                             flattenedData.push({
-                                                userName: learner?.userName ??  '',
+                                                userName: learner?.userName ?? '',
                                                 email: email ?? "",
                                                 designation: designation,
                                                 employeeId: employeeId,
@@ -3824,7 +3745,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 }
                             } else {
                                 flattenedData.push({
-                                    userName: learner?.userName ??  '',
+                                    userName: learner?.userName ?? '',
                                     email: email ?? "",
                                     designation: designation,
                                     employeeId: employeeId,
@@ -3858,92 +3779,92 @@ const generateCustomReport = async ({ input }, context) => {
             dataToExport = flattenAllLearnersData(data);
         }
 
-       
-            let s3PresignedUrl = "";
 
-            const workbook = XLSX.utils.book_new();
+        let s3PresignedUrl = "";
+
+        const workbook = XLSX.utils.book_new();
         let worksheet;
         if (dataToExport.length === 0) {
             const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
             worksheet = XLSX.utils.aoa_to_sheet([
-                [message] 
+                [message]
             ]);
 
-            const columnSpan = 20; 
+            const columnSpan = 20;
 
             const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
             if (!worksheet['!merges']) worksheet['!merges'] = [];
             worksheet['!merges'].push(range);
 
-          
+
             worksheet['A1'].s = {
                 font: {
-                    bold: true, 
-                    size: 14,   
+                    bold: true,
+                    size: 14,
                 },
                 alignment: {
-                    horizontal: 'center', 
-                    vertical: 'center',   
+                    horizontal: 'center',
+                    vertical: 'center',
                 }
             };
 
-            worksheet['!rows'] = [{ hpt: 30 }]; 
+            worksheet['!rows'] = [{ hpt: 30 }];
         }
- else {
+        else {
             worksheet = XLSX.utils.json_to_sheet(dataToExport);
         }
-            XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
-            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const excelFilePath = await UploadHelper.uploadExcel({
-                data: excelBuffer,
-                folderName: "Custom-Quiz-Reports",
-                fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
-                uploadType: UploadHelper.uploadType.exportCustomQuizReport,
-            });
-            if (excelFilePath) {
-                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
-                    messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
-                    notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
-                    additionalInfo: [
-                        {
-                            infoType: "EXPORT_URL",
-                            infoData: {
-                                filePath: excelFilePath
-                            }
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const excelFilePath = await UploadHelper.uploadExcel({
+            data: excelBuffer,
+            folderName: "Custom-Quiz-Reports",
+            fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+            uploadType: UploadHelper.uploadType.exportCustomQuizReport,
+        });
+        if (excelFilePath) {
+            s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
+                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+                notifyAdmin: true,
+                additionalInfo: [
+                    {
+                        infoType: "EXPORT_URL",
+                        infoData: {
+                            filePath: excelFilePath
                         }
-                    ],
-                    status: 'SENT',
-                    createdBy: userInfo,
-                    icon: notificationiconEnum.SUCCESS
-                });
+                    }
+                ],
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS
+            });
 
-            }
+        }
 
-            const newReport = new Export({
-                filePath: excelFilePath,
-                subscriberId: subscriberId,
-                createdBy: userId,
-                type_of_export: 'CUSTOM_REPORT_EXPORT',
-                additionalData: [{
-                    key: "criteria",
-                    value: { ...input }
-                }]
-            })
-            await newReport.save();
-            return {
-                status: true,
-                fileName: path.basename(excelFilePath),
-                filePath: s3PresignedUrl,
-                message: "report generated successfully"
-            };
+        const newReport = new Export({
+            filePath: excelFilePath,
+            subscriberId: subscriberId,
+            createdBy: userId,
+            type_of_export: 'CUSTOM_REPORT_EXPORT',
+            additionalData: [{
+                key: "criteria",
+                value: { ...input }
+            }]
+        })
+        await newReport.save();
+        return {
+            status: true,
+            fileName: path.basename(excelFilePath),
+            filePath: s3PresignedUrl,
+            message: "report generated successfully"
+        };
 
-        
-        
-       
+
+
+
 
     } catch (error) {
         await NotificationHelper.createNotificationhelper({
