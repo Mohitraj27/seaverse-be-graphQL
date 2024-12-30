@@ -283,9 +283,14 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-            if (input.migrationcoursesId) {
-               await createOrUpdateTrainingMigrationCourses({ input }, session, context);
-            }
+            if (input._id) {
+                await createOrUpdateTrainingMigrationCourses({ input }, session, context);
+            } else {
+                if (input.migrationcoursesId) {
+                    const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
+                    savedTraining.migrationcoursesId = migrationcoursesIdObjectId; 
+                }  
+            }        
             return savedTraining;
         });
 
