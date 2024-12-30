@@ -58,10 +58,12 @@ module.exports = {
   type MigrationCoursePage {
         MigrationCourses: [MigrationCourses]
         totalCount: Int
-        skip: Int
-  } 
+       }
+  input MigrationCoursesFilter{
+        search:String
+       } 
      `,
     queries: `
-    getMigrationCourses(pageInput: PaginationInput): MigrationCoursePage!   
+    getMigrationCourses(pageInput: pageInput, filterInput: MigrationCoursesFilter): MigrationCoursePage!   
 `
 };
