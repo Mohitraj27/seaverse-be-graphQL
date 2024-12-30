@@ -6,24 +6,26 @@ const { CustomError, ErrorName, AuthUser } = require("../../../util");
 const NotificationHelper = require("../../notifications/notification_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const { ObjectId } = require("../../../tools");
 
 async function createOrUpdateTrainingMigrationCourses({ input }, session, context) {
     const { subscriberId, userInfo } = AuthUser(context);
     try {
         const { migrationcoursesId } = input
+        const migrationcoursesObjectId = new ObjectId(migrationcoursesId);
         const trainingId = input._id; 
-        const migrationCourse = await MigrationCourses.findById({_id:migrationcoursesId});
+        const migrationCourse = await MigrationCourses.findById({_id:migrationcoursesObjectId});
         if (!migrationCourse) {
             throw CustomError(ErrorName.MIGRATION_COURSES_NOT_FOUND, "Migration course not found");
         }
         const trainings = await Training.findById({_id:trainingId});
         const trainingObject = {
-            migrationcoursesId1: migrationCourse._id,
+            migrationcoursesIdData: migrationCourse._id,
             isFromMigration: migrationCourse.isFromMigration,
         };
         trainings.isDeleted = false;
         trainings.subscriber = subscriberId;
-        trainings.migrationcoursesId = trainingObject.migrationcoursesId1;
+        trainings.migrationcoursesId = trainingObject.migrationcoursesIdData;
         trainings.isFromMigration = trainingObject.isFromMigration;
         const savedTrainingData = await trainings.save({session});
         const userCourse = await UserCourses.find({ course: migrationcoursesId });
