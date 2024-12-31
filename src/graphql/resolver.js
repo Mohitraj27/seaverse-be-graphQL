@@ -195,7 +195,6 @@ module.exports = {
         ...AuthHelper.requiresAdmin(CompanyResolver.mutations),
         ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
         ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
-        ...AuthHelper.requiresAdmin(migrationcoursesResolver.mutations),
         
         ...AuthHelper.requiresEmployee(NotificationResolver.mutations)
     },
