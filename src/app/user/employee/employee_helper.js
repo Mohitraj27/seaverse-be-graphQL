@@ -1466,9 +1466,11 @@ module.exports = {
         const adminUser = await User.findById(userId);
         let userCount = 0;
 
+        const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
+
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: empIdsArray } },
+                { civilIdOrPassport: { $in: caseInsensitiveEmpIdArray } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -1510,7 +1512,6 @@ module.exports = {
         let updatedEmpIds = [];
         const vesselAssociations = [];
         let passwordEmailList = [];
-
 
         for (const user of users) {
 
