@@ -2705,6 +2705,12 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const data = await Vessel.aggregate([
             {
+                $match: {
+                    isActive: true,
+                    isDeleted: false
+                }
+            },
+            {
                 $lookup: {
                     from: "vesseltypes",
                     localField: "typeOfVessel",
