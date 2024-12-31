@@ -25,6 +25,7 @@ const xlsx = require('xlsx');
 const path = require('path');
 const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
+const { pipeline } = require("stream");
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
@@ -485,7 +486,8 @@ module.exports.queries = {
                                         from: 'users',
                                         localField: 'member',
                                         foreignField: '_id',
-                                        as: 'memberDetails'
+                                        as: 'memberDetails',
+                                        pipeline: [{ $match: { isDeleted: false } }]
                                     }
                                 },
                                 {

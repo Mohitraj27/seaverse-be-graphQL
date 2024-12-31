@@ -673,6 +673,15 @@ module.exports = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            },
+                        },
+                    ],
                 },
             },
             {
@@ -745,6 +754,15 @@ module.exports = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            },
+                        },
+                    ],
                 },
             },
             {
@@ -805,6 +823,15 @@ module.exports = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            },
+                        },
+                    ],
                 },
             },
             {
