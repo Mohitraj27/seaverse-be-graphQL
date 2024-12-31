@@ -2786,9 +2786,9 @@ const getVesselMainReport = async ({ input }, context) => {
                                                     input: "$userVesselsInfo",
                                                     as: "userVessel",
                                                     cond: {
-                                                        $eq: [
-                                                            "$$userVessel.vesselStatus",
-                                                            "ONBOARDED"
+                                                        $and: [
+                                                            { $eq: ["$$userVessel.vesselStatus", "ONBOARDED"] },
+                                                            { $eq: ["$$userVessel.isActive", true] }
                                                         ]
                                                     }
                                                 }
