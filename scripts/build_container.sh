@@ -1,3 +1,3 @@
 #!/bin/bash
-cd /home/apiweb-seaverse-backend
+cd /home/apiuat-seaverse-backend
 docker build -t apiuat-seaverse-backend:latest .
