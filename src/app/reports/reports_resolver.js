@@ -1742,6 +1742,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     },
                                 },
                                 {
+                                    $match: {
+                                        status: "COMPLETED"
+                                    }
+                                },
+                                {
                                     $lookup: {
                                         from: 'trainingmodulecontents',
                                         localField: 'trainingModuleContent',
@@ -2202,6 +2207,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'percentage': '$quizAttemptDetails.percentage',
                                         'isPassed': '$quizAttemptDetails.isPassed',
                                         'contentType': '$contentInfo.contentType',
+                                        'contentStatus': "$status",
                                         'updatedAt': 1
                                     }
                                 }
@@ -2272,13 +2278,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                                             'percentage': '$quizEvaluations.percentage',
                                             'isQuizPassed': '$quizEvaluations.isPassed',
                                             'contentType': '$quizEvaluations.contentType',
-                                            'updatedAt': '$quizEvaluations.updatedAt'
+                                            'updatedAt': '$quizEvaluations.updatedAt',
+                                            'quizStatus': "$quizEvaluations.contentStatus",
                                         },
                                         'else': {
                                             'moduleName': '$quizEvaluations.moduleName',
                                             'percentage': 'NOT APPLICABLE',
-                                            'isQuizPassed': false,
-                                            'contentType': '$quizEvaluations.contentType'
+                                            'isQuizPassed': "$quizEvaluations.isPassed",
+                                            'contentType': '$quizEvaluations.contentType',
+                                            'quizStatus': "$quizEvaluations.contentStatus",
                                         }
                                     }
                                 }
@@ -2392,29 +2400,51 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'percentage': {
                                         '$cond': {
                                             'if': {
-                                                '$eq': [
-                                                    '$hasQuiz', false
-                                                ]
+                                                '$eq': ["$hasQuiz", false]
                                             },
-                                            'then': 'NOT APPLICABLE',
+                                            'then': "NOT APPLICABLE",
                                             'else': {
                                                 '$cond': {
                                                     'if': {
-                                                        '$gt': [
-                                                            {
-                                                                '$size': '$moduleContents.percentage'
-                                                            }, 0
-                                                        ]
-                                                    },
-                                                    'then': '---',
-                                                    'else': {
-                                                        '$ifNull': [
+                                                        '$eq': [
                                                             {
                                                                 '$arrayElemAt': [
-                                                                    '$moduleContents.percentage', 0
+                                                                    "$moduleContents.quizStatus",
+                                                                    0
                                                                 ]
-                                                            }, 0.0
+                                                            },
+                                                            "NOT_STARTED"
                                                         ]
+                                                    },
+                                                    'then': "---",
+                                                    'else': {
+                                                        '$cond': {
+                                                            'if': {
+                                                                '$gt': [
+                                                                    {
+                                                                        '$size': "$moduleContents.percentage"
+                                                                    },
+                                                                    0
+                                                                ]
+                                                            },
+                                                            'then': {
+                                                                '$arrayElemAt': [
+                                                                    "$moduleContents.percentage",
+                                                                    0
+                                                                ]
+                                                            },
+                                                            'else': {
+                                                                '$ifNull': [
+                                                                    {
+                                                                        '$arrayElemAt': [
+                                                                            "$moduleContents.percentage",
+                                                                            0
+                                                                        ]
+                                                                    },
+                                                                    0.0
+                                                                ]
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -2425,13 +2455,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                                             'if': {
                                                 '$gt': [
                                                     {
-                                                        '$size': '$moduleContents.isPassed'
+                                                        '$size': '$moduleContents.isQuizPassed'
                                                     }, 0
                                                 ]
                                             },
                                             'then': {
                                                 '$arrayElemAt': [
-                                                    '$moduleContents.isPassed', 0
+                                                    '$moduleContents.isQuizPassed', 0
                                                 ]
                                             },
                                             'else': false
@@ -2761,9 +2791,9 @@ const getVesselMainReport = async ({ input }, context) => {
                                                     input: "$userVesselsInfo",
                                                     as: "userVessel",
                                                     cond: {
-                                                        $eq: [
-                                                            "$$userVessel.vesselStatus",
-                                                            "ONBOARDED"
+                                                        $and: [
+                                                            { $eq: ["$$userVessel.vesselStatus", "ONBOARDED"] },
+                                                            { $eq: ["$$userVessel.isActive", true] }
                                                         ]
                                                     }
                                                 }
