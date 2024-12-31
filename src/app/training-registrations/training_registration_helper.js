@@ -128,7 +128,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
 
-        const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds } })
+        const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds }, isActive: true })
             .select({ user: 1 })
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user })))
@@ -138,7 +138,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         if (vesselTypeIds.length) {
             const vessels = await Vessel.find({ typeOfVessel: { $in: vesselTypeIds } });
             const vesselIdsFromType = vessels.map(x => x._id);
-            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType } })
+            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType }, isActive: true })
                 .select({ user: 1 })
                 .lean()
                 .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
@@ -166,22 +166,22 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
         let vesselStatusUsers = [];
         if (vesselStatusUserIds.length) {
-            vesselStatusUsers = await User.find({ _id: { $in: vesselStatusUserIds } });
+            vesselStatusUsers = await User.find({ _id: { $in: vesselStatusUserIds }, isDeleted: false });
         }
 
         let vesselTypeUsers = [];
         if (vesselTypeUserIds.length) {
-            vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds } });
+            vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds }, isDeleted: false });
         }
 
         let vesselUsers = [];
         if (vesselUsersIds.length) {
-            vesselUsers = await User.find({ _id: { $in: vesselUsersIds } });
+            vesselUsers = await User.find({ _id: { $in: vesselUsersIds }, isDeleted: false });
         }
 
         let designationUsers = [];
         if (designationUsersIds.length) {
-            designationUsers = await User.find({ _id: { $in: designationUsersIds } });
+            designationUsers = await User.find({ _id: { $in: designationUsersIds }, isDeleted: false });
         }
 
 
