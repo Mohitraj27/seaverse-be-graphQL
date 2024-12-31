@@ -25,6 +25,7 @@ const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
+const {forgetPassword} = require('../../email-template/forgetPassword');
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -437,26 +438,12 @@ module.exports.mutations = {
             if(!updatedUser) {
                 throw CustomError(ErrorName.FAILED);
             }
-
+            const forgetPasswordEmailContent = forgetPassword(token);
             const mailOptions = {
                 from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
                 to: email, 
                 subject: "Reset Password",
-                html: `<!DOCTYPE html>
-                    <html lang="en">
-                        <head>
-                            <meta charset="UTF-8" />
-                            <title>Reset Password</title>
-                        </head>
-                        <body>
-                            <div style="width: 600px; margin: 0 auto; text-align: center">
-                                <p>Please visit the link below to reset your password</p>
-                                <a href="${process.env.APP_URL}/resetpassword?token=${token}" target="_blank">
-                                    Click Here
-                                </a>
-                            </div>
-                        </body>
-                    </html>`,
+                html: forgetPasswordEmailContent
             };
             
             const result = await transporter.sendMail(mailOptions)
