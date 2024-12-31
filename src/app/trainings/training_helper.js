@@ -411,7 +411,8 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                     let: {
                         overallId: "$_id",
                         moduleId: "$contentData.moduleId",
-                        contentId: "$contentData.contentIds"
+                        contentId: "$contentData.contentIds",
+                        attemptCount: "$attemptCount"
                     },
                     pipeline: [
                         {
@@ -420,7 +421,8 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                                     $and: [
                                         { $eq: ["$overallTrainingProgress", "$$overallId"] },
                                         { $eq: ["$trainingModule", "$$moduleId"] },
-                                        { $eq: ["$trainingModuleContent", "$$contentId"] }
+                                        { $eq: ["$trainingModuleContent", "$$contentId"] },
+                                        { $eq: ["$attemptCount", "$$attemptCount"] }
                                     ]
                                 }
                             }
@@ -442,7 +444,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                     trainingProgressData: 1
                 }
             },
-        ]);
+        ]).session(session);
 
         const processedData = mergeTrainingData(fetchDetails);
 
@@ -454,7 +456,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null }
         }).session(session);
-        
+
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
             for (const doc of overallDocs) {
