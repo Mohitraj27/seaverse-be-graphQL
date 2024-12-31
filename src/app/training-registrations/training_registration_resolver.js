@@ -63,8 +63,8 @@ module.exports.queries = {
             },
             {
                 $group: {
-                    _id: null, 
-                    uniqueUsers: { $addToSet: '$user' } 
+                    _id: null,
+                    uniqueUsers: { $addToSet: '$user' }
                 }
             },
             {
@@ -74,12 +74,12 @@ module.exports.queries = {
             },
             {
                 $project: {
-                    _id: 0, 
-                    countOfUsers: 1 
+                    _id: 0,
+                    countOfUsers: 1
                 }
             }
         ]);
-        const totalUsersCount = totalUsersResult[0]?.countOfUsers || 0;   
+        const totalUsersCount = totalUsersResult[0]?.countOfUsers || 0;
         const results = await OverallTrainingProgress.aggregate([
             {
                 $match: {
@@ -152,7 +152,7 @@ module.exports.queries = {
                             }
                         ]
                     },
-                    
+
                 }
             },
             {
@@ -184,7 +184,7 @@ module.exports.queries = {
         }));
         if (!formattedResults) throw CustomError(ErrorName.FAILED);
         return {
-            countOfUsers: totalUsersCount, 
+            countOfUsers: totalUsersCount,
             learningPlans: formattedResults
         };
     },
@@ -1178,7 +1178,16 @@ module.exports.queries = {
                             from: "trainingcontentbridges",
                             let: { moduleIds: "$trainingModules._id" },
                             pipeline: [
-                                { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                { $in: ["$trainingModule", "$$moduleIds"] },
+                                                { $eq: ["$isDeleted", false] }
+                                            ]
+                                        }
+                                    }
+                                },
                                 {
                                     $lookup: {
                                         from: "trainingmodulecontents",

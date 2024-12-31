@@ -305,7 +305,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 const extractTrainingContentData = async (trainings) => {
 
     const trainingContentBridges = await TrainingContentBridge.find({
-        training: { $in: trainings.map(training => training._id) }
+        training: { $in: trainings.map(training => training._id) }, isDeleted: false
     });
 
 
