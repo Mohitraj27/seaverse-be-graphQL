@@ -1795,7 +1795,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     {
                         $unwind: {
                             path: "$userInfo",
-                            preserveNullAndEmptyArrays: true
+                            preserveNullAndEmptyArrays: false
                         }
                     },
                     {
@@ -2101,7 +2101,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }, {
                         '$unwind': {
                             'path': '$userInfo',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
                     }, {
                         '$lookup': {
@@ -2704,6 +2704,12 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const data = await Vessel.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                    isDeleted: false
+                }
+            },
             {
                 $lookup: {
                     from: "vesseltypes",
