@@ -285,7 +285,7 @@ module.exports.mutations = {
                 );
             }
 
-            if (input._id && input.migrationcoursesId) {
+            if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
                 await createOrUpdateTrainingMigrationCourses({ input }, session, context);
             } else {
                 if (input.migrationcoursesId) {
