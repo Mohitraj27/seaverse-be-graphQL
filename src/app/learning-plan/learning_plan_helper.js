@@ -980,6 +980,13 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     users: {
                         $map: {
                             input: "$users",
+                            input: {
+                                $filter: {
+                                    input: "$users",
+                                    as: "user",
+                                    cond: { $eq: ["$$user.userDetails.isRegistered", true] }
+                                }
+                            },
                             as: "user",
                             in: {
                                 _id: "$$user.userId",
@@ -991,7 +998,8 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 lastName: "$$user.userDetails.lastName",
                                 updatedAt: "$$user.userDetails.lastLoginAt",
                                 status: "$$user.status",
-                                timeSpend: "$$user.timeSpend"
+                                timeSpend: "$$user.timeSpend",
+                                isRegistered: "$$user.userDetails.isRegistered"
                             }
                         }
                     },

@@ -184,7 +184,7 @@ function sendEmailToLearner(user){
                                             <table border="0" cellpadding="0" cellspacing="0">
                                                 <tr>
                                                     <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
-                                                        <a href="${user.buttonLink}" target="_blank" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">Log In</a>
+                                                        <a href="${user.buttonLink}" target="_blank" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">Accept Invite</a>
                                                     </td>
                                                 </tr>
                                             </table>
