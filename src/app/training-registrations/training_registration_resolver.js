@@ -47,6 +47,7 @@ const NotificationType = require("../notifications/notification_type.json");
 const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
+const AWS_HELPER = require("../../util/aws_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1751,11 +1752,14 @@ module.exports.mutations = {
                     }
                 })
             );
+            const courseImages = await AWS_HELPER.fetchFile(trainingData?.bannerImage?.url) ||
+                                                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
                 courseId: trainingData._id,
+                courseImage: courseImages
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
