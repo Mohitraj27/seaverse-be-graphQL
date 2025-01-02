@@ -651,7 +651,16 @@ module.exports.queries = {
                             from: "trainingcontentbridges",
                             let: { moduleIds: "$trainingModules._id" },
                             pipeline: [
-                                { $match: { $expr: { $in: ["$trainingModule", "$$moduleIds"] } } },
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                { $in: ["$trainingModule", "$$moduleIds"] },
+                                                { $eq: ["$isDeleted", false] }
+                                            ]
+                                        }
+                                    }
+                                },
                                 {
                                     $lookup: {
                                         from: "trainingmodulecontents",
@@ -1129,6 +1138,16 @@ module.exports.queries = {
                         },
                     },
                     {
+                        $set: {
+                            trainingModules: {
+                                $sortArray: {
+                                    input: "$trainingModules",
+                                    sortBy: { order: 1 },
+                                },
+                            },
+                        },
+                    },
+                    {
                         $lookup: {
                             from: "trainingcontentbridges",
                             let: { moduleIds: "$trainingModules._id" },
@@ -1142,6 +1161,9 @@ module.exports.queries = {
                                             ]
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { order: 1 }
                                 },
                                 {
                                     $lookup: {
