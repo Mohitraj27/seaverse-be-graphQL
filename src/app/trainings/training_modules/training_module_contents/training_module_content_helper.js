@@ -253,7 +253,7 @@ module.exports = {
             for (const module of input.trainingModules) {
                 const moduleId = module._id;
 
-                module.trainingModuleContents.forEach(contentId => {
+                module.trainingModuleContents.forEach((contentId, index) => {
                     const key = `${moduleId}_${contentId}`;
                     if (!existingContentMap.has(key)) {
                         trainingContentBridgeBulkOperations.push({
@@ -264,7 +264,7 @@ module.exports = {
                                     trainingContent: contentId,
                                 },
                                 update: {
-                                    $setOnInsert: { isDeleted: false },
+                                    $setOnInsert: { isDeleted: false, order: index },
                                 },
                                 upsert: true,
                             },
@@ -277,7 +277,7 @@ module.exports = {
                                     trainingModule: moduleId,
                                     trainingContent: contentId,
                                 },
-                                update: { $set: { isDeleted: false } },
+                                update: { $set: { isDeleted: false, order: index } },
                             },
                         });
                     }
