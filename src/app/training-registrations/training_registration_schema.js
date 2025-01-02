@@ -180,15 +180,12 @@ module.exports = {
             IN_PROGRESS
             COMPLETED
         }
-        type userDetails {
+        type UserDetails {
             id: ID!
             firstName: String!
             lastName: String
             status: Status!
-        }
-        type getTrainingRegsRes {
-            learningPlanName: String
-            users: [userDetails]
+            directEnrollment: Boolean
         }
         input getTrainingRegsInput {
             training: ID!
@@ -234,7 +231,7 @@ module.exports = {
         }
         type getTrainingLearningPlan{
             countOfUsers: Int,
-            learningPlans: [getTrainingRegsRes!]!
+            users: [UserDetails!]!
         }
     `,
     queries: `

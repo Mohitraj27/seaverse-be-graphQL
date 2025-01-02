@@ -275,10 +275,21 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     contentDataMap.get(moduleId).push(contentId);
                 }
 
+                // Manage the order of modules
+                const moduleIds = Array.from(contentDataMap.keys());
+                const trainingModules = await TrainingModule.find({ _id: { $in: moduleIds } })
+                    .select("_id order")
+                    .lean();
+                const moduleOrderMap = new Map(trainingModules.map((module) => [module._id.toString(), module.order]));
+
                 const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
                     moduleId,
                     contentIds,
-                }));
+                })).sort((a, b) => {
+                    const orderA = moduleOrderMap.get(a.moduleId.toString()) || 0;
+                    const orderB = moduleOrderMap.get(b.moduleId.toString()) || 0;
+                    return orderA - orderB;
+                });
 
                 bulkOperations.push({
                     updateOne: {
