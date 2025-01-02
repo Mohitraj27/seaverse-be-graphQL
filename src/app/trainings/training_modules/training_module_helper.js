@@ -10,7 +10,7 @@ module.exports = {
 
         const trainingModuleContentUpdateData = [];
         const trainingId = input.training?._id;
-        const trainingModuleBulkOperations = input.trainingModules.map((module) => {
+        const trainingModuleBulkOperations = input.trainingModules.map((module, index) => {
 
             const trainingModuleFilterConditions = {
                 _id: module._id ?? ObjectId(),
@@ -32,6 +32,7 @@ module.exports = {
                         ...trainingModuleUpdateData,
                         $setOnInsert: { createdBy: userId },
                         updatedBy: userId,
+                        order: index,
                     },
                     upsert: true,
                 },
