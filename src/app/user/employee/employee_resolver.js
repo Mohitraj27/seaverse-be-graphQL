@@ -1068,7 +1068,7 @@ module.exports.queries = {
                 if (currentUserData.isResetPasswordDialog) {
                     const htmlContent = sendWelcomeEmailsToLearner({
                         firstName: currentUserData.firstName,
-                        buttonLink: `${process.env.APP_URL}/learner`,
+                        buttonLink: `${process.env.APP_URL}/login`,
                     });
                     html = htmlContent;
                 } else {
@@ -1084,7 +1084,7 @@ module.exports.queries = {
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
                         temp_password: generatePassword,
-                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=${currentUserData.isResetPasswordDialog}`,
+                        buttonLink: `${process.env.APP_URL}/login`,
                     });
                     html = htmlContent;
                     await SendEmail({
