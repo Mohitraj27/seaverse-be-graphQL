@@ -1795,7 +1795,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     {
                         $unwind: {
                             path: "$userInfo",
-                            preserveNullAndEmptyArrays: true
+                            preserveNullAndEmptyArrays: false
                         }
                     },
                     {
@@ -2101,7 +2101,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }, {
                         '$unwind': {
                             'path': '$userInfo',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
                     }, {
                         '$lookup': {
