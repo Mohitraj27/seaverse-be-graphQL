@@ -2207,8 +2207,19 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'percentage': '$quizAttemptDetails.percentage',
                                         'isPassed': '$quizAttemptDetails.isPassed',
                                         'contentType': '$contentInfo.contentType',
-                                        'contentStatus': "$status",
-                                        'updatedAt': 1
+                                        'updatedAt': 1,
+                                        'contentStatus': {
+                                            '$cond': {
+                                                'if': { '$gt': [{ '$type': '$quizAttemptDetails' }, 'missing'] },  
+                                                'then': 'COMPLETED',  
+                                                'else': 'NOT_STARTED'  
+                                            }
+                                        },
+                                    }
+                                },
+                                {
+                                    '$sort': {
+                                        'updatedAt': -1,
                                     }
                                 }
                             ]
@@ -2286,6 +2297,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                             'percentage': 'NOT APPLICABLE',
                                             'isQuizPassed': "$quizEvaluations.isPassed",
                                             'contentType': '$quizEvaluations.contentType',
+                                            'updatedAt': '$quizEvaluations.updatedAt',
                                             'quizStatus': "$quizEvaluations.contentStatus",
                                         }
                                     }
@@ -2317,9 +2329,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'moduleContents': {
                                 '$cond': {
                                     'if': {
-                                        '$eq': [
-                                            '$hasQuiz', true
-                                        ]
+                                        '$eq': ['$hasQuiz', true]
                                     },
                                     'then': {
                                         '$slice': [
