@@ -36,7 +36,11 @@ const certificateLayout = new Schema(
         additionalData: [{
             key: { type: String, required: true },
             value: { type: Types.Mixed, required: true }
-        }]
+        }],
+        disabled: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );
