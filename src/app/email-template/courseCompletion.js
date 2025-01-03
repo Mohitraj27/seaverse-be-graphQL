@@ -84,7 +84,7 @@ function courseCompletion(user) {
                         <td style="padding: 10px;" class="content-inner">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
-                                    <img src="https://squadra-media-assets.s3.amazonaws.com/public/course-image.png" alt="Course Image" style="display: block; margin: 0 auto; height: 210px; width: 460px;">
+                                    <img src="${user.courseImage}" alt="Course Image" style="display: block; margin: 0 auto; height: 210px; width: 460px;">
                                 </tr>
                             </table>
                         </td>

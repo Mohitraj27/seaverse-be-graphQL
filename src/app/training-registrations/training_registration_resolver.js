@@ -47,6 +47,7 @@ const NotificationType = require("../notifications/notification_type.json");
 const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
+const AWS_HELPER = require("../../util/aws_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -89,14 +90,6 @@ module.exports.queries = {
             },
             {
                 $lookup: {
-                    from: 'learningplans',
-                    localField: 'learningPlan',
-                    foreignField: '_id',
-                    as: 'learningPlanInfo'
-                }
-            },
-            {
-                $lookup: {
                     from: 'users',
                     localField: 'user',
                     foreignField: '_id',
@@ -128,64 +121,26 @@ module.exports.queries = {
                     : {}
             },
             {
-                $addFields: {
-                    learningPlanNames: {
-                        $setUnion: [
-                            {
-                                $cond: {
-                                    if: { $eq: ['$directEnrollment', true] },
-                                    then: ['NIL'],
-                                    else: []
-                                }
-                            },
-                            {
-                                $ifNull: [
-                                    {
-                                        $map: {
-                                            input: '$learningPlanInfo',
-                                            as: 'plan',
-                                            in: '$$plan.title'
-                                        }
-                                    },
-                                    []
-                                ]
-                            }
-                        ]
-                    },
-
+                $project: {
+                    _id: 0,
+                    id: '$userInfo._id',
+                    firstName: '$userInfo.firstName',
+                    lastName: '$userInfo.lastName',
+                    status: '$status',
+                    directEnrollment: '$directEnrollment' 
                 }
-            },
-            {
-                $unwind: '$learningPlanNames'
-            },
-            {
-                $group: {
-                    _id: {
-                        learningPlanName: '$learningPlanNames'
-                    },
-                    users: {
-                        $addToSet: {
-                            id: '$userInfo._id',
-                            firstName: '$userInfo.firstName',
-                            lastName: '$userInfo.lastName',
-                            status: '$status'
-                        }
-                    },
-                }
-            },
-            {
-                $sort: { '_id.learningPlanName': 1 }
             }
         ]);
-
-        const formattedResults = results.map(group => ({
-            learningPlanName: group._id.learningPlanName,
-            users: group.users
+        const formattedResults = results.map(user => ({
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            status: user.status,
+            directEnrollment: user.directEnrollment
         }));
-        if (!formattedResults) throw CustomError(ErrorName.FAILED);
         return {
             countOfUsers: totalUsersCount,
-            learningPlans: formattedResults
+            users: formattedResults,
         };
     },
     getTrainingRegistration: async ({ id }, context) => {
@@ -1773,11 +1728,14 @@ module.exports.mutations = {
                     }
                 })
             );
+            const courseImages = await AWS_HELPER.fetchFile(trainingData?.bannerImage?.url) ||
+                                                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
                 courseId: trainingData._id,
+                courseImage: courseImages
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,

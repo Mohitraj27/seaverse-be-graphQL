@@ -468,6 +468,8 @@ module.exports.mutations = {
                         content: { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
                         webLink: ""
                     });
+                } else{
+                    throw new Error("No users found with matching vessel IDs in their currentVessel field.");
                 }
             }
     
