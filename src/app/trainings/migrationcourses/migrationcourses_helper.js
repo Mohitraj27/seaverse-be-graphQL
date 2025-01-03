@@ -14,7 +14,7 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
         const { migrationcoursesId } = input
         const migrationcoursesObjectId = new ObjectId(migrationcoursesId);
         const trainingId = input._id; 
-        const migrationCourse = await MigrationCourses.findById({_id:migrationcoursesObjectId});
+        const migrationCourse = await MigrationCourses.findById(migrationcoursesObjectId);
         if (!migrationCourse) {
             throw CustomError(ErrorName.MIGRATION_COURSES_NOT_FOUND, "Migration course not found");
         }

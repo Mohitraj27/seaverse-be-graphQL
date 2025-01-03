@@ -243,7 +243,10 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const fetchTrainingContents = await TrainingContentBridge.find({
             training: { $in: trainingIds },
-        }).lean();
+            isDeleted: { $ne: true },
+        })
+            .sort({ order: 1 })
+            .lean();
 
         if (fetchTrainingContents.length == 0) {
             errors.push(`Training content not found`);
@@ -272,10 +275,21 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     contentDataMap.get(moduleId).push(contentId);
                 }
 
+                // Manage the order of modules
+                const moduleIds = Array.from(contentDataMap.keys());
+                const trainingModules = await TrainingModule.find({ _id: { $in: moduleIds } })
+                    .select("_id order")
+                    .lean();
+                const moduleOrderMap = new Map(trainingModules.map((module) => [module._id.toString(), module.order]));
+
                 const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
                     moduleId,
                     contentIds,
-                }));
+                })).sort((a, b) => {
+                    const orderA = moduleOrderMap.get(a.moduleId.toString()) || 0;
+                    const orderB = moduleOrderMap.get(b.moduleId.toString()) || 0;
+                    return orderA - orderB;
+                });
 
                 bulkOperations.push({
                     updateOne: {
@@ -1102,9 +1116,10 @@ module.exports = {
 
         const trainingUpdateData = {};
         let trainingData;
-        const existingTraining = await Training.findOne({  subscriber: subscriberId, "title.value": input.title[0].value, 
-             _id: { $ne: input._id || null }, 
-            isDeleted: { $ne: true }, 
+        const existingTraining = await Training.findOne({
+            subscriber: subscriberId, "title.value": input.title[0].value,
+            _id: { $ne: input._id || null },
+            isDeleted: { $ne: true },
         });
         if (existingTraining) {
             throw CustomError(ErrorName.COURSE_TITLE_ALREADY_EXIST, `A training with this title "${input.title[0].value}" already exists.`);
@@ -1123,7 +1138,7 @@ module.exports = {
         trainingUpdateData.isCertificate = input?.isCertificate ? true : false;
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
-        if(input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
+        if (input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
         if (input.certifications && input.isCertification) {
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
@@ -1148,7 +1163,7 @@ module.exports = {
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
         if (typeof input.isOrdered === 'boolean') {
             trainingUpdateData.isOrdered = input.isOrdered;
-        } 
+        }
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
