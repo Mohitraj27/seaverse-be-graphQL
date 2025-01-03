@@ -1742,11 +1742,6 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     },
                                 },
                                 {
-                                    $match: {
-                                        status: "COMPLETED"
-                                    }
-                                },
-                                {
                                     $lookup: {
                                         from: 'trainingmodulecontents',
                                         localField: 'trainingModuleContent',
