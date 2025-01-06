@@ -11,14 +11,12 @@ module.exports = {
         const trainingModuleContentUpdateData = [];
         const trainingId = input.training?._id;
 
-        // Delete training module
         if (trainingId) {
 
             const fetchExistingTrainingModules = await TrainingModule.find({ subscriber: subscriberId, training: trainingId, isDeleted: { $ne: true } });
 
             if (fetchExistingTrainingModules.length > 0) {
 
-                // Filter the training modules that are not in the input
                 const trainingModulesToDelete = fetchExistingTrainingModules.filter((module) => {
                     return !input.trainingModules.some((inputModule) => inputModule._id && inputModule._id.toString() === module._id.toString());
                 });
