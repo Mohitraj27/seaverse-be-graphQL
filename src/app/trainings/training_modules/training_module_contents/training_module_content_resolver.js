@@ -1325,7 +1325,7 @@ module.exports.mutations = {
             if (input.percentageCriteria > score) {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
-                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100) || 0;
             }
 
             const updateData = {
