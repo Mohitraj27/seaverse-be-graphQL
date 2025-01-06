@@ -127,7 +127,7 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
-                    directEnrollment: '$directEnrollment' 
+                    directEnrollment: '$directEnrollment'
                 }
             }
         ]);
@@ -626,7 +626,6 @@ module.exports.queries = {
                 trainingDetails = TrainingRegistrationHelper.mergeContentDetails(combineTrainingDetails, contentData);
 
             } else {
-
                 trainingDetails = await OverallTrainingProgress.aggregate([
                     { $match: { _id: input } },
                     {
@@ -641,9 +640,22 @@ module.exports.queries = {
                     {
                         $lookup: {
                             from: "trainingmodules",
-                            localField: "training._id",
-                            foreignField: "training",
+                            let: { trainingId: "$training._id" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: ["$training", "$$trainingId"] } } },
+                                { $match: { isDeleted: { $ne: true } } },
+                            ],
                             as: "trainingModules",
+                        },
+                    },
+                    {
+                        $set: {
+                            trainingModules: {
+                                $sortArray: {
+                                    input: "$trainingModules",
+                                    sortBy: { order: 1 },
+                                },
+                            },
                         },
                     },
                     {
@@ -660,6 +672,9 @@ module.exports.queries = {
                                             ]
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { order: 1 }
                                 },
                                 {
                                     $lookup: {
@@ -1132,8 +1147,11 @@ module.exports.queries = {
                     {
                         $lookup: {
                             from: "trainingmodules",
-                            localField: "training._id",
-                            foreignField: "training",
+                            let: { trainingId: "$training._id" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: ["$training", "$$trainingId"] } } },
+                                { $match: { isDeleted: { $ne: true } } },
+                            ],
                             as: "trainingModules",
                         },
                     },
@@ -1729,7 +1747,7 @@ module.exports.mutations = {
                 })
             );
             const courseImages = await AWS_HELPER.fetchFile(trainingData?.bannerImage?.url) ||
-                                                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
+                'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,
                 trainingTitle: trainingData.title[0]?.value,
