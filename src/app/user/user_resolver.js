@@ -9,7 +9,7 @@ const {
     DbTransactionHelper,
 } = require("../../util");
 
-const { User } = require("./user_model");
+const { User, DeletedUser } = require("./user_model");
 const { Otp } = require("./otp_model");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { Employee } = require("./employee/employee_model");
@@ -171,20 +171,60 @@ module.exports.mutations = {
         throw CustomError(ErrorName.BAD_REQUEST);
     },
     signIn: async ({ input }, context) => {
-        const existingUser = await User.findOne({
-            $or: [
-                { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-            ],
-            role: { $ne: Role.SAAS_ADMIN },
-            isActive: true,
-            isDeleted: { $ne: true },
-        }).populate({
-            path: 'subRoles',
-            select: '_id name permissions isActive isPredefined description isDefault primaryRole', 
-        });
-        
-        if (existingUser) {
+        try {
+            // Step 1: Try to find the user in DeletedUsers first (check if the deletion request was within 30 days)
+            let existingUser = await DeletedUser.findOne({
+                $or: [
+                    { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                    { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                ],
+                isDeleted: true,
+            });
+
+            // Step 2: If the user exists in DeletedUsers, check if it's within 30 days
+            if (existingUser) {
+                const deletionDate = existingUser.deleteRequestDate;
+                const currentDate = new Date();
+                const daysSinceDeletion = (currentDate - new Date(deletionDate)) / (1000 * 60 * 60 * 24);
+
+                if (daysSinceDeletion <= 30) {
+                    // Step 3: Restore the user from the DeletedUsers collection
+                    const errors = [];
+                    const usersToRestore = [existingUser._id];
+                    const restoredUsers = await EmployeeHelper.restoreUsers(usersToRestore, errors);
+
+                    // If restoration is successful, the user is restored to the active Users collection
+                    if (restoredUsers && restoredUsers.length > 0) {
+                        existingUser = restoredUsers[0]; // Assuming only one user is restored
+                    } else {
+                        throw new Error('Failed to restore the user');
+                    }
+                } else {
+                    throw new Error('The 30-day restoration window has expired.');
+                }
+            }
+
+            // Step 4: Now check in the active Users collection (if not restored)
+            if (!existingUser) {
+                existingUser = await User.findOne({
+                    $or: [
+                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                    ],
+                    role: { $ne: Role.SAAS_ADMIN },
+                    isActive: true,
+                    isDeleted: { $ne: true },
+                }).populate({
+                    path: 'subRoles',
+                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
+                });
+
+                if (!existingUser) {
+                    throw CustomError(ErrorName.USER_NOT_FOUND);
+                }
+            }
+
+            // Step 5: Now proceed with the login logic (for both restored or active users)
             const processValidUser = async () => {
                 if (input.firebaseToken) {
                     existingUser.firebaseTokens = [input.firebaseToken];
@@ -195,13 +235,13 @@ module.exports.mutations = {
                 }
 
                 existingUser.lastLoginAt = Moment().format();
-                
                 await existingUser.save();
                 return await UserHelper.makeAuthUser(existingUser);
             };
 
+            // Step 6: Verify password and login the user
             const valid = await CryptoHelper.compare(input.password, existingUser.password);
-            
+
             if (valid) {
                 return await processValidUser();
             } else if (existingUser.role === Role.EMPLOYEE) {
@@ -232,10 +272,10 @@ module.exports.mutations = {
             }
 
             throw CustomError(ErrorName.WRONG_PASSWORD);
+        } catch (error) {
+            throw new Error(error.message);
         }
-
-        throw CustomError(ErrorName.USER_NOT_FOUND);
-    },
+    },    
     generateRefreshToken: async ({token}) => {
         if(!token) throw CustomError(ErrorName.NO_REFRESH_TOKEN);
         try {

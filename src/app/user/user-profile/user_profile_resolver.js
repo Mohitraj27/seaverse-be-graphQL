@@ -26,6 +26,7 @@ const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const {forgetPassword} = require('../../email-template/forgetPassword');
+const EmployeeHelper = require("../employee/employee_helper")
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -532,17 +533,27 @@ module.exports.mutations = {
     },
     selfDeleteRequest: async ({ input }, context) => {
         const { subscriberId, userId, userInfo } = AuthUser(context);
-
+    
         try {
             const { reasonForDelete } = input;
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
-            };
+            }
             if (!reasonForDelete || !reasonForDelete.trim().length) {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
-            const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now(), reasonForDelete: reasonForDelete } });
+    
+            // Update the user's delete request status
+            const updateUser = await User.findByIdAndUpdate(userId, { 
+                $set: { 
+                    deleteRequest: true, 
+                    deleteRequestDate: Date.now(), 
+                    reasonForDelete: reasonForDelete 
+                }
+            });
+    
             if (updateUser) {
+                // Send delete request notification to the user about their request
                 await sendNotificationOnDELETEREQUEST({
                     subscriber: subscriberId,
                     user: {
@@ -555,7 +566,9 @@ module.exports.mutations = {
                     action: "requested",
                     reasonForDelete,
                     createdBy: userInfo
-                })
+                });
+    
+                // Log the delete request
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.DELETE_REQUEST_LOG,
@@ -570,7 +583,16 @@ module.exports.mutations = {
                         }
                     ]
                 });
-                return "Deleted requested Successfully!";
+                // Proceed with deleting the user who made the request
+                const errors = [];
+                const deleteUser = await EmployeeHelper.deleteUsers([userId], errors); 
+    
+                // Check for any deletion errors
+                if (errors.length > 0) {
+                    throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+                }
+
+                return "Delete request processed and user deleted successfully!";
             } else {
                 console.error(error);
                 throw new CustomError(ErrorName.FAILED);
