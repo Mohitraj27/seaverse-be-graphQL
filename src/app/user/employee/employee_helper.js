@@ -693,11 +693,11 @@ const deleteUsers = async (users, errors) => {
                 );
 
                 const updateGroupMember = await GroupMember.updateMany(
-                    { member: { $in: users } },   // Find the group members whose ID is in the 'users' array
-                    { $set: { isDeleted: true } }   // Set isDeleted field to true for those members
+                    { member: { $in: users } },
+                    { $set: { isDeleted: true } }
                 );
-                
-                // Check if any documents were modified (soft-deleted)
+
+
                 if (updateGroupMember.modifiedCount > 0) {
                     return deleteUsers;
                 }
@@ -722,7 +722,7 @@ const deleteUsers = async (users, errors) => {
 const restoreUsers = async (users, errors) => {
     try {
         const savedUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
-            // Step 1: Find the users in the DeletedUser collection
+
             const getDeletedUsers = await DeletedUser.find({ _id: { $in: users } }).session(session);
 
             if (!getDeletedUsers || getDeletedUsers.length <= 0) {
@@ -730,10 +730,10 @@ const restoreUsers = async (users, errors) => {
                 throw new Error("No deleted users found");
             }
 
-            // Step 2: Restore users to the User collection
+
             const restoredUsers = getDeletedUsers.map(deletedUser => {
                 const userObject = deletedUser.toObject();
-                userObject.isDeleted = false; // Set isDeleted back to false
+                userObject.isDeleted = false;
                 return new User(userObject);
             });
 
@@ -743,67 +743,67 @@ const restoreUsers = async (users, errors) => {
                 throw new Error("Error while restoring users");
             }
 
-            // Step 3: Restore the Employee collection (if necessary)
+
             await Employee.updateMany(
                 { user: { $in: users } },
-                { $set: { isDeleted: false } }, // Set isDeleted back to false
+                { $set: { isDeleted: false } },
                 { session }
             );
 
-            // Step 4: Restore the Group collection
+
             const getDeletedGroups = await DeletedGroup.find({ groupAdmin: { $in: users }, isManagerDefault: true }).session(session);
 
             if (getDeletedGroups.length > 0) {
                 const restoredGroups = getDeletedGroups.map(group => {
                     const groupObject = group.toObject();
-                    groupObject.isDeleted = false; // Set isDeleted back to false
+                    groupObject.isDeleted = false;
                     return new Group(groupObject);
                 });
 
                 await Group.insertMany(restoredGroups, { session });
             }
 
-            // Step 5: Restore Group Members (Soft-deleted GroupMember entries)
+
             const restoreGroupMembers = await GroupMember.updateMany(
-                { member: { $in: users }, isDeleted: true },   // Find soft-deleted group members for the restored users
-                { $set: { isDeleted: false } },   // Set isDeleted to false to restore the membership
+                { member: { $in: users }, isDeleted: true },
+                { $set: { isDeleted: false } },
                 { session }
             );
 
-            // Step 6: Find all group memberships for the users at once
-            const userGroupMembers = await GroupMember.find(
-                { member: { $in: users }, isDeleted: false } // Find active group memberships for the users
-            ).select('group member').session(session); // Only select the 'group' and 'member' fields
 
-            // Step 7: Aggregate group memberships
+            const userGroupMembers = await GroupMember.find(
+                { member: { $in: users }, isDeleted: false }
+            ).select('group member').session(session);
+
+
             const groupUpdates = userGroupMembers.reduce((acc, groupMember) => {
                 if (!acc[groupMember.group]) {
-                    acc[groupMember.group] = new Set(); // Initialize a new set for each unique group
+                    acc[groupMember.group] = new Set();
                 }
-                acc[groupMember.group].add(groupMember.member.toString()); // Add user to that group's set
+                acc[groupMember.group].add(groupMember.member.toString());
                 return acc;
             }, {});
 
-            // Step 8: Prepare bulk updates for groups
+
             const bulkOperations = Object.entries(groupUpdates).map(([groupId, members]) => ({
                 updateOne: {
                     filter: { _id: groupId },
                     update: {
-                        $addToSet: { members: { $each: [...members] } },  // Add members to the 'members' array
-                        $inc: { memberCount: members.size }  // Increment memberCount by members.size
+                        $addToSet: { members: { $each: [...members] } },
+                        $inc: { memberCount: members.size }
                     }
                 }
-            }));            
+            }));
 
-            // Step 9: Execute bulk update for all groups
+
             if (bulkOperations.length > 0) {
                 const updateResult = await Group.bulkWrite(bulkOperations, { session });
             }
 
-            // Step 10: Delete users from DeletedUser collection after restoration
+
             const deleteResult = await DeletedUser.deleteMany({ _id: { $in: users } }).session(session);
 
-            return insertRestoredUsers; // Return the restored users
+            return insertRestoredUsers;
         });
 
         return savedUsers;

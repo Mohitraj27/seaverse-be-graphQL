@@ -543,7 +543,6 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
     
-            // Update the user's delete request status
             const updateUser = await User.findByIdAndUpdate(userId, { 
                 $set: { 
                     deleteRequest: true, 
@@ -553,7 +552,7 @@ module.exports.mutations = {
             });
     
             if (updateUser) {
-                // Send delete request notification to the user about their request
+                
                 await sendNotificationOnDELETEREQUEST({
                     subscriber: subscriberId,
                     user: {
@@ -568,7 +567,6 @@ module.exports.mutations = {
                     createdBy: userInfo
                 });
     
-                // Log the delete request
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.DELETE_REQUEST_LOG,
@@ -583,11 +581,9 @@ module.exports.mutations = {
                         }
                     ]
                 });
-                // Proceed with deleting the user who made the request
                 const errors = [];
                 const deleteUser = await EmployeeHelper.deleteUsers([userId], errors); 
     
-                // Check for any deletion errors
                 if (errors.length > 0) {
                     throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
                 }

@@ -172,7 +172,6 @@ module.exports.mutations = {
     },
     signIn: async ({ input }, context) => {
         try {
-            // Step 1: Try to find the user in DeletedUsers first (check if the deletion request was within 30 days)
             let existingUser = await DeletedUser.findOne({
                 $or: [
                     { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
@@ -181,21 +180,18 @@ module.exports.mutations = {
                 isDeleted: true,
             });
 
-            // Step 2: If the user exists in DeletedUsers, check if it's within 30 days
             if (existingUser) {
                 const deletionDate = existingUser.deleteRequestDate;
                 const currentDate = new Date();
                 const daysSinceDeletion = (currentDate - new Date(deletionDate)) / (1000 * 60 * 60 * 24);
 
-                if (daysSinceDeletion <= 30) {
-                    // Step 3: Restore the user from the DeletedUsers collection
+                if (daysSinceDeletion <= 30) {  
                     const errors = [];
                     const usersToRestore = [existingUser._id];
                     const restoredUsers = await EmployeeHelper.restoreUsers(usersToRestore, errors);
 
-                    // If restoration is successful, the user is restored to the active Users collection
                     if (restoredUsers && restoredUsers.length > 0) {
-                        existingUser = restoredUsers[0]; // Assuming only one user is restored
+                        existingUser = restoredUsers[0]; 
                     } else {
                         throw new Error('Failed to restore the user');
                     }
@@ -204,7 +200,6 @@ module.exports.mutations = {
                 }
             }
 
-            // Step 4: Now check in the active Users collection (if not restored)
             if (!existingUser) {
                 existingUser = await User.findOne({
                     $or: [
@@ -224,7 +219,6 @@ module.exports.mutations = {
                 }
             }
 
-            // Step 5: Now proceed with the login logic (for both restored or active users)
             const processValidUser = async () => {
                 if (input.firebaseToken) {
                     existingUser.firebaseTokens = [input.firebaseToken];
@@ -239,7 +233,6 @@ module.exports.mutations = {
                 return await UserHelper.makeAuthUser(existingUser);
             };
 
-            // Step 6: Verify password and login the user
             const valid = await CryptoHelper.compare(input.password, existingUser.password);
 
             if (valid) {
