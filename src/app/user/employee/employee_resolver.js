@@ -838,6 +838,18 @@ module.exports.queries = {
                                         $options: "i",
                                     },
                                 },
+                                {
+                                    "userVessels.vesselDetails.name": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "empDesignation.name": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
                             ],
                         },
                     },
