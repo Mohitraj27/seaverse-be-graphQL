@@ -49,6 +49,7 @@ module.exports = {
         pdfUrl:String
         user:ID
         isFromMigration:Boolean
+        disabled: Boolean
     }
         type CertificateLayoutData {
         success:Boolean
