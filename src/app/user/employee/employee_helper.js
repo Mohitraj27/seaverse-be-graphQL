@@ -694,10 +694,14 @@ const deleteUsers = async (users, errors) => {
                     ]
                 );
 
-                const updateGroupMember = await GroupMember.deleteMany({ member: { $in: users } });
+                const updateGroupMember = await GroupMember.updateMany(
+                    { member: { $in: users } },
+                    { $set: { isDeleted: true } }
+                );
 
-                if (updateGroupMember) {
-                    return deleteUsers
+
+                if (updateGroupMember.modifiedCount > 0) {
+                    return deleteUsers;
                 }
 
             } else {
@@ -716,6 +720,102 @@ const deleteUsers = async (users, errors) => {
     }
 
 }
+
+const restoreUsers = async (users, errors) => {
+    try {
+        const savedUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+
+            const getDeletedUsers = await DeletedUser.find({ _id: { $in: users } }).session(session);
+
+            if (!getDeletedUsers || getDeletedUsers.length <= 0) {
+                errors.push("No deleted users found");
+                throw new Error("No deleted users found");
+            }
+
+
+            const restoredUsers = getDeletedUsers.map(deletedUser => {
+                const userObject = deletedUser.toObject();
+                userObject.isDeleted = false;
+                return new User(userObject);
+            });
+
+            const insertRestoredUsers = await User.insertMany(restoredUsers, { session });
+
+            if (!insertRestoredUsers) {
+                throw new Error("Error while restoring users");
+            }
+
+
+            await Employee.updateMany(
+                { user: { $in: users } },
+                { $set: { isDeleted: false } },
+                { session }
+            );
+
+
+            const getDeletedGroups = await DeletedGroup.find({ groupAdmin: { $in: users }, isManagerDefault: true }).session(session);
+
+            if (getDeletedGroups.length > 0) {
+                const restoredGroups = getDeletedGroups.map(group => {
+                    const groupObject = group.toObject();
+                    groupObject.isDeleted = false;
+                    return new Group(groupObject);
+                });
+
+                await Group.insertMany(restoredGroups, { session });
+            }
+
+
+            const restoreGroupMembers = await GroupMember.updateMany(
+                { member: { $in: users }, isDeleted: true },
+                { $set: { isDeleted: false } },
+                { session }
+            );
+
+
+            const userGroupMembers = await GroupMember.find(
+                { member: { $in: users }, isDeleted: false }
+            ).select('group member').session(session);
+
+
+            const groupUpdates = userGroupMembers.reduce((acc, groupMember) => {
+                if (!acc[groupMember.group]) {
+                    acc[groupMember.group] = new Set();
+                }
+                acc[groupMember.group].add(groupMember.member.toString());
+                return acc;
+            }, {});
+
+
+            const bulkOperations = Object.entries(groupUpdates).map(([groupId, members]) => ({
+                updateOne: {
+                    filter: { _id: groupId },
+                    update: {
+                        $addToSet: { members: { $each: [...members] } },
+                        $inc: { memberCount: members.size }
+                    }
+                }
+            }));
+
+
+            if (bulkOperations.length > 0) {
+                const updateResult = await Group.bulkWrite(bulkOperations, { session });
+            }
+
+
+            const deleteResult = await DeletedUser.deleteMany({ _id: { $in: users } }).session(session);
+
+            return insertRestoredUsers;
+        });
+
+        return savedUsers;
+
+    } catch (error) {
+        errors.push(error.message);
+        throw new Error(error.message);
+    }
+};
+
 
 const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
@@ -844,6 +944,7 @@ const validateName = (name) => {
 
 module.exports = {
     deleteUsers,
+    restoreUsers,
     sendInvitationMail,
     sendCourseInvitationMail,
     sendEnrollmentNotification,
