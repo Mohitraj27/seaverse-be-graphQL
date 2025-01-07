@@ -100,7 +100,33 @@ module.exports.queries = {
                         foreignField: "trainingContent",
                         as: "courseUsage",
                         pipeline: [
-                            { $match: { isDeleted: false } }
+                            {
+                                $match: {
+                                    isDeleted: false
+                                }
+                            },
+                            {
+                                $lookup: {
+                                    from: "trainings",
+                                    localField: "training",
+                                    foreignField: "_id",
+                                    as: "trainingData",
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                isDeleted: false,
+                                                isActive : true
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                $unwind: {
+                                    path: "$trainingData",
+                                    preserveNullAndEmptyArrays: false
+                                }
+                            }
                         ]
                     },
                 },
@@ -176,7 +202,8 @@ module.exports.queries = {
         const usedCourses = await TrainingContentBridge.find({ trainingContent: id, isDeleted: false })
             .populate({
                 path: "training",
-                select: "id title"
+                select: "id title isDeleted isActive",
+                match: { isDeleted: false, isActive: true }  
             })
             .lean();
 
@@ -1298,7 +1325,7 @@ module.exports.mutations = {
             if (input.percentageCriteria > score) {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
-                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100);
+                input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100) || 0;
             }
 
             const updateData = {

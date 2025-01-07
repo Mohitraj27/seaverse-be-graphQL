@@ -253,6 +253,7 @@ module.exports = {
 
                 const certificateLayouts = await certificateLayout.find({
                     training: { $in: trainingIds },
+                    disabled: false
                 }).session(session).lean();
 
                 const filteredNonExistingOverallDocs = nonExistingOverallDocs.filter(doc => {

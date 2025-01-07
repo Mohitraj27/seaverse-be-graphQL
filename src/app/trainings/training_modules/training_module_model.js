@@ -43,6 +43,10 @@ const trainingModuleSchema = new Schema(
                 required: true,
             }
         ],
+        order: {
+            type: Number,
+            default: 1,
+        }
     },
     { timestamps: true }
 );

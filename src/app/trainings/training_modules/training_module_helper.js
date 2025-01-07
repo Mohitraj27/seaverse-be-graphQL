@@ -10,7 +10,37 @@ module.exports = {
 
         const trainingModuleContentUpdateData = [];
         const trainingId = input.training?._id;
-        const trainingModuleBulkOperations = input.trainingModules.map((module) => {
+
+        if (trainingId) {
+
+            const fetchExistingTrainingModules = await TrainingModule.find({ subscriber: subscriberId, training: trainingId, isDeleted: { $ne: true } });
+
+            if (fetchExistingTrainingModules.length > 0) {
+
+                const trainingModulesToDelete = fetchExistingTrainingModules.filter((module) => {
+                    return !input.trainingModules.some((inputModule) => inputModule._id && inputModule._id.toString() === module._id.toString());
+                });
+
+                const trainingModuleIds = trainingModulesToDelete.map((module) => module._id);
+
+                if (trainingModulesToDelete.length > 0) {
+                    const deleteTrainingModuleContentBridge = await TrainingContentBridge.updateMany(
+                        { trainingModule: { $in: trainingModuleIds } },
+                        { isDeleted: true },
+                        { session }
+                    );
+
+                    const deleteTrainingModule = await TrainingModule.updateMany(
+                        { _id: { $in: trainingModuleIds } },
+                        { isDeleted: true },
+                        { session }
+                    );
+                }
+            }
+
+        }
+
+        const trainingModuleBulkOperations = input.trainingModules.map((module, index) => {
 
             const trainingModuleFilterConditions = {
                 _id: module._id ?? ObjectId(),
@@ -32,6 +62,7 @@ module.exports = {
                         ...trainingModuleUpdateData,
                         $setOnInsert: { createdBy: userId },
                         updatedBy: userId,
+                        order: index + 1,
                     },
                     upsert: true,
                 },

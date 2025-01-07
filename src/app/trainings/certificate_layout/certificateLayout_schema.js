@@ -4,12 +4,13 @@ module.exports = {
         id: ID, 
         layout: String,
         training: ID!,
-        authorName: String!,
-        title: LocalisedDataInput!,
+        authorName: String,
+        title: LocalisedDataInput,
         authoringTitle: String,
         certificateReference:String,
         logos: [logoUrl],
         additionalData: [genericObjectInput],
+        disabled: Boolean
     }
     input logoUrl {
         url : String
@@ -48,6 +49,7 @@ module.exports = {
         pdfUrl:String
         user:ID
         isFromMigration:Boolean
+        disabled: Boolean
     }
         type CertificateLayoutData {
         success:Boolean

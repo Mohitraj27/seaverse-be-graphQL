@@ -143,6 +143,7 @@ module.exports = {
             timeSpend: Float
             completedTrainings: Int
             totalTrainings: Int
+            isRegistered: Boolean
         }
         type overAllProgress {
             participantsCompleted: Int

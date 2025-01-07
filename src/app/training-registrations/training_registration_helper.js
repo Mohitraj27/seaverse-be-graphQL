@@ -305,7 +305,7 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
 const extractTrainingContentData = async (trainings) => {
 
     const trainingContentBridges = await TrainingContentBridge.find({
-        training: { $in: trainings.map(training => training._id) }
+        training: { $in: trainings.map(training => training._id) }, isDeleted: false
     });
 
 
@@ -716,7 +716,7 @@ module.exports = {
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
                         users.forEach(async user => {
-                            const isAdmin = user?.subRoles?.includes(subRoleAdminId._id);
+                            const isAdmin = user?.subRoles?.includes(subRoleAdminId?._id);
                             const coursesData = await Promise.all(
                                 trainingsData.map(async (training) => {
                                     const courseImage = await AWS_HELPER.fetchFile(training?.bannerImage?.url) ||

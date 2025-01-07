@@ -1466,9 +1466,11 @@ module.exports = {
         const adminUser = await User.findById(userId);
         let userCount = 0;
 
+        const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
+
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: empIdsArray } },
+                { civilIdOrPassport: { $in: caseInsensitiveEmpIdArray } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -1510,7 +1512,6 @@ module.exports = {
         let updatedEmpIds = [];
         const vesselAssociations = [];
         let passwordEmailList = [];
-
 
         for (const user of users) {
 
@@ -1686,11 +1687,22 @@ module.exports = {
                     const originalUserData = allUpdatedUsers.filter(
                         user => user.civilIdOrPassport === vesselData.civilIdOrPassport
                     );
+
                     if (originalUserData.length > 0) {
                         originalUserData.forEach(user => {
+
+                            userVesselsInsert.push({
+                                updateMany: {
+                                    filter: { user: user._id, vessel: { $ne: vesselMap.get(vesselData.imoNumber).id } },
+                                    update: {
+                                        $set: { isActive: false }
+                                    }
+                                }
+                            });
+
                             userVesselsInsert.push({
                                 updateOne: {
-                                    filter: { user: user._id },
+                                    filter: { user: user._id, vessel: vesselMap.get(vesselData.imoNumber).id },
                                     update: {
                                         $set: {
                                             user: user._id,
@@ -1911,7 +1923,7 @@ module.exports = {
 
 
         });
-        if(insertedUsers.length > 0){
+        if (insertedUsers.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "BULK IMPORT",
@@ -1933,7 +1945,7 @@ module.exports = {
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
         }
-        if(updatedUsers.length > 0){
+        if (updatedUsers.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "BULK IMPORT",

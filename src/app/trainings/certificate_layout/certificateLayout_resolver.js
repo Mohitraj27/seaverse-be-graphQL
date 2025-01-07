@@ -15,7 +15,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
         try {
-            const certificate = await certificateLayout.findOne({ training: trainingId }).exec();
+            const certificate = await certificateLayout.findOne({ training: trainingId, disabled: false }).exec();
             if (!certificate) {
                 throw new Error("Certificate layout not found for this training ID");
             }
@@ -24,7 +24,7 @@ module.exports.queries = {
             throw new Error("Error fetching certificate layout");
         }
     },
-    getMigrationcoursesToCertificateLayout: async ({}, context) => {
+    getMigrationcoursesToCertificateLayout: async ({ }, context) => {
         const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         if (!subscriberId) {
@@ -75,6 +75,7 @@ module.exports.mutations = {
                 certificateReference,
                 logos,
                 additionalData,
+                disabled
             } = input;
 
             let logosInput = logos ? [...logos] : [];
@@ -82,6 +83,28 @@ module.exports.mutations = {
 
             let existingLayout;
             if (id) {
+                if (typeof disabled === "boolean") {
+
+                    const trainingExists = await Training.findById(training);
+                    if (!trainingExists) {
+                        throw CustomError(
+                            ErrorName.VALIDATION_ERROR,
+                            "Training not found for the provided ID"
+                        );
+                    }
+
+                    await certificateLayout.findByIdAndUpdate(id, { $set: { disabled } });
+
+                    await Training.findByIdAndUpdate(
+                        { _id: training },
+                        { $set: { isCertificate: !disabled } }
+                    );
+
+                    return {
+                        success: true,
+                        message: "Certificate layout updated successfully.",
+                    };
+                }
                 existingLayout = await certificateLayout.findById(id);
                 if (!existingLayout) {
                     throw CustomError(

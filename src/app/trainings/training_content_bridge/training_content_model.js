@@ -20,7 +20,11 @@ const trainingContentBridge = new Schema(
         isDeleted: {
             type: Boolean,
             default: false
-        }
+        },
+        order: {
+            type: Number,
+            default: 1
+        },
     },
     { timestamps: true }
 );

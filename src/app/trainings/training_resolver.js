@@ -37,7 +37,7 @@ const { TrainingRegistration } = require("../training-registrations/training_reg
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const { populate, validate } = require("../contact-support/contact_support_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
-const {createOrUpdateTrainingMigrationCourses}=require("../../app/trainings/migrationcourses/migrationcourses_helper");
+const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -139,7 +139,7 @@ module.exports.queries = {
             .populate({
                 path: "trainingModules",
                 match: { isDeleted: { $ne: true } },
-                options: { sort: { displayPosition: 1 } },
+                options: { sort: { order: 1 } },
             });
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
@@ -165,7 +165,8 @@ module.exports.queries = {
                         }
                     ]
                 })
-            });
+            })
+            .sort({ order: 1 });
 
         const moduleContentsMap = {};
         latestContents.forEach(content => {
@@ -283,14 +284,15 @@ module.exports.mutations = {
                     { lean: true, session }
                 );
             }
-            if (input._id) {
+
+            if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
                 await createOrUpdateTrainingMigrationCourses({ input }, session, context);
             } else {
                 if (input.migrationcoursesId) {
                     const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
-                    savedTraining.migrationcoursesId = migrationcoursesIdObjectId; 
-                }  
-            }        
+                    savedTraining.migrationcoursesId = migrationcoursesIdObjectId;
+                }
+            }
             return savedTraining;
         });
 

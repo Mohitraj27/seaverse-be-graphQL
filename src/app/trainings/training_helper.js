@@ -28,9 +28,14 @@ const levenshtein = require('fast-levenshtein');
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
-
-    coverImage._id = coverImage._id ?? ObjectId();
-
+    if(!coverImage){
+            return {
+                _id: new ObjectId(),
+                url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/no+image.png'
+            };
+        }
+     else {
+       coverImage._id = coverImage._id ?? ObjectId();
     const savedItem = await UploadHelper.uploadImage({
         data: coverImage,
         folderName: folderName ?? "cover-image",
@@ -44,7 +49,7 @@ const uploadTrainingImages = async ({ coverImage, folderName }) => {
             url: savedItem,
         };
     }
-
+    }
     return coverImage;
 };
 
@@ -72,7 +77,12 @@ const uploadCertificateTrainingImages = async ({ images, folderName }) => {
     return trainingCertificateImage;
 }
 const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
-
+    if(!bannerImage){
+        return {
+            _id: new ObjectId(),
+            url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/Frame+1171276610.png'
+        };
+    } else {
     bannerImage._id = bannerImage._id ?? ObjectId();
 
     const savedItem = await UploadHelper.uploadImage({
@@ -88,7 +98,7 @@ const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
             url: savedItem,
         };
     }
-
+    }
     return bannerImage;
 }
 const generateTrainingUID = async ({ subscriberId, session }) => {
@@ -243,7 +253,10 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const fetchTrainingContents = await TrainingContentBridge.find({
             training: { $in: trainingIds },
-        }).lean();
+            isDeleted: { $ne: true },
+        })
+            .sort({ order: 1 })
+            .lean();
 
         if (fetchTrainingContents.length == 0) {
             errors.push(`Training content not found`);
@@ -272,10 +285,21 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     contentDataMap.get(moduleId).push(contentId);
                 }
 
+                // Manage the order of modules
+                const moduleIds = Array.from(contentDataMap.keys());
+                const trainingModules = await TrainingModule.find({ _id: { $in: moduleIds } })
+                    .select("_id order")
+                    .lean();
+                const moduleOrderMap = new Map(trainingModules.map((module) => [module._id.toString(), module.order]));
+
                 const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
                     moduleId,
                     contentIds,
-                }));
+                })).sort((a, b) => {
+                    const orderA = moduleOrderMap.get(a.moduleId.toString()) || 0;
+                    const orderB = moduleOrderMap.get(b.moduleId.toString()) || 0;
+                    return orderA - orderB;
+                });
 
                 bulkOperations.push({
                     updateOne: {
@@ -1102,9 +1126,10 @@ module.exports = {
 
         const trainingUpdateData = {};
         let trainingData;
-        const existingTraining = await Training.findOne({  subscriber: subscriberId, "title.value": input.title[0].value, 
-             _id: { $ne: input._id || null }, 
-            isDeleted: { $ne: true }, 
+        const existingTraining = await Training.findOne({
+            subscriber: subscriberId, "title.value": input.title[0].value,
+            _id: { $ne: input._id || null },
+            isDeleted: { $ne: true },
         });
         if (existingTraining) {
             throw CustomError(ErrorName.COURSE_TITLE_ALREADY_EXIST, `A training with this title "${input.title[0].value}" already exists.`);
@@ -1123,7 +1148,7 @@ module.exports = {
         trainingUpdateData.isCertificate = input?.isCertificate ? true : false;
         if (input.status) trainingUpdateData.status = input.status;
         if (input.authorName) trainingUpdateData.authorName = input.authorName;
-        if(input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
+        if (input.migrationcoursesId) trainingUpdateData.migrationcoursesId = input.migrationcoursesId;
         if (input.certifications && input.isCertification) {
             trainingUpdateData.certifications = await uploadCertificateTrainingImages({
                 images: input.certifications,
@@ -1143,12 +1168,17 @@ module.exports = {
             }
         } else if (input._id && input.bannerImageDelete) {
             trainingUpdateData.bannerImage = null;
+        } else if(!bannerImage){
+            trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
+                bannerImage: null,
+                folderName: trainingFilterConditions._id,
+            });
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
         if (typeof input.isOrdered === 'boolean') {
             trainingUpdateData.isOrdered = input.isOrdered;
-        } 
+        }
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
@@ -1186,6 +1216,11 @@ module.exports = {
             }
         } else if (input._id && input.coverImageDelete) {
             trainingUpdateData.coverImage = null;
+        } else if(!coverImage){
+            trainingUpdateData.coverImage = await uploadTrainingImages({
+                coverImage: null,
+                folderName: trainingFilterConditions._id,
+            })
         }
 
         if (input.durationHours != null) {
