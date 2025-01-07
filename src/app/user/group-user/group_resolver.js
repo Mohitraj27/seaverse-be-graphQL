@@ -301,7 +301,7 @@ module.exports.queries = {
                         foreignField: 'group',
                         as: 'members',
                         pipeline: [
-                            { $match: { isDeleted: false } },
+                            { $match: { isDeleted: { $ne: true } } },
                             {
                                 $lookup: {
                                     from: 'users',
@@ -386,7 +386,7 @@ module.exports.queries = {
         }
 
         let customGroupNames, customGroup;
-        const customGroups = await GroupMember.find({ member: userId, isActive: true });
+        const customGroups = await GroupMember.find({ member: userId, isActive: true, isDeleted: { $ne: true } });
         ``;
         if (customGroups !== null) {
             customGroup = Group.find({ _id: { $in: customGroups.group } });
@@ -659,7 +659,7 @@ module.exports.mutations = {
             }
 
             if (existingGroup && input._id) {
-                let existingGroups = await GroupMember.find({ group: input._id }).select("member");
+                let existingGroups = await GroupMember.find({ group: input._id, isDeleted: { $ne: true } }).select("member");
                 existingGroupMembers = existingGroups.map(groupMember => groupMember.member) || [];
             }
 
