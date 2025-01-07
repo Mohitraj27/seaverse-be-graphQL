@@ -571,6 +571,7 @@ const insertGroupMember = async ({ group, subscriberId, memberIDs }) => {
         const existingMembers = await GroupMember.find({
             group: group,
             member: { $in: memberIDs },
+            isDeleted: { $ne: true },
         }).select('member');
 
         const existingMemberIds = existingMembers.map((member) => member.member.toString());
@@ -616,6 +617,7 @@ const removeGroupMember = async ({ group, subscriberId, memberIDs }) => {
         const existingMembers = await GroupMember.findOneAndDelete({
             group: group,
             member: memberIDs,
+            isDeleted: { $ne: true },
         }).select('member');
 
         return true;
@@ -1326,7 +1328,7 @@ module.exports = {
                     };
 
                     await GroupMember.findOneAndUpdate(
-                        { group: group._id, member: manager._id },
+                        { group: group._id, member: manager._id, isDeleted: { $ne: true } },
                         { $setOnInsert: groupMemberData },
                         { upsert: true, new: true, lean: true, session }
                     );

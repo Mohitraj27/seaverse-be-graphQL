@@ -425,7 +425,7 @@ module.exports = {
                     foreignField: 'group',
                     as: 'members',
                     pipeline: [
-                        { $match: { isDeleted: false } },
+                        { $match: { isDeleted: { $ne: true } } },
                         {
                             $lookup: {
                                 from: 'users',

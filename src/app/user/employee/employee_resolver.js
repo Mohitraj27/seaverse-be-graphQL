@@ -120,7 +120,7 @@ module.exports.queries = {
             subscriber: subscriberId,
         };
 
-        const groupMembers = await GroupMember.find({ group: group }).select("member");
+        const groupMembers = await GroupMember.find({ group: group, isDeleted: { $ne: true } }).select("member");
         const memberIds = groupMembers.map(gm => gm.member);
         const fetchResult = async pipeline => {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {

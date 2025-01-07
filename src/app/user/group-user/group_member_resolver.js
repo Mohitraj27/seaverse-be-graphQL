@@ -1,5 +1,5 @@
-const {Group} = require("./group_model");
-const {GroupMember} = require("./group_member_model");
+const { Group } = require("./group_model");
+const { GroupMember } = require("./group_member_model");
 const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper } = require("../../../util");
 const LogHelper = require("../../logs/log_helper");
@@ -8,16 +8,16 @@ const LogType = require("../../logs/log_type.json");
 const SubRoleHelper = require("../sub-roles/sub_role_helper");
 
 module.exports.queries = {
-    getGroupMembers: async ({ pageInput,group, filterInput }, context) => {
+    getGroupMembers: async ({ pageInput, group, filterInput }, context) => {
         const { subscriberId } = AuthUser(context);
 
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
-        let filterConditions = {group:group, isDeleted: false };
+        let filterConditions = { group: group, isDeleted: { $ne: true } };
 
         if (!filterInput.isExclude) {
-            filterConditions.isExclude = {$ne:false};
-        } else{
+            filterConditions.isExclude = { $ne: false };
+        } else {
             filterConditions.isExclude = false;
         }
 
@@ -27,43 +27,43 @@ module.exports.queries = {
             },
             {
                 $lookup: {
-                    from: 'users', 
+                    from: 'users',
                     localField: 'member',
                     foreignField: '_id',
                     as: 'user'
                 }
             },
             {
-                $unwind: '$user' 
+                $unwind: '$user'
             },
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      "user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
-            : []),
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    "user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
+                : []),
             {
                 $project: {
                     group: group,
@@ -93,7 +93,7 @@ module.exports.queries = {
                 allowDiskUse: true,
             }
         )
-    
+
         return result
     }
 };
@@ -123,31 +123,32 @@ module.exports.mutations = {
             isDeleted: false
         })
 
-        if (!existingGroup){
+        if (!existingGroup) {
             throw CustomError(ErrorName.NOT_FOUND);
         }
-  
-        try {
-          const existingMembers = await GroupMember.find({
-            group: group,
-            member: { $in: memberIDs },
-          }).select('member');
-  
-          const existingMemberIds = existingMembers.map((member) => member.member.toString());
-          const existingMemberIdsSet = new Set(existingMemberIds);
-          const newMembers = memberIDs.filter(userID => !existingMemberIdsSet.has(userID.toString()));
-          
-          const groupMembers = newMembers.map((userID) => ({
-            group: group,
-            member: userID,
-            subscriber: subscriberId,
-            isExclude: isExclude
-          }));
-  
-          const result = await GroupMember.insertMany(groupMembers);
-          await Group.findByIdAndUpdate(group, { $inc: { memberCount: result.length } });
 
-          LogHelper.logActivity({
+        try {
+            const existingMembers = await GroupMember.find({
+                group: group,
+                member: { $in: memberIDs },
+                isDeleted: { $ne: true }
+            }).select('member');
+
+            const existingMemberIds = existingMembers.map((member) => member.member.toString());
+            const existingMemberIdsSet = new Set(existingMemberIds);
+            const newMembers = memberIDs.filter(userID => !existingMemberIdsSet.has(userID.toString()));
+
+            const groupMembers = newMembers.map((userID) => ({
+                group: group,
+                member: userID,
+                subscriber: subscriberId,
+                isExclude: isExclude
+            }));
+
+            const result = await GroupMember.insertMany(groupMembers);
+            await Group.findByIdAndUpdate(group, { $inc: { memberCount: result.length } });
+
+            LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.GROUP_MEMBER_LOG,
                 operation: "CREATE",
@@ -167,20 +168,20 @@ module.exports.mutations = {
                 createdBy: userInfo,
             });
 
-          return {
-            success: true,
-            message: `Added ${result.length} users to the group`,
-            addedCount: result.length,
-          };
+            return {
+                success: true,
+                message: `Added ${result.length} users to the group`,
+                addedCount: result.length,
+            };
         } catch (error) {
-          console.error('Error adding users to group:', error);
-          throw new Error('Failed to add users to group');
+            console.error('Error adding users to group:', error);
+            throw new Error('Failed to add users to group');
         }
     },
 
     removeUsersFromGroup: async ({ group, memberIDs, removeAll, isExclude }, context) => {
         const { role, userPermissions, userInfo, subscriberId } = AuthUser(context);
-  
+
         if (
             !SubRoleHelper.hasPermission({
                 currentRole: role,
@@ -203,23 +204,23 @@ module.exports.mutations = {
             isDeleted: false
         })
 
-        if (!existingGroup){
+        if (!existingGroup) {
             throw CustomError(ErrorName.NOT_FOUND);
         }
-  
+
         try {
             let result;
-    
+
             if (removeAll) {
-              result = await GroupMember.deleteMany({ group: group, isExclude:isExclude });
-              await Group.findByIdAndUpdate(group, { $set: { memberCount: 0 } });
+                result = await GroupMember.deleteMany({ group: group, isExclude: isExclude });
+                await Group.findByIdAndUpdate(group, { $set: { memberCount: 0 } });
             } else {
-              result = await GroupMember.deleteMany({
-                group: group,
-                isExclude: isExclude,
-                member: { $in: memberIDs },
-              });
-              await Group.findByIdAndUpdate(group, { $inc: { memberCount: -result.deletedCount } });
+                result = await GroupMember.deleteMany({
+                    group: group,
+                    isExclude: isExclude,
+                    member: { $in: memberIDs },
+                });
+                await Group.findByIdAndUpdate(group, { $inc: { memberCount: -result.deletedCount } });
             }
 
             LogHelper.logActivity({
@@ -241,15 +242,15 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-    
+
             return {
-              success: true,
-              message: removeAll
-                ? `Removed all users from the group`
-                : `Removed ${result.deletedCount} users from the group`,
-              removedCount: result.deletedCount,
+                success: true,
+                message: removeAll
+                    ? `Removed all users from the group`
+                    : `Removed ${result.deletedCount} users from the group`,
+                removedCount: result.deletedCount,
             };
-          } catch (error) {
+        } catch (error) {
             console.error('Error removing users from group:', error);
             throw new Error('Failed to remove users from group');
         }
