@@ -1356,7 +1356,6 @@ const changeRegisterEmployees = async ({ input }, context) => {
         updateUsers = await User.updateMany(
             { _id: { $in: input.users } },
             { 
-                $pull: { subRoles: subRoleAdminId._id },
                 $set: { isRegistered: false }
             }
         );
@@ -1390,6 +1389,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             return { count: updateUsers.nModified, success: false };
         }
     } else {
+        console.log(error);
         throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
     }
 };
