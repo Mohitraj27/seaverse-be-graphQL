@@ -1360,6 +1360,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             }
         );
     }
+    
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
             const users = await User.find({
