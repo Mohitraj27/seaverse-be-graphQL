@@ -1360,7 +1360,6 @@ const changeRegisterEmployees = async ({ input }, context) => {
             }
         );
     }
-    
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
             const users = await User.find({
@@ -1390,7 +1389,6 @@ const changeRegisterEmployees = async ({ input }, context) => {
             return { count: updateUsers.nModified, success: false };
         }
     } else {
-        console.log(error);
         throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
     }
 };
