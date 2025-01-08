@@ -425,7 +425,7 @@ module.exports = {
                     foreignField: 'group',
                     as: 'members',
                     pipeline: [
-                        { $match: { isDeleted: false } },
+                        { $match: { isDeleted: { $ne: true } } },
                         {
                             $lookup: {
                                 from: 'users',
@@ -555,9 +555,9 @@ module.exports = {
                     groupType: "designation",
                     description: {
                         $concat: [
-                            "All the members in ",
+                            "All the members in =",
                             "$designationName",
-                            " group which is based on designation.",
+                            "= group which is based on designation.",
                         ],
                     },
                 },
@@ -638,9 +638,9 @@ module.exports = {
                     groupType: "role",
                     description: {
                         $concat: [
-                            "All the members in ",
+                            "All the members in =",
                             "$roleName",
-                            " group which is based on role.",
+                            "= group which is based on role.",
                         ],
                     },
                 },
@@ -719,9 +719,9 @@ module.exports = {
                     groupType: "vessel",
                     description: {
                         $concat: [
-                            "All the members in ",
+                            "All the members in =",
                             "$groupName",
-                            " group which is based on vessel.",
+                            "= group which is based on vessel.",
                         ],
                     },
                 },
@@ -788,9 +788,9 @@ module.exports = {
                     groupType: "vesselStatus",
                     description: {
                         $concat: [
-                            "All the members in ",
+                            "All the members in =",
                             "$groupName",
-                            " group based on vessel status.",
+                            "= group based on vessel status.",
                         ],
                     },
                 },
@@ -878,7 +878,7 @@ module.exports = {
                     memberCount: { $size: "$members" },
                     groupType: "vesselType",
                     description: {
-                        $concat: ["All the ", "$groupName", " members based on vessel type."],
+                        $concat: ["All the =", "$groupName", "= members based on vessel type."],
                     },
                 },
             },
