@@ -74,6 +74,10 @@ const notificationSchema = new Schema(
             default: false,
         },
         isError: Boolean,
+        isRead: {
+            type: Boolean,
+            default: false
+        },
         status: {
             type: String,
             default: null

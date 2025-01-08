@@ -21,7 +21,7 @@ module.exports.queries = {
             isOrganizationManager,
             managingOrganization,
         } = AuthUser(context);
-
+    try{
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
         let filterConditions = { /* subscriber: subscriberId, */ isDeleted: { $ne: true } };
@@ -125,7 +125,10 @@ module.exports.queries = {
             notifications: [],
             totalCount: 0,
         };
-    },
+    } catch(error){
+        throw CustomError(GET_NOTIFICATION_FAILED,error.message);
+    }
+},
 };
 module.exports.mutations = {
     dismissNotification: async ({ notificationId }, context) => {
@@ -163,7 +166,48 @@ module.exports.mutations = {
             throw Error(error.message);
         }
 
-    }
+    },
+    markAllNotificationsAsRead: async (args, context) => {
+        const {
+            userId,
+            subscriberId,
+            employeeId,
+            isOrganizationManager,
+            managingOrganization,
+        } = AuthUser(context);
+    
+        try {
+            const filter = {
+                isDeleted: { $ne: true },
+                isRead: false,
+                $or: [
+                    { notifiers: userId },
+                    { subscriber: subscriberId },
+                    { employeeNotifiers: employeeId },
+                ],
+            };
+    
+            const count = await Notification.countDocuments(filter);
+    
+            if (count === 0) {
+                return {
+                    status: "SUCCESS",
+                    message: "No notifications to mark as read.",
+                    totalCount: count,
+                };
+            }
+            await Notification.updateMany(filter, { $set: { isRead: true } });
+    
+            return {
+                status: "SUCCESS",
+                message: `${count} notifications marked as read successfully.`,
+                totalCount: count,
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.NOTIFICATION_FAILED_TO_MARK_AS_READ, error.message);
+        }
+    },
+    
 };
 
 module.exports.subscriptions = {
