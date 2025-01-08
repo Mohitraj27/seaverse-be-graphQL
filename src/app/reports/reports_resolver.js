@@ -322,7 +322,36 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(data);
+            let worksheet;
+            if (data.length === 0) {
+                const message = `NO DATA AVAILABLE FOR ${selectVesselOrLearner.toUpperCase()} REPORTS`;
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+    
+                const columnSpan = 20;
+    
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+    
+    
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+    
+                worksheet['!rows'] = [{ hpt: 30 }];
+            }
+            else {
+                worksheet = XLSX.utils.json_to_sheet(data);
+            }
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             let fileNameStd = selectVesselOrLearner?.charAt(0).toUpperCase() + selectVesselOrLearner?.slice(1).toLowerCase();
