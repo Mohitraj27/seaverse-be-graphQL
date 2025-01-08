@@ -322,7 +322,36 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(data);
+            let worksheet;
+            if (data.length === 0) {
+                const message = `NO DATA AVAILABLE FOR ${selectVesselOrLearner.toUpperCase()} REPORTS`;
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+    
+                const columnSpan = 20;
+    
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+    
+    
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+    
+                worksheet['!rows'] = [{ hpt: 30 }];
+            }
+            else {
+                worksheet = XLSX.utils.json_to_sheet(data);
+            }
             XLSX.utils.book_append_sheet(workbook, worksheet, `OVERVIEW`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             let fileNameStd = selectVesselOrLearner?.charAt(0).toUpperCase() + selectVesselOrLearner?.slice(1).toLowerCase();
@@ -1521,14 +1550,43 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(data);
+            let worksheet;
+            if (data.length === 0) {
+                const message = "NO DATA AVAILABLE FOR COURSE REPORTS";
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+    
+                const columnSpan = 20;
+    
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+    
+    
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+    
+                worksheet['!rows'] = [{ hpt: 30 }];
+            }
+            else {
+                worksheet = XLSX.utils.json_to_sheet(data);
+            }
             XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Courses_Report_exports",
                 fileName: `Courses_Report-${Date.now()}.xlsx`,
-                uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
+                uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
@@ -2027,8 +2085,8 @@ const getSingleCourseReport = async ({ input }, context) => {
 
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
-                        folderName: "Courses_Report_exports",
-                        fileName: `Courses_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                        folderName: "COURSE-ENROLMENT-REPORT",
+                        fileName: `COURSE-ENROLMENT-REPORT-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
                     if (excelFilePath) {
@@ -2061,6 +2119,71 @@ const getSingleCourseReport = async ({ input }, context) => {
 
                 return {
                     coursesData,
+                };
+            } else if (data.length === 0 && input?.export) {
+
+                const workbook = XLSX.utils.book_new();
+                let worksheet;
+
+                const message = "NO DATA AVAILABLE FOR THE SELECTED COURSE";
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+
+                const columnSpan = 20;
+
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+
+
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+
+                worksheet['!rows'] = [{ hpt: 30 }];
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
+                const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+                const excelFilePath = await UploadHelper.uploadExcel({
+                    data: excelBuffer,
+                    folderName: "COURSE-ENROLMENT-REPORT",
+                    fileName: `COURSE-ENROLMENT-REPORT-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                    uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
+                });
+                if (excelFilePath) {
+                    s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Enrollment Report Exported Successfully`,
+                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
+                        notifyAdmin: true,
+                        additionalInfo: [
+                            {
+                                infoType: "EXPORT_URL",
+                                infoData: {
+                                    filePath: excelFilePath
+                                }
+                            }
+                        ],
+                        status: 'SENT',
+                        createdBy: userInfo,
+                        icon: notificationiconEnum.SUCCESS
+                    });
+                }
+                return {
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath),
+                    coursesData: [],
                 };
             }
         }
@@ -2602,6 +2725,70 @@ const getSingleCourseReport = async ({ input }, context) => {
                 return {
                     coursesData,
                 };
+            } else if (data.length === 0 && input?.export) {
+
+                const workbook = XLSX.utils.book_new();
+                let worksheet;
+
+                const message = "NO DATA AVAILABLE FOR THE SELECTED COURSE";
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+
+                const columnSpan = 20;
+
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+
+
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+
+                worksheet['!rows'] = [{ hpt: 30 }];
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Course Quiz Report');
+                const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                const excelFilePath = await UploadHelper.uploadExcel({
+                    data: excelBuffer,
+                    folderName: "COURSE-QUIZ-REPORT",
+                    fileName: `COURSE-QUIZ-REPORT-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                    uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
+                });
+                if (excelFilePath) {
+                    s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Quiz Report Exported Successfully`,
+                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
+                        notifyAdmin: true,
+                        additionalInfo: [
+                            {
+                                infoType: "EXPORT_URL",
+                                infoData: {
+                                    filePath: excelFilePath
+                                }
+                            }
+                        ],
+                        status: 'SENT',
+                        createdBy: userInfo,
+                        icon: notificationiconEnum.SUCCESS
+                    });
+                }
+                return {
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath),
+                    coursesData : [],
+                };
             }
         }
         return {
@@ -2626,7 +2813,7 @@ const getSingleCourseReport = async ({ input }, context) => {
 };
 
 const getVesselMainReport = async ({ input }, context) => {
-    const { subscriberId } = AuthUser(context);
+    const { subscriberId , userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -2942,8 +3129,7 @@ const getVesselMainReport = async ({ input }, context) => {
 
         if (input?.export) {
 
-
-            const parsedData = data.map(item => {
+            const dataToExport = data.map(item => {
                 const parsedItem = { ...item };
                 parsedItem.quizPercentage = parsedItem.quizPercentage ? parsedItem.quizPercentage : 'Not Applicable'
                 parsedItem.ownerName = parsedItem.ownerName ? parsedItem.ownerName : 'NIL'
@@ -2958,7 +3144,36 @@ const getVesselMainReport = async ({ input }, context) => {
             });
 
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(parsedData);
+            let worksheet;
+
+            if (dataToExport.length === 0) {
+                const message = "NO DATA AVAILABLE FOR VESSELS";
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+
+                const columnSpan = 20;
+
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+
+                worksheet['!rows'] = [{ hpt: 30 }];
+            }
+            else {
+                worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            }
             XLSX.utils.book_append_sheet(workbook, worksheet, `Main-Vessel-Report`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
@@ -3359,7 +3574,7 @@ const generateCustomReport = async ({ input }, context) => {
             );
 
             data.forEach(item => {
-                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";                
+                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
                 const formatDate = (date) => {
                     if (date) {
                         const formattedDate = new Date(date);
@@ -3845,7 +4060,7 @@ const generateCustomReport = async ({ input }, context) => {
                                             });
                                         } else {
                                             flattenedData.push({
-                                                userName: learner?.userName ??  '',
+                                                userName: learner?.userName ?? '',
                                                 email: email ?? "",
                                                 designation: designation,
                                                 employeeId: employeeId,
@@ -3865,7 +4080,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 }
                             } else {
                                 flattenedData.push({
-                                    userName: learner?.userName ??  '',
+                                    userName: learner?.userName ?? '',
                                     email: email ?? "",
                                     designation: designation,
                                     employeeId: employeeId,
@@ -3887,7 +4102,6 @@ const generateCustomReport = async ({ input }, context) => {
                 return flattenedData;
             };
 
-
             const flattenAllLearnersData = (learners) => {
                 const allFlattenedData = [];
                 learners.forEach(learner => {
@@ -3899,92 +4113,91 @@ const generateCustomReport = async ({ input }, context) => {
             dataToExport = flattenAllLearnersData(data);
         }
 
-       
-            let s3PresignedUrl = "";
+        let s3PresignedUrl = "";
 
-            const workbook = XLSX.utils.book_new();
+        const workbook = XLSX.utils.book_new();
         let worksheet;
         if (dataToExport.length === 0) {
             const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
             worksheet = XLSX.utils.aoa_to_sheet([
-                [message] 
+                [message]
             ]);
 
-            const columnSpan = 20; 
+            const columnSpan = 20;
 
             const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
             if (!worksheet['!merges']) worksheet['!merges'] = [];
             worksheet['!merges'].push(range);
 
-          
+
             worksheet['A1'].s = {
                 font: {
-                    bold: true, 
-                    size: 14,   
+                    bold: true,
+                    size: 14,
                 },
                 alignment: {
-                    horizontal: 'center', 
-                    vertical: 'center',   
+                    horizontal: 'center',
+                    vertical: 'center',
                 }
             };
 
-            worksheet['!rows'] = [{ hpt: 30 }]; 
+            worksheet['!rows'] = [{ hpt: 30 }];
         }
- else {
+        else {
             worksheet = XLSX.utils.json_to_sheet(dataToExport);
         }
-            XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
-            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const excelFilePath = await UploadHelper.uploadExcel({
-                data: excelBuffer,
-                folderName: "Custom-Quiz-Reports",
-                fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
-                uploadType: UploadHelper.uploadType.exportCustomQuizReport,
-            });
-            if (excelFilePath) {
-                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
-                    messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
-                    notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
-                    additionalInfo: [
-                        {
-                            infoType: "EXPORT_URL",
-                            infoData: {
-                                filePath: excelFilePath
-                            }
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const excelFilePath = await UploadHelper.uploadExcel({
+            data: excelBuffer,
+            folderName: "Custom-Quiz-Reports",
+            fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+            uploadType: UploadHelper.uploadType.exportCustomQuizReport,
+        });
+        if (excelFilePath) {
+            s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
+                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+                notifyAdmin: true,
+                additionalInfo: [
+                    {
+                        infoType: "EXPORT_URL",
+                        infoData: {
+                            filePath: excelFilePath
                         }
-                    ],
-                    status: 'SENT',
-                    createdBy: userInfo,
-                    icon: notificationiconEnum.SUCCESS
-                });
+                    }
+                ],
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS
+            });
 
-            }
+        }
 
-            const newReport = new Export({
-                filePath: excelFilePath,
-                subscriberId: subscriberId,
-                createdBy: userId,
-                type_of_export: 'CUSTOM_REPORT_EXPORT',
-                additionalData: [{
-                    key: "criteria",
-                    value: { ...input }
-                }]
-            })
-            await newReport.save();
-            return {
-                status: true,
-                fileName: path.basename(excelFilePath),
-                filePath: s3PresignedUrl,
-                message: "report generated successfully"
-            };
+        const newReport = new Export({
+            filePath: excelFilePath,
+            subscriberId: subscriberId,
+            createdBy: userId,
+            type_of_export: 'CUSTOM_REPORT_EXPORT',
+            additionalData: [{
+                key: "criteria",
+                value: { ...input }
+            }]
+        })
+        await newReport.save();
+        return {
+            status: true,
+            fileName: path.basename(excelFilePath),
+            filePath: s3PresignedUrl,
+            message: "report generated successfully"
+        };
 
-        
-        
-       
+
+
+
 
     } catch (error) {
         await NotificationHelper.createNotificationhelper({
