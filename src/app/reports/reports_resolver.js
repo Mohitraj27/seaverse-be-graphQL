@@ -1521,14 +1521,43 @@ const getMainCoursesReport = async ({ input }, context) => {
 
         if (input?.export) {
             const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(data);
+            let worksheet;
+            if (data.length === 0) {
+                const message = "NO DATA AVAILABLE FOR COURSE REPORTS";
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [message]
+                ]);
+    
+                const columnSpan = 20;
+    
+                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                if (!worksheet['!merges']) worksheet['!merges'] = [];
+                worksheet['!merges'].push(range);
+    
+    
+                worksheet['A1'].s = {
+                    font: {
+                        bold: true,
+                        size: 14,
+                    },
+                    alignment: {
+                        horizontal: 'center',
+                        vertical: 'center',
+                    }
+                };
+    
+                worksheet['!rows'] = [{ hpt: 30 }];
+            }
+            else {
+                worksheet = XLSX.utils.json_to_sheet(data);
+            }
             XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: excelBuffer,
                 folderName: "Courses_Report_exports",
                 fileName: `Courses_Report-${Date.now()}.xlsx`,
-                uploadType: UploadHelper.uploadType.exportCoursesReportAsExcel,
+                uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
             });
             if (excelFilePath) {
                 s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
