@@ -788,7 +788,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
             let s3PresignedUrl = "";
 
-            if (input?.export && learnersReports.length > 0) {
+            if (input?.export /* && learnersReports.length > 0 */ ) {
                 const workbook = XLSX.utils.book_new();
                 const combinedData = [];
                 for (const learnerName in learnerReportsByUser) {
@@ -797,9 +797,40 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     combinedData.push([]);
                 }
 
-                const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                let worksheet;
+                if (combinedData.length === 0) {
+                    const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
+                    worksheet = XLSX.utils.aoa_to_sheet([
+                        [message]
+                    ]);
+
+                    const columnSpan = 20;
+
+                    const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                    if (!worksheet['!merges']) worksheet['!merges'] = [];
+                    worksheet['!merges'].push(range);
+
+                    worksheet['A1'].s = {
+                        font: {
+                            bold: true,
+                            size: 14,
+                        },
+                        alignment: {
+                            horizontal: 'center',
+                            vertical: 'center',
+                        }
+                    };
+
+                    worksheet['!rows'] = [{ hpt: 30 }];
+                }
+                else {
+                    worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                }
+
                 XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
@@ -832,9 +863,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     learnerData: learnersReports,
                 };
             }
-            else if (input?.export && learnersReports.length == 0) {
-                throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
-            }
+            // else if (input?.export && learnersReports.length == 0) {
+            //     throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
+            // }
 
             return {
                 filePath: "",
@@ -1256,7 +1287,36 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         combinedData.push([]);
                     });
 
-                    const worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
+                    let worksheet;
+                    if (learnersData.length === 0) {
+                        const message = "NO DATA AVAILABLE FOR SELECTED LEARNER REPORTS";
+                        worksheet = XLSX.utils.aoa_to_sheet([
+                            [message]
+                        ]);
+
+                        const columnSpan = 20;
+
+                        const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
+                        if (!worksheet['!merges']) worksheet['!merges'] = [];
+                        worksheet['!merges'].push(range);
+
+
+                        worksheet['A1'].s = {
+                            font: {
+                                bold: true,
+                                size: 14,
+                            },
+                            alignment: {
+                                horizontal: 'center',
+                                vertical: 'center',
+                            }
+                        };
+
+                        worksheet['!rows'] = [{ hpt: 30 }];
+                    }
+                    else {
+                        worksheet = XLSX.utils.json_to_sheet(learnersData, { header: [] });
+                    }
                     XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
 
@@ -1309,6 +1369,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
+        console.log(err);
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
