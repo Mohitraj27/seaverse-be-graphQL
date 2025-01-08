@@ -142,7 +142,7 @@ const userSchema = new Schema(
         vesselStatus: {
             type: String,
             enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
-            default: "ASSIGNED",
+            default: "ONSHORE",
         }
     },
     { timestamps: true }
