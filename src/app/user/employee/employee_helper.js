@@ -866,16 +866,6 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
         }
     }
 
-    if (!row["VesselIMONumber"]) {
-        errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-        return errors;
-    }
-    else if (!imoNumbers.includes(row["VesselIMONumber"])) {
-
-        errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-        return errors;
-    }
-
     if (!row["Status"]) {
         errors.push(`Status is missing in row ${rowIndex + 1}`);
         return errors;
@@ -885,6 +875,23 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
             return errors;
         }
+
+        if (!status === 'onshore') {
+            if (!row["VesselIMONumber"]) {
+                errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
+                return errors;
+            }
+            else if (!imoNumbers.includes(row["VesselIMONumber"])) {
+                errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
+                return errors;
+            }
+        } else if (status === 'onshore') {
+            if (row["VesselIMONumber"]) {
+                errors.push(`IMO Number should not be present for Onshore employee in row ${rowIndex + 1}`);
+                return errors;
+            }
+        }
+
     }
     return errors;
 }
@@ -1656,14 +1663,12 @@ module.exports = {
 
                     updatedEmpIds.push(user.civilIdOrPassport);
 
-
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
-                        imoNumber: user.imoNumber,
+                        imoNumber: user?.imoNumber,
                         vesselStatus: user.vesselStatus?.toUpperCase(),
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
-
 
                 }
 
@@ -1688,17 +1693,18 @@ module.exports = {
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
                         currentVessel: vesselMap.get(user.imoNumber)?.id,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
-
-                    vesselAssociations.push({
-                        civilIdOrPassport: user.civilIdOrPassport,
-                        imoNumber: user.imoNumber,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
-                        typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
-                    });
+                    if (user.imoNumber) {
+                        vesselAssociations.push({
+                            civilIdOrPassport: user.civilIdOrPassport,
+                            imoNumber: user.imoNumber,
+                            vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                            typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                        });
+                    }
 
                     passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
 
@@ -1794,29 +1800,43 @@ module.exports = {
                     if (originalUserData.length > 0) {
                         originalUserData.forEach(user => {
 
-                            userVesselsInsert.push({
-                                updateMany: {
-                                    filter: { user: user._id, vessel: { $ne: vesselMap.get(vesselData.imoNumber).id } },
-                                    update: {
-                                        $set: { isActive: false }
-                                    }
-                                }
-                            });
+                            if (vesselData.imoNumber) {
 
-                            userVesselsInsert.push({
-                                updateOne: {
-                                    filter: { user: user._id, vessel: vesselMap.get(vesselData.imoNumber).id },
-                                    update: {
-                                        $set: {
-                                            user: user._id,
-                                            vessel: vesselMap.get(vesselData.imoNumber).id,
-                                            vesselStatus: vesselData.vesselStatus.toUpperCase(),
-                                            isActive: true,
+                                userVesselsInsert.push({
+                                    updateMany: {
+                                        filter: { user: user._id, vessel: { $ne: vesselMap.get(vesselData?.imoNumber).id } },
+                                        update: {
+                                            $set: { isActive: false }
                                         }
-                                    },
-                                    upsert: true
-                                }
-                            });
+                                    }
+                                });
+
+                                userVesselsInsert.push({
+                                    updateOne: {
+                                        filter: { user: user._id, vessel: vesselMap.get(vesselData.imoNumber).id },
+                                        update: {
+                                            $set: {
+                                                user: user._id,
+                                                vessel: vesselMap.get(vesselData.imoNumber).id,
+                                                vesselStatus: vesselData.vesselStatus.toUpperCase(),
+                                                isActive: true,
+                                            }
+                                        },
+                                        upsert: true
+                                    }
+                                });
+
+                            } else {
+                                userVesselsInsert.push({
+                                    updateMany: {
+                                        filter: { user: user._id },
+                                        update: {
+                                            $set: { isActive: false, vesselStatus: VesselStatus.ONSHORE }
+                                        }
+                                    }
+                                });
+                            }
+
                         });
                     }
                 }

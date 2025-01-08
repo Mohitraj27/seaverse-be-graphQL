@@ -67,13 +67,13 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
-const {Unregistered_Status} = require("../../email-template/Unregistered_status");
-const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
+const { roleUpdateNotifyLearner, roleUpdateNotifyAdmin } = require("../../email-template/roleUpdate");
+const { Unregistered_Status } = require("../../email-template/Unregistered_status");
+const { registered_status, registered_statusforAdmin } = require("../../email-template/Registered_Status");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
-const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
-const {filterLearningPlans} = require("../employee/employee_helper");
+const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
+const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
@@ -634,6 +634,8 @@ module.exports.queries = {
             filterConditions.organization = managingOrganization;
         }
 
+        const sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+
         const result = await fetchResult([
             {
                 $match: filterConditions,
@@ -797,56 +799,53 @@ module.exports.queries = {
                         $match: {
                             $or: [
                                 {
-                                    "user.firstName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.lastName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
+                                    $expr: {
+                                        $regexMatch: {
+                                            input: { $concat: ["$user.firstName", " ", "$user.lastName"] },
+                                            regex: ".*" + sanitizedSearch + ".*",
+                                            options: "i",
+                                        },
                                     },
                                 },
                                 {
                                     "user.civilIdOrPassport": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     "user.email": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     "user.companyEmail": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     "user.phone.number": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     employeeNo: {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     "userVessels.vesselDetails.name": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
                                 {
                                     "empDesignation.name": {
-                                        $regex: ".*" + filterInput.search + ".*",
+                                        $regex: ".*" + sanitizedSearch + ".*",
                                         $options: "i",
                                     },
                                 },
@@ -1376,8 +1375,8 @@ const changeRegisterEmployees = async ({ input }, context) => {
             for (const user of users) {
                 const emailContent =
                     input.type === "Registered"
-                        ? registered_status({ firstName: user.firstName})
-                        : Unregistered_Status({ firstName: user.firstName});
+                        ? registered_status({ firstName: user.firstName })
+                        : Unregistered_Status({ firstName: user.firstName });
                 await SendEmail({
                     receiverEmail: user.email,
                     subject: `Current Status Update: ${input.type}`,
@@ -1749,8 +1748,6 @@ module.exports.mutations = {
             !input.user.firstName ||
             !input.user.email ||
             !input.user.civilIdOrPassport ||
-            !input.user.currentVessel ||
-            !input.user.vesselStatus ||
             typeof input.user.isRegistered !== "boolean"
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
@@ -1807,16 +1804,21 @@ module.exports.mutations = {
 
             if (!savedEmployee) throw CustomError(ErrorName.FAILED);
 
-            let userVesselUpdate = {
-                user: savedUser,
-                vessel: input.user.currentVessel,
-                vesselStatus: input.user.vesselStatus,
-            };
+            let savedUserVessel;
+            let vessel;
 
-            const savedUserVessel = await UserVessel.create(userVesselUpdate);
+            if (input.user.currentVessel && input.user.vesselStatus) {
 
-            if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
-            const vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
+                let userVesselUpdate = {
+                    user: savedUser,
+                    vessel: input.user.currentVessel ?? null,
+                    vesselStatus: input.user.vesselStatus ?? null,
+                };
+
+                savedUserVessel = await UserVessel.create(userVesselUpdate);
+                if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+                vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
+            }
 
             invitationList.push({
                 userData: savedUser,
@@ -1828,9 +1830,9 @@ module.exports.mutations = {
 
             const conditions = {
                 designationID: input.empDesignation,
-                vesselID: savedUserVessel.vessel,
-                vesselTypeID: vessel?.typeOfVessel?._id,
-                currentStatus: savedUserVessel.vesselStatus,
+                vesselID: savedUserVessel?.vessel ?? null,
+                vesselTypeID: vessel?.typeOfVessel?._id ?? null,
+                currentStatus: savedUserVessel?.vesselStatus ?? null,
                 email: savedUser.email
             };
 
@@ -1848,8 +1850,11 @@ module.exports.mutations = {
                     currentStatus: savedUserVessel.vesselStatus
                 };
             });
-            
-            
+
+
+
+
+
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
@@ -1882,7 +1887,7 @@ module.exports.mutations = {
                 subject: "Welcome to SeaVerse!",
                 text: "",
                 html: emailContentforNewEmployee,
-                
+
             };
 
             await transporter.sendMail(mailOptions, (error, info) => {
@@ -2303,7 +2308,7 @@ module.exports.mutations = {
                 usersToUpdate.map(async user => {
                     const emailContentforAdmin = roleUpdateNotifyAdmin({
                         firstName: userInfo?.firstName,
-                        usersUpdated: [{user: user.firstName}],
+                        usersUpdated: [{ user: user.firstName }],
                     });
                     await SendEmail({
                         receiverEmail: userInfo?.email,
@@ -2410,17 +2415,29 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
-            const userIds = input.ids;
-            const users = await User.find({ _id: { $in: userIds } }).lean();
+            let users;
+            let userIds;
+            if (input.ids.length === 0) {
+                users = await User.find().lean();
+            } else {
+                userIds = input.ids;
+                users = await User.find({ _id: { $in: userIds } }).lean();
+            }
+
             if (!users.length) {
                 throw CustomError(ErrorName.USER_NOT_FOUND);
             }
-            const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
+            const vesselIds = users.filter(users => users?.currentVessel).map(users => users.currentVessel);
             const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
-            const vesselMap = vessels.reduce((acc, vessel) => {
+            const vesselMap = vessels && vessels.reduce((acc, vessel) => {
                 acc[vessel._id.toString()] = vessel.name;
                 return acc;
             }, {});
+            const vesselIMOMap = vessels && vessels.reduce((acc, vessel) => {
+                acc[vessel._id.toString()] = vessel.imoNumber;
+                return acc;
+            }, {});
+
             const userObjectIds = users.map(user => user._id);
             const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
             const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
@@ -2437,11 +2454,12 @@ module.exports.mutations = {
                     "Last Name": user.lastName,
                     "Employee ID": user.civilIdOrPassport,
                     "Email": user.email,
+                    "Employee Designation": empDesignation,
+                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : "",
+                    "Vessel IMO Number": user.currentVessel ? vesselIMOMap[user.currentVessel.toString()] : "",
+                    "Vessel Status": user.vesselStatus,
                     "Last Login": user.lastLoginAt,
                     "Created At": user.createdAt,
-                    "Vessel Status": user.vesselStatus,
-                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
-                    "Employee Designation": empDesignation
                 };
             });
             const workbook = xlsx.utils.book_new();
@@ -2479,9 +2497,9 @@ module.exports.mutations = {
                     notifiers: [],
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             }
                         }
                     ],

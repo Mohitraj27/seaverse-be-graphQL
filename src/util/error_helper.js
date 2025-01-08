@@ -82,6 +82,8 @@ const errorName = {
     OVERALLTRAININGPROGRESSES_NOT_REGISTERED:"OVERALLTRAININGPROGRESSES_NOT_REGISTERED",
     CREATE_OR_UPDATE_TRAINING_MODULE:"CREATE_OR_UPDATE_TRAINING_MODULE",
     COURSE_TITLE_ALREADY_EXIST:"COURSE_TITLE_ALREADY_EXIST",
+    NOTIFICATION_FAILED_TO_MARK_AS_READ:"NOTIFICATION_FAILED_TO_MARK_AS_READ",
+    GET_NOTIFICATION_FAILED:"GET_NOTIFICATION_FAILED"
 };
 
 const errorType = {
@@ -494,6 +496,16 @@ const errorType = {
         message: 'Course Title already exists',
         statusCode: 400,
         type: "COURSE_TITLE_ALREADY_EXIST"
+    },
+    NOTIFICATION_FAILED_TO_MARK_AS_READ:{
+        message: 'Failed to mark notifications as read.',
+        statusCode: 400,
+        type: "NOTIFICATION_FAILED_TO_MARK_AS_READ"
+    },
+    GET_NOTIFICATION_FAILED:{
+        message: 'Get Notification Failed',
+        statusCode: 400,
+        type: "GET_NOTIFICATION_FAILED"
     }
 };
 

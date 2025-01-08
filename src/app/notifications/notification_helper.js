@@ -37,6 +37,7 @@ module.exports = {
         icon = NotificationIcon.STABLE,
         createdBy = null,
         status = "SENT",
+        isRead = false
     })  {
         const notifications = [];
     
@@ -53,6 +54,7 @@ module.exports = {
             icon,
             createdBy,
             status,
+            isRead,
         });
         
         if (notifications.length > 0) {
