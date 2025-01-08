@@ -1356,7 +1356,6 @@ const changeRegisterEmployees = async ({ input }, context) => {
         updateUsers = await User.updateMany(
             { _id: { $in: input.users } },
             { 
-                $pull: { subRoles: subRoleAdminId._id },
                 $set: { isRegistered: false }
             }
         );
