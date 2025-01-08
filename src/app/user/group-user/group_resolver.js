@@ -158,7 +158,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully. You can download the file from the link: ${s3PresignedUrl}.`,
+                            value: `The export user process completed successfully.`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
