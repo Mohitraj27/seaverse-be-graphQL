@@ -336,6 +336,6 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(input: UserObjectIDs!): exportUserToCsvResponse!
+        exportUserToCsv(input: UserObjectIDs): exportUserToCsvResponse!
     `,
 };
