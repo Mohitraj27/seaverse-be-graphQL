@@ -264,7 +264,7 @@ module.exports = {
                                     trainingContent: contentId,
                                 },
                                 update: {
-                                    $setOnInsert: { isDeleted: false, order: index },
+                                    $setOnInsert: { isDeleted: false, order: index + 1 },
                                 },
                                 upsert: true,
                             },
@@ -277,7 +277,7 @@ module.exports = {
                                     trainingModule: moduleId,
                                     trainingContent: contentId,
                                 },
-                                update: { $set: { isDeleted: false, order: index } },
+                                update: { $set: { isDeleted: false, order: index + 1 } },
                             },
                         });
                     }

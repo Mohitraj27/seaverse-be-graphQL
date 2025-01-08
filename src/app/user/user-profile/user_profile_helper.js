@@ -404,7 +404,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
             notification.message = [
                 {
                     lang: "en",
-                    value: `${notificationData.createdBy.firstName} ${notificationData.createdBy.lastName} submitted a delete request for your approval. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
+                    value: `${notificationData.createdBy.firstName} ${notificationData.createdBy.lastName}'s account has been deleted. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
                 },
             ];
         } 
