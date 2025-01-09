@@ -75,6 +75,7 @@ const Roles = require("../../../util/role.json");
 const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
 const {filterLearningPlans} = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
+const mongoose = require("mongoose");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -91,6 +92,18 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     const userVessels = await UserVessel.find(userVesselFilter).select("user");
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
+}
+function formatDateWithSuffix(date) {
+    const day = date.getDate();
+    const suffix = (day % 10 === 1 && day !== 11) ? 'st' : 
+                   (day % 10 === 2 && day !== 12) ? 'nd' :
+                   (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+
+    return `${day}${suffix} ${month} ${year}`;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -2384,66 +2397,151 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ input }, context) => {
+    exportUserToCsv: async ({ input, userObjectIds }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
-        if (!role || role !== "ADMIN") {
+        if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-        const notifications = [];
-        const exportStartTime = new Date();
-
+    
+        const requiredFields = ['Name', 'Email', 'Designation', 'User ID'];
+        const providedFields = input.fields;
+    
+        const missingFields = requiredFields.filter(field => !providedFields.includes(field));
+        if (missingFields.length) {
+            throw CustomError(ErrorName.MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS, `Missing mandatory fields: ${missingFields.join(', ')}`);
+        }
+        if (!userObjectIds || !userObjectIds.ids || !userObjectIds.ids.length) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide valid user IDs');;
+        }
         try {
-            const inProgressNotification = {
-                subscriber: subscriberId,
-                title: [{ lang: "en", value: `User Export In Progress` }],
-                message: [
-                    {
-                        lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
-                    },
-                ],
-                notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS,
+            const userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
+
+            const pipeline = [
+                {
+                    $match: {
+                        _id: { $in: userIds },
+                        isDeleted: false 
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'employees',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'employeeDetails'
+                    }
+                },
+                { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'vessels',
+                        localField: 'currentVessel',
+                        foreignField: '_id',
+                        as: 'vesselDetails'
+                    }
+                },
+                { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'employeeDetails.empDesignation',
+                        foreignField: '_id',
+                        as: 'designationDetails'
+                    }
+                },
+                { $unwind: { path: '$designationDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'uservessels',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'typeOfVesselDetails',
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: 'vessels',
+                                    localField: 'vessel',
+                                    foreignField: '_id',
+                                    as: 'vesselDetails'
+                                }
+                            },
+                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true }},
+                            {
+                                $lookup:{
+                                from: 'vesseltypes',
+                                localField: 'vesselDetails.typeOfVessel',
+                                foreignField: '_id',
+                                as: 'vesselTypes'
+                                }
+                              },
+                              {
+                                $unwind: {path:'$vesselTypes',preserveNullAndEmptyArrays: true}
+                              },
+                        ]
+                    }
+                },
+                { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
+                
+            ];
+    
+            const projectStage = {
+                $project: {}
             };
-            notifications.push(inProgressNotification);
-            await NotificationHelper.createNotification(notifications);
-            const userIds = input.ids;
-            const users = await User.find({ _id: { $in: userIds } }).lean();
+    
+            providedFields.forEach(field => {
+                switch (field) {
+                    case 'Name':
+                        projectStage.$project['Name'] = { $concat: ['$firstName', ' ', '$lastName'] };
+                        break;
+                    case 'Email':
+                        projectStage.$project['Email'] = '$email';
+                        break;
+                    case 'Designation':
+                        projectStage.$project['Designation'] = '$designationDetails.name';
+                        break;
+                    case 'User ID':
+                        projectStage.$project['User ID'] = '$civilIdOrPassport';
+                        break;
+                    case 'Vessel Name':
+                        projectStage.$project['Vessel Name'] = '$vesselDetails.name';
+                        break;
+                    case 'Last Seen':
+                        projectStage.$project['Last Seen'] = {
+                            $cond: {
+                                if: { $eq: ['$lastLoginAt', null] },
+                                then: 'N/A',
+                                else: { $toDate: '$lastLoginAt' }
+                            }
+                        };
+                        break;
+                    case 'User Roles':
+                        projectStage.$project['User Roles'] = '$role';
+                        break;
+                    case 'Vessel Type':
+                        projectStage.$project['Vessel Type'] = '$typeOfVesselDetails.vesselTypes.name';
+                        break;
+                    case 'Status':
+                        projectStage.$project['Status'] = '$vesselStatus';
+                        break;
+                    default:
+                        break;
+                }
+            });
+            pipeline.push(projectStage);
+            const users = await User.aggregate(pipeline);
             if (!users.length) {
                 throw CustomError(ErrorName.USER_NOT_FOUND);
             }
-            const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
-            const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
-            const vesselMap = vessels.reduce((acc, vessel) => {
-                acc[vessel._id.toString()] = vessel.name;
-                return acc;
-            }, {});
-            const userObjectIds = users.map(user => user._id);
-            const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
-            const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
-            const designations = empDesignationIds.length > 0 ? await Designation.find({ _id: { $in: empDesignationIds } }).lean() : [];
-            const designationMap = designations.reduce((acc, designation) => {
-                acc[designation._id.toString()] = designation.name;
-                return acc;
-            }, {});
             const data = users.map(user => {
-                const employee = employees.find(emp => emp.user.toString() === user._id.toString());
-                const empDesignation = employee && employee.empDesignation ? designationMap[employee.empDesignation.toString()] : " ";
-                return {
-                    "First Name": user.firstName,
-                    "Last Name": user.lastName,
-                    "Employee ID": user.civilIdOrPassport,
-                    "Email": user.email,
-                    "Last Login": user.lastLoginAt,
-                    "Created At": user.createdAt,
-                    "Vessel Status": user.vesselStatus,
-                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
-                    "Employee Designation": empDesignation
-                };
+                const rowData = {};
+                providedFields.forEach(field => {
+                    if (field === 'Last Seen' && user['Last Seen'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Last Seen']));
+                    } else {
+                        rowData[field] = user[field] || ' ';
+                    }
+                });
+                return rowData;
             });
             const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
@@ -2465,34 +2563,6 @@ module.exports.mutations = {
                     type_of_export: 'USER_EXPORT'
                 });
                 await exportEntry.save();
-                const successNotification = {
-                    subscriber: subscriberId,
-                    title: [{ lang: "en", value: `User Export Successful` }],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `The export user process completed successfully.`,
-                        },
-                    ],
-
-                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    additionalInfo: [
-                        {
-                            infoType:"EXPORT_URL",
-                            infoData: {
-                                filePath : excelFilePath
-                            }
-                        }
-                    ],
-                    employeeNotifiers: [],
-                    affected: [{ targetRef: "Export", target: exportEntry._id }],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                };
-                notifications.push(successNotification);
-                await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
                     message: "User Export successful",
