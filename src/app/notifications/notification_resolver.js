@@ -63,19 +63,83 @@ module.exports.queries = {
         }
 
         const fetchResult = async pipeline => {
-            return Notification.aggregatePaginate(Notification.aggregate(pipeline), {
-                offset: skip,
-                limit,
-                sort: { createdAt: "descending" },
-                customLabels: {
-                    docs: "notifications",
-                    totalDocs: "totalCount",
-                    offset: "skip",
-                },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            });
-        };
+            let result = Notification.aggregatePaginate(
+                Notification.aggregate([
+                    ...pipeline,
+                    {
+                        $addFields: {
+                            isRead: {
+                                $in: [
+                                    userId,
+                                    {
+                                        $ifNull: ["$usersMarkedAsRead", []]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        $facet: {
+                            notifications: [
+                                { $match: {} },
+                                {
+                                    $addFields:
+                                    {
+                                        isRead:
+                                        {
+                                            $in:
+                                                [
+                                                    userId,
+                                                    {
+                                                        $ifNull: ["$usersMarkedAsRead", []]
+                                                    }
+                                                ]
+                                        }
+                                    }
+                                }
+                            ],
+                            counts: [
+                                {
+                                    $group: {
+                                        _id: null,
+                                        isReadTrueCount: {
+                                            $sum: {
+                                                $cond: [{ $eq: ["$isRead", true] }, 1, 0]
+                                            }
+                                        },
+                                        isReadFalseCount: {
+                                            $sum: {
+                                                $cond: [{ $eq: ["$isRead", false] }, 1, 0]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $project: {
+                            notifications: 1,
+                            notificationReadInfo: { $arrayElemAt: ["$counts", 0] }
+                        }
+                    }
+                ]),
+                {
+                    offset: skip,
+                    limit,
+                    sort: { createdAt: "descending" },
+                    customLabels: {
+                        docs: "notifications",
+                        totalDocs: "totalCount",
+                        offset: "skip",
+                    },
+                    pagination: limit !== 0,
+                    allowDiskUse: true,
+                }
+            );
+            console.log(result);
+            return result;
+        };          
 
 
         const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
@@ -89,18 +153,16 @@ module.exports.queries = {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { excludedUsers: { $ne: userId } },
             ];
 
             const pipeline = [{ $match: filterConditions }];
-
-            return fetchResult(pipeline);
+            let result = await fetchResult(pipeline);
+            return result
 
         } else if (context.platform === Role.ADMIN && checkIfAdmin) {
 
             filterConditions.$and = [
                 { notifyAdmin: true },
-                { excludedUsers: { $ne: userId } },
             ];
 
             const pipeline = [{ $match: filterConditions }];
@@ -112,7 +174,6 @@ module.exports.queries = {
             filterConditions.$and = [
                 { notifyAdmin: false },
                 { notifiers: userId },
-                { excludedUsers: { $ne: userId } }
             ];
 
             const pipeline = [{ $match: filterConditions }];
@@ -131,7 +192,7 @@ module.exports.queries = {
 },
 };
 module.exports.mutations = {
-    dismissNotification: async ({ notificationId }, context) => {
+    markEachNotificationAsRead: async ({ notificationId }, context) => {
 
         if (!notificationId) throw new CustomError(ErrorName.BAD_REQUEST, "Notification ID is required");
 
@@ -144,8 +205,8 @@ module.exports.mutations = {
 
             if (!notification) throw new CustomError(ErrorName.BAD_REQUEST, "Notification not found");
 
-            if (!notification.excludedUsers.includes(userId)) {
-                notification.excludedUsers.push(userId);
+            if (!notification.usersMarkedAsRead.includes(userId)) {
+                notification.usersMarkedAsRead.push(userId);
             }
 
             const updatedNotification = await notification.save();
@@ -153,12 +214,12 @@ module.exports.mutations = {
             if (updatedNotification) {
                 return {
                     status: "01",
-                    message: "Notification dismissed successfully"
+                    message: "Notification marked as read successfully"
                 }
             } else {
                 return {
                     status: "00",
-                    message: "Notification dismiss failed"
+                    message: "Failed to mark notification as read"
                 }
             }
 

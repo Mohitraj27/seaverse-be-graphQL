@@ -29,7 +29,7 @@ const notificationSchema = new Schema(
                 ref: "User",
             },
         ],
-        excludedUsers: [
+        usersMarkedAsRead: [
             {
                 type: ObjectId,
                 ref: "User",
@@ -74,10 +74,6 @@ const notificationSchema = new Schema(
             default: false,
         },
         isError: Boolean,
-        isRead: {
-            type: Boolean,
-            default: false
-        },
         status: {
             type: String,
             default: null
