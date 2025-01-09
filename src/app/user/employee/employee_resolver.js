@@ -2418,6 +2418,28 @@ module.exports.mutations = {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide valid user IDs');;
         }
         try {
+
+             const notifications = [];
+             const exportStartTime = new Date();
+            const inProgressNotification = {
+                subscriber: subscriberId,
+                title: [{ lang: "en", value: `User Export In Progress` }],
+                message: [
+                    {
+                        lang: "en",
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                    },
+                ],
+                notificationType: NotificationType.EXPORT_IN_PROGRESS,
+                notifyAdmin: true,
+                notifiers: [],
+                employeeNotifiers: [],
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS,
+            };
+            notifications.push(inProgressNotification);
+            await NotificationHelper.createNotification(notifications);
+            
             const userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
 
             const pipeline = [
@@ -2567,6 +2589,33 @@ module.exports.mutations = {
                     type_of_export: 'USER_EXPORT'
                 });
                 await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Export Successful` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `The export user process completed successfully.`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: excelFilePath
+                            }
+                        }
+                    ],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
                     message: "User Export successful",
