@@ -193,7 +193,7 @@ module.exports.mutations = {
         const moduleContentIds = [];
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
-            if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+            if (!input.title?.length || !input.title || input.title.some(item => item.value == "")) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course title is required");
             if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
         }
         if (input.training?.length && input.trainingModules?.length) {
