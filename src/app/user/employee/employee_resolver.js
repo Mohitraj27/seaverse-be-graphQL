@@ -2414,9 +2414,9 @@ module.exports.mutations = {
         if (missingFields.length) {
             throw CustomError(ErrorName.MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS, `Missing mandatory fields: ${missingFields.join(', ')}`);
         }
-        if (!userObjectIds || !userObjectIds.ids || !userObjectIds.ids.length) {
-            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Provide valid user IDs');;
-        }
+        const  defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
+        const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
+        ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) : defaultexportUserIds;
         try {
 
              const notifications = [];
@@ -2440,8 +2440,6 @@ module.exports.mutations = {
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
             
-            const userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
-
             const pipeline = [
                 {
                     $match: {
@@ -2555,9 +2553,6 @@ module.exports.mutations = {
             });
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
-            if (!users.length) {
-                throw CustomError(ErrorName.USER_NOT_FOUND);
-            }
             const data = users.map(user => {
                 const rowData = {};
                 providedFields.forEach(field => {
