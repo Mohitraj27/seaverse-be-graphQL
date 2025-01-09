@@ -699,8 +699,7 @@ const deleteUsers = async (users, errors) => {
                     { $set: { isDeleted: true } }
                 );
 
-
-                if (updateGroupMember.modifiedCount > 0) {
+                if (updateGroupMember) {
                     return deleteUsers;
                 }
 
