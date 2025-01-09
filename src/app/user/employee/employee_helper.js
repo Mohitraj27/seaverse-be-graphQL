@@ -967,6 +967,7 @@ module.exports = {
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
+
         const employeeFilterConditions = { subscriber: subscriberId };
         employeeFilterConditions.user = id;
 
@@ -975,109 +976,111 @@ module.exports = {
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
-        const newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
-        if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
+        let newVessel;
+        if (input?.user?.currentVessel && !input?.user?.currentVessel === '') {
 
-        if (String(input.user.currentVessel) !== String(existingEmployee?.user?.currentVessel?._id)) {
+            newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
+            if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
-            await UserVessel.updateMany(
-                { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel, isActive: true },
-                { isActive: false }
-            );
-            await UserVessel.create({
-                user: existingEmployee?.user?._id,
-                vessel: input?.user?.currentVessel,
-                vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
-            })
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `User Vessel Updated Successfully`,
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Your Vessel has been Updated`,
-                messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: false,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                notifiers: [existingEmployee?.user?._id],
-                employeeNotifiers: [existingEmployee?.user?._id],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await sendNotifications({
-                userIds: [existingEmployee?.user?._id],
-                title: 'Vessel Updated',
-                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                content: 'Vessel updated successfully',
-                webLink: ""
-            });
+            if (String(input.user.currentVessel) !== String(existingEmployee?.user?.currentVessel?._id)) {
+
+                await UserVessel.updateMany(
+                    { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel, isActive: true },
+                    { isActive: false }
+                );
+                await UserVessel.create({
+                    user: existingEmployee?.user?._id,
+                    vessel: input?.user?.currentVessel,
+                    vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
+                })
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `User Vessel Updated Successfully`,
+                    messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+                    notificationType: NotificationType.USER_VESSEL_UPDATE,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "User",
+                            target: existingEmployee?.user?._id,
+                        },
+                    ],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Vessel has been Updated`,
+                    messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                    notificationType: NotificationType.USER_VESSEL_UPDATE,
+                    notifyAdmin: false,
+                    affected: [
+                        {
+                            targetRef: "User",
+                            target: existingEmployee?.user?._id,
+                        },
+                    ],
+                    notifiers: [existingEmployee?.user?._id],
+                    employeeNotifiers: [existingEmployee?.user?._id],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+                await sendNotifications({
+                    userIds: [existingEmployee?.user?._id],
+                    title: 'Vessel Updated',
+                    body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                    content: 'Vessel updated successfully',
+                    webLink: ""
+                });
+            }
+            else {
+                await UserVessel.findOneAndUpdate(
+                    { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
+                    { vesselStatus: input?.user?.vesselStatus }
+                );
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `User Vessel Updated Successfully`,
+                    messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+
+                    notificationType: NotificationType.USER_VESSEL_UPDATE,
+                    notifyAdmin: true,
+                    affected: [
+                        {
+                            targetRef: "User",
+                            target: existingEmployee?.user?._id,
+                        },
+                    ],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Your Vessel has been Updated`,
+                    messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                    notificationType: NotificationType.USER_VESSEL_UPDATE,
+                    notifyAdmin: false,
+                    affected: [
+                        {
+                            targetRef: "User",
+                            target: existingEmployee?.user?._id,
+                        },
+                    ],
+                    notifiers: [existingEmployee?.user?._id],
+                    employeeNotifiers: [existingEmployee?.user?._id],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+                await sendNotifications({
+                    userIds: [existingEmployee?.user?._id],
+                    title: 'Vessel Updated',
+                    body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                    content: 'Vessel updated successfully',
+                    webLink: ""
+                });
+            }
         }
-        else {
-            await UserVessel.findOneAndUpdate(
-                { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
-                { vesselStatus: input?.user?.vesselStatus }
-            );
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `User Vessel Updated Successfully`,
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
-
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Your Vessel has been Updated`,
-                messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: false,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                notifiers: [existingEmployee?.user?._id],
-                employeeNotifiers: [existingEmployee?.user?._id],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await sendNotifications({
-                userIds: [existingEmployee?.user?._id],
-                title: 'Vessel Updated',
-                body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                content: 'Vessel updated successfully',
-                webLink: ""
-            });
-        }
-
-
 
         await UserHelper.updateUser(
             {

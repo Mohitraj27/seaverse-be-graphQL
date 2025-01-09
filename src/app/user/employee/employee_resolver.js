@@ -1354,7 +1354,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
         updateUsers = await User.updateMany(
             { _id: { $in: input.users } },
-            { 
+            {
                 $set: { isRegistered: false }
             }
         );
@@ -1916,6 +1916,7 @@ module.exports.mutations = {
         };
     },
     updateEmployee: async ({ id, input }, context) => {
+        
         const {
             role,
             userId,
@@ -1926,83 +1927,95 @@ module.exports.mutations = {
             isOrganizationManager,
         } = AuthUser(context);
 
-        const employeeFilterConditions = { subscriber: subscriberId };
+        try {
+            
+            const employeeFilterConditions = { subscriber: subscriberId };
 
-        // if (context.platform === Role.ADMIN) {
-        //     if (
-        //         !SubRoleHelper.hasPermission({
-        //             currentRole: role,
-        //             currentPermissions: userPermissions,
-        //             requiredPermission: [
-        //                 Permission.UPDATE_EMPLOYEE,
-        //                 Permission.ENABLE_DISABLE_EMPLOYEE,
-        //             ],
-        //             requiredAll: false,
-        //             restrictOrganizationManager: isOrganizationManager,
-        //         }) &&
-        //         id.toString() !== employeeId.toString()
-        //     ) {
-        //         throw CustomError(ErrorName.FORBIDDEN);
-        //     }
-        // } else {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-        const currentEmployee = await User.findById(id);
+            // if (context.platform === Role.ADMIN) {
+            //     if (
+            //         !SubRoleHelper.hasPermission({
+            //             currentRole: role,
+            //             currentPermissions: userPermissions,
+            //             requiredPermission: [
+            //                 Permission.UPDATE_EMPLOYEE,
+            //                 Permission.ENABLE_DISABLE_EMPLOYEE,
+            //             ],
+            //             requiredAll: false,
+            //             restrictOrganizationManager: isOrganizationManager,
+            //         }) &&
+            //         id.toString() !== employeeId.toString()
+            //     ) {
+            //         throw CustomError(ErrorName.FORBIDDEN);
+            //     }
+            // } else {
+            //     throw CustomError(ErrorName.FORBIDDEN);
+            // }
 
-        if (!currentEmployee) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
-        const savedEmployee = await EmployeeHelper.updateEmployees(
-            {
-                id: id,
-                input: input,
-                userId: userId,
-                subscriberId: subscriberId,
-                role: role,
-                userInfo: userInfo,
-            },
-            context
-        );
-        const updatedFields = Object.keys(input).reduce((changes, key) => {
-            if (currentEmployee[key] !== input[key]) {
-                changes[key] = {
-                    oldValue: currentEmployee[key],
-                    newValue: input[key],
-                };
+
+            const currentEmployee = await User.findById(id);
+
+            if (!currentEmployee) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
             }
-            return changes;
-        }, {});
-
-        const notificationData = [
-            {
-                subscriber: subscriberId,
-                trainingRegistration: {
-                    _id: savedEmployee._id,
-                    employee: savedEmployee,
+            const savedEmployee = await EmployeeHelper.updateEmployees(
+                {
+                    id: id,
+                    input: input,
+                    userId: userId,
+                    subscriberId: subscriberId,
+                    role: role,
+                    userInfo: userInfo,
                 },
-                userIds: [savedEmployee.user?._id],
-                action: "UPDATED",
+                context
+            );
+            const updatedFields = Object.keys(input).reduce((changes, key) => {
+                if (currentEmployee[key] !== input[key]) {
+                    changes[key] = {
+                        oldValue: currentEmployee[key],
+                        newValue: input[key],
+                    };
+                }
+                return changes;
+            }, {});
+
+            const notificationData = [
+                {
+                    subscriber: subscriberId,
+                    trainingRegistration: {
+                        _id: savedEmployee._id,
+                        employee: savedEmployee,
+                    },
+                    userIds: [savedEmployee.user?._id],
+                    action: "UPDATED",
+                    createdBy: userInfo,
+                },
+            ];
+
+            notificationData[0].additionalInfo = [
+                {
+                    infoType: "UPDATED_FIELDS",
+                    infoData: updatedFields,
+                },
+            ];
+
+            EmployeeHelper.sendEnrollmentNotification(notificationData);
+
+            EmployeeHelper.sendNotificationOnCRUD({
+                subscriber: subscriberId,
+                employee: savedEmployee,
                 createdBy: userInfo,
-            },
-        ];
+                action: "UPDATED",
+            });
 
-        notificationData[0].additionalInfo = [
-            {
-                infoType: "UPDATED_FIELDS",
-                infoData: updatedFields,
-            },
-        ];
+            return savedEmployee;
 
-        EmployeeHelper.sendEnrollmentNotification(notificationData);
+        } catch (error) {
 
-        EmployeeHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            employee: savedEmployee,
-            createdBy: userInfo,
-            action: "UPDATED",
-        });
+            console.log(error);
+            
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
 
-        return savedEmployee;
     },
     deleteEmployee: async ({ id }, context) => {
         const { role, userPermissions, userId, userInfo, subscriberId, isOrganizationManager } =
