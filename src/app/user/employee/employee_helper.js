@@ -820,10 +820,31 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
 
     const errors = [];
 
-    if (!row["FirstName"]) {
+    if (!row["First Name"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
-    } else if (!validateName(row["FirstName"])) {
+    } else if (!validateName(row["First Name"])) {
         errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
+        return errors;
+    }
+
+    if (row["Last Name"]) {
+        if (!validateName(row["Last Name"])) {
+            errors.push(`Last Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
+            return errors;
+        }
+    }
+
+    if (!row["User ID"]) {
+        errors.push(`User ID is missing in row ${rowIndex + 1}`);
+        return errors;
+    }
+
+    let normalizedId = row["User ID"].toLowerCase();
+    if (empIds.has(normalizedId)) {
+        errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID"]}`);
+        return errors;
+    } else {
+        empIds.add(normalizedId);
     }
 
     if (!row["Email"]) {
@@ -842,67 +863,50 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
         }
     }
 
-    if (!row["EmployeeID"]) {
-        errors.push(`Employee ID is missing in row ${rowIndex + 1}`);
-        return errors;
-    } else if (empIds.has(row["EmployeeID"])) {
-        errors.push(`Duplicate EmployeeID found in row ${rowIndex + 1} as ${row["EmployeeID"]}`);
-        return errors;
-    } else {
-        empIds.add(row["EmployeeID"]);
-    }
-
-
-
-    if (!row["Designation"]) {
+    if (!row["Employee Designation"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const designation = row["Designation"]?.toLowerCase();
+        const designation = row["Employee Designation"]?.toLowerCase();
         if (!designationNames.some(name => name?.toLowerCase() === designation)) {
-            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Designation"]}`);
+            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Employee Designation"]}`);
             return errors;
         }
     }
 
-    if (!row["Status"]) {
+    if (!row["Vessel Status"]) {
         errors.push(`Status is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const status = row["Status"].toLowerCase();
+        const status = row["Vessel Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
-            errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Status"]}`);
+            errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
         }
 
-        if (!status === 'onshore') {
-            if (!row["VesselIMONumber"]) {
+        if (!status == 'onshore') {
+            if (!row["Vessel IMO Number"]) {
                 errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
                 return errors;
             }
-            else if (!imoNumbers.includes(row["VesselIMONumber"])) {
-                errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["VesselIMONumber"]}`);
-                return errors;
-            }
-        } else if (status === 'onshore') {
-            if (row["VesselIMONumber"]) {
-                errors.push(`IMO Number should not be present for Onshore employee in row ${rowIndex + 1}`);
+            else if (!imoNumbers.includes(row["Vessel IMO Number"])) {
+                errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["Vessel IMO Number"]}`);
                 return errors;
             }
         }
-
     }
+
     return errors;
 }
 
 function mapCSVRowToUser(row) {
     const mandatoryFields = [
-        "FirstName",
+        "First Name",
         "Email",
         "Designation",
-        "EmployeeID",
-        "VesselIMONumber",
-        "Status"
+        "User ID",
+        "Vessel IMO Number",
+        "Vessel Status"
     ];
 
     Object.keys(row).forEach(key => {
@@ -913,14 +917,13 @@ function mapCSVRowToUser(row) {
     });
 
     const result = {
-        firstName: row["FirstName"],
-        lastName: row["LastName"] ?? "",
+        firstName: row["First Name"],
+        lastName: row["Last Name"] ?? "",
+        civilIdOrPassport: row["User ID"]?.toLowerCase(),
         email: row["Email"]?.toLowerCase(),
-        designation: row["Designation"]?.toLowerCase(),
-        civilIdOrPassport: row["EmployeeID"]?.toLowerCase(),
-        imoNumber: row["VesselIMONumber"],
-        vesselStatus: row["Status"],
-        imoNumber: row["VesselIMONumber"],
+        designation: row["Employee Designation"]?.toLowerCase(),
+        imoNumber: row["Vessel IMO Number"],
+        vesselStatus: row["Vessel Status"],
     };
 
     return result;
@@ -940,8 +943,11 @@ const sendBulkEmails = async (passwordEmailList) => {
 
 };
 const validateName = (name) => {
-    const nameRegex = /^[A-Za-z\s]+$/;
-    if (!nameRegex.test(name)) {
+    console.log(name);
+
+    const nameRegex = /^[A-Za-z]+$/;
+    const trimmedName = name.trim();
+    if (!nameRegex.test(trimmedName)) {
         return false;
     }
     return true;
@@ -1607,9 +1613,6 @@ module.exports = {
 
 
         const existingVessels = await Vessel.find({ isDeleted: false, isActive: true })
-
-
-
 
         const vesselMap = new Map(
             existingVessels.map(vessel => [
