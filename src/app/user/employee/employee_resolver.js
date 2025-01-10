@@ -561,9 +561,7 @@ module.exports.queries = {
         let filterConditions = {
             subscriber: subscriberId,
         };
-        if (filterInput?.organization) {
-            filterConditions.organization = filterInput?.organization;
-        }
+
         if (filterInput?.lastSeen) {
             const today = Moment();
             switch (filterInput.lastSeen) {
@@ -630,10 +628,6 @@ module.exports.queries = {
             });
         };
 
-        if (isOrganizationManager) {
-            filterConditions.organization = managingOrganization;
-        }
-
         const sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
 
         const result = await fetchResult([
@@ -655,11 +649,6 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "user",
-                    pipeline: [
-                        {
-                            $match: { superAdmin: { $ne: true } },
-                        },
-                    ],
                 },
             },
             {
@@ -676,7 +665,7 @@ module.exports.queries = {
             {
                 $match: {
                     "user.isDeleted": { $ne: true },
-                    "user.role": { $in: ["LEARNER"] },
+                    "user.role": { $in: ["LEARNER", "ADMIN"] },
                 },
             },
             {
@@ -1680,7 +1669,7 @@ module.exports.mutations = {
 
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
-                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
+                throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
             const empIdsArray = Array.from(empIds);
@@ -1916,7 +1905,7 @@ module.exports.mutations = {
         };
     },
     updateEmployee: async ({ id, input }, context) => {
-        
+
         const {
             role,
             userId,
@@ -1928,7 +1917,7 @@ module.exports.mutations = {
         } = AuthUser(context);
 
         try {
-            
+
             const employeeFilterConditions = { subscriber: subscriberId };
 
             // if (context.platform === Role.ADMIN) {
@@ -2462,7 +2451,7 @@ module.exports.mutations = {
                 return {
                     "First Name": user.firstName,
                     "Last Name": user.lastName,
-                    "Employee ID": user.civilIdOrPassport,
+                    "User ID": user.civilIdOrPassport,
                     "Email": user.email,
                     "Employee Designation": empDesignation,
                     "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : "",
