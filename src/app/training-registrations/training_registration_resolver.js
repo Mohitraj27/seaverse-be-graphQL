@@ -1409,7 +1409,6 @@ module.exports.mutations = {
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
-                console.log(invalidEmails);
                 return { invalidEmails };
             }
 
