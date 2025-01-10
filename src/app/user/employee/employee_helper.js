@@ -886,9 +886,7 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
         }
         
         if (status !== vesselStatusEnum.ONSHORE.toLowerCase()) {
-            console.log('reached here 1');
             if (!row["Vessel IMO Number"]) {
-                console.log('reached here 2');
                 
                 errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
                 return errors;
