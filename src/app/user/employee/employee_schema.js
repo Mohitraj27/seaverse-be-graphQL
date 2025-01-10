@@ -231,7 +231,7 @@ type userVessels {
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
-            vesselName: [String]
+            vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
         }
