@@ -2112,9 +2112,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const completionDate = formatDate(item.endDate);
                         const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
                         const quizScore = (typeof item.quizPercentage === 'string')
-                            ? parseInt(item.quizPercentage, 10)
+                            ? `${parseInt(item.quizPercentage, 10)}%`
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
-                                ? Math.round(item.quizPercentage)
+                                ? `${Math.round(item.quizPercentage)}%`
                                 : 'Not Applicable';
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
