@@ -1409,7 +1409,8 @@ module.exports.mutations = {
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
-                throw CustomError(ErrorName.NOT_FOUND, "No users found with the provided email addresses");
+                console.log(invalidEmails);
+                return { invalidEmails };
             }
 
             const users = Array.from(
