@@ -85,6 +85,7 @@ const errorName = {
     NOTIFICATION_FAILED_TO_MARK_AS_READ:"NOTIFICATION_FAILED_TO_MARK_AS_READ",
     GET_NOTIFICATION_FAILED:"GET_NOTIFICATION_FAILED",
     MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:"MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
+    FAILED_TO_FETCH_EMPLOYESS: "FAILED_TO_FETCH_EMPLOYESS",
 };
 
 const errorType = {
@@ -512,7 +513,12 @@ const errorType = {
         message: 'Missing mandatory fields for export',
         statusCode: 400,
         type: "MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
-    }
+    },
+    FAILED_TO_FETCH_EMPLOYESS: {
+        message: "Failed to fetch employees",
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_EMPLOYESS",
+    },
 };
 
 const formatError = error => {

@@ -566,7 +566,7 @@ module.exports.queries = {
         ) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-
+    try{
         const skip = pageInput?.skip ?? 0,
             limit = pageInput?.limit ?? 50;
 
@@ -647,8 +647,10 @@ module.exports.queries = {
             filterConditions.organization = managingOrganization;
         }
 
-        const sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
-
+        let sanitizedSearch;
+        if(filterInput?.search){
+            sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+        }
         const result = await fetchResult([
             {
                 $match: filterConditions,
@@ -786,9 +788,9 @@ module.exports.queries = {
                 ? [
                     {
                         $match: {
-                            "userVessels.vesselDetails.name": {
+                            "userVessels.vesselDetails._id": {
                                 $in: filterInput.vesselName.map(
-                                    name => new RegExp(".*" + name + ".*", "i")
+                                    id => ObjectId(id)
                                 ),
                             },
                         },
@@ -908,6 +910,8 @@ module.exports.queries = {
         return {
             employees: result.employees,
             totalCount: result.employees.length,
+        }} catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);    
         }
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
