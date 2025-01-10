@@ -137,7 +137,6 @@ module.exports.queries = {
                     allowDiskUse: true,
                 }
             );
-            console.log(result);
             return result;
         };          
 
