@@ -2010,9 +2010,6 @@ module.exports.mutations = {
             return savedEmployee;
 
         } catch (error) {
-
-            console.log(error);
-            
             throw CustomError(ErrorName.FAILED, error.message);
         }
 
