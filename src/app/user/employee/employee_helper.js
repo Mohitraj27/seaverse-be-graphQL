@@ -943,8 +943,6 @@ const sendBulkEmails = async (passwordEmailList) => {
 
 };
 const validateName = (name) => {
-    console.log(name);
-
     const nameRegex = /^[A-Za-z]+$/;
     const trimmedName = name.trim();
     if (!nameRegex.test(trimmedName)) {
