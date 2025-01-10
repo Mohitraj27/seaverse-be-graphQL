@@ -53,12 +53,25 @@ module.exports = {
             message: String
             totalCount: Int
         }
+        type GetNotificationsOutput {
+            notifications: [NotificationWrapper]
+            totalCount: Int
+        }
+        
+        type NotificationWrapper {
+            notifications: [Notification]  
+            notificationReadInfo: NotificationReadInfo 
+        }
+        type NotificationReadInfo {
+            isReadTrueCount: Int
+            isReadFalseCount: Int
+        }
     `,
     queries: `
-        getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput): NotificationList
+        getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
     `,
     mutations: `
-        dismissNotification(notificationId: ID!): dismissNotificationResponse
+        markEachNotificationAsRead(notificationId: ID!): dismissNotificationResponse
         markAllNotificationsAsRead: markAllNotificationsAsReadResponse
     `,
     subscriptions: `
