@@ -863,9 +863,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     learnerData: learnersReports,
                 };
             }
-            // else if (input?.export && learnersReports.length == 0) {
-            //     throw CustomError(ErrorName.NOT_FOUND, "No data found for this user");
-            // }
 
             return {
                 filePath: "",
@@ -2337,49 +2334,54 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'path': '$vesselTypeInfo',
                             'preserveNullAndEmptyArrays': true
                         }
-                    }, {
+                    },
+                    {
                         '$lookup': {
                             'from': 'trainingprogresses',
                             'localField': '_id',
                             'foreignField': 'overallTrainingProgress',
                             'as': 'quizEvaluations',
                             'let': {
-                                'attemptCount': '$attemptCount'
+                                'attemptCount': '$attemptCount',
+                                'status': '$status'  
                             },
                             'pipeline': [
                                 {
                                     '$match': {
                                         '$expr': {
-                                            '$eq': [
-                                                '$attemptCount', '$$attemptCount'
-                                            ]
+                                            '$eq': ['$attemptCount', '$$attemptCount']
                                         }
                                     }
-                                }, {
+                                },
+                                {
                                     '$lookup': {
                                         'from': 'trainingmodules',
                                         'localField': 'trainingModule',
                                         'foreignField': '_id',
                                         'as': 'moduleInfo'
                                     }
-                                }, {
+                                },
+                                {
                                     '$unwind': {
                                         'path': '$moduleInfo',
                                         'preserveNullAndEmptyArrays': true
                                     }
-                                }, {
+                                },
+                                {
                                     '$lookup': {
                                         'from': 'trainingmodulecontents',
                                         'localField': 'trainingModuleContent',
                                         'foreignField': '_id',
                                         'as': 'contentInfo'
                                     }
-                                }, {
+                                },
+                                {
                                     '$unwind': {
                                         'path': '$contentInfo',
                                         'preserveNullAndEmptyArrays': true
                                     }
-                                }, {
+                                },
+                                {
                                     '$project': {
                                         'moduleId': '$moduleInfo._id',
                                         'moduleName': '$moduleInfo.title',
@@ -2389,21 +2391,98 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'updatedAt': 1,
                                         'contentStatus': {
                                             '$cond': {
-                                                'if': { '$gt': [{ '$type': '$quizAttemptDetails' }, 'missing'] },  
-                                                'then': 'COMPLETED',  
-                                                'else': 'NOT_STARTED'  
+                                                'if': { '$gt': [{ '$type': '$quizAttemptDetails' }, 'missing'] },
+                                                'then': 'COMPLETED',
+                                                'else': 'NOT_STARTED'
                                             }
-                                        },
+                                        }
                                     }
                                 },
                                 {
                                     '$sort': {
-                                        'updatedAt': -1,
+                                        'updatedAt': -1
                                     }
                                 }
                             ]
                         }
-                    }, {
+                    },
+                    {
+                        '$lookup': {
+                            'from': 'trainingcontentbridges',
+                            'localField': 'training',
+                            'foreignField': 'training',
+                            'as': 'initialContents',
+                            'let': {
+                                'status': '$status'  
+                            },
+                            'pipeline': [
+                                {
+                                    '$match': {
+                                        '$expr': {
+                                            '$eq': ['$$status', 'NOT_STARTED']  
+                                        }
+                                    }
+                                },
+                                {
+                                    '$lookup': {
+                                        'from': 'trainingmodules',
+                                        'localField': 'trainingModule',
+                                        'foreignField': '_id',
+                                        'as': 'moduleInfo'
+                                    }
+                                },
+                                {
+                                    '$unwind': {
+                                        'path': '$moduleInfo',
+                                        'preserveNullAndEmptyArrays': true
+                                    }
+                                },
+                                {
+                                    '$lookup': {
+                                        'from': 'trainingmodulecontents',
+                                        'localField': 'trainingContent',
+                                        'foreignField': '_id',
+                                        'as': 'contentInfo'
+                                    }
+                                },
+                                {
+                                    '$unwind': {
+                                        'path': '$contentInfo',
+                                        'preserveNullAndEmptyArrays': true
+                                    }
+                                },
+                                {
+                                    '$project': {
+                                        'moduleId': '$moduleInfo._id',
+                                        'moduleName': '$moduleInfo.title',
+                                        'percentage': '$quizAttemptDetails.percentage',
+                                        'isPassed': '$quizAttemptDetails.isPassed',
+                                        'contentType': '$contentInfo.contentType',
+                                        'updatedAt': 1,
+                                        'contentStatus': {
+                                            '$cond': {
+                                                'if': { '$gt': [{ '$type': '$quizAttemptDetails' }, 'missing'] },
+                                                'then': 'COMPLETED',
+                                                'else': 'NOT_STARTED'
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        '$addFields': {
+                            'quizEvaluations': {
+                                '$cond': {
+                                    'if': { '$eq': ['$status', 'NOT_STARTED'] },  
+                                    'then': '$initialContents',  
+                                    'else': '$quizEvaluations'   
+                                }
+                            }
+                        }
+                    },
+                    {
                         '$unwind': {
                             'path': '$quizEvaluations',
                             'preserveNullAndEmptyArrays': false
