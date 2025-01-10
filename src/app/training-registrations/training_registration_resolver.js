@@ -1409,7 +1409,7 @@ module.exports.mutations = {
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
-                throw CustomError(ErrorName.NOT_FOUND, "No users found with the provided email addresses");
+                return { invalidEmails };
             }
 
             const users = Array.from(
@@ -1888,7 +1888,7 @@ module.exports.mutations = {
             }
             const trainingData = await Training.findById(input.training);
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
-
+            const trainingTitle = trainingData.title[0]?.value;
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
                 _id: { $in: input.userIds }
@@ -1950,7 +1950,7 @@ module.exports.mutations = {
             });
             return {
                 status: true,
-                message: "Modules reset successfully"
+               message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
             throw Error(error.message);
