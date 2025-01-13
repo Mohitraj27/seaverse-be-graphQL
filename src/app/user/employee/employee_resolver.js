@@ -2552,6 +2552,8 @@ module.exports.mutations = {
                     case 'Status':
                         projectStage.$project['Status'] = '$vesselStatus';
                         break;
+                    case 'imoNumber':
+                        projectStage.$project['imoNumber'] = '$vesselDetails.imoNumber';
                     default:
                         break;
                 }
