@@ -28,14 +28,7 @@ const levenshtein = require('fast-levenshtein');
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
-    if(!coverImage){
-            return {
-                _id: new ObjectId(),
-                url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/no+image.png'
-            };
-        }
-     else {
-       coverImage._id = coverImage._id ?? ObjectId();
+    coverImage._id = coverImage._id ?? ObjectId();
     const savedItem = await UploadHelper.uploadImage({
         data: coverImage,
         folderName: folderName ?? "cover-image",
@@ -48,7 +41,6 @@ const uploadTrainingImages = async ({ coverImage, folderName }) => {
             _id: coverImage._id,
             url: savedItem,
         };
-    }
     }
     return coverImage;
 };
@@ -77,12 +69,7 @@ const uploadCertificateTrainingImages = async ({ images, folderName }) => {
     return trainingCertificateImage;
 }
 const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
-    if(!bannerImage){
-        return {
-            _id: new ObjectId(),
-            url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/Frame+1171276610.png'
-        };
-    } else {
+    
     bannerImage._id = bannerImage._id ?? ObjectId();
 
     const savedItem = await UploadHelper.uploadImage({
@@ -97,7 +84,6 @@ const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
             _id: bannerImage._id,
             url: savedItem,
         };
-    }
     }
     return bannerImage;
 }
@@ -1168,11 +1154,6 @@ module.exports = {
             }
         } else if (input._id && input.bannerImageDelete) {
             trainingUpdateData.bannerImage = null;
-        } else if(!bannerImage){
-            trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                bannerImage: null,
-                folderName: trainingFilterConditions._id,
-            });
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1216,11 +1197,6 @@ module.exports = {
             }
         } else if (input._id && input.coverImageDelete) {
             trainingUpdateData.coverImage = null;
-        } else if(!coverImage){
-            trainingUpdateData.coverImage = await uploadTrainingImages({
-                coverImage: null,
-                folderName: trainingFilterConditions._id,
-            })
         }
 
         if (input.durationHours != null) {
