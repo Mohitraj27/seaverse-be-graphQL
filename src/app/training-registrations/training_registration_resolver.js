@@ -55,6 +55,7 @@ module.exports.queries = {
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
         let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
+        
         const totalUsersResult = await OverallTrainingProgress.aggregate([
             {
                 $match: {
