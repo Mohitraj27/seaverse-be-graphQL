@@ -2803,11 +2803,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
-                                    Course: courseName,
                                     Designation: designation,
-                                    Status: status,
-                                    Module: moduleName,
-                                    'Quiz Score': quizScore
+                                    'Course Name': courseName,
+                                    'Lesson Name': moduleName,
+                                    'Quiz Score': quizScore,
+                                    'Course Status': status,
                                 });
                             });
                         }
