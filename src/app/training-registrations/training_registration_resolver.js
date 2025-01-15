@@ -63,6 +63,20 @@ module.exports.queries = {
                 }
             },
             {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
                 $group: {
                     _id: null,
                     uniqueUsers: { $addToSet: '$user' }
