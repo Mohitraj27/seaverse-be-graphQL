@@ -55,32 +55,6 @@ module.exports.queries = {
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
         let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
-        const totalUsersResult = await OverallTrainingProgress.aggregate([
-            {
-                $match: {
-                    training: input.training,
-                    isEnrolled: input.isEnrolled
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    uniqueUsers: { $addToSet: '$user' }
-                }
-            },
-            {
-                $addFields: {
-                    countOfUsers: { $size: '$uniqueUsers' }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    countOfUsers: 1
-                }
-            }
-        ]);
-        const totalUsersCount = totalUsersResult[0]?.countOfUsers || 0;
         const results = await OverallTrainingProgress.aggregate([
             {
                 $match: {
@@ -139,7 +113,7 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment
         }));
         return {
-            countOfUsers: totalUsersCount,
+            countOfUsers: formattedResults.length || 0, 
             users: formattedResults,
         };
     },

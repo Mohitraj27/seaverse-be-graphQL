@@ -144,9 +144,46 @@ module.exports.queries = {
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
 
-        const countOfUsers = await OverallTrainingProgress.countDocuments({
-            training: { $in: training._id }
-        });
+        const totalUsersResult = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    training: id,
+                    isEnrolled: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    uniqueUsers: { $addToSet: '$user' }
+                }
+            },
+            {
+                $addFields: {
+                    countOfUsers: { $size: '$uniqueUsers' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    countOfUsers: 1
+                }
+            }
+        ]);
+        const countOfUsers = totalUsersResult[0]?.countOfUsers || 0;
 
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
