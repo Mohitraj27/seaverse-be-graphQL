@@ -554,9 +554,14 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
             completedModules: completedCount
         };
 
+
         if (average == 100) {
             updateFields.status = "COMPLETED";
             updateFields.endDate = new Date();
+        } else if (average == 0) {
+            updateFields.status = "NOT_STARTED";
+        } else if (average > 0 && average < 100) {
+            updateFields.status = "IN_PROGRESS";
         }
 
         bulkOperations.push({
