@@ -381,6 +381,7 @@ module.exports.mutations = {
                         name: vessel.name,
                         isActive: vessel.isActive,
                     });
+                    
     
                     if (!vessel.isActive) {
                         await UserVessel.updateMany(
@@ -499,8 +500,6 @@ module.exports.mutations = {
                             webLink: "",
                             session, 
                         });
-                    } else {
-                        throw new Error("No users found with matching vessel IDs in their currentVessel field.");
                     }
                 }
     
