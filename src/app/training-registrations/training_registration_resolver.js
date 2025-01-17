@@ -143,7 +143,7 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment
         }));
         return {
-            countOfUsers: formattedResults.length || 0, 
+            countOfUsers: formattedResults.length || 0,
             users: formattedResults,
         };
     },
@@ -871,6 +871,8 @@ module.exports.queries = {
 
             const totalCountofTraining = await OverallTrainingProgress.countDocuments({
                 training: trainingObjectId,
+                isDeleted: { $ne: true },
+                isEnrolled: { $ne: false }
             });
 
             let trainingDetails;
