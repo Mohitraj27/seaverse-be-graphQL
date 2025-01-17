@@ -56,6 +56,11 @@ module.exports.queries = {
 
         let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
 
+        let sanitizedSearch;
+        if (input?.search) {
+            sanitizedSearch = input.search.trim().replace(/\s+/g, " ");
+        }
+
         const totalUsersResult = await OverallTrainingProgress.aggregate([
             {
                 $match: {
@@ -131,14 +136,12 @@ module.exports.queries = {
                 }
             },
             {
-                $match: input?.search
+                $match: sanitizedSearch
                     ? {
-                        $or: input.search.split(' ').map(term => ({
-                            $or: [
-                                { 'userInfo.firstName': { $regex: term, $options: 'i' } },
-                                { 'userInfo.lastName': { $regex: term, $options: 'i' } }
-                            ]
-                        }))
+                        $or: [
+                            { 'userInfo.firstName': { $regex: sanitizedSearch, $options: 'i' } },
+                            { 'userInfo.lastName': { $regex: sanitizedSearch, $options: 'i' } }
+                        ]
                     }
                     : {}
             },
@@ -161,7 +164,7 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment
         }));
         return {
-            countOfUsers: totalUsersCount,
+            countOfUsers: formattedResults.length || 0, 
             users: formattedResults,
         };
     },
@@ -1972,7 +1975,7 @@ module.exports.mutations = {
             });
             return {
                 status: true,
-               message: `${trainingTitle} reset successfully`
+                message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
             throw Error(error.message);
