@@ -51,6 +51,7 @@ const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -653,6 +654,15 @@ const deleteUsers = async (users, errors) => {
             await Employee.updateMany(
                 { user: { $in: users } },
                 { $set: { isDeleted: true } }
+            );
+
+            await OverallTrainingProgress.updateMany(
+                { user: { $in: users } },
+                {
+                    $set: {
+                        isDeleted: true,
+                    }
+                }
             );
 
             if (deleteUsers) {
