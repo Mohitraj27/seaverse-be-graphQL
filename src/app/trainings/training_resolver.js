@@ -156,7 +156,14 @@ module.exports.queries = {
                     from: "users",
                     localField: "user",
                     foreignField: "_id",
-                    as: "userInfo"
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
                 }
             },
             {

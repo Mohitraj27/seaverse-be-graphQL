@@ -1,4 +1,4 @@
-const { CryptoHelper, MomentTimezone, ObjectId } = require("../../../tools");
+const { CryptoHelper, MomentTimezone, ObjectId, CronHelper } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
 
 const { User } = require("../user_model");
@@ -546,6 +546,8 @@ module.exports.mutations = {
             const updateUser = await User.findByIdAndUpdate(userId, { 
                 $set: { 
                     deleteRequest: true, 
+                    isDeleted: true,
+                    isActive : false,
                     deleteRequestDate: Date.now(), 
                     reasonForDelete: reasonForDelete 
                 }
@@ -582,7 +584,6 @@ module.exports.mutations = {
                     ]
                 });
                 const errors = [];
-                const deleteUser = await EmployeeHelper.deleteUsers([userId], errors); 
     
                 if (errors.length > 0) {
                     throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
