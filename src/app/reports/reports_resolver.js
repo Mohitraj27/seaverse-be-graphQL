@@ -32,7 +32,7 @@ const getMainLearnersReport = async ({ input }, context) => {
     }
     try {
         const matchStage = [];
-
+        let deteledUsersStage = [];
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -111,6 +111,40 @@ const getMainLearnersReport = async ({ input }, context) => {
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
                 });
             }
+            if (input?.filterInput?.includeDeletedUsers) {
+                deteledUsersStage = [
+                    {
+                        $lookup: {
+                            from: 'deletedusers',
+                            localField: 'user',
+                            foreignField: '_id',
+                            as: 'deletedUserInfo',
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: '$deletedUserInfo',
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $addFields: {
+                            userInfo: {
+                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
+                            }
+                        },
+                    },
+                ];
+            } else {
+                deteledUsersStage = [
+                    {
+                        $match: {
+                            "userInfo.isDeleted": { $ne: true }
+                        }
+                    }
+                ];
+            }
+
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -143,37 +177,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...(input?.filterInput?.includeDeletedUsers
-                ? [
-                    {
-                        $lookup: {
-                            from: 'deletedusers',
-                            localField: 'user',
-                            foreignField: '_id',
-                            as: 'deletedUserInfo',
-                        },
-                    },
-                    {
-                        $unwind: {
-                            path: '$deletedUserInfo',
-                            preserveNullAndEmptyArrays: true,
-                        },
-                    },
-                    {
-                        $addFields: {
-                            userInfo: {
-                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
-                            }
-                        },
-                    },
-                ]
-                : [
-                    {
-                        $match: {
-                            userInfo: { $ne: null },
-                        },
-                    },
-                ]),
+            ...deteledUsersStage, 
             {
                 $lookup: {
                     from: 'designations',
@@ -1459,6 +1463,13 @@ const getMainCoursesReport = async ({ input }, context) => {
                     localField: 'progress.user',
                     foreignField: '_id',
                     as: 'userInfo',
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
                 },
             },
             {
@@ -1832,7 +1843,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "users",
                             localField: "user",
                             foreignField: "_id",
-                            as: "userInfo"
+                            as: "userInfo",
+                            pipeline : [
+                              {
+                                $match :{
+                                  isDeleted : false
+                                }
+                              }
+                            ]
                         }
                     },
                     {
@@ -2272,7 +2290,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'users',
                             'localField': 'user',
                             'foreignField': '_id',
-                            'as': 'userInfo'
+                            'as': 'userInfo',
+                            pipeline : [
+                              {
+                                $match :{
+                                  isDeleted : false
+                                }
+                              }
+                            ]
                         }
                     }, {
                         '$unwind': {
@@ -3092,7 +3117,14 @@ const getVesselMainReport = async ({ input }, context) => {
                     from: "users",
                     localField: "userVesselsInfo.user",
                     foreignField: "_id",
-                    as: "userInfo"
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
                 }
             },
             {
