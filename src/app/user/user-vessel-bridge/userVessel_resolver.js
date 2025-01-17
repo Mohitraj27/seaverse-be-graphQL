@@ -55,6 +55,7 @@ module.exports.mutations = {
                         firstName: getUser.firstName, 
                         vesselName: getVessel.name, 
                     });
+                    console.log(getUser.email);
                     await SendEmail({
                         receiverEmail: getUser.email,
                         subject: `Vessel Assignment Notification`,
@@ -65,6 +66,7 @@ module.exports.mutations = {
                         vesselName: getVessel.name,
                         userName: getUser.firstName,
                     })
+                    console.log(userInfo.email)
                     await SendEmail({
                         receiverEmail: userInfo.email,
                         subject: `User Vessel Assignment Notification`,
