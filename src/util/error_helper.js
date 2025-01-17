@@ -86,6 +86,7 @@ const errorName = {
     GET_NOTIFICATION_FAILED:"GET_NOTIFICATION_FAILED",
     MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:"MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
     FAILED_TO_FETCH_EMPLOYESS: "FAILED_TO_FETCH_EMPLOYESS",
+    INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
 };
 
 const errorType = {
@@ -519,6 +520,11 @@ const errorType = {
         statusCode: 400,
         type: "FAILED_TO_FETCH_EMPLOYESS",
     },
+    INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: {
+        message: 'Invalid order for mandatory fields for export',
+        statusCode: 400,
+        type: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
+    }
 };
 
 const formatError = error => {

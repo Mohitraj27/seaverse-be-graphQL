@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper, Validator } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper, Validator,CronHelper } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -953,6 +953,40 @@ const validateName = (name) => {
     return true;
 };
 
+const moveExpiredDeletedUsers = async () => {
+    CronHelper.schedule("0 0 * * *", async () => {
+        try {
+
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setMinutes(thirtyDaysAgo.getMinutes() - 1);
+
+            const result = await DbTransactionHelper.performDbTransaction(async session => {
+
+                const expiredUsers = await User.find({
+                    deleteRequestDate: { $lte: thirtyDaysAgo },
+                    isDeleted: true,
+                    isActive: false
+                }).session(session);
+
+                if (expiredUsers.length > 0) {
+                    const expiredUserIds = expiredUsers.map(user => user.id);
+
+                    const errors = [];
+                    const deletedUsers = await deleteUsers(expiredUserIds, errors);
+
+                    if (deletedUsers.length < 0) {
+                        console.error("Errors occurred while deleting users");
+                    }
+                }
+
+                return `${expiredUsers.length} users processed`;
+            });
+
+        } catch (error) {
+            console.error("Error occurred while processing expired users:", error);
+        }
+    });
+};
 
 module.exports = {
     deleteUsers,
@@ -972,6 +1006,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };

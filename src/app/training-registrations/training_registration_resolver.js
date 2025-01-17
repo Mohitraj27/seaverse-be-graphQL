@@ -69,6 +69,27 @@ module.exports.queries = {
                 }
             },
             {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
                 $group: {
                     _id: null,
                     uniqueUsers: { $addToSet: '$user' }
