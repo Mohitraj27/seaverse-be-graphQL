@@ -24,7 +24,7 @@ module.exports.mutations = {
             await contactSupportData.save();  
             return {
                 success: true,
-                message: "Support email sent successfully",
+                message: "Message sent successfully.We’ll get back to you shortly.",
             };
         } else {
             return {

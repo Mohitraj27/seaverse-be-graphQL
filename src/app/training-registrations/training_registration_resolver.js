@@ -143,7 +143,7 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment
         }));
         return {
-            countOfUsers: totalUsersCount,
+            countOfUsers: formattedResults.length || 0, 
             users: formattedResults,
         };
     },
