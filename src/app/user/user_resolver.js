@@ -172,36 +172,29 @@ module.exports.mutations = {
     },
     signIn: async ({ input }, context) => {
         try {
-            let existingUser = await DeletedUser.findOne({
-                $or: [
-                    { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                    { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                ],
-                isDeleted: true,
-            });
+            const signIn = await DbTransactionHelper.performDbTransaction(async session => {
 
-            if (existingUser) {
-                const deletionDate = existingUser.deleteRequestDate;
-                const currentDate = new Date();
-                const daysSinceDeletion = (currentDate - new Date(deletionDate)) / (1000 * 60 * 60 * 24);
+                const expiredUser = await User.findOne({
+                    $or: [
+                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                    ],
+                    isDeleted: true,
+                    deleteRequest: true,
+                    isActive: false
+                }).session(session);
 
-                if (daysSinceDeletion <= 30) {  
-                    const errors = [];
-                    const usersToRestore = [existingUser._id];
-                    const restoredUsers = await EmployeeHelper.restoreUsers(usersToRestore, errors);
-
-                    if (restoredUsers && restoredUsers.length > 0) {
-                        existingUser = restoredUsers[0]; 
-                    } else {
-                        throw new Error('Failed to restore the user');
-                    }
-                } else {
-                    throw new Error('The 30-day restoration window has expired.');
+                if (expiredUser) {
+                    expiredUser.isDeleted = false;
+                    expiredUser.isActive = true;
+                    expiredUser.deleteRequest = false;
+                    expiredUser.deleteRequestDate = null;
+                    expiredUser.reasonForDelete = null;
+                    await expiredUser.save({ session });
                 }
-            }
 
-            if (!existingUser) {
-                existingUser = await User.findOne({
+
+                const existingUser = await User.findOne({
                     $or: [
                         { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
@@ -212,59 +205,65 @@ module.exports.mutations = {
                 }).populate({
                     path: 'subRoles',
                     select: '_id name permissions isActive isPredefined description isDefault primaryRole',
-                });
+                }).session(session);
 
                 if (!existingUser) {
-                    throw CustomError(ErrorName.USER_NOT_FOUND);
-                }
-            }
-
-            const processValidUser = async () => {
-                if (input.firebaseToken) {
-                    existingUser.firebaseTokens = [input.firebaseToken];
+                    return CustomError(ErrorName.USER_NOT_FOUND);
                 }
 
-                if (input.deviceId) {
-                    existingUser.deviceIds = [input.deviceId];
+
+                const processValidUser = async () => {
+                    if (input.firebaseToken) {
+                        existingUser.firebaseTokens = [input.firebaseToken];
+                    }
+
+                    if (input.deviceId) {
+                        existingUser.deviceIds = [input.deviceId];
+                    }
+
+                    existingUser.lastLoginAt = Moment().format();
+                    await existingUser.save({ session });
+                    return await UserHelper.makeAuthUser(existingUser);
+                };
+
+
+                const valid = await CryptoHelper.compare(input.password, existingUser.password);
+
+                if (valid) {
+                    return await processValidUser();
+                } else if (existingUser.role === Role.EMPLOYEE) {
+
+                    const subscriberProfile = await SubscriberProfile.findOne({
+                        subscriber: existingUser.subscriber,
+                    }).lean().select("employeeMasterPassword").session(session);
+
+                    if (
+                        context.platform === Role.EMPLOYEE &&
+                        subscriberProfile?.employeeMasterPassword?.length
+                    ) {
+                        const valid = await CryptoHelper.compare(
+                            input.password,
+                            subscriberProfile.employeeMasterPassword
+                        );
+
+                        if (valid) {
+                            return await processValidUser();
+                        }
+                    }
+
+                    if (
+                        existingUser.isRegistered !== true &&
+                        existingUser.password === process.env.USER_DUMMY_PASSWORD
+                    ) {
+                        return CustomError(ErrorName.UNAUTHORIZED);
+                    }
                 }
 
-                existingUser.lastLoginAt = Moment().format();
-                await existingUser.save();
-                return await UserHelper.makeAuthUser(existingUser);
-            };
 
-            const valid = await CryptoHelper.compare(input.password, existingUser.password);
+                return CustomError(ErrorName.WRONG_PASSWORD);
+            });
+            return signIn;
 
-            if (valid) {
-                return await processValidUser();
-            } else if (existingUser.role === Role.EMPLOYEE) {
-                const subscriberProfile = await SubscriberProfile.findOne({
-                    subscriber: existingUser.subscriber,
-                })
-                    .lean()
-                    .select("employeeMasterPassword");
-
-                if (
-                    context.platform === Role.EMPLOYEE &&
-                    subscriberProfile?.employeeMasterPassword?.length
-                ) {
-                    const valid = await CryptoHelper.compare(
-                        input.password,
-                        subscriberProfile.employeeMasterPassword
-                    );
-
-                    if (valid) return await processValidUser();
-                }
-
-                if (
-                    existingUser.isRegistered !== true &&
-                    existingUser.password === process.env.USER_DUMMY_PASSWORD
-                ) {
-                    throw CustomError(ErrorName.UNAUTHORIZED);
-                }
-            }
-
-            throw CustomError(ErrorName.WRONG_PASSWORD);
         } catch (error) {
             throw new Error(error.message);
         }
