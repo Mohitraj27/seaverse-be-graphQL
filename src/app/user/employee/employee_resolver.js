@@ -2412,12 +2412,19 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
     
-        const requiredFields = ['Name', 'Email', 'Designation', 'User ID'];
+        const requiredFields = ['First Name*', 'Last Name', 'User ID*', 'Email*', 'Employee Designation*',];
         const providedFields = input.fields;
     
         const missingFields = requiredFields.filter(field => !providedFields.includes(field));
         if (missingFields.length) {
             throw CustomError(ErrorName.MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS, `Missing mandatory fields: ${missingFields.join(', ')}`);
+        }
+        const requiredFieldsOrder = providedFields.slice(0, requiredFields.length);
+        if (!requiredFields.every((field, index) => requiredFieldsOrder[index] === field)) {
+            throw CustomError(
+                ErrorName.INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS,
+                `The required fields should be in the following order: ${requiredFields.join(', ')}.`
+            );
         }
         const  defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
@@ -2519,26 +2526,28 @@ module.exports.mutations = {
     
             providedFields.forEach(field => {
                 switch (field) {
-                    case 'Name':
-                        projectStage.$project['Name'] = { $concat: ['$firstName', ' ', '$lastName'] };
+                    case 'First Name*':
+                        projectStage.$project['First Name*'] = '$firstName';
                         break;
-                    case 'Email':
-                        projectStage.$project['Email'] = '$email';
+                    case 'Last Name':
+                        projectStage.$project['Last Name'] = '$lastName';
+                    case 'User ID*':
+                        projectStage.$project['User ID*'] = '$civilIdOrPassport';
                         break;
-                    case 'Designation':
-                        projectStage.$project['Designation'] = '$designationDetails.name';
+                    case 'Email*':
+                        projectStage.$project['Email*'] = '$email';
                         break;
-                    case 'User ID':
-                        projectStage.$project['User ID'] = '$civilIdOrPassport';
+                    case 'Employee Designation*':
+                        projectStage.$project['Employee Designation*'] = '$designationDetails.name';
                         break;
-                    case 'Vessel Name':
-                        projectStage.$project['Vessel Name'] = '$vesselDetails.name';
+                    case 'Current Vessel':
+                        projectStage.$project['Current Vessel'] = '$vesselDetails.name';
                         break;
-                    case 'Last Seen':
-                        projectStage.$project['Last Seen'] = {
+                    case 'Last Login':
+                        projectStage.$project['Last Login'] = {
                             $cond: {
                                 if: { $eq: ['$lastLoginAt', null] },
-                                then: 'N/A',
+                                then: ' ',
                                 else: { $toDate: '$lastLoginAt' }
                             }
                         };
@@ -2549,11 +2558,20 @@ module.exports.mutations = {
                     case 'Vessel Type':
                         projectStage.$project['Vessel Type'] = '$typeOfVesselDetails.vesselTypes.name';
                         break;
-                    case 'Status':
-                        projectStage.$project['Status'] = '$vesselStatus';
+                    case 'Vessel Status':
+                        projectStage.$project['Vessel Status'] = '$vesselStatus';
                         break;
-                    case 'imoNumber':
-                        projectStage.$project['imoNumber'] = '$vesselDetails.imoNumber';
+                    case 'Vessel IMO Number':
+                        projectStage.$project['Vessel IMO Number'] = '$vesselDetails.imoNumber';
+                    case 'Created At':
+                        projectStage.$project['Created At'] = {
+                            $cond: {
+                                if: { $eq: ['$createdAt', null] },
+                                then: ' ',
+                                else: { $toDate: '$createdAt' }
+                            }
+                        }
+                        break;
                     default:
                         break;
                 }
