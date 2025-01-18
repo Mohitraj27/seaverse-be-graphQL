@@ -1,4 +1,4 @@
-const { CryptoHelper, MomentTimezone, ObjectId } = require("../../../tools");
+const { CryptoHelper, MomentTimezone, ObjectId, CronHelper } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
 
 const { User } = require("../user_model");
@@ -26,7 +26,8 @@ const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const {forgetPassword} = require('../../email-template/forgetPassword');
-const EmployeeHelper = require("../employee/employee_helper")
+const EmployeeHelper = require("../employee/employee_helper");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -546,11 +547,22 @@ module.exports.mutations = {
             const updateUser = await User.findByIdAndUpdate(userId, { 
                 $set: { 
                     deleteRequest: true, 
+                    isDeleted: true,
+                    isActive : false,
                     deleteRequestDate: Date.now(), 
                     reasonForDelete: reasonForDelete 
                 }
             });
-    
+            
+            await OverallTrainingProgress.updateMany(
+                { user: userId },
+                {
+                    $set: {
+                        isDeleted: true,
+                    }
+                }
+            );
+
             if (updateUser) {
                 
                 await sendNotificationOnDELETEREQUEST({
@@ -582,7 +594,6 @@ module.exports.mutations = {
                     ]
                 });
                 const errors = [];
-                const deleteUser = await EmployeeHelper.deleteUsers([userId], errors); 
     
                 if (errors.length > 0) {
                     throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
