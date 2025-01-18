@@ -18,6 +18,7 @@ const { SubscriberProfile } = require("./subscriber-profile/subscriber_profile_m
 const UserHelper = require("./user_helper");
 const SubscriberHelper = require("../saas/subscriber/subscriber_helper");
 const EmployeeHelper = require("./employee/employee_helper");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 
 module.exports.mutations = {
     createSaasAdmin: async ({ input }) => {
@@ -191,6 +192,15 @@ module.exports.mutations = {
                     expiredUser.deleteRequestDate = null;
                     expiredUser.reasonForDelete = null;
                     await expiredUser.save({ session });
+
+                    await OverallTrainingProgress.updateMany(
+                        { user: expiredUser._id },  
+                        {
+                            $set: {
+                                isDeleted: false,
+                            }
+                        } 
+                    ).session(session);
                 }
 
 
