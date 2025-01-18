@@ -397,7 +397,7 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isActive = true;
         filter.isRegistered = true;
-        filter.superAdmin = false;
+        
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
                 if (!input.conditionType || input.conditionalCustomFields.length === 0) {
