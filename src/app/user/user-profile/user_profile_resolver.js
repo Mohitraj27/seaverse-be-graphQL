@@ -26,7 +26,8 @@ const LogType = require("../../logs/log_type.json");
 const nodemailer = require('nodemailer');
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const {forgetPassword} = require('../../email-template/forgetPassword');
-const EmployeeHelper = require("../employee/employee_helper")
+const EmployeeHelper = require("../employee/employee_helper");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_ENDPOINT,
     port: process.env.SMTP_PORT,
@@ -552,7 +553,16 @@ module.exports.mutations = {
                     reasonForDelete: reasonForDelete 
                 }
             });
-    
+            
+            await OverallTrainingProgress.updateMany(
+                { user: userId },
+                {
+                    $set: {
+                        isDeleted: true,
+                    }
+                }
+            );
+
             if (updateUser) {
                 
                 await sendNotificationOnDELETEREQUEST({
