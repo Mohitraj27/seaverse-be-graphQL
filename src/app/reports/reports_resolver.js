@@ -1895,7 +1895,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 {
                                     $unwind: {
                                         path: '$contentInfo',
-                                        preserveNullAndEmptyArrays: true,
+                                        preserveNullAndEmptyArrays: false,
                                     },
                                 },
                                 {
