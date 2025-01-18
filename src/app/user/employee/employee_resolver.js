@@ -1104,7 +1104,7 @@ module.exports.queries = {
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
                         temp_password: generatePassword,
-                        buttonLink: `${process.env.APP_URL}/login`,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
                     await SendEmail({
