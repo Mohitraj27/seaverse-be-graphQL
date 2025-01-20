@@ -3183,29 +3183,6 @@ const getVesselMainReport = async ({ input }, context) => {
                             []
                         ]
                     },
-                    // filteredTrainingProgress: {
-                    //     $filter: {
-                    //         input: "$trainingProgressInfo",
-                    //         as: "training",
-                    //         cond: {
-                    //             $in: [
-                    //                 "$$training.user",
-                    //                 {
-                    //                     $ifNull: [
-                    //                         {
-                    //                             $map: {
-                    //                                 input: "$onboardedUsers",
-                    //                                 as: "user",
-                    //                                 in: "$$user"
-                    //                             }
-                    //                         },
-                    //                         []
-                    //                     ]
-                    //                 }
-                    //             ]
-                    //         }
-                    //     }
-                    // },
                     averageProgress: {
                         $cond: {
                             if: {
