@@ -562,9 +562,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         if (average == 100) {
             updateFields.status = "COMPLETED";
             updateFields.endDate = new Date();
-        } else if (average == 0) {
-            updateFields.status = "NOT_STARTED";
-        } else if (average > 0 && average < 100) {
+        } else if (average >= 0 && average < 100) {
             updateFields.status = "IN_PROGRESS";
         }
 
@@ -911,7 +909,7 @@ const updateTrainingProgress = async (input, userId, session) => {
                 contentId: content.contentId,
                 trainingModuleId: module.moduleId,
                 overallId: overall.overallId,
-                questionAnswers: content?.questionAnswers || []
+                questionAnswers: content?.questionAnswers || null
             }))
         )
     );
@@ -1008,11 +1006,15 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
 
             const { contentId, trainingModuleId, overallId, questionAnswers } = data;
 
+
             const trainingId = overallIdToTrainingIdMap[overallId];
 
             const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
             const trainingModule = trainingModules.find(module => module._id.toString() === trainingModuleId.toString());
             const training = trainings.find(training => training._id.toString() === trainingId.toString());
+
+            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+            const attemptCount = overallDoc.attemptCount || 1;
 
             if (!trainingModuleContent || !trainingModule || !training) {
                 continue;
@@ -1022,146 +1024,168 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 continue;
             }
 
-            let totalScore = 0;
-            let acquiredScore = 0;
-            let skippedQuestions = 0;
-            let isPassed = false;
+            if (questionAnswers && questionAnswers !== null) {
 
-            const filteredQuestionAnswers = questionAnswers?.filter(el => {
-                if (Array.isArray(el?.answer)) {
-                    return el.answer.some(ans => ans && ans.trim() !== "");
-                }
-                return (
-                    el?.answer &&
-                    el.answer !== "" &&
-                    el.answer !== null &&
-                    el.answer !== undefined
-                );
-            }) || [];
+                let totalScore = 0;
+                let acquiredScore = 0;
+                let skippedQuestions = 0;
+                let isPassed = false;
 
-            const questionResults = trainingModuleContent.quiz.map(question => {
+                const filteredQuestionAnswers = questionAnswers?.filter(el => {
+                    if (Array.isArray(el?.answer)) {
+                        return el.answer.some(ans => ans && ans.trim() !== "");
+                    }
+                    return (
+                        el?.answer &&
+                        el.answer !== "" &&
+                        el.answer !== null &&
+                        el.answer !== undefined
+                    );
+                }) || [];
 
-                const userAnswer = filteredQuestionAnswers?.find(
-                    ans => ans.questionId.toString() === question._id.toString()
-                );
+                const questionResults = trainingModuleContent.quiz.map(question => {
 
-                totalScore += question.points;
+                    const userAnswer = filteredQuestionAnswers?.find(
+                        ans => ans.questionId.toString() === question._id.toString()
+                    );
 
-                if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
-                    skippedQuestions += 1;
+                    totalScore += question.points;
+
+                    if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
+                        skippedQuestions += 1;
+
+                        return {
+                            questionId: question._id,
+                            question: question.question,
+                            givenAnswer: null,
+                            correctAnswer: question.answerKey,
+                            isCorrectAnswer: false,
+                            points: question.points,
+                            negativePoints: question.negativePoints,
+                            isSkipped: true,
+                        };
+                    }
+
+                    let isCorrectAnswer;
+                    const isAnswerNumber = /^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(userAnswer.answer[0]);
+
+                    if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
+
+                        const threshold = 2;
+                        isCorrectAnswer = question.answerKey.some(correctAnswer => {
+                            const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
+                            return distance <= threshold;
+                        });
+
+                        if (isCorrectAnswer) {
+                            acquiredScore += question.points;
+                        } else {
+                            acquiredScore -= question.negativePoints;
+                        }
+
+                    } else {
+
+                        isCorrectAnswer = question.answerKey.every(correctAnswer =>
+                            userAnswer.answer.includes(correctAnswer)
+                        ) && userAnswer.answer.length === question.answerKey.length;
+
+                        if (isCorrectAnswer) {
+                            acquiredScore += question.points;
+                        } else {
+                            acquiredScore -= question.negativePoints;
+                        }
+
+                    }
 
                     return {
                         questionId: question._id,
                         question: question.question,
-                        givenAnswer: null,
+                        givenAnswer: userAnswer.answer,
                         correctAnswer: question.answerKey,
-                        isCorrectAnswer: false,
+                        isCorrectAnswer,
                         points: question.points,
                         negativePoints: question.negativePoints,
-                        isSkipped: true,
+                        isSkipped: false,
                     };
+                });
+
+                const scorePercentage = totalScore
+                    ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
+                    : 0;
+
+                isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
+
+                const quizEvaluationData = {
+                    contentId,
+                    trainingModuleId,
+                    trainingId,
+                    userId,
+                    attended: filteredQuestionAnswers.length,
+                    totalQuestions: trainingModuleContent.quiz.length,
+                    totalPoints: totalScore,
+                    acquiredMarks: acquiredScore,
+                    percentage: scorePercentage,
+                    skippedQuestions,
+                    isPassed,
+                    attendedQuestions: questionResults,
+                };
+
+                quizEvaluations.push(quizEvaluationData);
+
+                // const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+
+                // const attemptCount = overallDoc.attemptCount || 1;
+
+                const trainingProgressUpdates = {
+                    attended: filteredQuestionAnswers.length,
+                    totalQuestions: trainingModuleContent.quiz.length,
+                    totalPoints: totalScore,
+                    acquiredMarks: acquiredScore,
+                    percentage: scorePercentage,
+                    skippedQuestions,
+                    isPassed,
+                    attendedQuestions: questionResults,
                 }
 
-                let isCorrectAnswer;
-                const isAnswerNumber = /^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(userAnswer.answer[0]);
+                if (!isPassed) {
 
-                if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
-
-                    const threshold = 2;
-                    isCorrectAnswer = question.answerKey.some(correctAnswer => {
-                        const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
-                        return distance <= threshold;
+                    updateTrainingProgressData.push({
+                        updateOne: {
+                            filter: {
+                                overallTrainingProgress: overallId,
+                                trainingModuleContent: trainingModuleContent,
+                                attemptCount: attemptCount,
+                            },
+                            update: {
+                                $set: {
+                                    quizAttemptDetails: trainingProgressUpdates,
+                                    progressPercentage: 0,
+                                    status: "IN_PROGRESS",
+                                },
+                            },
+                            upsert: true,
+                        },
                     });
-
-                    if (isCorrectAnswer) {
-                        acquiredScore += question.points;
-                    } else {
-                        acquiredScore -= question.negativePoints;
-                    }
 
                 } else {
 
-                    isCorrectAnswer = question.answerKey.every(correctAnswer =>
-                        userAnswer.answer.includes(correctAnswer)
-                    ) && userAnswer.answer.length === question.answerKey.length;
-
-                    if (isCorrectAnswer) {
-                        acquiredScore += question.points;
-                    } else {
-                        acquiredScore -= question.negativePoints;
-                    }
+                    updateTrainingProgressData.push({
+                        updateOne: {
+                            filter: {
+                                overallTrainingProgress: overallId,
+                                trainingModuleContent: trainingModuleContent,
+                                attemptCount: attemptCount,
+                            },
+                            update: {
+                                $set: {
+                                    quizAttemptDetails: trainingProgressUpdates,
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
 
                 }
-
-                return {
-                    questionId: question._id,
-                    question: question.question,
-                    givenAnswer: userAnswer.answer,
-                    correctAnswer: question.answerKey,
-                    isCorrectAnswer,
-                    points: question.points,
-                    negativePoints: question.negativePoints,
-                    isSkipped: false,
-                };
-            });
-
-            const scorePercentage = totalScore
-                ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
-                : 0;
-
-            isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
-
-            const quizEvaluationData = {
-                contentId,
-                trainingModuleId,
-                trainingId,
-                userId,
-                attended: filteredQuestionAnswers.length,
-                totalQuestions: trainingModuleContent.quiz.length,
-                totalPoints: totalScore,
-                acquiredMarks: acquiredScore,
-                percentage: scorePercentage,
-                skippedQuestions,
-                isPassed,
-                attendedQuestions: questionResults,
-            };
-
-            quizEvaluations.push(quizEvaluationData);
-
-            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
-
-            const attemptCount = overallDoc.attemptCount || 1;
-
-            const trainingProgressUpdates = {
-                attended: filteredQuestionAnswers.length,
-                totalQuestions: trainingModuleContent.quiz.length,
-                totalPoints: totalScore,
-                acquiredMarks: acquiredScore,
-                percentage: scorePercentage,
-                skippedQuestions,
-                isPassed,
-                attendedQuestions: questionResults,
-            }
-
-            if (!isPassed) {
-
-                updateTrainingProgressData.push({
-                    updateOne: {
-                        filter: {
-                            overallTrainingProgress: overallId,
-                            trainingModuleContent: trainingModuleContent,
-                            attemptCount: attemptCount,
-                        },
-                        update: {
-                            $set: {
-                                quizAttemptDetails: trainingProgressUpdates,
-                                progressPercentage: 0,
-                                status: "NOT_STARTED",
-                            },
-                        },
-                        upsert: true,
-                    },
-                });
 
             } else {
 
@@ -1174,7 +1198,8 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                         },
                         update: {
                             $set: {
-                                quizAttemptDetails: trainingProgressUpdates,
+                                progressPercentage: 0,
+                                status: "IN_PROGRESS",
                             },
                         },
                         upsert: true,
