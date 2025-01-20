@@ -630,7 +630,6 @@ module.exports.queries = {
                 return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                     offset: skip,
                     limit,
-                    sort: { updatedAt: -1 },
                     customLabels: {
                         docs: "employees",
                         totalDocs: "totalCount",
@@ -772,6 +771,18 @@ module.exports.queries = {
                     $unwind: {
                         path: "$userVessels",
                         preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $addFields: {
+                        latestUpdatedAt: {
+                            $max: ["$updatedAt", "$user.updatedAt"],
+                        },
+                    },
+                },
+                {
+                    $sort: {
+                        latestUpdatedAt: -1,
                     },
                 },
 
@@ -2396,7 +2407,7 @@ module.exports.mutations = {
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-    
+
         const requiredFields = ['First Name*', 'Last Name', 'User ID*', 'Email*', 'Employee Designation*',];
         const providedFields = input.fields;
 
@@ -2411,7 +2422,7 @@ module.exports.mutations = {
                 `The required fields should be in the following order: ${requiredFields.join(', ')}.`
             );
         }
-        const  defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
+        const defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
             ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) : defaultexportUserIds;
         try {
