@@ -229,7 +229,7 @@ module.exports.queries = {
 
         try {
 
-            const signedUrl = await AwsHelper.fetchFile("public/sample_doc.csv");
+            const signedUrl = await AwsHelper.fetchFile("public/bulk_csv.csv");
             return {
                 success: true,
                 message: "File fetched successfully",
