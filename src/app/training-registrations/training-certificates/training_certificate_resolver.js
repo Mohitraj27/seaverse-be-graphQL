@@ -1,4 +1,4 @@
-const { Moment } = require("../../../tools");
+const { Moment, ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, Role, AuthUser } = require("../../../util");
 
 const { TrainingCertificate } = require("./training_certificate_model");
@@ -251,6 +251,7 @@ module.exports.queries = {
         try {
             
             let matchStage =[];
+            let courseFilter =[];
 
             if (filterInput?.name) {
                 matchStage.push( {
@@ -259,13 +260,21 @@ module.exports.queries = {
                     },
                   },)
             }
+            if (filterInput?.courseId) {
+                courseFilter.push( {
+                    $match: {
+                      'training': ObjectId(filterInput?.courseId),
+                    },
+                  },)
+            }
 
           const certificatesQuery = [
             {
               $match: {
-                user: id,
+                user: ObjectId(id),
               },
             },
+            ...courseFilter,
             {
               $lookup: {
                 from: 'trainings',
