@@ -3273,7 +3273,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
-                    ownerName: 1,
+                    ownerName: 1, 
                     onboardedCount: {
                         $size: {
                             $ifNull: ["$onboardedUsers", []]
