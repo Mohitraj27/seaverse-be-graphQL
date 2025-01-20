@@ -252,6 +252,7 @@ module.exports.queries = {
             
             let matchStage =[];
             let courseFilter =[];
+            let courseProgressFilter =[];
 
             if (filterInput?.name) {
                 matchStage.push( {
@@ -264,6 +265,13 @@ module.exports.queries = {
                 courseFilter.push( {
                     $match: {
                       'training': ObjectId(filterInput?.courseId),
+                    },
+                  },)
+            }
+            if (filterInput?.courseProgressId) {
+                courseProgressFilter.push( {
+                    $match: {
+                      'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
                     },
                   },)
             }
@@ -305,6 +313,29 @@ module.exports.queries = {
                 as: 'user',
               },
             },
+              {
+                  $lookup:{
+                      from: "overalltrainingprogresses",
+                      localField: "trainingRegistration",
+                      foreignField: "trainingRegistration",
+                      as: "overallProgressInfo",
+                      pipeline: [
+                          {
+                              $match: {
+                                  user: ObjectId(id)
+                              }
+                          }
+                      ]
+                  }
+              },
+              {
+                  $unwind:
+                  {
+                      path: "$overallProgressInfo",
+                      preserveNullAndEmptyArrays: false
+                  }
+              },
+              ...courseProgressFilter,
             {
               $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
             },
