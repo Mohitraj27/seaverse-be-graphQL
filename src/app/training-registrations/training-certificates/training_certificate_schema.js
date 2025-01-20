@@ -83,6 +83,7 @@ module.exports = {
         }
         input certificateFilters {
             name : String
+            courseId : ID
         }
         
     `,

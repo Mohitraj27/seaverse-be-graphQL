@@ -14,7 +14,7 @@ const  getAppliedFilters = async (input) => {
     let appliedFilters = [];
 
     if (input.courseIds && Array.isArray(input.courseIds) && input.courseIds.length > 0) {
-        appliedFilters.push("Course IDs filter");
+        appliedFilters.push("Course Names filter");
     }
     if (input.vesselName && Array.isArray(input.vesselName) && input.vesselName.length > 0) {
         appliedFilters.push("Vessel Name filter");
