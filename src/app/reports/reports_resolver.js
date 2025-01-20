@@ -32,7 +32,7 @@ const getMainLearnersReport = async ({ input }, context) => {
     }
     try {
         const matchStage = [];
-
+        let deteledUsersStage = [];
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -111,6 +111,40 @@ const getMainLearnersReport = async ({ input }, context) => {
                     $match: { 'userInfo.isRegistered': filterInput.isRegistered },
                 });
             }
+            if (input?.filterInput?.includeDeletedUsers) {
+                deteledUsersStage = [
+                    {
+                        $lookup: {
+                            from: 'deletedusers',
+                            localField: 'user',
+                            foreignField: '_id',
+                            as: 'deletedUserInfo',
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: '$deletedUserInfo',
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $addFields: {
+                            userInfo: {
+                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
+                            }
+                        },
+                    },
+                ];
+            } else {
+                deteledUsersStage = [
+                    {
+                        $match: {
+                            "userInfo.isDeleted": { $ne: true }
+                        }
+                    }
+                ];
+            }
+
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -143,37 +177,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            ...(input?.filterInput?.includeDeletedUsers
-                ? [
-                    {
-                        $lookup: {
-                            from: 'deletedusers',
-                            localField: 'user',
-                            foreignField: '_id',
-                            as: 'deletedUserInfo',
-                        },
-                    },
-                    {
-                        $unwind: {
-                            path: '$deletedUserInfo',
-                            preserveNullAndEmptyArrays: true,
-                        },
-                    },
-                    {
-                        $addFields: {
-                            userInfo: {
-                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
-                            }
-                        },
-                    },
-                ]
-                : [
-                    {
-                        $match: {
-                            userInfo: { $ne: null },
-                        },
-                    },
-                ]),
+            ...deteledUsersStage, 
             {
                 $lookup: {
                     from: 'designations',
@@ -1459,6 +1463,13 @@ const getMainCoursesReport = async ({ input }, context) => {
                     localField: 'progress.user',
                     foreignField: '_id',
                     as: 'userInfo',
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
                 },
             },
             {
@@ -1832,7 +1843,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             from: "users",
                             localField: "user",
                             foreignField: "_id",
-                            as: "userInfo"
+                            as: "userInfo",
+                            pipeline : [
+                              {
+                                $match :{
+                                  isDeleted : false
+                                }
+                              }
+                            ]
                         }
                     },
                     {
@@ -1877,7 +1895,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 {
                                     $unwind: {
                                         path: '$contentInfo',
-                                        preserveNullAndEmptyArrays: true,
+                                        preserveNullAndEmptyArrays: false,
                                     },
                                 },
                                 {
@@ -2272,7 +2290,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'from': 'users',
                             'localField': 'user',
                             'foreignField': '_id',
-                            'as': 'userInfo'
+                            'as': 'userInfo',
+                            pipeline : [
+                              {
+                                $match :{
+                                  isDeleted : false
+                                }
+                              }
+                            ]
                         }
                     }, {
                         '$unwind': {
@@ -3092,7 +3117,19 @@ const getVesselMainReport = async ({ input }, context) => {
                     from: "users",
                     localField: "userVesselsInfo.user",
                     foreignField: "_id",
-                    as: "userInfo"
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      },
+                      {
+                        $match: {
+                          vesselStatus: "ONBOARDED"
+                        }
+                      }
+                    ]
                 }
             },
             {
@@ -3146,29 +3183,6 @@ const getVesselMainReport = async ({ input }, context) => {
                             []
                         ]
                     },
-                    filteredTrainingProgress: {
-                        $filter: {
-                            input: "$trainingProgressInfo",
-                            as: "training",
-                            cond: {
-                                $in: [
-                                    "$$training.user",
-                                    {
-                                        $ifNull: [
-                                            {
-                                                $map: {
-                                                    input: "$onboardedUsers",
-                                                    as: "user",
-                                                    in: "$$user"
-                                                }
-                                            },
-                                            []
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
-                    },
                     averageProgress: {
                         $cond: {
                             if: {
@@ -3176,7 +3190,7 @@ const getVesselMainReport = async ({ input }, context) => {
                                     {
                                         $size: {
                                             $ifNull: [
-                                                "$filteredTrainingProgress",
+                                                "$trainingProgressInfo",
                                                 []
                                             ]
                                         }
@@ -3185,7 +3199,7 @@ const getVesselMainReport = async ({ input }, context) => {
                                 ]
                             },
                             then: {
-                                $avg: "$filteredTrainingProgress.progressPercentage"
+                                $avg: "$trainingProgressInfo.progressPercentage"
                             },
                             else: 0
                         }
@@ -3236,13 +3250,13 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
-                    ownerName: 1,
+                    ownerName: 1, 
                     onboardedCount: {
                         $size: {
                             $ifNull: ["$onboardedUsers", []]
                         }
                     },
-                    progress: "$averageProgress"
+                    progress: { $trunc: "$averageProgress" }
                 }
             },
             {
