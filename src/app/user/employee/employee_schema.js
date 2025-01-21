@@ -280,9 +280,6 @@ type userVessels {
             field_name: String!
             value: String!
         }
-        input ExportUserFieldsInput {
-            fields: [String!]!
-        }
         type createEmployeeRes {
             status: Boolean
             message: String
@@ -340,6 +337,6 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(input: ExportUserFieldsInput!,userObjectIds: UserObjectIDs): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
     `,
 };
