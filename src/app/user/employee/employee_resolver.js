@@ -1907,20 +1907,22 @@ module.exports.mutations = {
                 email: savedUser.email,
                 templategeneratePassword: generatePassword,
             });
-            const mailOptions = {
-                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-                to: savedUser.email,
-                subject: "Welcome to SeaVerse!",
-                text: "",
-                html: emailContentforNewEmployee,
+            // const mailOptions = {
+            //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+            //     to: savedUser.email,
+            //     subject: "Welcome to SeaVerse!",
+            //     text: "",
+            //     html: emailContentforNewEmployee,
 
-            };
+            // };
 
-            await transporter.sendMail(mailOptions, (error, info) => {
-                if (error) {
-                    throw Error("Error sending email:");
-                }
-            });
+            await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
+
+            // await transporter.sendMail(mailOptions, (error, info) => {
+            //     if (error) {
+            //         throw Error("Error sending email:");
+            //     }
+            // });
 
             return savedEmployees;
         });
@@ -2423,9 +2425,9 @@ module.exports.mutations = {
         ];
         const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
-            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) 
+            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
             : defaultExportUserIds;
-    
+
         try {
             const notifications = [];
             const exportStartTime = new Date();
@@ -2452,7 +2454,7 @@ module.exports.mutations = {
                 {
                     $match: {
                         _id: { $in: userIds },
-                        isDeleted: false 
+                        isDeleted: false
                     },
                 },
                 {
