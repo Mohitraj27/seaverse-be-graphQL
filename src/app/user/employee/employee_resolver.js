@@ -11,20 +11,7 @@ const {
     VesselStatus,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
-const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_ENDPOINT,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_PORT == 465,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -48,7 +35,6 @@ const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const {
     sendNotificationOn,
     generateRandomString,
-    sendNodeEmail,
     sendNodeEmailBulk,
 } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require("uuid");
