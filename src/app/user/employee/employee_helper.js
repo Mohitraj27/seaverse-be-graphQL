@@ -51,11 +51,8 @@ const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
-<<<<<<< HEAD
-const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
-=======
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
->>>>>>> origin/main
+const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};

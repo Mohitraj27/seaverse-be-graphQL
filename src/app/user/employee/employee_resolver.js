@@ -2407,7 +2407,6 @@ module.exports.mutations = {
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-<<<<<<< HEAD
         const hardcodedFields = [
             'First Name*',
             'Last Name',
@@ -2428,28 +2427,6 @@ module.exports.mutations = {
             : defaultExportUserIds;
     
         try {
-=======
-
-        const requiredFields = ['First Name*', 'Last Name', 'User ID*', 'Email*', 'Employee Designation*',];
-        const providedFields = input.fields;
-
-        const missingFields = requiredFields.filter(field => !providedFields.includes(field));
-        if (missingFields.length) {
-            throw CustomError(ErrorName.MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS, `Missing mandatory fields: ${missingFields.join(', ')}`);
-        }
-        const requiredFieldsOrder = providedFields.slice(0, requiredFields.length);
-        if (!requiredFields.every((field, index) => requiredFieldsOrder[index] === field)) {
-            throw CustomError(
-                ErrorName.INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS,
-                `The required fields should be in the following order: ${requiredFields.join(', ')}.`
-            );
-        }
-        const defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
-        const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
-            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) : defaultexportUserIds;
-        try {
-
->>>>>>> origin/main
             const notifications = [];
             const exportStartTime = new Date();
             const inProgressNotification = {
@@ -2475,13 +2452,8 @@ module.exports.mutations = {
                 {
                     $match: {
                         _id: { $in: userIds },
-<<<<<<< HEAD
                         isDeleted: false 
                     },
-=======
-                        isDeleted: false
-                    }
->>>>>>> origin/main
                 },
                 {
                     $lookup: {
@@ -2531,7 +2503,6 @@ module.exports.mutations = {
                                     from: 'vesseltypes',
                                     localField: 'vesselDetails.typeOfVessel',
                                     foreignField: '_id',
-<<<<<<< HEAD
                                     as: 'vesselTypes',
                                 },
                             },
@@ -2540,19 +2511,6 @@ module.exports.mutations = {
                     },
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
-=======
-                                    as: 'vesselTypes'
-                                }
-                            },
-                            {
-                                $unwind: { path: '$vesselTypes', preserveNullAndEmptyArrays: true }
-                            },
-                        ]
-                    }
-                },
-                { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
-
->>>>>>> origin/main
             ];
 
             const projectStage = {
@@ -2583,62 +2541,6 @@ module.exports.mutations = {
                     },
                 },
             };
-<<<<<<< HEAD
-=======
-
-            providedFields.forEach(field => {
-                switch (field) {
-                    case 'First Name*':
-                        projectStage.$project['First Name*'] = '$firstName';
-                        break;
-                    case 'Last Name':
-                        projectStage.$project['Last Name'] = '$lastName';
-                    case 'User ID*':
-                        projectStage.$project['User ID*'] = '$civilIdOrPassport';
-                        break;
-                    case 'Email*':
-                        projectStage.$project['Email*'] = '$email';
-                        break;
-                    case 'Employee Designation*':
-                        projectStage.$project['Employee Designation*'] = '$designationDetails.name';
-                        break;
-                    case 'Current Vessel':
-                        projectStage.$project['Current Vessel'] = '$vesselDetails.name';
-                        break;
-                    case 'Last Login':
-                        projectStage.$project['Last Login'] = {
-                            $cond: {
-                                if: { $eq: ['$lastLoginAt', null] },
-                                then: ' ',
-                                else: { $toDate: '$lastLoginAt' }
-                            }
-                        };
-                        break;
-                    case 'User Roles':
-                        projectStage.$project['User Roles'] = '$role';
-                        break;
-                    case 'Vessel Type':
-                        projectStage.$project['Vessel Type'] = '$typeOfVesselDetails.vesselTypes.name';
-                        break;
-                    case 'Vessel Status':
-                        projectStage.$project['Vessel Status'] = '$vesselStatus';
-                        break;
-                    case 'Vessel IMO Number':
-                        projectStage.$project['Vessel IMO Number'] = '$vesselDetails.imoNumber';
-                    case 'Created At':
-                        projectStage.$project['Created At'] = {
-                            $cond: {
-                                if: { $eq: ['$createdAt', null] },
-                                then: ' ',
-                                else: { $toDate: '$createdAt' }
-                            }
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            });
->>>>>>> origin/main
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
             const data = users.map(user => {
