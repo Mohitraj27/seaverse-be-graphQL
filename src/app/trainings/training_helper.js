@@ -841,7 +841,8 @@ const updateTrainingProgress = async (input, userId, session) => {
     });
 
     const trainingModuleContents = await TrainingContentBridge.find({
-        trainingModule: { $in: trainingModuleIds }
+        trainingModule: { $in: trainingModuleIds },
+        isDeleted: { $ne: true }
     }).session(session);
 
     const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
