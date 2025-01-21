@@ -7,6 +7,7 @@ const {
     SendEmail,
     EmailTemplate,
     DbTransactionHelper,
+    AuthUser,
 } = require("../../util");
 
 const { User, DeletedUser } = require("./user_model");
@@ -19,6 +20,112 @@ const UserHelper = require("./user_helper");
 const SubscriberHelper = require("../saas/subscriber/subscriber_helper");
 const EmployeeHelper = require("./employee/employee_helper");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const { ImportLog } = require("./import-log/import_log_model");
+
+const AwsHelper = require("../../util/aws_helper");
+const NotificationHelper = require("../notifications/notification_helper");
+const notificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const Export = require("../user/exportUser/exportUser_model");
+
+module.exports.queries = {
+    downloadNotification: async ({ input }, context) => {
+
+
+
+        const { subscriberId, userInfo } = AuthUser(context);
+
+        try {
+
+            if (!input.downloadType || !input.id) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            }
+
+            let fetchUrl;
+            if (input.downloadType == 'IMPORT_LOG') {
+                fetchUrl = await ImportLog.findById(input.id).lean().select("filePath");
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Import Log is ready!`,
+                    messageValue: `Your import log download is ready!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
+                    notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: fetchUrl?.filePath.url
+                            }
+                        }
+                    ],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
+                return {
+                    status: "SUCCESS",
+                    message: "Import Log Download is ready!",
+                };
+            }
+
+            if (input.downloadType == 'REPORT') {
+
+                const fetchUrl = await Export.findById(input.id).lean().select("filePath");
+
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Custom Report is ready!`,
+                    messageValue: `Your custom report download is ready!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
+                    notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: fetchUrl.filePath
+                            }
+                        }
+                    ],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
+                return {
+                    status: "SUCCESS",
+                    message: "Import Log Download is ready!",
+                };
+
+            }
+
+            if (!fetchUrl.filePath) {
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Failed!`,
+                    messageValue: `Your File Download is failed!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_FAILED,
+                    notifyAdmin: true,
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.ERROR,
+                    createdBy: userInfo,
+                });
+
+                throw CustomError(ErrorName.NOT_FOUND, 'File not found!');
+            }
+
+        } catch (error) {
+            throw new Error(error.message);
+        }
+
+    }
+}
 
 module.exports.mutations = {
     createSaasAdmin: async ({ input }) => {

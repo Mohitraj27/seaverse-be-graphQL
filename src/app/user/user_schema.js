@@ -108,6 +108,21 @@ module.exports = {
             search: String
             role: Role
         }
+        enum downloadTypeEnum {
+            IMPORT_LOG
+            REPORT
+        }
+        input downloadInput {
+            downloadType: downloadTypeEnum!
+            id: ID!
+        }
+        type downloadResponse {
+            status: String!
+            message: String!
+        }
+    `,
+    queries: `
+        downloadNotification(input: downloadInput!): downloadResponse!
     `,
     mutations: `
         createSaasAdmin(input: SignUpInput!): AuthUser!
