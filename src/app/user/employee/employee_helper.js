@@ -51,6 +51,7 @@ const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
+const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -701,6 +702,14 @@ const deleteUsers = async (users, errors) => {
                 );
 
                 if (updateGroupMember) {
+                    for (const user of getUsers) {
+                        const htmlContent = sendDeleteEmailToLearner(user.firstName);
+                        await SendEmail({
+                            receiverEmail: user.email,
+                            subject: "Your account has been deleted",
+                            htmlContent: htmlContent,
+                        });
+                    }
                     return deleteUsers;
                 }
 

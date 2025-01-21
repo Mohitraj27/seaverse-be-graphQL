@@ -2406,33 +2406,33 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ input, userObjectIds }, context) => {
+    exportUserToCsv: async ({ userObjectIds }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-    
-        const requiredFields = ['First Name*', 'Last Name', 'User ID*', 'Email*', 'Employee Designation*',];
-        const providedFields = input.fields;
-    
-        const missingFields = requiredFields.filter(field => !providedFields.includes(field));
-        if (missingFields.length) {
-            throw CustomError(ErrorName.MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS, `Missing mandatory fields: ${missingFields.join(', ')}`);
-        }
-        const requiredFieldsOrder = providedFields.slice(0, requiredFields.length);
-        if (!requiredFields.every((field, index) => requiredFieldsOrder[index] === field)) {
-            throw CustomError(
-                ErrorName.INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS,
-                `The required fields should be in the following order: ${requiredFields.join(', ')}.`
-            );
-        }
-        const  defaultexportUserIds = await User.find({ isDeleted: false }).distinct('_id');
+        const hardcodedFields = [
+            'First Name*',
+            'Last Name',
+            'User ID*',
+            'Email*',
+            'Employee Designation*',
+            'Current Vessel',
+            'Vessel IMO Number',
+            'Vessel Status',
+            'Last Login',
+            'Created At',
+            'User Roles',
+            'Vessel Type'
+        ];
+        const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
-        ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) : defaultexportUserIds;
+            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id)) 
+            : defaultExportUserIds;
+    
         try {
-
-             const notifications = [];
-             const exportStartTime = new Date();
+            const notifications = [];
+            const exportStartTime = new Date();
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
@@ -2457,15 +2457,15 @@ module.exports.mutations = {
                     $match: {
                         _id: { $in: userIds },
                         isDeleted: false 
-                    }
+                    },
                 },
                 {
                     $lookup: {
                         from: 'employees',
                         localField: '_id',
                         foreignField: 'user',
-                        as: 'employeeDetails'
-                    }
+                        as: 'employeeDetails',
+                    },
                 },
                 { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
                 {
@@ -2473,8 +2473,8 @@ module.exports.mutations = {
                         from: 'vessels',
                         localField: 'currentVessel',
                         foreignField: '_id',
-                        as: 'vesselDetails'
-                    }
+                        as: 'vesselDetails',
+                    },
                 },
                 { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
                 {
@@ -2482,8 +2482,8 @@ module.exports.mutations = {
                         from: 'designations',
                         localField: 'employeeDetails.empDesignation',
                         foreignField: '_id',
-                        as: 'designationDetails'
-                    }
+                        as: 'designationDetails',
+                    },
                 },
                 { $unwind: { path: '$designationDetails', preserveNullAndEmptyArrays: true } },
                 {
@@ -2498,91 +2498,60 @@ module.exports.mutations = {
                                     from: 'vessels',
                                     localField: 'vessel',
                                     foreignField: '_id',
-                                    as: 'vesselDetails'
-                                }
+                                    as: 'vesselDetails',
+                                },
                             },
-                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true }},
+                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
                             {
-                                $lookup:{
-                                from: 'vesseltypes',
-                                localField: 'vesselDetails.typeOfVessel',
-                                foreignField: '_id',
-                                as: 'vesselTypes'
-                                }
-                              },
-                              {
-                                $unwind: {path:'$vesselTypes',preserveNullAndEmptyArrays: true}
-                              },
-                        ]
-                    }
+                                $lookup: {
+                                    from: 'vesseltypes',
+                                    localField: 'vesselDetails.typeOfVessel',
+                                    foreignField: '_id',
+                                    as: 'vesselTypes',
+                                },
+                            },
+                            { $unwind: { path: '$vesselTypes', preserveNullAndEmptyArrays: true } },
+                        ],
+                    },
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
-                
             ];
     
             const projectStage = {
-                $project: {}
+                $project: {
+                    'First Name*': '$firstName',
+                    'Last Name': '$lastName',
+                    'User ID*': '$civilIdOrPassport',
+                    'Email*': '$email',
+                    'Employee Designation*': '$designationDetails.name',
+                    'Current Vessel': '$vesselDetails.name',
+                    'Last Login': {
+                        $cond: {
+                            if: { $eq: ['$lastLoginAt', null] },
+                            then: ' ',
+                            else: { $toDate: '$lastLoginAt' },
+                        },
+                    },
+                    'User Roles': '$role',
+                    'Vessel Type': '$typeOfVesselDetails.vesselTypes.name',
+                    'Vessel Status': '$vesselStatus',
+                    'Vessel IMO Number': '$vesselDetails.imoNumber',
+                    'Created At': {
+                        $cond: {
+                            if: { $eq: ['$createdAt', null] },
+                            then: ' ',
+                            else: { $toDate: '$createdAt' },
+                        },
+                    },
+                },
             };
-    
-            providedFields.forEach(field => {
-                switch (field) {
-                    case 'First Name*':
-                        projectStage.$project['First Name*'] = '$firstName';
-                        break;
-                    case 'Last Name':
-                        projectStage.$project['Last Name'] = '$lastName';
-                    case 'User ID*':
-                        projectStage.$project['User ID*'] = '$civilIdOrPassport';
-                        break;
-                    case 'Email*':
-                        projectStage.$project['Email*'] = '$email';
-                        break;
-                    case 'Employee Designation*':
-                        projectStage.$project['Employee Designation*'] = '$designationDetails.name';
-                        break;
-                    case 'Current Vessel':
-                        projectStage.$project['Current Vessel'] = '$vesselDetails.name';
-                        break;
-                    case 'Last Login':
-                        projectStage.$project['Last Login'] = {
-                            $cond: {
-                                if: { $eq: ['$lastLoginAt', null] },
-                                then: ' ',
-                                else: { $toDate: '$lastLoginAt' }
-                            }
-                        };
-                        break;
-                    case 'User Roles':
-                        projectStage.$project['User Roles'] = '$role';
-                        break;
-                    case 'Vessel Type':
-                        projectStage.$project['Vessel Type'] = '$typeOfVesselDetails.vesselTypes.name';
-                        break;
-                    case 'Vessel Status':
-                        projectStage.$project['Vessel Status'] = '$vesselStatus';
-                        break;
-                    case 'Vessel IMO Number':
-                        projectStage.$project['Vessel IMO Number'] = '$vesselDetails.imoNumber';
-                    case 'Created At':
-                        projectStage.$project['Created At'] = {
-                            $cond: {
-                                if: { $eq: ['$createdAt', null] },
-                                then: ' ',
-                                else: { $toDate: '$createdAt' }
-                            }
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            });
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
             const data = users.map(user => {
                 const rowData = {};
-                providedFields.forEach(field => {
-                    if (field === 'Last Seen' && user['Last Seen'] !== 'N/A') {
-                        rowData[field] = formatDateWithSuffix(new Date(user['Last Seen']));
+                hardcodedFields.forEach(field => {
+                    if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Last Login']));
                     } else {
                         rowData[field] = user[field] || ' ';
                     }
