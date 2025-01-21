@@ -3123,6 +3123,11 @@ const getVesselMainReport = async ({ input }, context) => {
                         $match :{
                           isDeleted : false
                         }
+                      },
+                      {
+                        $match: {
+                          vesselStatus: "ONBOARDED"
+                        }
                       }
                     ]
                 }
@@ -3178,29 +3183,6 @@ const getVesselMainReport = async ({ input }, context) => {
                             []
                         ]
                     },
-                    filteredTrainingProgress: {
-                        $filter: {
-                            input: "$trainingProgressInfo",
-                            as: "training",
-                            cond: {
-                                $in: [
-                                    "$$training.user",
-                                    {
-                                        $ifNull: [
-                                            {
-                                                $map: {
-                                                    input: "$onboardedUsers",
-                                                    as: "user",
-                                                    in: "$$user"
-                                                }
-                                            },
-                                            []
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
-                    },
                     averageProgress: {
                         $cond: {
                             if: {
@@ -3208,7 +3190,7 @@ const getVesselMainReport = async ({ input }, context) => {
                                     {
                                         $size: {
                                             $ifNull: [
-                                                "$filteredTrainingProgress",
+                                                "$trainingProgressInfo",
                                                 []
                                             ]
                                         }
@@ -3217,7 +3199,7 @@ const getVesselMainReport = async ({ input }, context) => {
                                 ]
                             },
                             then: {
-                                $avg: "$filteredTrainingProgress.progressPercentage"
+                                $avg: "$trainingProgressInfo.progressPercentage"
                             },
                             else: 0
                         }
@@ -3268,13 +3250,13 @@ const getVesselMainReport = async ({ input }, context) => {
                     vesselId: "$_id",
                     typeOfVessel: "$vesselType",
                     vesselTypeId: "$vesselTypeId",
-                    ownerName: 1,
+                    ownerName: 1, 
                     onboardedCount: {
                         $size: {
                             $ifNull: ["$onboardedUsers", []]
                         }
                     },
-                    progress: "$averageProgress"
+                    progress: { $trunc: "$averageProgress" }
                 }
             },
             {
