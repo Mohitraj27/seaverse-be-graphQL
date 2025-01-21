@@ -10,7 +10,7 @@ const {
     VesselStatus,
     UploadHelper,
 } = require("../../../util");
-const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper, Validator } = require("../../../tools");
+const { JwtHelper, CryptoHelper, ObjectId, PubSubHelper, Validator, CronHelper } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -51,7 +51,11 @@ const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
+<<<<<<< HEAD
 const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
+=======
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+>>>>>>> origin/main
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -656,6 +660,15 @@ const deleteUsers = async (users, errors) => {
                 { $set: { isDeleted: true } }
             );
 
+            await OverallTrainingProgress.updateMany(
+                { user: { $in: users } },
+                {
+                    $set: {
+                        isDeleted: true,
+                    }
+                }
+            );
+
             if (deleteUsers) {
 
                 const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
@@ -825,8 +838,7 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-
-const validateUserRow = async (row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -893,10 +905,10 @@ const validateUserRow = async (row, { empIds, emails, employeeNumbers, designati
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
         }
-        
+
         if (status !== vesselStatusEnum.ONSHORE.toLowerCase()) {
             if (!row["Vessel IMO Number"]) {
-                
+
                 errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
                 return errors;
             }
@@ -962,6 +974,40 @@ const validateName = (name) => {
     return true;
 };
 
+const moveExpiredDeletedUsers = async () => {
+    CronHelper.schedule("0 0 * * *", async () => {
+        try {
+
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setMinutes(thirtyDaysAgo.getMinutes() - 1);
+
+            const result = await DbTransactionHelper.performDbTransaction(async session => {
+
+                const expiredUsers = await User.find({
+                    deleteRequestDate: { $lte: thirtyDaysAgo },
+                    isDeleted: true,
+                    isActive: false
+                }).session(session);
+
+                if (expiredUsers.length > 0) {
+                    const expiredUserIds = expiredUsers.map(user => user.id);
+
+                    const errors = [];
+                    const deletedUsers = await deleteUsers(expiredUserIds, errors);
+
+                    if (deletedUsers.length < 0) {
+                        console.error("Errors occurred while deleting users");
+                    }
+                }
+
+                return `${expiredUsers.length} users processed`;
+            });
+
+        } catch (error) {
+            console.error("Error occurred while processing expired users:", error);
+        }
+    });
+};
 
 module.exports = {
     deleteUsers,
@@ -981,6 +1027,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
@@ -992,8 +1039,9 @@ module.exports = {
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
         let newVessel;
-        if (input?.user?.currentVessel && !input?.user?.currentVessel === '') {
-
+        if (input?.user?.currentVessel && input?.user?.currentVessel !== '') {
+            
+            
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
             if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
@@ -1006,7 +1054,7 @@ module.exports = {
                 await UserVessel.create({
                     user: existingEmployee?.user?._id,
                     vessel: input?.user?.currentVessel,
-                    vesselStatus: input?.user?.vesselStatus || "ASSIGNED",
+                    vesselStatus: input?.user?.vesselStatus || "ONSHORE",
                 })
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1589,6 +1637,7 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
+
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
         let userCount = 0;
@@ -1602,21 +1651,34 @@ module.exports = {
             ]
         }).lean();
 
+        let existingEmailsInDB = new Map();
+        let existingEmpIdsInDB = new Map();
 
-        const existingEmailsInDB = existingUsers.map(user => user.email?.toLowerCase());
+        existingUsers.forEach(user => {
+            if (user.civilIdOrPassport && user.email) {
+                const employeeId = user.civilIdOrPassport.toLowerCase();
+                const email = user.email.toLowerCase();
 
+                existingEmailsInDB.set(employeeId, email);
+                existingEmpIdsInDB.set(email, employeeId);
+            }
+        })
 
-        const existingEmpIdsInDB = existingUsers.map(user => ({
+        const existingEmpIdEmailMap = existingUsers.map(user => ({
             [user.civilIdOrPassport]: user.email?.toLowerCase()
         }));
 
 
-        const getAllDBUsers = await User.find().select('email');
+        const existingEmailEmpIdMap = existingUsers.map(user => ({
+            [user.email?.toLowerCase()]: user.civilIdOrPassport
+        }))
+
+        const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
+        const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport.toLowerCase());
         let errors = [];
         const updates = [];
         const inserts = [];
-
 
         let userIndex = 0;
 
@@ -1632,32 +1694,67 @@ module.exports = {
 
 
 
-
         let updatedEmpIds = [];
+        let updatedEmailIds = [];
         const vesselAssociations = [];
         let passwordEmailList = [];
 
+
         for (const user of users) {
 
-
-            const existingEmpIdsMap = existingEmpIdsInDB.find(empObj => empObj[user.civilIdOrPassport]);
-
+            const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport]);
+            const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
 
             if (existingEmpIdsMap) {
-
 
                 const email = existingEmpIdsMap[user.civilIdOrPassport];
 
 
-                if (email !== user.email?.toLowerCase() && existingEmailsInDB.includes(user.email?.toLowerCase())) {
+                if (existingEmailIdsMap) {
+
+                    const empId = existingEmailIdsMap[user.email?.toLowerCase()];
+                    if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
+
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                        break;
+
+                    } else {
+
+                        updates.push({
+                            updateMany: {
+                                filter: { email: user.email },
+                                update: {
+                                    $set: {
+                                        firstName: user.firstName,
+                                        lastName: user.lastName,
+                                        civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                    },
+                                },
+                            },
+                        });
 
 
-                    errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                        updatedEmailIds.push(user.email);
+
+                        vesselAssociations.push({
+                            email: user.email,
+                            imoNumber: user?.imoNumber,
+                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                        });
+
+                    }
+
+                } else if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
+
+
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     break;
 
 
                 } else {
-
 
                     updates.push({
                         updateMany: {
@@ -1689,12 +1786,16 @@ module.exports = {
 
             } else {
 
-
                 if (getAllDBEmails.includes(user.email)) {
 
-                    errors.push(errors.push(`Email: ${user.email} in row ${userIndex + 1} is already present!`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     break;
 
+
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
+
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                    break;
 
                 } else {
 
@@ -1770,7 +1871,8 @@ module.exports = {
 
 
         let insertedUsers;
-        let updatedUsers;
+        let updatedUsersById;
+        let updatedUsersByEmail;
 
 
         let endUsers = [];
@@ -1786,7 +1888,8 @@ module.exports = {
 
 
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
-            updatedUsers = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
+            updatedUsersById = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
+            updatedUsersByEmail = await User.find({ email: { $in: updatedEmailIds } }).session(session);
 
 
             const designationMap = new Map(
@@ -1798,7 +1901,7 @@ module.exports = {
 
 
             const bulkId = uuidv4();
-            const allUpdatedUsers = [...insertedUsers, ...updatedUsers];
+            const allUpdatedUsers = [...insertedUsers, ...updatedUsersByEmail, ...updatedUsersById];
             userCount = allUpdatedUsers?.length || 0;
 
             const automateLearningPlanIds = [];
@@ -1808,7 +1911,7 @@ module.exports = {
                 const userVesselsInsert = [];
                 for (const vesselData of vesselAssociations) {
                     const originalUserData = allUpdatedUsers.filter(
-                        user => user.civilIdOrPassport === vesselData.civilIdOrPassport
+                        user => user.civilIdOrPassport === vesselData.civilIdOrPassport || user.email === vesselData.email
                     );
 
                     if (originalUserData.length > 0) {
@@ -1904,7 +2007,6 @@ module.exports = {
 
 
             } else {
-
 
                 const createImportLog = await ImportLog.create({
                     subscriber: subscriberId,
@@ -2082,7 +2184,7 @@ module.exports = {
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
         }
-        if (updatedUsers.length > 0) {
+        if (updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
@@ -2100,7 +2202,7 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `${updatedUsers.length} User(s) data  updated`
+                description: `${updatedUsersById.length || updatedUsersByEmail.length} User(s) data  updated`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
@@ -2108,7 +2210,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
 
         let validationErrors = [];
 
@@ -2128,7 +2230,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, employeeNumbers, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {

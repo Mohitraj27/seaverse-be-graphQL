@@ -1,4 +1,4 @@
-const { Moment } = require("../../../tools");
+const { Moment, ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, Role, AuthUser } = require("../../../util");
 
 const { TrainingCertificate } = require("./training_certificate_model");
@@ -251,6 +251,8 @@ module.exports.queries = {
         try {
             
             let matchStage =[];
+            let courseFilter =[];
+            let courseProgressFilter =[];
 
             if (filterInput?.name) {
                 matchStage.push( {
@@ -259,13 +261,28 @@ module.exports.queries = {
                     },
                   },)
             }
+            if (filterInput?.courseId) {
+                courseFilter.push( {
+                    $match: {
+                      'training': ObjectId(filterInput?.courseId),
+                    },
+                  },)
+            }
+            if (filterInput?.courseProgressId) {
+                courseProgressFilter.push( {
+                    $match: {
+                      'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
+                    },
+                  },)
+            }
 
           const certificatesQuery = [
             {
               $match: {
-                user: id,
+                user: ObjectId(id),
               },
             },
+            ...courseFilter,
             {
               $lookup: {
                 from: 'trainings',
@@ -296,6 +313,29 @@ module.exports.queries = {
                 as: 'user',
               },
             },
+              {
+                  $lookup:{
+                      from: "overalltrainingprogresses",
+                      localField: "trainingRegistration",
+                      foreignField: "trainingRegistration",
+                      as: "overallProgressInfo",
+                      pipeline: [
+                          {
+                              $match: {
+                                  user: ObjectId(id)
+                              }
+                          }
+                      ]
+                  }
+              },
+              {
+                  $unwind:
+                  {
+                      path: "$overallProgressInfo",
+                      preserveNullAndEmptyArrays: false
+                  }
+              },
+              ...courseProgressFilter,
             {
               $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
             },
