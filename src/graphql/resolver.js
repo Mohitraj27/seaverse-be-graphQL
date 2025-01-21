@@ -151,6 +151,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(LearningPlanResolver.queries),
         ...AuthHelper.requiresAdmin(CompanyResolver.queries),
         ...AuthHelper.requiresAdmin(OwnerResolver.queries),
+        ...AuthHelper.requiresAdmin(UserResolver.queries),
         ...AuthHelper.simplify(migrationcoursesResolver.queries),
     },
     Mutation: {
