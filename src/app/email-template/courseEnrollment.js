@@ -1,8 +1,8 @@
 function truncateString(str) {
-    return str.length > 12 ? `${str.slice(0, 12)}...` : str;
+    return str.length > 100 ? `${str.slice(0, 100)}...` : str;
   }
   
-  function courseEnrollment({ firstName, courses, isAdmin }) {
+function courseEnrollment({ firstName, courses, isAdmin }) {
     const coursesHTML = courses
       .map(
         (course) => `
@@ -13,7 +13,7 @@ function truncateString(str) {
                           <td style="text-align: center; vertical-align: top;">
                               <img src="${course.courseImage}" alt="Course Image" style="display: block; margin: 0 0 0 auto; height: auto; width:100px;">
                           </td>
-                          <td style="padding-left: 24px; vertical-align: top;">
+                          <td style="padding-left: 24px; vertical-align: top; width: 100%; max-width: 500px;">
                               <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                   <tr>
                                       <td style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
