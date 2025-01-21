@@ -2566,8 +2566,10 @@ module.exports.mutations = {
             });
             if (excelFilePath) {
                 const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const urlObject = new URL(s3PresignedUrl);
+                const extractedfilePath = urlObject.pathname;
                 const exportEntry = new Export({
-                    filePath: s3PresignedUrl,
+                    filePath: extractedfilePath,
                     subscriberId: subscriberId,
                     createdBy: userId,
                     updatedBy: userId,
