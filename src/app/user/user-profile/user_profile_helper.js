@@ -3,7 +3,8 @@ const NotificationType = require('../../notifications/notification_type.json');
 const NotificationHelper = require('../../notifications/notification_helper');
 const { User } = require("../user_model");
 const { CustomError, ErrorName } = require('../../../util/error_helper');
-const aws_helper = require('../../../util/aws_helper');
+const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
+const AwsHelper = require("../../../util/aws_helper");
 
 const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
 
@@ -15,18 +16,18 @@ const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
         try {
             const emailPromises = receiverEmails.map(async (receiverEmail) => {
                 if (receiverEmail.email?.trim()?.length) {
-                    const generatePassword = generateRandomString(10);
-                    const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
-                        firstName: receiverEmail.userName,
-                        email: receiverEmail.email,
-                        templategeneratePassword: generatePassword,
-                    });
-                    const mailOptions = {
-                        receiverEmail: receiverEmail.email,
-                        subject: subject,
-                        htmlContent: emailContentforNewEmployee,
-                    };
-                    return await aws_helper.sendEmail(mailOptions);
+
+                    // const mailOptions = {
+                    //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                    //     to: receiverEmail.email,
+                    //     subject: subject,
+                    //     text: sendEmailToLearner(receiverEmail),
+                    //     html: sendEmailToLearner(receiverEmail)
+                    // };
+
+                    return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
+                    // return transporter.sendMail(mailOptions);
+                    
                 } else {
                     return Promise.reject(new Error("Invalid email address"));
                 }
@@ -108,7 +109,7 @@ function generateRandomString(length = 30) {
 }
 const sendNotificationOnDELETEREQUEST = async (notificationData) => {
     try {
-        const { firstName, lastName, civilIdOrPassport,email } = notificationData.user;
+        const { firstName, lastName, civilIdOrPassport, email } = notificationData.user;
         const { reasonForDelete } = notificationData;
         const adminUsers = await User.find({ role: "ADMIN" });
         const notification = {
@@ -134,7 +135,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
                         email: email
                     },
                 },
-               
+
             ],
             createdBy: notificationData.createdBy,
         };
@@ -145,7 +146,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
                     value: `${notificationData.createdBy.firstName} ${notificationData.createdBy.lastName}'s account has been deleted. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
                 },
             ];
-        } 
+        }
         await NotificationHelper.createNotification(notification);
     } catch (error) {
         console.error(error);
@@ -160,7 +161,7 @@ const sendNotificationOn = async (notificationData) => {
         title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action.toUpperCase()}` }],
         notificationType: NotificationType[`DELETE_${notificationData.action.toUpperCase()}`],
         notifyAdmin: false,
-        notifiers: [], 
+        notifiers: [],
         employeeNotifiers: [],
         affected: [
             {
