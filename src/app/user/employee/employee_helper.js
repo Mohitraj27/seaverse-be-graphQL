@@ -46,7 +46,7 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
-const {  generateRandomString } = require("../user-profile/user_profile_helper");
+const { generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
@@ -1037,8 +1037,8 @@ module.exports = {
 
         let newVessel;
         if (input?.user?.currentVessel && input?.user?.currentVessel !== '') {
-            
-            
+
+
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
             if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
@@ -1670,6 +1670,8 @@ module.exports = {
             [user.email?.toLowerCase()]: user.civilIdOrPassport
         }))
 
+
+
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport.toLowerCase());
@@ -1702,14 +1704,15 @@ module.exports = {
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
 
+
             if (existingEmpIdsMap) {
 
                 const email = existingEmpIdsMap[user.civilIdOrPassport];
 
-
                 if (existingEmailIdsMap) {
 
                     const empId = existingEmailIdsMap[user.email?.toLowerCase()];
+
                     if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
@@ -1773,6 +1776,85 @@ module.exports = {
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
+                        imoNumber: user?.imoNumber,
+                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                    });
+
+                }
+
+
+            } else if (existingEmailIdsMap) {
+
+                const empId = existingEmailIdsMap[user.email];
+
+                if (existingEmpIdsMap) {
+
+                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
+
+                    if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
+
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
+                        break;
+
+                    } else {
+
+                        updates.push({
+                            updateMany: {
+                                filter: { email: user.civilIdOrPassport },
+                                update: {
+                                    $set: {
+                                        firstName: user.firstName,
+                                        lastName: user.lastName,
+                                        email: user.email?.toLowerCase(),
+                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                    },
+                                },
+                            },
+                        });
+
+
+                        updatedEmpIds.push(user.civilIdOrPassport);
+
+                        vesselAssociations.push({
+                            civilIdOrPassport: user.civilIdOrPassport,
+                            imoNumber: user?.imoNumber,
+                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                        });
+
+                    }
+
+                } else if (empId !== user.civilIdOrPassport?.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toLowerCase())) {
+
+
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
+                    break;
+
+
+                } else {
+
+                    updates.push({
+                        updateMany: {
+                            filter: { email: user.email },
+                            update: {
+                                $set: {
+                                    firstName: user.firstName,
+                                    lastName: user.lastName,
+                                    civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                },
+                            },
+                        },
+                    });
+
+
+                    updatedEmailIds.push(user.email);
+
+                    vesselAssociations.push({
+                        email: user.email,
                         imoNumber: user?.imoNumber,
                         vesselStatus: user.vesselStatus?.toUpperCase(),
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
@@ -2181,6 +2263,7 @@ module.exports = {
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
         }
+
         if (updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
@@ -2188,7 +2271,7 @@ module.exports = {
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `${updatedUsers.length} User(s) data updated`,
+                description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
                 notificationType: 'BULK_IMPORT',
                 status: "SUCCESS"
             })
@@ -2199,7 +2282,7 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `${updatedUsersById.length || updatedUsersByEmail.length} User(s) data  updated`
+                description: `${updatedUsersById.length + updatedUsersByEmail.length} User(s) data updated`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
