@@ -20,26 +20,14 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
+const {  mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
-const nodemailer = require('nodemailer');
+
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const {forgetPassword} = require('../../email-template/forgetPassword');
 const EmployeeHelper = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_ENDPOINT,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_PORT == 465, 
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
 
 
 
@@ -441,15 +429,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED);
             }
             const forgetPasswordEmailContent = forgetPassword(token);
-            const mailOptions = {
-                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-                to: email, 
-                subject: "Reset Password",
-                html: forgetPasswordEmailContent
-            };
-            
-            const result = await transporter.sendMail(mailOptions)
-
+            const result = await AwsHelper.sendEmail({ receiverEmail: email, subject: "Reset Password", htmlContent: forgetPasswordEmailContent })
             if (result) {
                 return {
                     success: true,
