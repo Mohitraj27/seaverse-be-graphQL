@@ -804,7 +804,7 @@ module.exports.queries = {
                                     {
                                         $expr: {
                                             $regexMatch: {
-                                                input: { $concat: ["$user.firstName", " ", "$user.lastName"] },
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
                                                 regex: ".*" + sanitizedSearch + ".*",
                                                 options: "i",
                                             },
@@ -889,6 +889,7 @@ module.exports.queries = {
                         {
                             $match: {
                                 "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
                             },
                         },
                     ]
