@@ -2498,6 +2498,23 @@ module.exports.mutations = {
                     },
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $group: {
+                        _id: '$_id',
+                        firstName: { $first: '$firstName' },
+                        lastName: { $first: '$lastName' },
+                        civilIdOrPassport: { $first: '$civilIdOrPassport' },
+                        email: { $first: '$email' },
+                        designationName: { $first: '$designationDetails.name' },
+                        vesselName: { $first: '$vesselDetails.name' },
+                        vesselImoNumber: { $first: '$vesselDetails.imoNumber' },
+                        vesselStatus: { $first: '$vesselStatus' },
+                        lastLoginAt: { $first: '$lastLoginAt' },
+                        createdAt: { $first: '$createdAt' },
+                        role: { $first: '$role' },
+                        vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                    },
+                },
             ];
 
             const projectStage = {
@@ -2506,8 +2523,8 @@ module.exports.mutations = {
                     'Last Name': '$lastName',
                     'User ID*': '$civilIdOrPassport',
                     'Email*': '$email',
-                    'Employee Designation*': '$designationDetails.name',
-                    'Current Vessel': '$vesselDetails.name',
+                    'Employee Designation*': '$designationName',
+                    'Current Vessel': '$vesselName',
                     'Last Login': {
                         $cond: {
                             if: { $eq: ['$lastLoginAt', null] },
@@ -2516,9 +2533,9 @@ module.exports.mutations = {
                         },
                     },
                     'User Roles': '$role',
-                    'Vessel Type': '$typeOfVesselDetails.vesselTypes.name',
+                    'Vessel Type': '$vesselType',
                     'Vessel Status': '$vesselStatus',
-                    'Vessel IMO Number': '$vesselDetails.imoNumber',
+                    'Vessel IMO Number': '$vesselImoNumber',
                     'Created At': {
                         $cond: {
                             if: { $eq: ['$createdAt', null] },
@@ -2541,14 +2558,16 @@ module.exports.mutations = {
                 });
                 return rowData;
             });
-            const workbook = xlsx.utils.book_new();
+            // const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
-            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
-            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const csvData = xlsx.utils.sheet_to_csv(worksheet);
+            // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const csvBuffer = Buffer.from(csvData,'utf-8');
             const excelFilePath = await UploadHelper.uploadExcel({
-                data: excelBuffer,
+                data: csvBuffer,
                 folderName: "exports",
-                fileName: `exported_users_${Date.now()}.xlsx`,
+                fileName: `exported_users_${Date.now()}.csv`,
                 uploadType: UploadHelper.uploadType.exportExcel,
             });
             if (excelFilePath) {
