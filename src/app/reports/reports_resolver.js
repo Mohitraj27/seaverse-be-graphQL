@@ -139,9 +139,20 @@ const getMainLearnersReport = async ({ input }, context) => {
                 deteledUsersStage = [
                     {
                         $match: {
-                            "userInfo.isDeleted": { $ne: true }
+                            $and: [
+                                {
+                                    "userInfo.isDeleted": {
+                                        $ne: true
+                                    }
+                                },
+                                {
+                                    isDeleted: {
+                                        $ne: true
+                                    }
+                                }
+                            ]
                         }
-                    }
+                    },
                 ];
             }
 
@@ -174,7 +185,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             {
                 $unwind: {
                     path: '$userInfo',
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: false,
                 },
             },
             ...deteledUsersStage, 
@@ -298,12 +309,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
                     createdAt: 1,
+                    updatedAt :1,
                     averageProgressPercentage: 1,
                 },
             },
             {
                 '$sort': {
-                    'createdAt': -1
+                    'updatedAt': -1
                 }
             }
         ]);
@@ -579,7 +591,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 {
                                     $unwind: {
                                         path: "$contentInfo",
-                                        preserveNullAndEmptyArrays: true
+                                        preserveNullAndEmptyArrays: false
                                     }
                                 },
                                 {
@@ -2128,7 +2140,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         };
                         const enrollmentDate = formatDate(item.createdAt);
                         const completionDate = formatDate(item.endDate);
-                        const timeSpent = item.totalTimeSpent ? (item.totalTimeSpent / 60).toFixed(2) : '0';
+                        const timeSpent = item.totalTimeSpent ? item.totalTimeSpent+" mins" : '0 mins';
                         const quizScore = (typeof item.quizPercentage === 'string')
                             ? `${parseInt(item.quizPercentage, 10)}%`
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
@@ -2410,6 +2422,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     '$project': {
                                         'moduleId': '$moduleInfo._id',
                                         'moduleName': '$moduleInfo.title',
+                                        'displayOrder': "$moduleInfo.order",
                                         'percentage': '$quizAttemptDetails.percentage',
                                         'isPassed': '$quizAttemptDetails.isPassed',
                                         'contentType': '$contentInfo.contentType',
@@ -2425,7 +2438,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 },
                                 {
                                     '$sort': {
-                                        'updatedAt': -1
+                                        'displayOrder': -1
                                     }
                                 }
                             ]
@@ -2480,6 +2493,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     '$project': {
                                         'moduleId': '$moduleInfo._id',
                                         'moduleName': '$moduleInfo.title',
+                                        'displayOrder' : "$moduleInfo.order",
                                         'percentage': '$quizAttemptDetails.percentage',
                                         'isPassed': '$quizAttemptDetails.isPassed',
                                         'contentType': '$contentInfo.contentType',
@@ -2570,6 +2584,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'then': {
                                             'moduleName': '$quizEvaluations.moduleName',
                                             'percentage': '$quizEvaluations.percentage',
+                                            'order' : "$quizEvaluations.displayOrder",
                                             'isQuizPassed': '$quizEvaluations.isPassed',
                                             'contentType': '$quizEvaluations.contentType',
                                             'updatedAt': '$quizEvaluations.updatedAt',
@@ -2578,6 +2593,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'else': {
                                             'moduleName': '$quizEvaluations.moduleName',
                                             'percentage': 'NOT APPLICABLE',
+                                            'order' : "$quizEvaluations.displayOrder",
                                             'isQuizPassed': "$quizEvaluations.isPassed",
                                             'contentType': '$quizEvaluations.contentType',
                                             'updatedAt': '$quizEvaluations.updatedAt',
@@ -2690,6 +2706,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                                             }, 0
                                         ]
                                     },
+                                    'order': {
+                                        '$arrayElemAt': ["$moduleContents.order", 0]
+                                    },
                                     'percentage': {
                                         '$cond': {
                                             'if': {
@@ -2780,7 +2799,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'email': 1,
                             'currentVessel': 1,
                             'vesselType': 1,
-                            'modules': 1,
+                            'modules': {
+                                '$sortArray': {
+                                    'input': "$modules",
+                                    'sortBy': { 'order': 1 }
+                                }
+                            },
                             'empId': 1,
                             'createdAt': 1,
                             'lastSeen': 1,
