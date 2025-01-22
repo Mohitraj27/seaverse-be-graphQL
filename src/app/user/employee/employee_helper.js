@@ -52,7 +52,7 @@ const notificationiconEnum = require("../../notifications/notification_icon.json
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
-const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
+const { sendDeleteEmailToLearner } = require("../../email-template/sendDeleteEmailToLearner")
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -954,7 +954,7 @@ const sendBulkEmails = async (passwordEmailList) => {
     try {
         process.send({
             type: 'EMAIL',
-            data: { email: passwordEmailList, subject: 'Welcome to SeaVerse!' }
+            data: { email: passwordEmailList, subject: 'Welcome To Seaverse!' }
         });
 
     } catch (error) {
@@ -1818,7 +1818,7 @@ module.exports = {
                         });
                     }
 
-                    passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
+                    passwordEmailList.push({ email: user.email, temp_password: password, firstName: user.firstName, buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false` });
 
                 }
             }

@@ -1732,8 +1732,7 @@ module.exports.mutations = {
                 if (message.type === 'EMAIL') {
                     await sendNodeEmailBulk({
                         receiverEmails: message.data.email,
-                        subject: message.data.subject,
-                        htmlContent: message.data.htmlContent
+                        subject: message.data.subject
                     })
                 }
             });
