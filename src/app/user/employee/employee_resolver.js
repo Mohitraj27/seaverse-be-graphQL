@@ -811,18 +811,18 @@ module.exports.queries = {
                                         },
                                     },
                                     {
-                                        "user.civilIdOrPassport": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
                                         "user.email": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
                                     },
-                                    {
+                                    /* {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
+                                    /* {
                                         "user.companyEmail": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
@@ -851,7 +851,7 @@ module.exports.queries = {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
-                                    },
+                                    }, */
                                 ],
                             },
                         },
@@ -1718,8 +1718,7 @@ module.exports.mutations = {
                 if (message.type === 'EMAIL') {
                     await sendNodeEmailBulk({
                         receiverEmails: message.data.email,
-                        subject: message.data.subject,
-                        htmlContent: message.data.htmlContent
+                        subject: message.data.subject
                     })
                 }
             });
