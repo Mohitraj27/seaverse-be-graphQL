@@ -839,9 +839,9 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
 
     const errors = [];
 
-    if (!row["First Name"]) {
+    if (!row["First Name*"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
-    } else if (!validateName(row["First Name"])) {
+    } else if (!validateName(row["First Name*"])) {
         errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
         return errors;
     }
@@ -853,24 +853,24 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         }
     }
 
-    if (!row["User ID"]) {
+    if (!row["User ID*"]) {
         errors.push(`User ID is missing in row ${rowIndex + 1}`);
         return errors;
     }
 
-    let normalizedId = row["User ID"].toLowerCase();
+    let normalizedId = row["User ID*"].toLowerCase();
     if (empIds.has(normalizedId)) {
-        errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID"]}`);
+        errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID*"]}`);
         return errors;
     } else {
         empIds.add(normalizedId);
     }
 
-    if (!row["Email"]) {
+    if (!row["Email*"]) {
         errors.push(`Email is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const normalizedEmail = row["Email"].toLowerCase();
+        const normalizedEmail = row["Email*"].toLowerCase();
         if (!Validator.isEmail(normalizedEmail)) {
             errors.push(`Invalid Email in row ${rowIndex + 1} as ${normalizedEmail}.`);
             return errors;
@@ -882,13 +882,13 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         }
     }
 
-    if (!row["Employee Designation"]) {
+    if (!row["Employee Designation*"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const designation = row["Employee Designation"]?.toLowerCase();
+        const designation = row["Employee Designation*"]?.toLowerCase();
         if (!designationNames.some(name => name?.toLowerCase() === designation)) {
-            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Employee Designation"]}`);
+            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Employee Designation*"]}`);
             return errors;
         }
     }
@@ -921,12 +921,10 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
 
 function mapCSVRowToUser(row) {
     const mandatoryFields = [
-        "First Name",
-        "Email",
-        "Designation",
-        "User ID",
-        "Vessel IMO Number",
-        "Vessel Status"
+        "First Name*",
+        "Email*",
+        "Designation*",
+        "User ID*"
     ];
 
     Object.keys(row).forEach(key => {
@@ -937,11 +935,11 @@ function mapCSVRowToUser(row) {
     });
 
     const result = {
-        firstName: row["First Name"],
+        firstName: row["First Name*"],
         lastName: row["Last Name"] ?? "",
-        civilIdOrPassport: row["User ID"]?.toLowerCase(),
-        email: row["Email"]?.toLowerCase(),
-        designation: row["Employee Designation"]?.toLowerCase(),
+        civilIdOrPassport: row["User ID*"]?.toLowerCase(),
+        email: row["Email*"]?.toLowerCase(),
+        designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
         vesselStatus: row["Vessel Status"],
     };
