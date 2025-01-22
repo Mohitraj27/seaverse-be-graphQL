@@ -811,18 +811,18 @@ module.exports.queries = {
                                         },
                                     },
                                     {
-                                        "user.civilIdOrPassport": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
                                         "user.email": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
                                     },
-                                    {
+                                    /* {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
+                                    /* {
                                         "user.companyEmail": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
@@ -851,7 +851,7 @@ module.exports.queries = {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
-                                    },
+                                    }, */
                                 ],
                             },
                         },
