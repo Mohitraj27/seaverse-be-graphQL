@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+
 const NotificationType = require('../../notifications/notification_type.json');
 const NotificationHelper = require('../../notifications/notification_helper');
 const { User } = require("../user_model");
@@ -138,7 +138,7 @@ const mailSenderHelper = async (token, email, existingUser, errors) => {
 
     if (addTokenToUser) {
 
-        const mailRes = await sendNodeEmail({ receiverEmail: email, subject: "Reset Password", htmlContent });
+        const mailRes = await aws_helper.sendEmail({ receiverEmail: email, subject: "Reset Password", htmlContent });
 
         if (mailRes.status === 'success') {
             return true
@@ -242,7 +242,6 @@ const sendNotificationOn = async (notificationData) => {
 };
 
 module.exports = {
-    sendNodeEmail,
     sendNodeEmailBulk,
     generateRandomString,
     mailSenderHelper,
