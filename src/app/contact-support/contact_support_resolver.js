@@ -7,7 +7,7 @@ module.exports.mutations = {
         try {
             const { email, subject, message } = input;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
-            const useremail = await User.find({ email: email });
+            const useremail = await User.findOne({ email: email });
             if (!useremail) {
                 return {
                     status: "error",
