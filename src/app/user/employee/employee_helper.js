@@ -1712,7 +1712,6 @@ module.exports = {
 
                     if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
 
-                        console.log('reached here 1');
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                         break;
@@ -1748,7 +1747,6 @@ module.exports = {
 
                 } else if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
-                    console.log('reached here 2');
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     break;
@@ -1794,7 +1792,6 @@ module.exports = {
 
                     if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
 
-                        console.log('reached here 3');
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
                         break;
@@ -1867,7 +1864,6 @@ module.exports = {
 
                 if (getAllDBEmails.includes(user.email)) {
 
-                    console.log('reached here 5');
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     break;
@@ -1875,7 +1871,6 @@ module.exports = {
 
                 } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
 
-                    console.log('reached here 6');
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                     break;
