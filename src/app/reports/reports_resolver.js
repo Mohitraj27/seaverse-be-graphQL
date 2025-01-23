@@ -284,6 +284,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     },
                 },
             },
+            {
+                $addFields: {
+                    latestUpdatedAt: {
+                        $max: ["$updatedAt", "$userInfo.updatedAt"],
+                    },
+                },
+            },
             ...matchStage,
             {
                 $project: {
@@ -309,13 +316,13 @@ const getMainLearnersReport = async ({ input }, context) => {
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
                     createdAt: 1,
-                    updatedAt :1,
+                    latestUpdatedAt :1,
                     averageProgressPercentage: 1,
                 },
             },
             {
                 '$sort': {
-                    'updatedAt': -1
+                    'latestUpdatedAt': -1
                 }
             }
         ]);
@@ -1382,7 +1389,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
-        console.log(err);
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
@@ -1741,8 +1747,9 @@ const getSingleCourseReport = async ({ input }, context) => {
             });
         }
 
-        if (!input?.reportType) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
-
+        if (!input?.reportType) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
+        }
         if (Object.keys(input).length > 0) {
             const filterInput = input.filter || {};
             const searchString = filterInput.search || '';
@@ -1856,13 +1863,19 @@ const getSingleCourseReport = async ({ input }, context) => {
                             localField: "user",
                             foreignField: "_id",
                             as: "userInfo",
-                            pipeline : [
-                              {
-                                $match :{
-                                  isDeleted : false
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: false
+                                    }
                                 }
-                              }
                             ]
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$userInfo",
+                            preserveNullAndEmptyArrays: false
                         }
                     },
                     {
@@ -1931,47 +1944,6 @@ const getSingleCourseReport = async ({ input }, context) => {
                         $unwind: {
                             path: "$quizevaluationInfo",
                             preserveNullAndEmptyArrays: true
-                        }
-                    },
-                    {
-                        $unwind: {
-                            path: "$userInfo",
-                            preserveNullAndEmptyArrays: false
-                        }
-                    },
-                    {
-                        $lookup: {
-                            from: "trainingprogress",
-                            localField: "training",
-                            foreignField: "training",
-                            as: "trainingProgressInfo",
-                            pipeline: [
-                                {
-                                    $match: {
-                                        user: "$userInfo._id",
-                                        status: "COMPLETED"
-                                    }
-                                },
-                                {
-                                    $lookup: {
-                                        from: "trainingmodulecontents",
-                                        localField: "trainingModuleContent",
-                                        foreignField: "_id",
-                                        as: "moduleContentInfo"
-                                    }
-                                },
-                                {
-                                    $unwind: {
-                                        path: "$moduleContentInfo",
-                                        preserveNullAndEmptyArrays: true
-                                    }
-                                },
-                                {
-                                    $project: {
-                                        duration: "$moduleContentInfo.duration"
-                                    }
-                                }
-                            ]
                         }
                     },
                     {
@@ -2455,6 +2427,13 @@ const getSingleCourseReport = async ({ input }, context) => {
                             },
                             'pipeline': [
                                 {
+                                    $match: {
+                                        isDeleted: {
+                                            $ne: true
+                                        }
+                                    }
+                                },
+                                {
                                     '$match': {
                                         '$expr': {
                                             '$eq': ['$$status', 'NOT_STARTED']  
@@ -2787,28 +2766,30 @@ const getSingleCourseReport = async ({ input }, context) => {
                             '_id': 0,
                             'courseId': '$_id.trainingId',
                             'user': '$_id.userId',
-                            'trainingTitle': 1,
+
                             'firstName': 1,
                             'lastName': 1,
-                            'status': 1,
+                            'email': 1,
                             'designation': 1,
+                            'status': 1,
+                            'createdAt': 1,
+                            'currentVessel': 1,
+                            'vesselType': 1,
+                            'empId': 1,
+                            'status': 1,
+
+                            'trainingTitle': 1,
                             'hasQuiz': 1,
                             'moduleName': 1,
                             'percentage': 1,
                             'iaPassed': 1,
-                            'email': 1,
-                            'currentVessel': 1,
-                            'vesselType': 1,
                             'modules': {
                                 '$sortArray': {
                                     'input': "$modules",
                                     'sortBy': { 'order': 1 }
                                 }
                             },
-                            'empId': 1,
-                            'createdAt': 1,
                             'lastSeen': 1,
-                            'status': 1
                         }
                     },
                     { $sort: { createdAt: -1 } },
@@ -3462,7 +3443,7 @@ const generateCustomReport = async ({ input }, context) => {
                 if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0) {
                     matchStage.push({
                         $match: {
-                            'vesselInfo.vesselStatus': { $in: input.learnerStatus },
+                            'userInfo.vesselStatus': { $in: input.learnerStatus },
                         },
                     });
                 }
@@ -3506,7 +3487,16 @@ const generateCustomReport = async ({ input }, context) => {
                             "from": "users",
                             "localField": "user",
                             "foreignField": "_id",
-                            "as": "userInfo"
+                            "as": "userInfo",
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "isDeleted": {
+                                            $ne: true
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -3646,13 +3636,13 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         "$unwind": {
                             "path": "$userInfo",
-                            "preserveNullAndEmptyArrays": true
+                            "preserveNullAndEmptyArrays": false
                         }
                     },
                     {
                         "$unwind": {
                             "path": "$employeeInfo",
-                            "preserveNullAndEmptyArrays": true
+                            "preserveNullAndEmptyArrays": false
                         }
                     },
                     {
@@ -3747,6 +3737,11 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             'totalTimeSpent': "$timeSpend"
                         }
+                    },
+                    {
+                        '$sort': {
+                            'firstName': -1
+                        }
                     }
                 ]
             );
@@ -3770,15 +3765,11 @@ const generateCustomReport = async ({ input }, context) => {
                 };
                 const enrollmentDate = formatDate(item.createdAt);
                 const completionDate = formatDate(item.completionDate);
-                const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
+                const startDate = item.startDate? formatDate(item.startDate) : item.startDate ;
                 const unenrollmentDate = formatDate(item.unenrolmentDate);
-                const quizScore = (typeof item.quizPercentage === 'string')
-                    ? item.quizPercentage
-                    : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
-                        ? item.quizPercentage.toFixed(2)
-                        : null;
+                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "N/A";
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? item.totalTimeSpent?.toFixed(2) : 0;
+                const timeSpent = item.totalTimeSpent ? parseInt(item.totalTimeSpent)+" mins" : 0+" mins";
 
                 dataToExport.push({
                     Name: learnerName ?? "-",
@@ -3805,11 +3796,27 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        '$match': {
+                            'isDeleted': {
+                                $ne: true
+                            }
+                        }
+                    },
+                    {
                         '$lookup': {
                             'from': 'users',
                             'localField': 'user',
                             'foreignField': '_id',
-                            'as': 'userInfo'
+                            'as': 'userInfo',
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "isDeleted": {
+                                            $ne: true
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
@@ -3823,7 +3830,7 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         '$unwind': {
                             'path': '$userInfo',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
                     },
                     {
@@ -3837,7 +3844,7 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         '$unwind': {
                             'path': '$employeeData',
-                            'preserveNullAndEmptyArrays': true
+                            'preserveNullAndEmptyArrays': false
                         }
                     },
                     ...(input?.designation
@@ -3931,7 +3938,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'foreignField': 'user',
                             'as': 'vesselInfo',
                             'pipeline': [
-                                { '$match': { 'isActive': true } },
+                                { '$match': { 'isActive': {$ne :true} } },
                                 { '$sort': { 'updatedAt': -1 } },
                                 { '$limit': 1 }
                             ]
@@ -4009,7 +4016,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'email': '$userInfo.email',
                             'designation': '$designationData.name',
                             'empId': '$userInfo.civilIdOrPassport',
-                            'userStatus': '$vesselInfo.vesselStatus',
+                            'userStatus': '$userInfo.vesselStatus',
                             'attemptCount': '$attemptCount',
                             'progress': '$progressPercentage',
                             'training': '$trainingInfo.title',
@@ -4026,7 +4033,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 ]
                             },
                             'startDate': '$startDate',
-                            'completionDate': '$completionDate'
+                            'completionDate': '$endDate'
                         }
                     },
                     {
@@ -4172,6 +4179,11 @@ const generateCustomReport = async ({ input }, context) => {
                             'courses': 1,
                             'completionDate': 1,
                             '_id': 0
+                        }
+                    },
+                    {
+                        '$sort':{
+                            'userName': 1
                         }
                     }
                 ]
