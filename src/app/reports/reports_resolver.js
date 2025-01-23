@@ -811,7 +811,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
             let s3PresignedUrl = "";
 
-            if (input?.export /* && learnersReports.length > 0 */ ) {
+            if (input?.export  ) {
                 const workbook = XLSX.utils.book_new();
                 const combinedData = [];
                 for (const learnerName in learnerReportsByUser) {
@@ -897,401 +897,546 @@ const getSingleLearnerReport = async ({ input }, context) => {
             const learnersData = await OverallTrainingProgress.aggregate(
                 [
                     {
-                        '$sort': {
-                            'createdAt': -1
+                        $match:
+                        {
+                            user: { $in: input.learnerIds }
                         }
                     },
                     {
-                        '$lookup': {
-                            'from': 'users',
-                            'localField': 'user',
-                            'foreignField': '_id',
-                            'as': 'userInfo'
+                        $lookup: {
+                            from: "trainings",
+                            localField: "training",
+                            foreignField: "_id",
+                            as: "trainingInfo"
                         }
                     },
-                    ...matchUsers,
                     {
-                        '$lookup': {
-                            'from': 'trainings',
-                            'localField': 'training',
-                            'foreignField': '_id',
-                            'as': 'trainingInfo'
+                        $unwind: {
+                            path: "$trainingInfo",
+                            preserveNullAndEmptyArrays: true
                         }
-                    }, {
-                        '$unwind': {
-                            'path': '$userInfo',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'employees',
-                            'localField': 'user',
-                            'foreignField': 'user',
-                            'as': 'employeeData'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$employeeData',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'designations',
-                            'localField': 'employeeData.empDesignation',
-                            'foreignField': '_id',
-                            'as': 'designationData'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$designationData',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$trainingInfo',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$contentData',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$contentData.contentIds',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'trainingmodulecontents',
-                            'localField': 'contentData.contentIds',
-                            'foreignField': '_id',
-                            'as': 'contentDetails'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$contentDetails',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'trainingmodules',
-                            'localField': 'contentData.moduleId',
-                            'foreignField': '_id',
-                            'as': 'moduleInfo'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$moduleInfo',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$lookup': {
-                            'from': 'trainingprogresses',
-                            'localField': '_id',
-                            'foreignField': 'overallTrainingProgress',
-                            'as': 'contentProgress'
-                        }
-                    }, {
-                        '$unwind': {
-                            'path': '$contentProgress',
-                            'preserveNullAndEmptyArrays': true
-                        }
-                    }, {
-                        '$match': {
-                            '$expr': {
-                                '$and': [
-                                    {
-                                        '$eq': [
-                                            '$contentProgress.trainingModuleContent', '$contentData.contentIds'
-                                        ]
-                                    }, {
-                                        '$eq': [
-                                            '$attemptCount', '$contentProgress.attemptCount'
-                                        ]
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "user",
+                            foreignField: "_id",
+                            as: "userInfo",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: false
                                     }
-                                ]
-                            }
-                        }
-                    }, {
-                        '$project': {
-                            'userId': '$user',
-                            'user': {
-                                '$concat': [
-                                    {
-                                        '$ifNull': [
-                                            '$userInfo.firstName', ''
-                                        ]
-                                    }, ' ', {
-                                        '$ifNull': [
-                                            '$userInfo.lastName', ''
-                                        ]
-                                    }
-                                ]
-                            },
-                            'email': '$userInfo.email',
-                            'designation': '$designationInfo.name',
-                            'empId': '$userInfo.civilIdOrPassport',
-                            'userStatus': '$userInfo.isRegistered',
-                            'attemptCount': '$attemptCount',
-                            'progress': '$progressPercentage',
-                            'training': '$trainingInfo.title',
-                            'courseStatus': '$status',
-                            'lesson': '$moduleInfo.title',
-                            'content': '$contentDetails.title',
-                            'contentType': '$contentDetails.contentType',
-                            'contentStatus': '$contentProgress.status',
-                            'enrollmentDate': '$createdAt',
-                            'quizPercentage': '$contentProgress.quizAttemptDetails.percentage',
-                            'timeSpent': '$timeSpent',
-                            'startDate': '$startDate',
-                            'completionDate': '$completionDate'
-                        }
-                    }, {
-                        '$group': {
-                            '_id': {
-                                'userId': '$userId',
-                                'trainingTitle': '$training',
-                                'lessonTitle': '$lesson'
-                            },
-                            'userName': {
-                                '$first': '$user'
-                            },
-                            'enrollmentDate': {
-                                '$first': '$enrollmentDate'
-                            },
-                            'email': {
-                                '$first': '$email'
-                            },
-                            'designation': {
-                                '$first': '$designation'
-                            },
-                            'employeeId': {
-                                '$first': '$empId'
-                            },
-                            'userStatus': {
-                                '$first': '$userStatus'
-                            },
-                            'courseStatus': {
-                                '$first': '$courseStatus'
-                            },
-                            'progress': {
-                                '$first': '$progress'
-                            },
-                            'timeSpent': {
-                                '$first': '$timeSpent'
-                            },
-                            'startDate': {
-                                '$first': '$startDate'
-                            },
-                            'completionDate': {
-                                '$first': '$completionDate'
-                            },
-                            'contents': {
-                                '$push': {
-                                    'contentTitle': '$content',
-                                    'contentType': '$contentType',
-                                    'contentStatus': '$contentStatus',
-                                    'quiz_score': '$quizPercentage'
                                 }
-                            }
+                            ]
                         }
-                    }, {
-                        '$group': {
-                            '_id': '$_id.userId',
-                            'userName': {
-                                '$first': '$userName'
+                    },
+                    {
+                        $unwind: {
+                            path: "$userInfo",
+                            preserveNullAndEmptyArrays: false
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "employees",
+                            localField: "user",
+                            foreignField: "user",
+                            as: "employeeInfo",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: false
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$employeeInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "designations",
+                            localField: "employeeInfo.empDesignation",
+                            foreignField: "_id",
+                            as: "designationInfo"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$designationInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "vessels",
+                            localField: "userInfo.currentVessel",
+                            foreignField: "_id",
+                            as: "vesselInfo"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$vesselInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "vesseltypes",
+                            localField: "vesselInfo.typeOfVessel",
+                            foreignField: "_id",
+                            as: "vesselTypeInfo"
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$vesselTypeInfo",
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingprogresses",
+                            localField: "_id",
+                            foreignField: "overallTrainingProgress",
+                            as: "quizEvaluations",
+                            let: {
+                                attemptCount: "$attemptCount",
+                                status: "$status"
                             },
-                            'enrollmentDate': {
-                                '$first': '$enrollmentDate'
-                            },
-                            'email': {
-                                '$first': '$email'
-                            },
-                            'designation': {
-                                '$first': '$designation'
-                            },
-                            'employeeId': {
-                                '$first': '$employeeId'
-                            },
-                            'userStatus': {
-                                '$first': '$userStatus'
-                            },
-                            'startDate': {
-                                '$first': '$startDate'
-                            },
-                            'completionDate': {
-                                '$first': '$completionDate'
-                            },
-                            'trainings': {
-                                '$push': {
-                                    'trainingTitle': '$_id.trainingTitle',
-                                    'courseStatus': '$courseStatus',
-                                    'progress': '$progress',
-                                    'timeSpent': '$timeSpent',
-                                    'lessons': [
-                                        {
-                                            'lessonTitle': '$_id.lessonTitle',
-                                            'contents': '$contents'
+                            pipeline: [
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $eq: [
+                                                "$attemptCount",
+                                                "$$attemptCount"
+                                            ]
                                         }
-                                    ]
+                                    }
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodules",
+                                        localField: "trainingModule",
+                                        foreignField: "_id",
+                                        as: "moduleInfo"
+                                    }
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$moduleInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingModuleContent",
+                                        foreignField: "_id",
+                                        as: "contentInfo"
+                                    }
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$contentInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $project: {
+                                        moduleId: "$moduleInfo._id",
+                                        moduleName: "$moduleInfo.title",
+                                        contentName: "$contentInfo.title",
+                                        displayOrder: "$moduleInfo.order",
+                                        percentage:
+                                            "$quizAttemptDetails.percentage",
+                                        isPassed:
+                                            "$quizAttemptDetails.isPassed",
+                                        contentType:
+                                            "$contentInfo.contentType",
+                                        updatedAt: 1,
+                                        contentStatus: {
+                                            $cond: {
+                                                if: {
+                                                    $gt: [
+                                                        {
+                                                            $type: "$quizAttemptDetails"
+                                                        },
+                                                        "missing"
+                                                    ]
+                                                },
+                                                then: "COMPLETED",
+                                                else: "NOT_STARTED"
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    $sort: {
+                                        displayOrder: -1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingcontentbridges",
+                            localField: "training",
+                            foreignField: "training",
+                            as: "initialContents",
+                            let: {
+                                status: "$status"
+                            },
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: {
+                                            $ne: true
+                                        }
+                                    }
+                                },
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $eq: ["$$status", "NOT_STARTED"]
+                                        }
+                                    }
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodules",
+                                        localField: "trainingModule",
+                                        foreignField: "_id",
+                                        as: "moduleInfo"
+                                    }
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$moduleInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainingmodulecontents",
+                                        localField: "trainingContent",
+                                        foreignField: "_id",
+                                        as: "contentInfo"
+                                    }
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$contentInfo",
+                                        preserveNullAndEmptyArrays: true
+                                    }
+                                },
+                                {
+                                    $project: {
+                                        moduleId: "$moduleInfo._id",
+                                        moduleName: "$moduleInfo.title",
+                                        contentName: "$contentInfo.title",
+                                        contentStatus: "$contentInfo.status",
+                                        displayOrder: "$moduleInfo.order",
+                                        percentage:
+                                            "$quizAttemptDetails.percentage",
+                                        isPassed:
+                                            "$quizAttemptDetails.isPassed",
+                                        contentType:
+                                            "$contentInfo.contentType",
+                                        updatedAt: 1,
+                                        contentStatus: {
+                                            $cond: {
+                                                if: {
+                                                    $gt: [
+                                                        {
+                                                            $type: "$quizAttemptDetails"
+                                                        },
+                                                        "missing"
+                                                    ]
+                                                },
+                                                then: "COMPLETED",
+                                                else: "NOT_STARTED"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields: {
+                            quizEvaluations: {
+                                $cond: {
+                                    if: {
+                                        $eq: ["$status", "NOT_STARTED"]
+                                    },
+                                    then: "$initialContents",
+                                    else: "$quizEvaluations"
                                 }
                             }
                         }
-                    }, {
-                        '$unwind': '$trainings'
-                    }, {
-                        '$unwind': '$trainings.lessons'
-                    }, {
-                        '$group': {
-                            '_id': '$_id',
-                            'userName': {
-                                '$first': '$userName'
+                    },
+                    {
+                        $unwind: {
+                            path: "$quizEvaluations",
+                            preserveNullAndEmptyArrays: false
+                        }
+                    },
+                    ...matchStage,
+                    {
+                        $group: {
+                            _id: {
+                                userId: "$user",
+                                moduleId: "$quizEvaluations.moduleId"
                             },
-                            'enrollmentDate': {
-                                '$first': '$enrollmentDate'
+                            userId: {
+                                $first: "$user"
                             },
-                            'email': {
-                                '$first': '$email'
+                            startDate: {
+                                $first: "$startDate"
                             },
-                            'designation': {
-                                '$first': '$designation'
+                            endDate: {
+                                $first: "$endDate"
                             },
-                            'employeeId': {
-                                '$first': '$employeeId'
+                            timeSpend: {
+                                $first: "$timeSpend"
                             },
-                            'userState': {
-                                '$first': '$userStatus'
+                            training: {
+                                $first: "$training"
                             },
-                            'courses': {
-                                '$push': '$trainings'
+                            trainingTitle: {
+                                $first: "$trainingInfo.title"
                             },
-                            'startDate': {
-                                '$first': '$startDate'
+                            userId: {
+                                $first: "$userInfo._id"
                             },
-                            'completionDate': {
-                                '$first': '$completionDate'
+                            firstName: {
+                                $first: "$userInfo.firstName"
+                            },
+                            lastName: {
+                                $first: "$userInfo.lastName"
+                            },
+                            email: {
+                                $first: "$userInfo.email"
+                            },
+                            empId: {
+                                $first: "$userInfo.civilIdOrPassport"
+                            },
+                            status: {
+                                $first: "$status"
+                            },
+                            currentVessel: {
+                                $first: "$vesselInfo.name"
+                            },
+                            vesselType: {
+                                $first: "$vesselTypeInfo.name"
+                            },
+                            designation: {
+                                $first: "$designationInfo.name"
+                            },
+                            createdAt: {
+                                $first: "$createdAt"
+                            },
+                            lastSeen: {
+                                $first: "$updatedAt"
+                            },
+                            moduleContents: {
+                                $push: {
+                                    $cond: {
+                                        if: {
+                                            $eq: [
+                                                "$quizEvaluations.contentType",
+                                                "QUIZ"
+                                            ]
+                                        },
+                                        then: {
+                                            moduleName:
+                                                "$quizEvaluations.moduleName",
+                                            contentName:
+                                                "$quizEvaluations.contentName",
+                                            percentage:
+                                                "$quizEvaluations.percentage",
+                                            order:
+                                                "$quizEvaluations.displayOrder",
+                                            isQuizPassed:
+                                                "$quizEvaluations.isPassed",
+                                            contentType:
+                                                "$quizEvaluations.contentType",
+                                            updatedAt:
+                                                "$quizEvaluations.updatedAt",
+                                            quizStatus:
+                                                "$quizEvaluations.contentStatus"
+                                        },
+                                        else: {
+                                            moduleName:
+                                                "$quizEvaluations.moduleName",
+                                            contentName:
+                                                "$quizEvaluations.contentName",
+                                            percentage: "NOT APPLICABLE",
+                                            order:
+                                                "$quizEvaluations.displayOrder",
+                                            isQuizPassed:
+                                                "$quizEvaluations.isPassed",
+                                            contentType:
+                                                "$quizEvaluations.contentType",
+                                            updatedAt:
+                                                "$quizEvaluations.updatedAt",
+                                            quizStatus:
+                                                "$quizEvaluations.contentStatus"
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }, {
-                        '$project': {
-                            'email': 1,
-                            'userState': 1,
-                            'employeeId': 1,
-                            'designation': 1,
-                            'userName': 1,
-                            'enrollmentDate': 1,
-                            'startDate': 1,
-                            'courses': 1,
-                            'completionDate': 1,
-                            '_id': 0
+                    },
+                    {
+                        $group: {
+                            _id: {
+                                userId: "$userId",
+                                trainingId: "$training"
+                            },
+                            firstName: {
+                                $first: "$firstName"
+                            },
+                            lastName: {
+                                $first: "$lastName"
+                            },
+                            trainingTitle: {
+                                $first: "$trainingTitle"
+                            },
+                            email: {
+                                $first: "$email"
+                            },
+                            empId: {
+                                $first: "$empId"
+                            },
+                            status: {
+                                $first: "$status"
+                            },
+                            currentVessel: {
+                                $first: "$currentVessel"
+                            },
+                            vesselType: {
+                                $first: "$vesselType"
+                            },
+                            designation: {
+                                $first: "$designation"
+                            },
+                            createdAt: {
+                                $first: "$createdAt"
+                            },
+                            lastSeen: {
+                                $first: "$lastSeen"
+                            },
+                            modules: {
+                                $push: {
+                                    moduleName: "$moduleContents",
+                                    hasQuiz: "$hasQuiz",
+                                    moduleName: {
+                                        $arrayElemAt: [
+                                            "$moduleContents.moduleName",
+                                            0
+                                        ]
+                                    },
+                                    moduleId: {
+                                        $arrayElemAt: [
+                                            {
+                                                $arrayElemAt: [
+                                                    "$moduleContents.moduleName._id",
+                                                    0
+                                                ]
+                                            },
+                                            0
+                                        ]
+                                    },
+                                    order: {
+                                        $arrayElemAt: [
+                                            "$moduleContents.order",
+                                            0
+                                        ]
+                                    },
+                                    moduleContents: "$moduleContents"
+                                }
+                            }
                         }
-                    }
+                    },
+                    {
+                        $project: {
+                            courseId: "$_id.trainingId",
+                            user: "$_id.userId",
+                            firstName: 1,
+                            lastName: 1,
+                            email: 1,
+                            designation: 1,
+                            status: 1,
+                            createdAt: 1,
+                            empId: 1,
+                            trainingTitle: 1,
+                            modules: {
+                                $sortArray: {
+                                    input: "$modules",
+                                    sortBy: {
+                                        order: 1
+                                    }
+                                }
+                            },
+                            lastSeen: 1
+                        }
+                    },
+                    {
+                        $sort: {
+                            createdAt: -1
+                        }
+                    },
                 ]
             );
 
             let s3PresignedUrl = "";
             if (input?.export) {
-
-                const flattenLearnerDataForSingleSheet = (learner) => {
+                const flattenDataForSingleSheet = (learner) => {
                     const flattenedData = [];
-                    const formatDate = (date) => {
-                        if (date) {
-                            const formattedDate = new Date(date);
-                            return formattedDate.toLocaleString('en-US', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                                hour12: true,
-                            });
-                        }
-                        return '';
-                    };
                     if (learner) {
+
                         const email = learner?.email || '';
                         const designation = learner?.designation || '';
-                        const employeeId = learner?.employeeId || '';
-                        const userState = learner?.userState ? 'Registered' : 'Unregistered';
-                        const enrollmentDate = formatDate(learner?.enrollmentDate);
-                        const startDate = learner?.startDate ? formatDate(learner.startDate) : 'NA';
-                        const completionDate = learner?.completionDate ? formatDate(learner.completionDate) : 'NA';
-                        if (Array.isArray(learner.courses)) {
-                            learner.courses.forEach(course => {
-                                const courseName = course?.trainingTitle?.[0]?.value || '';
-                                const courseStatus = course?.courseStatus || '';
+                        const firstName = learner?.firstName || '';
+                        const lastName = learner?.lastName || '';
+                        const status = learner?.status || 'NOT APPLICABLE';
+                        const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
 
-                                if (Array.isArray(course.lessons?.contents)) {
-                                    if (course.lessons.contents.length === 0) {
-                                        flattenedData.push({
-                                            userName: learner?.userName || '',
-                                            email: email,
-                                            designation: designation,
-                                            employeeId: employeeId,
-                                            userState: userState,
-                                            enrollmentDate: enrollmentDate,
-                                            startDate: startDate,
-                                            completionDate: completionDate,
-                                            courseStatus: courseStatus,
-                                            courseName: courseName,
-                                            lessonName: '',
-                                            contentName: '',
-                                            contentType: '',
-                                            quizScore: '',
-                                        });
-                                    } else {
-                                        course.lessons.contents.forEach(content => {
-                                            const contentName = content?.contentTitle?.[0]?.value || '';
-                                            const contentType = content?.contentType || '';
-                                            let quizScore = '';
 
-                                            if (contentType === 'QUIZ' && content.contentStatus === 'COMPLETED') {
+                        learner.modules.forEach((module, moduleIndex) => {
+                            const moduleName = module?.moduleName[0]?.value || 'Unnamed Module';
+                            const hasQuiz = module?.hasQuiz || false;
 
-                                                quizScore = content.quizPercentage
-                                                    ? Math.round(content.quizPercentage)
-                                                    : 'Score not available';
-                                            }
 
-                                            flattenedData.push({
-                                                userName: learner?.userName || '',
-                                                email: email,
-                                                designation: designation,
-                                                employeeId: employeeId,
-                                                userState: userState,
-                                                enrollmentDate: enrollmentDate,
-                                                startDate: startDate,
-                                                completionDate: completionDate,
-                                                courseStatus: courseStatus,
-                                                courseName: courseName,
-                                                lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                                contentName: contentName,
-                                                contentType: contentType,
-                                                quizScore: quizScore,
-                                            });
-                                        });
-                                    }
-                                } else {
-                                    flattenedData.push({
-                                        userName: learner?.userName || '',
-                                        email: email,
-                                        designation: designation,
-                                        employeeId: employeeId,
-                                        userState: userState,
-                                        enrollmentDate: enrollmentDate,
-                                        startDate: startDate,
-                                        completionDate: completionDate,
-                                        courseStatus: courseStatus,
-                                        courseName: courseName,
-                                        lessonName: course?.lessons?.lessonTitle?.[0]?.value || '',
-                                        contentName: '',
-                                        contentType: '',
-                                        quizScore: '',
-                                    });
-                                }
+                            module?.moduleContents.forEach((content, contentIndex) => {
+                                const contentName = content?.contentName[0]?.value || 'Unnamed Content';
+                                const contentType = content?.contentType || 'NOT APPLICABLE';
+                                const quizScore = content?.percentage || 'NOT APPLICABLE';
+
+
+                                flattenedData.push({
+                                    Name: `${firstName} ${lastName}`,
+                                    Email: email,
+                                    Designation: designation,
+                                    'Course Name': courseName,
+                                    'Course Status': status,
+                                    'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
+                                    'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
+                                    'Content Type': contentType,
+                                    'Quiz Score': quizScore,
+                                });
                             });
-                        }
+                        });
                     }
 
                     return flattenedData;
@@ -1302,7 +1447,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const combinedData = [];
 
                     learnersData.forEach(learner => {
-                        const learnerData = flattenLearnerDataForSingleSheet(learner);
+                        const learnerData = flattenDataForSingleSheet(learner);
                         combinedData.push(...learnerData);
                         combinedData.push([]);
                     });
@@ -1335,7 +1480,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         worksheet['!rows'] = [{ hpt: 30 }];
                     }
                     else {
-                        worksheet = XLSX.utils.json_to_sheet(learnersData, { header: [] });
+                        worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
                     }
                     XLSX.utils.book_append_sheet(workbook, worksheet, input.reportType);
                     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
