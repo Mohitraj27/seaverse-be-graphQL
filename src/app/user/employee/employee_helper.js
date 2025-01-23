@@ -835,9 +835,38 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex) => {
 
     const errors = [];
+
+    if (fetchAdmin && (fetchAdmin.email === row["Email*"] || fetchAdmin.civilIdOrPassport === row["User ID*"])) {
+        const fieldChecks = [
+            { field: 'email', column: 'Email*', message: "Admin's Email" },
+            { field: 'civilIdOrPassport', column: 'User ID*', message: "Admin's User ID" },
+            { field: 'firstName', column: 'First Name*', message: "Admin's First Name" },
+            { field: 'lastName', column: 'Last Name', message: "Admin's Last Name" },
+            { field: 'vesselStatus', column: 'Vessel Status', message: "Admin's Vessel Status" },
+        ];
+
+        for (const { field, column, message } of fieldChecks) {
+            if (fetchAdmin[field] !== row[column]) {
+                errors.push(`${message} changed in row ${rowIndex + 1}.`);
+                return errors;
+            }
+        }
+
+        if (fetchAdmin.currentVessel?.imoNumber !== row["Vessel IMO Number"]) {
+            errors.push(`Admin's Vessel IMO Number changed in row ${rowIndex + 1}.`);
+            return errors;
+        }
+
+        if (fetchAdminDesignation) {
+            if (fetchAdminDesignation !== row["Employee Designation*"]) {
+                errors.push(`Admin's Designation changed in row ${rowIndex + 1}.`);
+                return errors;
+            }
+        }
+    }
 
     if (!row["First Name*"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
@@ -2295,6 +2324,10 @@ module.exports = {
 
         try {
 
+            const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
+            const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
+            const fetchAdminDesignation = fetchAdminEmployee.empDesignation.name;
+
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
@@ -2309,7 +2342,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
@@ -2327,8 +2360,11 @@ module.exports = {
                         return validationErrors;
 
                     } else {
-                        const formatedData = mapCSVRowToUser(row);
-                        users.push(formatedData);
+                        let formatedData;
+                        if (row["User ID*"] !== fetchAdmin.civilIdOrPassport && row["Email*"] !== fetchAdmin.email) {
+                            formatedData = mapCSVRowToUser(row);
+                            users.push(formatedData);
+                        }
                     }
 
                 });
