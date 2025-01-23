@@ -20,7 +20,7 @@ function createNewEmployeeEmailTemplate(user) {
             .button { 
                 display: inline-block; 
                 background-color: #1E3A76; 
-                color: white; 
+                color:#fff; 
                 padding: 10px 20px; 
                 text-decoration: none; 
                 border-radius: 5px; 
