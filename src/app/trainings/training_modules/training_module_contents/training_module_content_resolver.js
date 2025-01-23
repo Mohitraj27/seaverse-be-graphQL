@@ -203,7 +203,7 @@ module.exports.queries = {
             .populate({
                 path: "training",
                 select: "id title isDeleted isActive",
-                match: { isDeleted: false, isActive: true }  
+                match: { isDeleted: false, isActive: true }
             })
             .lean();
 
@@ -1254,8 +1254,7 @@ module.exports.mutations = {
             const existingContent = await TrainingModuleContent.findOne({
                 _id: input._id ?? undefined,
                 subscriber: subscriberId,
-                UID: input.UID ?? undefined,
-                isUpdated: false
+                UID: input.UID ?? undefined
             });
 
             if (!existingContent) {
@@ -1284,6 +1283,8 @@ module.exports.mutations = {
             //     }
             //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
             // }
+
+            let savedContent;
 
             if (input.questions && input.questions.length > 0) {
 
@@ -1373,12 +1374,7 @@ module.exports.mutations = {
                     logType: LogType.TRAINING_MODULE_CONTENT_LOG,
                     operation: "UPDATE",
                     ipInfo: context.ipInfo,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: newContent._id,
-                        },
-                    ],
+                    affected: [],
                     additionalInfo: [
                         {
                             infoType: "TRAINING_MODULE_CONTENT_INFO",
@@ -1394,12 +1390,7 @@ module.exports.mutations = {
                     messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                     notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: savedContent._id,
-                        },
-                    ],
+                    affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,

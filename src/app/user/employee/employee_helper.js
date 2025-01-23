@@ -402,7 +402,8 @@ const sendNotificationOnBULK = async notificationData => {
             description: notificationData.description,
             isError: notificationData.isError,
             notificationType: notificationData.notificationType,
-            status: notificationData.status
+            status: notificationData.status,
+            icon: notificationData.icon
         };
 
         notification.message = {
@@ -838,35 +839,6 @@ const restoreUsers = async (users, errors) => {
 const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex) => {
 
     const errors = [];
-
-    if (fetchAdmin && (fetchAdmin.email === row["Email*"] || fetchAdmin.civilIdOrPassport === row["User ID*"])) {
-        const fieldChecks = [
-            { field: 'email', column: 'Email*', message: "Admin's Email" },
-            { field: 'civilIdOrPassport', column: 'User ID*', message: "Admin's User ID" },
-            { field: 'firstName', column: 'First Name*', message: "Admin's First Name" },
-            { field: 'lastName', column: 'Last Name', message: "Admin's Last Name" },
-            { field: 'vesselStatus', column: 'Vessel Status', message: "Admin's Vessel Status" },
-        ];
-
-        for (const { field, column, message } of fieldChecks) {
-            if (fetchAdmin[field] !== row[column]) {
-                errors.push(`${message} changed in row ${rowIndex + 1}.`);
-                return errors;
-            }
-        }
-
-        if (fetchAdmin.currentVessel?.imoNumber !== row["Vessel IMO Number"]) {
-            errors.push(`Admin's Vessel IMO Number changed in row ${rowIndex + 1}.`);
-            return errors;
-        }
-
-        if (fetchAdminDesignation) {
-            if (fetchAdminDesignation !== row["Employee Designation*"]) {
-                errors.push(`Admin's Designation changed in row ${rowIndex + 1}.`);
-                return errors;
-            }
-        }
-    }
 
     if (!row["First Name*"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
@@ -1959,10 +1931,10 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: true,
                 description: `${errors[0]}`,
-                notificationType: 'BULK_IMPORT',
-                status: "FAILED"
-            })
-
+                notificationType: 'BULK_IMPORT_FAILED',
+                status: "FAILED",
+                icon: notificationiconEnum.ERROR,
+            });
 
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
@@ -2277,9 +2249,11 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: false,
                 description: `${insertedUsers.length} User(s) data created`,
-                notificationType: 'BULK_IMPORT',
-                status: "SUCCESS"
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
             })
+
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
                 usersCount: userCount,
@@ -2300,8 +2274,9 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: false,
                 description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
-                notificationType: 'BULK_IMPORT',
-                status: "SUCCESS"
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
             })
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
