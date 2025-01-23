@@ -4557,9 +4557,10 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
         const skip = pageInput?.skip ? pageInput.skip : 0;
         const limit = pageInput?.limit ? pageInput.limit : 50;
         let matchStage = [];
+        let pageLimit = [];
         if (limit > 0) {
-            matchStage.push({ $skip: skip });
-            matchStage.push({ $limit: limit });
+            pageLimit.push({ $skip: skip });
+            pageLimit.push({ $limit: limit });
         }
 
 
@@ -4667,6 +4668,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                     createdAt: -1
                 }
             },
+            ...pageLimit,
         ]);
 
         if (data.length > 0) {
