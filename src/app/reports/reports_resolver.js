@@ -1389,7 +1389,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
-        console.log(err);
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
@@ -1623,7 +1622,6 @@ const getMainCoursesReport = async ({ input }, context) => {
             },
             ...pageLimit,
         ]);
-        console.log(data.length);
         const coursesData = data.map(item => ({
             _id: item._id,
             title: item.title,
@@ -1948,41 +1946,6 @@ const getSingleCourseReport = async ({ input }, context) => {
                             preserveNullAndEmptyArrays: true
                         }
                     },
-                   /*  {
-                        $lookup: {
-                            from: "trainingprogress",
-                            localField: "training",
-                            foreignField: "training",
-                            as: "trainingProgressInfo",
-                            pipeline: [
-                                {
-                                    $match: {
-                                        user: "$userInfo._id",
-                                        status: "COMPLETED"
-                                    }
-                                },
-                                {
-                                    $lookup: {
-                                        from: "trainingmodulecontents",
-                                        localField: "trainingModuleContent",
-                                        foreignField: "_id",
-                                        as: "moduleContentInfo"
-                                    }
-                                },
-                                {
-                                    $unwind: {
-                                        path: "$moduleContentInfo",
-                                        preserveNullAndEmptyArrays: true
-                                    }
-                                },
-                                {
-                                    $project: {
-                                        duration: "$moduleContentInfo.duration"
-                                    }
-                                }
-                            ]
-                        }
-                    }, */
                     {
                         $lookup: {
                             from: "employees",
@@ -3003,7 +2966,6 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
     } catch (err) {
-        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
