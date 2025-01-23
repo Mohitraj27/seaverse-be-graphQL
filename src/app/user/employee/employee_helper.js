@@ -46,13 +46,13 @@ const { ImportLog } = require("../import-log/import_log_model");
 const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const { Notification } = require("../../notifications/notification_model");
 const NotificationEvent = require("../../notifications/notification_event.json");
-const {  generateRandomString } = require("../user-profile/user_profile_helper");
+const { generateRandomString } = require("../user-profile/user_profile_helper");
 const { LearningPlan } = require("../../learning-plan/learning_plan_model");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
-const {sendDeleteEmailToLearner} = require("../../email-template/sendDeleteEmailToLearner")
+const { sendDeleteEmailToLearner } = require("../../email-template/sendDeleteEmailToLearner")
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -839,9 +839,9 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
 
     const errors = [];
 
-    if (!row["First Name"]) {
+    if (!row["First Name*"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
-    } else if (!validateName(row["First Name"])) {
+    } else if (!validateName(row["First Name*"])) {
         errors.push(`First Name is invalid. Name should only contain letters in row ${rowIndex + 1}.`);
         return errors;
     }
@@ -853,24 +853,24 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         }
     }
 
-    if (!row["User ID"]) {
+    if (!row["User ID*"]) {
         errors.push(`User ID is missing in row ${rowIndex + 1}`);
         return errors;
     }
 
-    let normalizedId = row["User ID"].toLowerCase();
+    let normalizedId = row["User ID*"].toLowerCase();
     if (empIds.has(normalizedId)) {
-        errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID"]}`);
+        errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID*"]}`);
         return errors;
     } else {
         empIds.add(normalizedId);
     }
 
-    if (!row["Email"]) {
+    if (!row["Email*"]) {
         errors.push(`Email is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const normalizedEmail = row["Email"].toLowerCase();
+        const normalizedEmail = row["Email*"].toLowerCase();
         if (!Validator.isEmail(normalizedEmail)) {
             errors.push(`Invalid Email in row ${rowIndex + 1} as ${normalizedEmail}.`);
             return errors;
@@ -882,37 +882,36 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         }
     }
 
-    if (!row["Employee Designation"]) {
+    if (!row["Employee Designation*"]) {
         errors.push(`Designation is missing in row ${rowIndex + 1}`);
         return errors;
     } else {
-        const designation = row["Employee Designation"]?.toLowerCase();
+        const designation = row["Employee Designation*"]?.toLowerCase();
         if (!designationNames.some(name => name?.toLowerCase() === designation)) {
-            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Employee Designation"]}`);
+            errors.push(`Invalid Designation in row ${rowIndex + 1} as ${row["Employee Designation*"]}`);
             return errors;
         }
     }
 
-    if (!row["Vessel Status"]) {
-        errors.push(`Status is missing in row ${rowIndex + 1}`);
-        return errors;
-    } else {
+    if (row["Vessel Status"]) {
         const status = row["Vessel Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
         }
 
-        if (status !== vesselStatusEnum.ONSHORE.toLowerCase()) {
-            if (!row["Vessel IMO Number"]) {
+        if (status == vesselStatusEnum.ONSHORE.toLowerCase()) {
+            if (row["Vessel IMO Number"]) {
+                errors.push(`IMO Number is present in row ${rowIndex + 1} for Onshore status`);
+                return errors;
+            }
+        }
+    }
 
-                errors.push(`IMO Number is missing in row ${rowIndex + 1}`);
-                return errors;
-            }
-            else if (!imoNumbers.includes(row["Vessel IMO Number"])) {
-                errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["Vessel IMO Number"]}`);
-                return errors;
-            }
+    if (row["Vessel IMO Number"]) {
+        if (!imoNumbers.includes(row["Vessel IMO Number"])) {
+            errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["Vessel IMO Number"]}`);
+            return errors;
         }
     }
 
@@ -921,12 +920,10 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
 
 function mapCSVRowToUser(row) {
     const mandatoryFields = [
-        "First Name",
-        "Email",
-        "Designation",
-        "User ID",
-        "Vessel IMO Number",
-        "Vessel Status"
+        "First Name*",
+        "Email*",
+        "Designation*",
+        "User ID*"
     ];
 
     Object.keys(row).forEach(key => {
@@ -937,11 +934,11 @@ function mapCSVRowToUser(row) {
     });
 
     const result = {
-        firstName: row["First Name"],
+        firstName: row["First Name*"],
         lastName: row["Last Name"] ?? "",
-        civilIdOrPassport: row["User ID"]?.toLowerCase(),
-        email: row["Email"]?.toLowerCase(),
-        designation: row["Employee Designation"]?.toLowerCase(),
+        civilIdOrPassport: row["User ID*"]?.toLowerCase(),
+        email: row["Email*"]?.toLowerCase(),
+        designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
         vesselStatus: row["Vessel Status"],
     };
@@ -954,7 +951,7 @@ const sendBulkEmails = async (passwordEmailList) => {
     try {
         process.send({
             type: 'EMAIL',
-            data: { email: passwordEmailList, subject: 'Welcome to SeaVerse!' }
+            data: { email: passwordEmailList, subject: 'Welcome To Seaverse!' }
         });
 
     } catch (error) {
@@ -1037,8 +1034,8 @@ module.exports = {
 
         let newVessel;
         if (input?.user?.currentVessel && input?.user?.currentVessel !== '') {
-            
-            
+
+
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
             if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
@@ -1670,6 +1667,8 @@ module.exports = {
             [user.email?.toLowerCase()]: user.civilIdOrPassport
         }))
 
+
+
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport.toLowerCase());
@@ -1702,15 +1701,17 @@ module.exports = {
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
 
+
             if (existingEmpIdsMap) {
 
                 const email = existingEmpIdsMap[user.civilIdOrPassport];
 
-
                 if (existingEmailIdsMap) {
 
                     const empId = existingEmailIdsMap[user.email?.toLowerCase()];
+
                     if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
+
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                         break;
@@ -1781,15 +1782,95 @@ module.exports = {
                 }
 
 
+            } else if (existingEmailIdsMap) {
+
+                const empId = existingEmailIdsMap[user.email].toLowerCase();
+
+                if (existingEmpIdsMap) {
+
+                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
+
+                    if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
+
+
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
+                        break;
+
+                    } else {
+
+                        updates.push({
+                            updateMany: {
+                                filter: { email: user.civilIdOrPassport },
+                                update: {
+                                    $set: {
+                                        firstName: user.firstName,
+                                        lastName: user.lastName,
+                                        email: user.email?.toLowerCase(),
+                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                    },
+                                },
+                            },
+                        });
+
+
+                        updatedEmpIds.push(user.civilIdOrPassport);
+
+                        vesselAssociations.push({
+                            civilIdOrPassport: user.civilIdOrPassport,
+                            imoNumber: user?.imoNumber,
+                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                        });
+
+                    }
+
+                } else if (empId !== user.civilIdOrPassport?.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toLowerCase())) {
+
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
+                    break;
+
+                } else {
+
+                    updates.push({
+                        updateMany: {
+                            filter: { email: user.email },
+                            update: {
+                                $set: {
+                                    firstName: user.firstName,
+                                    lastName: user.lastName,
+                                    civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                },
+                            },
+                        },
+                    });
+
+
+                    updatedEmailIds.push(user.email);
+
+                    vesselAssociations.push({
+                        email: user.email,
+                        imoNumber: user?.imoNumber,
+                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
+                    });
+
+                }
+
+
             } else {
 
                 if (getAllDBEmails.includes(user.email)) {
+
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     break;
 
 
                 } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
+
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                     break;
@@ -1818,7 +1899,7 @@ module.exports = {
                         });
                     }
 
-                    passwordEmailList.push({ email: user.email, password, userName: user.firstName + " " + user.lastName });
+                    passwordEmailList.push({ email: user.email, temp_password: password, firstName: user.firstName, buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false` });
 
                 }
             }
@@ -2181,6 +2262,7 @@ module.exports = {
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
         }
+
         if (updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
@@ -2188,7 +2270,7 @@ module.exports = {
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `${updatedUsers.length} User(s) data updated`,
+                description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
                 notificationType: 'BULK_IMPORT',
                 status: "SUCCESS"
             })
@@ -2199,7 +2281,7 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `${updatedUsersById.length || updatedUsersByEmail.length} User(s) data  updated`
+                description: `${updatedUsersById.length + updatedUsersByEmail.length} User(s) data updated`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 

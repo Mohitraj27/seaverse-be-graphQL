@@ -239,12 +239,12 @@ module.exports.mutations = {
         if (existingContent) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
-        }
+        // if (input.duration) {
+        //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+        //     if (!durationStyleChecked) {
+        //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+        //     }
+        // }
 
         let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
 
@@ -296,12 +296,12 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
-        }
+        // if (input.duration) {
+        //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+        //     if (!durationStyleChecked) {
+        //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+        //     }
+        // }
 
         const savedItem = await UploadHelper.uploadImage({
             data: image,
@@ -346,13 +346,13 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
-            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-        }
+        // if (input.duration) {
+        //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+        //     if (!durationStyleChecked) {
+        //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+        //     }
+        //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+        // }
 
         if (thumbnail) {
             const thumbnailUrl = await UploadHelper.uploadImage({
@@ -396,13 +396,13 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
-            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-        }
+        // if (input.duration) {
+        //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+        //     if (!durationStyleChecked) {
+        //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+        //     }
+        //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+        // }
 
         const savedItem = await UploadHelper.uploadDocument({
             data: file,
@@ -446,15 +446,15 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST);
         }
 
-        if (input.duration) {
-            const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+        // if (input.duration) {
+        //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
 
-            if (!durationStyleChecked) {
-                throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            }
+        //     if (!durationStyleChecked) {
+        //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+        //     }
 
-            input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-        }
+        //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+        // }
 
         const savedItem = await UploadHelper.uploadAudio({
             data: audio,
@@ -688,14 +688,13 @@ module.exports.mutations = {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
             }
 
-            if (input.duration) {
-                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-                if (!durationStyleChecked) {
-                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-                }
-                input.duration = Math.round(TrainingModuleContentHelper.convertDurationToMinutes(input.duration));
-
-            }
+            // if (input.duration) {
+            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+            //     if (!durationStyleChecked) {
+            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+            //     }
+            //     input.duration = Math.round(TrainingModuleContentHelper.convertDurationToMinutes(input.duration));
+            // }
             let contentTypeNotification = '';
             if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
@@ -884,13 +883,13 @@ module.exports.mutations = {
                 }
             }
 
-            if (input.duration) {
-                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-                if (!durationStyleChecked) {
-                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-                }
-                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-            }
+            // if (input.duration) {
+            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+            //     if (!durationStyleChecked) {
+            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+            //     }
+            //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            // }
 
             const contentData = {
                 ...input,
@@ -1023,13 +1022,13 @@ module.exports.mutations = {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
             }
 
-            if (input.duration) {
-                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-                if (!durationStyleChecked) {
-                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-                }
-                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-            }
+            // if (input.duration) {
+            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+            //     if (!durationStyleChecked) {
+            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+            //     }
+            //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            // }
 
             let updateData = {
                 title: input.title,
@@ -1278,13 +1277,13 @@ module.exports.mutations = {
             let totalScore = 0;
             let questionsIdArr = [];
 
-            if (input.duration) {
-                const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-                if (!durationStyleChecked) {
-                    throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-                }
-                input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-            }
+            // if (input.duration) {
+            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
+            //     if (!durationStyleChecked) {
+            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
+            //     }
+            //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
+            // }
 
             if (input.questions && input.questions.length > 0) {
 
