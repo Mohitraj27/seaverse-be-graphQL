@@ -215,7 +215,7 @@ module.exports.queries = {
 
         try {
 
-            const signedUrl = await AwsHelper.fetchFile("public/bulk_csv.csv");
+            const signedUrl = await AwsHelper.fetchFile("public/bulk_user.csv");
             return {
                 success: true,
                 message: "File fetched successfully",
@@ -1691,6 +1691,25 @@ module.exports.mutations = {
 
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
+
+                const failedNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `Bulk Import Failed!` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `${nonEmptyArray}`,
+                        },
+                    ],
+                    notificationType: NotificationType.BULK_IMPORT_FAILED,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    icon: notificationiconEnum.ERROR,
+                    createdBy: userInfo,
+                };
+                await NotificationHelper.createNotification([failedNotification]);
+
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
@@ -2508,8 +2527,24 @@ module.exports.mutations = {
                         civilIdOrPassport: { $first: '$civilIdOrPassport' },
                         email: { $first: '$email' },
                         designationName: { $first: '$designationDetails.name' },
-                        vesselName: { $first: '$vesselDetails.name' },
-                        vesselImoNumber: { $first: '$vesselDetails.imoNumber' },
+                        vesselName: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.name',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselImoNumber: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.imoNumber',
+                                    else: ' ',
+                                },
+                            },
+                        },
                         vesselStatus: { $first: '$vesselStatus' },
                         lastLoginAt: { $first: '$lastLoginAt' },
                         createdAt: { $first: '$createdAt' },
