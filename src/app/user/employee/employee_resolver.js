@@ -1902,6 +1902,7 @@ module.exports.mutations = {
 
             // };
 
+          
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
 
             // await transporter.sendMail(mailOptions, (error, info) => {
