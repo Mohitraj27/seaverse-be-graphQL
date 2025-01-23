@@ -3443,7 +3443,7 @@ const generateCustomReport = async ({ input }, context) => {
                 if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0) {
                     matchStage.push({
                         $match: {
-                            'vesselInfo.vesselStatus': { $in: input.learnerStatus },
+                            'userInfo.vesselStatus': { $in: input.learnerStatus },
                         },
                     });
                 }
@@ -3938,7 +3938,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'foreignField': 'user',
                             'as': 'vesselInfo',
                             'pipeline': [
-                                { '$match': { 'isActive': true } },
+                                { '$match': { 'isActive': {$ne :true} } },
                                 { '$sort': { 'updatedAt': -1 } },
                                 { '$limit': 1 }
                             ]
@@ -4016,7 +4016,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'email': '$userInfo.email',
                             'designation': '$designationData.name',
                             'empId': '$userInfo.civilIdOrPassport',
-                            'userStatus': '$vesselInfo.vesselStatus',
+                            'userStatus': '$userInfo.vesselStatus',
                             'attemptCount': '$attemptCount',
                             'progress': '$progressPercentage',
                             'training': '$trainingInfo.title',
