@@ -2266,12 +2266,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const courseStatus = item.status || 'Not Started';
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
+                        const courseName = item?.trainingTitle[0].value;
 
                         const parsedItem = {
                             LearnerName: learnerName,
                             Email: item.email || '',
                             EmployeeId: item.empId || '',
                             Designation: item.designation || '',
+                            CourseName: courseName,
                             CourseStatus: courseStatus,
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
