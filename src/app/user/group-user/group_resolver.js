@@ -51,6 +51,7 @@ module.exports.queries = {
                 notifyAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
+                affected:[],
                 createdBy: userInfo,
                 icon: notificationiconEnum.SUCCESS,
             };
@@ -165,6 +166,14 @@ module.exports.queries = {
                     notifyAdmin: true,
                     notifiers: [],
                     employeeNotifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: excelFilePath
+                            }
+                        }
+                    ],
                     affected: [{ targetRef: "Export", target: exportEntry._id }],
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
