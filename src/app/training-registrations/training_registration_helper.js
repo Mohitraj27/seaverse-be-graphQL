@@ -730,7 +730,7 @@ module.exports = {
                             );
                             const emailContent = courseEnrollment({
                                 firstName: user.firstName,
-                                courses: coursesData, 
+                                courses: coursesData,
                                 isAdmin: isAdmin
                             });
                             sendEmail({
@@ -898,7 +898,8 @@ module.exports = {
                                     endDate: null,
                                     status: 'NOT_STARTED',
                                     attemptCount: 1,
-                                    timeSpend: 0
+                                    timeSpend: 0,
+                                    learningPlan: [],
                                 }
                             },
                             { session }
