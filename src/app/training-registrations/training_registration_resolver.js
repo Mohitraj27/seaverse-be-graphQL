@@ -1472,7 +1472,7 @@ module.exports.mutations = {
                     if (verifiedUsers.notEnrolledEmails.length > 0) {
                         notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
                     }
-
+                    
                 }
 
                 if (input.type === "ENROLL") {
