@@ -2729,7 +2729,18 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 }
                             }
                         }
-                    }, {
+                    },
+                    {
+                        $addFields: {
+                            moduleContents: {
+                                $sortArray: {
+                                    input: "$moduleContents",
+                                    sortBy: { updatedAt: -1 } 
+                                }
+                            }
+                        }
+                    },
+                    {
                         '$addFields': {
                             'hasQuiz': {
                                 '$gt': [
