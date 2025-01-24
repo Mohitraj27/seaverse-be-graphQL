@@ -2731,7 +2731,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        $addFields: {
+                        $addFields: { 
                             moduleContents: {
                                 $sortArray: {
                                     input: "$moduleContents",
