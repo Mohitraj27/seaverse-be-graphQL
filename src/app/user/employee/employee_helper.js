@@ -402,7 +402,8 @@ const sendNotificationOnBULK = async notificationData => {
             description: notificationData.description,
             isError: notificationData.isError,
             notificationType: notificationData.notificationType,
-            status: notificationData.status
+            status: notificationData.status,
+            icon: notificationData.icon
         };
 
         notification.message = {
@@ -835,7 +836,7 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex) => {
 
     const errors = [];
 
@@ -1726,7 +1727,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        vesselStatus: user?.vesselStatus ? user.vesselStatus?.toUpperCase() : 'ONSHORE',
                                         currentVessel: vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
@@ -1739,7 +1740,7 @@ module.exports = {
                         vesselAssociations.push({
                             email: user.email,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -1762,7 +1763,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
-                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                     currentVessel: vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
@@ -1775,7 +1776,7 @@ module.exports = {
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1806,7 +1807,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email?.toLowerCase(),
-                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                         currentVessel: vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
@@ -1819,7 +1820,7 @@ module.exports = {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -1840,7 +1841,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                     currentVessel: vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
@@ -1853,7 +1854,7 @@ module.exports = {
                     vesselAssociations.push({
                         email: user.email,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1886,7 +1887,7 @@ module.exports = {
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
                         currentVessel: vesselMap.get(user.imoNumber)?.id,
-                        vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                        vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
@@ -1894,7 +1895,7 @@ module.exports = {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                            vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
                     }
@@ -1930,10 +1931,10 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: true,
                 description: `${errors[0]}`,
-                notificationType: 'BULK_IMPORT',
-                status: "FAILED"
-            })
-
+                notificationType: 'BULK_IMPORT_FAILED',
+                status: "FAILED",
+                icon: notificationiconEnum.ERROR,
+            });
 
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
@@ -2013,7 +2014,7 @@ module.exports = {
                                             $set: {
                                                 user: user._id,
                                                 vessel: vesselMap.get(vesselData.imoNumber).id,
-                                                vesselStatus: vesselData.vesselStatus.toUpperCase(),
+                                                vesselStatus: vesselData.vesselStatus.toUpperCase() || VesselStatus.ONSHORE,
                                                 isActive: true,
                                             }
                                         },
@@ -2248,9 +2249,11 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: false,
                 description: `${insertedUsers.length} User(s) data created`,
-                notificationType: 'BULK_IMPORT',
-                status: "SUCCESS"
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
             })
+
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
                 usersCount: userCount,
@@ -2271,8 +2274,9 @@ module.exports = {
                 uploadedBy: adminUser?._id,
                 isError: false,
                 description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
-                notificationType: 'BULK_IMPORT',
-                status: "SUCCESS"
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
             })
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
@@ -2295,6 +2299,10 @@ module.exports = {
 
         try {
 
+            const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
+            const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
+            const fetchAdminDesignation = fetchAdminEmployee.empDesignation.name;
+
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
@@ -2309,7 +2317,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
@@ -2327,8 +2335,11 @@ module.exports = {
                         return validationErrors;
 
                     } else {
-                        const formatedData = mapCSVRowToUser(row);
-                        users.push(formatedData);
+                        let formatedData;
+                        if (row["User ID*"] !== fetchAdmin.civilIdOrPassport && row["Email*"] !== fetchAdmin.email) {
+                            formatedData = mapCSVRowToUser(row);
+                            users.push(formatedData);
+                        }
                     }
 
                 });
