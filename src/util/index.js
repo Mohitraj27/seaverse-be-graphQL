@@ -208,7 +208,7 @@ module.exports = {
     AppConfig: require("./app_config"),
     Event: require("./event"),
     Role,
-    groupTypes: require("./group_types"),
+    groupTypes: require("./group_types.json"),
     courseStatus: require("./course_status"),
     contentTypes: require("./content_type.json"),
     VesselStatus,
