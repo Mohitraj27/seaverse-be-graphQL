@@ -6,12 +6,12 @@ module.exports.LocalisedDataSchema = new Schema({
     lang: {
         type: String,
         lowercase: true,
-        required: true,
+        required: false,
     },
     value: {
         type: String,
         trim: true,
         set: StringNormalize,
-        required: true,
+        required: false,
     },
 });
