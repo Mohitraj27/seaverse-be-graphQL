@@ -85,7 +85,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             }
         }
 
-        const designationQuery = designationIds.length ? Employee.find({ empDesignation: { $in: designationIds } })
+        const designationQuery = designationIds.length > 0 ? Employee.find({ empDesignation: { $in: designationIds } })
             .select({ user: 1 })
             .lean()
             .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
@@ -120,25 +120,18 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             roleQuery = Promise.resolve([]);
         }
 
-        const subRoleQuery = subRoleIds.length ? User.find({ subRoles: { $in: subRoleIds } }) : Promise.resolve([]);
-        const regStatusQuery = regStatusIds.length ? User.find({ isRegistered: { $in: regStatusIds } }) : Promise.resolve([]);
+        const subRoleQuery = subRoleIds.length > 0 ? User.find({ subRoles: { $in: subRoleIds }, isDeleted: { $ne: false } }) : Promise.resolve([]);
+        const regStatusQuery = regStatusIds.length > 0 ? User.find({ isRegistered: { $in: regStatusIds }, isDeleted: { $ne: false } }) : Promise.resolve([]);
 
-        const vesselQuery = vesselIds.length ? UserVessel.find({ vessel: { $in: vesselIds }, isActive: true })
-            .select({ user: 1 })
-            .lean()
-            .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
+        const vesselQuery = vesselIds.length > 0 ? User.find({ currentVessel: { $in: vesselIds }, isDeleted: { $ne: true } }) : Promise.resolve([]);
 
-        const vesselStatusQuery = vesselStatusIds.length ? UserVessel.find({ vesselStatus: { $in: vesselStatusIds }, isActive: true })
-            .select({ user: 1 })
-            .lean()
-            .then(results => results.map(doc => ({ _id: doc.user })))
-            : Promise.resolve([]);
+        const vesselStatusQuery = vesselStatusIds.length > 0 ? User.find({ vesselStatus: { $in: vesselStatusIds }, isDeleted: { $ne: true } }) : Promise.resolve([]);
 
         let vesselTypeQuery;
-        if (vesselTypeIds.length) {
+        if (vesselTypeIds.length > 0) {
             const vessels = await Vessel.find({ typeOfVessel: { $in: vesselTypeIds } });
             const vesselIdsFromType = vessels.map(x => x._id);
-            vesselTypeQuery = vesselIdsFromType.length ? UserVessel.find({ vessel: { $in: vesselIdsFromType }, isActive: true })
+            vesselTypeQuery = vesselIdsFromType.length > 0 ? UserVessel.find({ vessel: { $in: vesselIdsFromType }, isActive: { $ne: false } })
                 .select({ user: 1 })
                 .lean()
                 .then(results => results.map(doc => ({ _id: doc.user }))) : Promise.resolve([]);
@@ -166,25 +159,23 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
         let vesselStatusUsers = [];
         if (vesselStatusUserIds.length) {
-            vesselStatusUsers = await User.find({ _id: { $in: vesselStatusUserIds }, isDeleted: false });
+            vesselStatusUsers = await User.find({ _id: { $in: vesselStatusUserIds }, isDeleted: { $ne: true } });
         }
 
         let vesselTypeUsers = [];
         if (vesselTypeUserIds.length) {
-            vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds }, isDeleted: false });
+            vesselTypeUsers = await User.find({ _id: { $in: vesselTypeUserIds }, isDeleted: { $ne: true } });
         }
 
         let vesselUsers = [];
         if (vesselUsersIds.length) {
-            vesselUsers = await User.find({ _id: { $in: vesselUsersIds }, isDeleted: false });
+            vesselUsers = await User.find({ _id: { $in: vesselUsersIds }, isDeleted: { $ne: true } });
         }
 
         let designationUsers = [];
         if (designationUsersIds.length) {
-            designationUsers = await User.find({ _id: { $in: designationUsersIds }, isDeleted: false });
+            designationUsers = await User.find({ _id: { $in: designationUsersIds }, isDeleted: { $ne: true } });
         }
-
-
         if (fromGetGroups) {
 
             let result = [];
