@@ -23,7 +23,21 @@ module.exports.queries = {
         } = AuthUser(context);
     try{
         const skip = pageInput?.skip ?? 0;
-        const limit = pageInput?.limit ?? 50;
+        let limit = pageInput?.limit ?? 50;
+        let selectFirstThreeDays =[];
+        if (skip === 0) {
+            selectFirstThreeDays.push({
+                $match: {
+                    $expr: {
+                        $gte: [
+                            "$createdAt",
+                            new Date(new Date() - 3 * 24 * 60 * 60 * 1000)
+                        ]
+                    }
+                }
+            })
+            limit = 10000;
+        }
         let filterConditions = { /* subscriber: subscriberId, */ isDeleted: { $ne: true } };
 
         if (filterInput) {
@@ -81,21 +95,27 @@ module.exports.queries = {
                     {
                         $facet: {
                             notifications: [
-                                { $match: {} },
+                                ...selectFirstThreeDays,
                                 {
-                                    $addFields:
-                                    {
-                                        isRead:
-                                        {
-                                            $in:
-                                                [
-                                                    userId,
-                                                    {
-                                                        $ifNull: ["$usersMarkedAsRead", []]
-                                                    }
-                                                ]
+                                    $addFields: {
+                                        isRead: {
+                                            $in: [
+                                                userId,
+                                                {
+                                                    $ifNull: ["$usersMarkedAsRead", []]
+                                                }
+                                            ]
                                         }
                                     }
+                                },
+                                {
+                                    $sort: { createdAt: -1 }
+                                },
+                                {
+                                    $skip: skip
+                                },
+                                {
+                                    $limit: limit
                                 }
                             ],
                             counts: [
@@ -186,6 +206,7 @@ module.exports.queries = {
             totalCount: 0,
         };
     } catch(error){
+        console.log(error);
         throw CustomError(GET_NOTIFICATION_FAILED,error.message);
     }
 },
