@@ -3212,224 +3212,313 @@ const getVesselMainReport = async ({ input }, context) => {
             pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
-        const data = await Vessel.aggregate([
-            {
-                $match: {
-                    isActive: true,
-                    isDeleted: false
-                }
-            },
-            {
-                $lookup: {
-                    from: "vesseltypes",
-                    localField: "typeOfVessel",
-                    foreignField: "_id",
-                    as: "vesselTypesInfo"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$vesselTypesInfo",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: "uservessels",
-                    localField: "_id",
-                    foreignField: "vessel",
-                    as: "userVesselsInfo",
-                    pipeline: [
-                        {
-                            $lookup: {
-                                from: "employees",
-                                localField: "user",
-                                foreignField: "user",
-                                as: "employeeInfo"
-                            }
-                        },
-                        {
-                            $unwind: {
-                                path: "$employeeInfo",
-                                preserveNullAndEmptyArrays: false
-                            }
-                        },
-                        {
-                            $match: {
-                                $expr: {
-                                    $eq: ["$employeeInfo.isDeleted", false]
+        const data = await Vessel.aggregate(
+            [
+                {
+                    $sort:
+                    {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $match: {
+                        isActive: true,
+                        isDeleted: false
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "vesseltypes",
+                        localField: "typeOfVessel",
+                        foreignField: "_id",
+                        as: "vesselTypesInfo"
+                    }
+                },
+                {
+                    $unwind: {
+                        path: "$vesselTypesInfo",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "uservessels",
+                        localField: "_id",
+                        foreignField: "vessel",
+                        as: "userVesselsInfo",
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: "employees",
+                                    localField: "user",
+                                    foreignField: "user",
+                                    as: "employeeInfo"
+                                }
+                            },
+                            {
+                                $unwind: {
+                                    path: "$employeeInfo",
+                                    preserveNullAndEmptyArrays: false
+                                }
+                            },
+                            {
+                                $match: {
+                                    $expr: {
+                                        $eq: [
+                                            "$employeeInfo.isDeleted",
+                                            false
+                                        ]
+                                    }
                                 }
                             }
-                        }
-                    ]
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "userVesselsInfo.user",
-                    foreignField: "_id",
-                    as: "userInfo",
-                    pipeline : [
-                      {
-                        $match :{
-                          isDeleted : false
-                        }
-                      },
-                      {
-                        $match: {
-                          vesselStatus: "ONBOARDED"
-                        }
-                      }
-                    ]
-                }
-            },
-            {
-                $unwind: {
-                    path: "$userInfo",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: "overalltrainingprogresses",
-                    localField: "userInfo._id",
-                    foreignField: "user",
-                    as: "trainingProgressInfo"
-                }
-            },
-            {
-                $project: {
-                    name: 1,
-                    imoNumber: 1,
-                    companyName: 1,
-                    createdAt: 1,
-                    ownerName: 1,
-                    vesselType: "$vesselTypesInfo.name",
-                    vesselTypeId: "$vesselTypesInfo._id",
-                    onboardedUsers: {
-                        $ifNull: [
-                            {
-                                $setUnion: [
-                                    {
-                                        $map: {
-                                            input: {
-                                                $filter: {
-                                                    input: "$userVesselsInfo",
-                                                    as: "userVessel",
-                                                    cond: {
-                                                        $and: [
-                                                            { $eq: ["$$userVessel.vesselStatus", "ONBOARDED"] },
-                                                            { $eq: ["$$userVessel.isActive", true] }
-                                                        ]
-                                                    }
-                                                }
-                                            },
-                                            as: "userVessel",
-                                            in: "$$userVessel.user"
-                                        }
-                                    },
-                                    []
-                                ]
-                            },
-                            []
                         ]
-                    },
-                    averageProgress: {
-                        $cond: {
-                            if: {
-                                $gt: [
-                                    {
-                                        $size: {
-                                            $ifNull: [
-                                                "$trainingProgressInfo",
-                                                []
-                                            ]
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userVesselsInfo.user",
+                        foreignField: "_id",
+                        as: "userInfo",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isDeleted: false
+                                }
+                            },
+                            {
+                                $match: {
+                                    vesselStatus: "ONBOARDED"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    $unwind: {
+                        path: "$userInfo",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "overalltrainingprogresses",
+                        localField: "userInfo._id",
+                        foreignField: "user",
+                        as: "trainingProgressInfo",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isEnrolled: true
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    $project: {
+                        name: 1,
+                        imoNumber: 1,
+                        companyName: 1,
+                        createdAt: 1,
+                        ownerName: 1,
+                        vesselType: "$vesselTypesInfo.name",
+                        vesselTypeId: "$vesselTypesInfo._id",
+                        onboardedUsers: {
+                            $ifNull: [
+                                {
+                                    $setUnion: [
+                                        {
+                                            $map: {
+                                                input: {
+                                                    $filter: {
+                                                        input: "$userVesselsInfo",
+                                                        as: "userVessel",
+                                                        cond: {
+                                                            $and: [
+                                                                {
+                                                                    $eq: [
+                                                                        "$$userVessel.vesselStatus",
+                                                                        "ONBOARDED"
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    $eq: [
+                                                                        "$$userVessel.isActive",
+                                                                        true
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    }
+                                                },
+                                                as: "userVessel",
+                                                in: "$$userVessel.user"
+                                            }
+                                        },
+                                        []
+                                    ]
+                                },
+                                []
+                            ]
+                        }
+                    }
+                },
+                {
+                    $unwind:
+
+                    {
+                        path: "$onboardedUsers",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $lookup:
+
+                    {
+                        from: "overalltrainingprogresses",
+                        localField: "onboardedUsers",
+                        foreignField: "user",
+                        as: "trainingProgress"
+                    }
+                },
+                {
+                    $unwind:
+
+                    {
+                        path: "$trainingProgress",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$_id",
+                        name: {
+                            $first: "$name"
+                        },
+                        imoNumber: {
+                            $first: "$imoNumber"
+                        },
+                        companyName: {
+                            $first: "$companyName"
+                        },
+                        createdAt: {
+                            $first: "$createdAt"
+                        },
+                        vesselType: {
+                            $first: "$vesselType"
+                        },
+                        vesselTypeId: {
+                            $first: "$vesselTypeId"
+                        },
+                        ownerName: {
+                            $first: "$ownerName"
+                        },
+                        onboardedUsers: {
+                            $addToSet: "$onboardedUsers"
+                        },
+                        trainingProgresses: {
+                            $push: "$trainingProgress"
+                        }
+
+
+
+                    }
+                },
+                {
+                    $sort:
+
+                    {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $project: {
+                        vesselName: "$name",
+                        imoNumber: 1,
+                        companyName: 1,
+                        createdAt: 1,
+                        vesselId: "$_id",
+                        typeOfVessel: "$vesselType",
+                        vesselTypeId: "$vesselTypeId",
+                        ownerName: 1,
+                        onboardedCount: {
+                            $size: {
+                                $ifNull: ["$onboardedUsers", []]
+                            }
+                        },
+                        progress: {
+                            $cond: {
+                                if: {
+                                    $gt: [
+                                        {
+                                            $size: {
+                                                $ifNull: [
+                                                    "$trainingProgresses",
+                                                    []
+                                                ]
+                                            }
+                                        },
+                                        0
+                                    ]
+                                },
+                                then: {
+                                    $trunc: [
+                                        {
+                                            $avg: "$trainingProgresses.progressPercentage"
                                         }
-                                    },
-                                    0
-                                ]
-                            },
-                            then: {
-                                $avg: "$trainingProgressInfo.progressPercentage"
-                            },
-                            else: 0
+
+                                    ]
+                                },
+                                else: 0
+                            }
                         }
                     }
-                }
-            },
-            {
-                $group: {
-                    _id: "$_id",
-                    name: {
-                        $first: "$name"
-                    },
-                    imoNumber: {
-                        $first: "$imoNumber"
-                    },
-                    companyName: {
-                        $first: "$companyName"
-                    },
-                    createdAt: {
-                        $first: "$createdAt"
-                    },
-                    vesselType: {
-                        $first: "$vesselType"
-                    },
-                    vesselTypeId: {
-                        $first: "$vesselTypeId"
-                    },
-                    ownerName: {
-                        $first: "$ownerName"
-                    },
-                    onboardedUsers: {
-                        $first: "$onboardedUsers"
-                    },
-                    filteredTrainingProgress: {
-                        $first: "$filteredTrainingProgress"
-                    },
-                    averageProgress: {
-                        $first: "$averageProgress"
-                    }
-                }
-            },
-            {
-                $project: {
-                    vesselName: "$name",
-                    imoNumber: 1,
-                    companyName: 1,
-                    createdAt: 1,
-                    vesselId: "$_id",
-                    typeOfVessel: "$vesselType",
-                    vesselTypeId: "$vesselTypeId",
-                    ownerName: 1, 
-                    onboardedCount: {
-                        $size: {
-                            $ifNull: ["$onboardedUsers", []]
+                },
+                {
+                    $group: {
+                        _id: "$vesselId",
+                        vesselName: {
+                            $first: "$vesselName"
+                        },
+                        vesselTypeId: {
+                            $first: "$vesselTypeId"
+                        },
+                        imoNumber: {
+                            $first: "$imoNumber"
+                        },
+                        companyName: {
+                            $first: "$companyName"
+                        },
+                        vesselId: {
+                            $first: "$vesselId"
+                        },
+                        typeOfVessel: {
+                            $first: "$typeOfVessel"
+                        },
+                        ownerName: {
+                            $first: "$ownerName"
+                        },
+                        onboardedCount: {
+                            $sum: "$onboardedCount"
+                        },
+                        progress: {
+                            $first: "$progress"
+                        },
+                        createdAt: {
+                            $max: "$createdAt"
                         }
-                    },
-                    progress: { $trunc: "$averageProgress" }
-                }
-            },
-            {
-                $group: {
-                    _id: "$vesselId",
-                    vesselName: { $first: "$vesselName" },
-                    vesselTypeId: { $first: "$vesselTypeId" },
-                    imoNumber: { $first: "$imoNumber" },
-                    companyName: { $first: "$companyName" },
-                    vesselId: { $first: "$vesselId" },
-                    typeOfVessel: { $first: "$typeOfVessel" },
-                    ownerName: { $first: "$ownerName" },
-                    onboardedCount: { $sum: "$onboardedCount" },
-                    progress: { $avg: "$progress" },
-                    createdAt: { $max: "$createdAt" }
-                }
-            },
-            ...matchStage,
-            { $sort: { createdAt: -1 } },
-            ...pageLimit,
-        ]);
+                    }
+                },
+                ...matchStage,
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                ...pageLimit,
+            ]
+        );
 
         let s3PresignedUrl = "";
 
