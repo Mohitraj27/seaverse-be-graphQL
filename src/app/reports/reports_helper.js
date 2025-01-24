@@ -34,8 +34,25 @@ const  getAppliedFilters = async (input) => {
     return `Filters applied: ${appliedFilters.join(', ')}`;
 }
 
+const convertUnderscoreSeperatedStringToCamelCase = async (str) => {
+    if (str == null) { 
+        return null;
+    }
+
+    return str
+        .split('_') 
+        .map((word, index) => {
+            
+            if (index === 0) {
+                return word.toLowerCase();
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(''); 
+}
 
 module.exports ={
     generateFileNameTimestamp,
     getAppliedFilters,
+    convertUnderscoreSeperatedStringToCamelCase,
 }
