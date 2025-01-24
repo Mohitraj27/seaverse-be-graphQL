@@ -1197,7 +1197,7 @@ module.exports = {
         if (filteredPlans?.length > 0) {
             await LearningPlan.updateMany(
                 { _id: { $in: filteredPlans.map(lp => lp._id) } },
-                { $addToSet: { assignedLearnerIDs: existingEmployee.user._id } }
+                { $set: { assignedLearnerIDs: [existingEmployee.user._id ]} }
             );
         }
         let employeeUpdateData = {};
