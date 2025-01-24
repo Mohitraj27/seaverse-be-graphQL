@@ -1167,11 +1167,25 @@ module.exports = {
         const filteredPlans = await filterLearningPlans(learningPlans, conditions);
 
         if (filteredPlans?.length > 0) {
+            const planIds = filteredPlans.map(lp => lp._id);
+
             await LearningPlan.updateMany(
-                { _id: { $in: filteredPlans.map(lp => lp._id) } },
+                {
+                    _id: { $in: planIds },
+                    $or: [
+                        { assignedLearnerIDs: { $exists: false } },
+                        { assignedLearnerIDs: null }
+                    ]
+                },
+                { $set: { assignedLearnerIDs: [] } }
+            );
+
+            await LearningPlan.updateMany(
+                { _id: { $in: planIds } },
                 { $addToSet: { assignedLearnerIDs: existingEmployee.user._id } }
             );
         }
+
         let employeeUpdateData = {};
         if (input.empDesignation) {
             const existingDesignation = await Designation.findById(input.empDesignation);
