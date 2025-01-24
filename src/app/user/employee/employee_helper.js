@@ -1755,7 +1755,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        vesselStatus: user?.vesselStatus ? user.vesselStatus?.toUpperCase() : 'ONSHORE',
                                         currentVessel: vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
@@ -1768,7 +1768,7 @@ module.exports = {
                         vesselAssociations.push({
                             email: user.email,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -1791,7 +1791,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
-                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                     currentVessel: vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
@@ -1804,7 +1804,7 @@ module.exports = {
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1835,7 +1835,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email?.toLowerCase(),
-                                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                         currentVessel: vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
@@ -1848,7 +1848,7 @@ module.exports = {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase(),
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -1869,7 +1869,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                    vesselStatus: user.vesselStatus?.toUpperCase(),
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                                     currentVessel: vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
@@ -1882,7 +1882,7 @@ module.exports = {
                     vesselAssociations.push({
                         email: user.email,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user.vesselStatus?.toUpperCase(),
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1915,7 +1915,7 @@ module.exports = {
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
                         currentVessel: vesselMap.get(user.imoNumber)?.id,
-                        vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                        vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
@@ -1923,7 +1923,7 @@ module.exports = {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user.imoNumber,
-                            vesselStatus: user.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                            vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
                     }
@@ -2042,7 +2042,7 @@ module.exports = {
                                             $set: {
                                                 user: user._id,
                                                 vessel: vesselMap.get(vesselData.imoNumber).id,
-                                                vesselStatus: vesselData.vesselStatus.toUpperCase(),
+                                                vesselStatus: vesselData.vesselStatus.toUpperCase() || VesselStatus.ONSHORE,
                                                 isActive: true,
                                             }
                                         },
