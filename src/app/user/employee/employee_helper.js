@@ -1092,13 +1092,7 @@ module.exports = {
                     });
 
                 }
-                // await sendNotifications({
-                //     userIds: [existingEmployee?.user?._id],
-                //     title: 'Vessel Updated',
-                //     body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                //     content: 'Vessel updated successfully',
-                //     webLink: ""
-                // });
+                
             } else {
                 await UserVessel.findOneAndUpdate(
                     { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
@@ -1138,13 +1132,7 @@ module.exports = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-                // await sendNotifications({
-                //     userIds: [existingEmployee?.user?._id],
-                //     title: 'Vessel Updated',
-                //     body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                //     content: 'Vessel updated successfully',
-                //     webLink: ""
-                // });
+                
             }
         }
 
