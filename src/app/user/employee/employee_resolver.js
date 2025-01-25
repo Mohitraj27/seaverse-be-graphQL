@@ -11,20 +11,7 @@ const {
     VesselStatus,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
-const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_ENDPOINT,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_PORT == 465,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
 
 const { Employee } = require("./employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -48,7 +35,6 @@ const { UserVessel } = require("../user-vessel-bridge/userVessel_model");
 const {
     sendNotificationOn,
     generateRandomString,
-    sendNodeEmail,
     sendNodeEmailBulk,
 } = require("../../user/user-profile/user_profile_helper");
 const { v4: uuidv4 } = require("uuid");
@@ -67,14 +53,15 @@ const { Notification } = require("../../notifications/notification_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-const {roleUpdateNotifyLearner, roleUpdateNotifyAdmin} = require("../../email-template/roleUpdate");
-const {Unregistered_Status} = require("../../email-template/Unregistered_status");
-const {registered_status,registered_statusforAdmin} = require("../../email-template/Registered_Status");
+const { roleUpdateNotifyLearner, roleUpdateNotifyAdmin } = require("../../email-template/roleUpdate");
+const { Unregistered_Status } = require("../../email-template/Unregistered_status");
+const { registered_status, registered_statusforAdmin } = require("../../email-template/Registered_Status");
 const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
-const {sendWelcomeEmailsToLearner,sendEmailToLearner} = require("../../email-template/sendWelcomeEmail");
-const {filterLearningPlans} = require("../employee/employee_helper");
+const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
+const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
+const mongoose = require("mongoose");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -91,6 +78,18 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     const userVessels = await UserVessel.find(userVesselFilter).select("user");
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
+}
+function formatDateWithSuffix(date) {
+    const day = date.getDate();
+    const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
+        (day % 10 === 2 && day !== 12) ? 'nd' :
+            (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+
+    return `${day}${suffix} ${month} ${year}`;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -120,7 +119,7 @@ module.exports.queries = {
             subscriber: subscriberId,
         };
 
-        const groupMembers = await GroupMember.find({ group: group }).select("member");
+        const groupMembers = await GroupMember.find({ group: group, isDeleted: { $ne: true } }).select("member");
         const memberIds = groupMembers.map(gm => gm.member);
         const fetchResult = async pipeline => {
             return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
@@ -216,7 +215,7 @@ module.exports.queries = {
 
         try {
 
-            const signedUrl = await AwsHelper.fetchFile("public/sample_doc.csv");
+            const signedUrl = await AwsHelper.fetchFile("public/bulk_user.csv");
             return {
                 success: true,
                 message: "File fetched successfully",
@@ -553,337 +552,356 @@ module.exports.queries = {
         ) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
+        try {
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            let startDate, endDate;
+            let filterConditions = {
+                subscriber: subscriberId,
+            };
 
-        let startDate, endDate;
-        let filterConditions = {
-            subscriber: subscriberId,
-        };
-        if (filterInput?.organization) {
-            filterConditions.organization = filterInput?.organization;
-        }
-        if (filterInput?.lastSeen) {
-            const today = Moment();
-            switch (filterInput.lastSeen) {
-                case "TODAY":
-                    startDate = today.startOf("day").toDate();
-                    endDate = today.endOf("day").toDate();
-                    break;
-                case "YESTERDAY":
-                    startDate = today.subtract(1, "day").startOf("day").toDate();
-                    endDate = today;
-                    break;
-                case "LAST_7_DAYS":
-                    startDate = today.subtract(7, "days").startOf("day").toDate();
-                    endDate = Moment().toDate();
-                    break;
-                case "LAST_30_DAYS":
-                    startDate = today.subtract(30, "days").startOf("day").toDate();
-                    endDate = Moment().toDate();
-                    break;
-                case "LAST_3_MONTHS":
-                    startDate = today.subtract(3, "months").startOf("day").toDate();
-                    endDate = Moment().toDate();
-                    break;
-                case "LAST_6_MONTHS":
-                    startDate = today.subtract(6, "months").startOf("day").toDate();
-                    endDate = Moment().toDate();
-                    break;
-                case "LAST_YEAR":
-                    startDate = today.subtract(1, "year").startOf("day").toDate();
-                    endDate = Moment().toDate();
-                    break;
-                default:
-                    break;
-            }
-        }
-        if (filterInput?.regType && filterInput?.regType != 0) {
-            filterConditions.regType = filterInput?.regType;
-        }
-        if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
-            filterConditions.empDesignation = { $in: filterInput.empDesignation };
-        }
-        if (filterInput?.vesselStatus && filterInput.vesselStatus.length > 0) {
-            const userIdsByVesselStatus = await fetchVesselUsersByStatus(
-                filterInput.vesselStatus,
-                filterInput.vesselType,
-                filterInput.vesselObjectId
-            );
-            if (userIdsByVesselStatus.length > 0) {
-                filterConditions.user = { $in: userIdsByVesselStatus };
-            }
-        }
-        const fetchResult = async pipeline => {
-            return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
-                offset: skip,
-                limit,
-                sort: { updatedAt: -1 },
-                customLabels: {
-                    docs: "employees",
-                    totalDocs: "totalCount",
-                    offset: "skip",
-                },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            });
-        };
-
-        if (isOrganizationManager) {
-            filterConditions.organization = managingOrganization;
-        }
-
-        const result = await fetchResult([
-            {
-                $match: filterConditions,
-            },
-            {
-                $lookup: {
-                    from: "designations",
-                    localField: "empDesignation",
-                    foreignField: "_id",
-                    as: "empDesignation",
-                },
-            },
-            { $unwind: "$empDesignation" },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "user",
-                    pipeline: [
-                        {
-                            $match: { superAdmin: { $ne: true } },
-                        },
-                    ],
-                },
-            },
-            {
-                $unwind: "$user",
-            },
-            {
-                $lookup: {
-                    from: "subroles",
-                    localField: "user.subRoles",
-                    foreignField: "_id",
-                    as: "user.subRoles",
+            if (filterInput?.lastSeen) {
+                const today = Moment();
+                switch (filterInput.lastSeen) {
+                    case "TODAY":
+                        startDate = today.startOf("day").toDate();
+                        endDate = today.endOf("day").toDate();
+                        break;
+                    case "YESTERDAY":
+                        startDate = today.subtract(1, "day").startOf("day").toDate();
+                        endDate = today;
+                        break;
+                    case "LAST_7_DAYS":
+                        startDate = today.subtract(7, "days").startOf("day").toDate();
+                        endDate = Moment().toDate();
+                        break;
+                    case "LAST_30_DAYS":
+                        startDate = today.subtract(30, "days").startOf("day").toDate();
+                        endDate = Moment().toDate();
+                        break;
+                    case "LAST_3_MONTHS":
+                        startDate = today.subtract(3, "months").startOf("day").toDate();
+                        endDate = Moment().toDate();
+                        break;
+                    case "LAST_6_MONTHS":
+                        startDate = today.subtract(6, "months").startOf("day").toDate();
+                        endDate = Moment().toDate();
+                        break;
+                    case "LAST_YEAR":
+                        startDate = today.subtract(1, "year").startOf("day").toDate();
+                        endDate = Moment().toDate();
+                        break;
+                    default:
+                        break;
                 }
-            },
-            {
-                $match: {
-                    "user.isDeleted": { $ne: true },
-                    "user.role": { $in: ["LEARNER"] },
+            }
+            if (filterInput?.regType && filterInput?.regType != 0) {
+                filterConditions.regType = filterInput?.regType;
+            }
+            if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
+                filterConditions.empDesignation = { $in: filterInput.empDesignation };
+            }
+            if (filterInput?.vesselStatus && filterInput.vesselStatus.length > 0) {
+                const userIdsByVesselStatus = await fetchVesselUsersByStatus(
+                    filterInput.vesselStatus,
+                    filterInput.vesselType,
+                    filterInput.vesselObjectId
+                );
+                if (userIdsByVesselStatus.length > 0) {
+                    filterConditions.user = { $in: userIdsByVesselStatus };
+                }
+            }
+            const fetchResult = async pipeline => {
+                return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
+                    offset: skip,
+                    limit,
+                    customLabels: {
+                        docs: "employees",
+                        totalDocs: "totalCount",
+                        offset: "skip",
+                    },
+                    pagination: limit !== 0,
+                    allowDiskUse: true,
+                });
+            };
+
+
+
+            let sanitizedSearch;
+            if (filterInput?.search) {
+                sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+            }
+            const result = await fetchResult([
+                {
+                    $match: filterConditions,
                 },
-            },
-            {
-                $lookup: {
-                    from: "uservessels",
-                    localField: "user._id",
-                    foreignField: "user",
-                    as: "userVessels",
-                    pipeline: [
+                {
+                    $lookup: {
+                        from: "designations",
+                        localField: "empDesignation",
+                        foreignField: "_id",
+                        as: "empDesignation",
+                    },
+                },
+                { $unwind: "$empDesignation" },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "user",
+                    },
+                },
+                {
+                    $unwind: "$user",
+                },
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
+                {
+                    $match: {
+                        "user.isDeleted": { $ne: true },
+                        "user.role": { $in: ["LEARNER", "ADMIN"] },
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "uservessels",
+                        localField: "user._id",
+                        foreignField: "user",
+                        as: "userVessels",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isActive: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "vessels",
+                                    localField: "vessel",
+                                    foreignField: "_id",
+                                    as: "vesselDetails",
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                name: { $exists: true, $ne: null },
+                                            },
+                                        },
+                                        {
+                                            $project: {
+                                                _id: 1,
+                                                name: 1,
+                                                typeOfVessel: 1,
+                                                imoNumber: 1,
+                                                isActive: 1,
+
+                                            },
+                                        },
+                                        {
+                                            $lookup: {
+                                                from: "vesseltypes",
+                                                localField: "typeOfVessel",
+                                                foreignField: "_id",
+                                                as: "typeOfVesselDetails",
+                                                pipeline: [
+                                                    {
+                                                        $match: {
+                                                            _id: { $ne: null },
+                                                        },
+                                                    },
+                                                    {
+                                                        $project: {
+                                                            _id: 1,
+                                                            name: 1,
+                                                            isActive: 1,
+
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        {
+                                            $unwind: {
+                                                path: "$typeOfVesselDetails",
+                                                preserveNullAndEmptyArrays: true,
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$vesselDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $sort: {
+                                    updatedAt: -1,
+                                },
+                            },
+                            {
+                                $limit: 1,
+                            },
+                        ],
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$userVessels",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $addFields: {
+                        latestUpdatedAt: {
+                            $max: ["$updatedAt", "$user.updatedAt"],
+                        },
+                    },
+                },
+                {
+                    $sort: {
+                        latestUpdatedAt: -1,
+                    },
+                },
+
+                ...(filterInput?.vesselName?.length > 0
+                    ? [
                         {
                             $match: {
-                                isActive: true,
+                                "userVessels.vesselDetails._id": {
+                                    $in: filterInput.vesselName.map(
+                                        id => ObjectId(id)
+                                    ),
+                                },
                             },
                         },
+                    ]
+                    : []),
+                ...(filterInput?.vesselType?.length > 0
+                    ? [
                         {
-                            $lookup: {
-                                from: "vessels",
-                                localField: "vessel",
-                                foreignField: "_id",
-                                as: "vesselDetails",
-                                pipeline: [
+                            $match: {
+                                "userVessels.vesselDetails.typeOfVesselDetails._id": {
+                                    $in: filterInput.vesselType.map(id => ObjectId(id)),
+                                },
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
                                     {
-                                        $match: {
-                                            name: { $exists: true, $ne: null },
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
                                         },
                                     },
                                     {
-                                        $project: {
-                                            _id: 1,
-                                            name: 1,
-                                            typeOfVessel: 1,
-                                            imoNumber: 1,
-                                            isActive: 1,
-
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    /* {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
+                                    /* {
+                                        "user.companyEmail": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
                                         },
                                     },
                                     {
-                                        $lookup: {
-                                            from: "vesseltypes",
-                                            localField: "typeOfVessel",
-                                            foreignField: "_id",
-                                            as: "typeOfVesselDetails",
-                                            pipeline: [
-                                                {
-                                                    $match: {
-                                                        _id: { $ne: null },
-                                                    },
-                                                },
-                                                {
-                                                    $project: {
-                                                        _id: 1,
-                                                        name: 1,
-                                                        isActive: 1,
-
-                                                    },
-                                                },
-                                            ],
+                                        "user.phone.number": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
                                         },
                                     },
                                     {
-                                        $unwind: {
-                                            path: "$typeOfVesselDetails",
-                                            preserveNullAndEmptyArrays: true,
+                                        employeeNo: {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
                                         },
                                     },
+                                    {
+                                        "userVessels.vesselDetails.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "empDesignation.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
                                 ],
                             },
                         },
+                    ]
+                    : []),
+                ...(filterInput?.role?.length > 0
+                    ? [
                         {
-                            $unwind: {
-                                path: "$vesselDetails",
-                                preserveNullAndEmptyArrays: true,
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
                             },
                         },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
                         {
-                            $sort: {
-                                updatedAt: -1,
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
                             },
                         },
-                        {
-                            $limit: 1,
-                        },
-                    ],
-                },
-            },
-            {
-                $unwind: {
-                    path: "$userVessels",
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
+                    ]
+                    : []),
+            ]);
 
-            ...(filterInput?.vesselName?.length > 0
-                ? [
-                    {
-                        $match: {
-                            "userVessels.vesselDetails.name": {
-                                $in: filterInput.vesselName.map(
-                                    name => new RegExp(".*" + name + ".*", "i")
-                                ),
-                            },
-                        },
-                    },
-                ]
-                : []),
-            ...(filterInput?.vesselType?.length > 0
-                ? [
-                    {
-                        $match: {
-                            "userVessels.vesselDetails.typeOfVesselDetails._id": {
-                                $in: filterInput.vesselType.map(id => ObjectId(id)),
-                            },
-                        },
-                    },
-                ]
-                : []),
-            ...(filterInput?.search
-                ? [
-                    {
-                        $match: {
-                            $or: [
-                                {
-                                    "user.firstName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.lastName": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.civilIdOrPassport": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.email": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.companyEmail": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    "user.phone.number": {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                                {
-                                    employeeNo: {
-                                        $regex: ".*" + filterInput.search + ".*",
-                                        $options: "i",
-                                    },
-                                },
-                            ],
-                        },
-                    },
-                ]
-                : []),
-            ...(filterInput?.role?.length > 0
-                ? [
-                    {
-                        $match:
-                            filterInput.role.includes("LEARNER") &&
-                                filterInput.role.includes("ADMIN")
-                                ? {}
-                                : filterInput.role.includes("LEARNER")
-                                    ? {
-                                        "user.role": "LEARNER",
-                                        "user.subRoles.name": { $ne: "ADMIN" },
-                                    }
-                                    : filterInput.role.includes("ADMIN")
-                                        ? { "user.subRoles.name": "ADMIN" }
-                                        : { "user.role": { $in: filterInput.role } },
-                    },
-                ]
-                : []),
-            ...(filterInput?.isRegistered !== undefined
-                ? [
-                    {
-                        $match: {
-                            "user.isRegistered": filterInput.isRegistered,
-                        },
-                    },
-                ]
-                : []),
-            ...(filterInput?.lastSeen
-                ? [
-                    {
-                        $match: {
-                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                        },
-                    },
-                ]
-                : []),
-        ]);
-
-        return {
-            employees: result.employees,
-            totalCount: result.employees.length,
+            return {
+                employees: result.employees,
+                totalCount: result.employees.length,
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
     getDeleteRequests: async ({ pageInput, filterInput }, context) => {
@@ -1084,7 +1102,7 @@ module.exports.queries = {
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
                         temp_password: generatePassword,
-                        buttonLink: `${process.env.APP_URL}/login`,
+                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
                     await SendEmail({
@@ -1343,8 +1361,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
         updateUsers = await User.updateMany(
             { _id: { $in: input.users } },
-            { 
-                $pull: { subRoles: subRoleAdminId._id },
+            {
                 $set: { isRegistered: false }
             }
         );
@@ -1365,8 +1382,8 @@ const changeRegisterEmployees = async ({ input }, context) => {
             for (const user of users) {
                 const emailContent =
                     input.type === "Registered"
-                        ? registered_status({ firstName: user.firstName})
-                        : Unregistered_Status({ firstName: user.firstName});
+                        ? registered_status({ firstName: user.firstName })
+                        : Unregistered_Status({ firstName: user.firstName });
                 await SendEmail({
                     receiverEmail: user.email,
                     subject: `Current Status Update: ${input.type}`,
@@ -1594,9 +1611,9 @@ module.exports.mutations = {
     manageRole,
     changeRegisterEmployees,
     createEmployees: async ({ input }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
         if (
             !SubRoleHelper.hasPermission({
                 currentRole: role,
@@ -1639,8 +1656,10 @@ module.exports.mutations = {
 
             const existingDesignations = await Designation.find({ isDeleted: false }).lean();
             const designationNames = existingDesignations.map(designation => designation.name);
-            const existingEmployeNumbers = await User.find({ isDeleted: false }).lean();
-            const employeeNumbers = existingEmployeNumbers.map(user => user.civilIdOrPassport);
+            const existingEmployees = await User.find({ isDeleted: false }).lean();
+            const dbEmails = existingEmployees.map(employee => employee.email.toLowerCase());
+            const dbemployeeIds = existingEmployees.map(employee => employee.civilIdOrPassport);
+
             const vessels = await Vessel.find({ isDeleted: false, isActive: true })
                 .select("imoNumber")
                 .lean();
@@ -1657,7 +1676,8 @@ module.exports.mutations = {
                 createReadStream,
                 empIds,
                 emails,
-                employeeNumbers,
+                dbemployeeIds,
+                dbEmails,
                 designationNames,
                 imoNumbers,
                 vesselStatus,
@@ -1668,13 +1688,35 @@ module.exports.mutations = {
                 saveCSV
             );
 
+
             const nonEmptyArray = errors.find(arr => arr.length > 0);
             if (nonEmptyArray) {
-                throw CustomError(ErrorName.FAILED, `Validation failed with errors: ${nonEmptyArray}`);
+
+                const failedNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `Bulk Import Failed!` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `${nonEmptyArray}`,
+                        },
+                    ],
+                    notificationType: NotificationType.BULK_IMPORT_FAILED,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    employeeNotifiers: [],
+                    icon: notificationiconEnum.ERROR,
+                    createdBy: userInfo,
+                };
+                await NotificationHelper.createNotification([failedNotification]);
+
+                throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
             const empIdsArray = Array.from(empIds);
             const emailsArray = Array.from(emails);
+
+
 
             const child = fork("./src/app/user/employee/csv_import_process.js");
 
@@ -1696,8 +1738,7 @@ module.exports.mutations = {
                 if (message.type === 'EMAIL') {
                     await sendNodeEmailBulk({
                         receiverEmails: message.data.email,
-                        subject: message.data.subject,
-                        htmlContent: message.data.htmlContent
+                        subject: message.data.subject
                     })
                 }
             });
@@ -1738,8 +1779,6 @@ module.exports.mutations = {
             !input.user.firstName ||
             !input.user.email ||
             !input.user.civilIdOrPassport ||
-            !input.user.currentVessel ||
-            !input.user.vesselStatus ||
             typeof input.user.isRegistered !== "boolean"
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
@@ -1796,16 +1835,21 @@ module.exports.mutations = {
 
             if (!savedEmployee) throw CustomError(ErrorName.FAILED);
 
-            let userVesselUpdate = {
-                user: savedUser,
-                vessel: input.user.currentVessel,
-                vesselStatus: input.user.vesselStatus,
-            };
+            let savedUserVessel;
+            let vessel;
 
-            const savedUserVessel = await UserVessel.create(userVesselUpdate);
+            if (input.user.currentVessel && input.user.vesselStatus) {
 
-            if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
-            const vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
+                let userVesselUpdate = {
+                    user: savedUser,
+                    vessel: input.user.currentVessel ?? null,
+                    vesselStatus: input.user.vesselStatus ?? null,
+                };
+
+                savedUserVessel = await UserVessel.create(userVesselUpdate);
+                if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+                vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
+            }
 
             invitationList.push({
                 userData: savedUser,
@@ -1817,9 +1861,9 @@ module.exports.mutations = {
 
             const conditions = {
                 designationID: input.empDesignation,
-                vesselID: savedUserVessel.vessel,
-                vesselTypeID: vessel?.typeOfVessel?._id,
-                currentStatus: savedUserVessel.vesselStatus,
+                vesselID: savedUserVessel?.vessel ?? null,
+                vesselTypeID: vessel?.typeOfVessel?._id ?? null,
+                currentStatus: savedUserVessel?.vesselStatus ?? null,
                 email: savedUser.email
             };
 
@@ -1837,8 +1881,11 @@ module.exports.mutations = {
                     currentStatus: savedUserVessel.vesselStatus
                 };
             });
-            
-            
+
+
+
+
+
             if (filteredPlans?.length > 0) {
                 await LearningPlan.updateMany(
                     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
@@ -1865,20 +1912,23 @@ module.exports.mutations = {
                 email: savedUser.email,
                 templategeneratePassword: generatePassword,
             });
-            const mailOptions = {
-                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-                to: savedUser.email,
-                subject: "Welcome to SeaVerse!",
-                text: "",
-                html: emailContentforNewEmployee,
-                
-            };
+            // const mailOptions = {
+            //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
+            //     to: savedUser.email,
+            //     subject: "Welcome to SeaVerse!",
+            //     text: "",
+            //     html: emailContentforNewEmployee,
 
-            await transporter.sendMail(mailOptions, (error, info) => {
-                if (error) {
-                    throw Error("Error sending email:");
-                }
-            });
+            // };
+
+          
+            await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
+
+            // await transporter.sendMail(mailOptions, (error, info) => {
+            //     if (error) {
+            //         throw Error("Error sending email:");
+            //     }
+            // });
 
             return savedEmployees;
         });
@@ -1900,6 +1950,7 @@ module.exports.mutations = {
         };
     },
     updateEmployee: async ({ id, input }, context) => {
+
         const {
             role,
             userId,
@@ -1910,83 +1961,70 @@ module.exports.mutations = {
             isOrganizationManager,
         } = AuthUser(context);
 
-        const employeeFilterConditions = { subscriber: subscriberId };
+        try {
 
-        // if (context.platform === Role.ADMIN) {
-        //     if (
-        //         !SubRoleHelper.hasPermission({
-        //             currentRole: role,
-        //             currentPermissions: userPermissions,
-        //             requiredPermission: [
-        //                 Permission.UPDATE_EMPLOYEE,
-        //                 Permission.ENABLE_DISABLE_EMPLOYEE,
-        //             ],
-        //             requiredAll: false,
-        //             restrictOrganizationManager: isOrganizationManager,
-        //         }) &&
-        //         id.toString() !== employeeId.toString()
-        //     ) {
-        //         throw CustomError(ErrorName.FORBIDDEN);
-        //     }
-        // } else {
-        //     throw CustomError(ErrorName.FORBIDDEN);
-        // }
-        const currentEmployee = await User.findById(id);
+            const employeeFilterConditions = { subscriber: subscriberId };
 
-        if (!currentEmployee) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
-        const savedEmployee = await EmployeeHelper.updateEmployees(
-            {
-                id: id,
-                input: input,
-                userId: userId,
-                subscriberId: subscriberId,
-                role: role,
-                userInfo: userInfo,
-            },
-            context
-        );
-        const updatedFields = Object.keys(input).reduce((changes, key) => {
-            if (currentEmployee[key] !== input[key]) {
-                changes[key] = {
-                    oldValue: currentEmployee[key],
-                    newValue: input[key],
-                };
+            // if (context.platform === Role.ADMIN) {
+            //     if (
+            //         !SubRoleHelper.hasPermission({
+            //             currentRole: role,
+            //             currentPermissions: userPermissions,
+            //             requiredPermission: [
+            //                 Permission.UPDATE_EMPLOYEE,
+            //                 Permission.ENABLE_DISABLE_EMPLOYEE,
+            //             ],
+            //             requiredAll: false,
+            //             restrictOrganizationManager: isOrganizationManager,
+            //         }) &&
+            //         id.toString() !== employeeId.toString()
+            //     ) {
+            //         throw CustomError(ErrorName.FORBIDDEN);
+            //     }
+            // } else {
+            //     throw CustomError(ErrorName.FORBIDDEN);
+            // }
+
+
+            const currentEmployee = await User.findById(id);
+
+            if (!currentEmployee) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
             }
-            return changes;
-        }, {});
-
-        const notificationData = [
-            {
-                subscriber: subscriberId,
-                trainingRegistration: {
-                    _id: savedEmployee._id,
-                    employee: savedEmployee,
+            const savedEmployee = await EmployeeHelper.updateEmployees(
+                {
+                    id: id,
+                    input: input,
+                    userId: userId,
+                    subscriberId: subscriberId,
+                    role: role,
+                    userInfo: userInfo,
                 },
-                userIds: [savedEmployee.user?._id],
-                action: "UPDATED",
+                context
+            );
+            const updatedFields = Object.keys(input).reduce((changes, key) => {
+                if (currentEmployee[key] !== input[key]) {
+                    changes[key] = {
+                        oldValue: currentEmployee[key],
+                        newValue: input[key],
+                    };
+                }
+                return changes;
+            }, {});
+
+            EmployeeHelper.sendNotificationOnCRUD({
+                subscriber: subscriberId,
+                employee: savedEmployee,
                 createdBy: userInfo,
-            },
-        ];
+                action: "UPDATED",
+            });
 
-        notificationData[0].additionalInfo = [
-            {
-                infoType: "UPDATED_FIELDS",
-                infoData: updatedFields,
-            },
-        ];
+            return savedEmployee;
 
-        EmployeeHelper.sendEnrollmentNotification(notificationData);
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
 
-        EmployeeHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            employee: savedEmployee,
-            createdBy: userInfo,
-            action: "UPDATED",
-        });
-
-        return savedEmployee;
     },
     deleteEmployee: async ({ id }, context) => {
         const { role, userPermissions, userId, userInfo, subscriberId, isOrganizationManager } =
@@ -2292,7 +2330,7 @@ module.exports.mutations = {
                 usersToUpdate.map(async user => {
                     const emailContentforAdmin = roleUpdateNotifyAdmin({
                         firstName: userInfo?.firstName,
-                        usersUpdated: [{user: user.firstName}],
+                        usersUpdated: [{ user: user.firstName }],
                     });
                     await SendEmail({
                         receiverEmail: userInfo?.email,
@@ -2372,15 +2410,33 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ input }, context) => {
+    exportUserToCsv: async ({ userObjectIds }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
-        if (!role || role !== "ADMIN") {
+        if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
-        const notifications = [];
-        const exportStartTime = new Date();
+        const hardcodedFields = [
+            'First Name*',
+            'Last Name',
+            'User ID*',
+            'Email*',
+            'Employee Designation*',
+            'Current Vessel',
+            'Vessel IMO Number',
+            'Vessel Status',
+            'Last Login',
+            'Created At',
+            'User Roles',
+            'Vessel Type'
+        ];
+        const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
+        const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
+            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
+            : defaultExportUserIds;
 
         try {
+            const notifications = [];
+            const exportStartTime = new Date();
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
@@ -2399,54 +2455,164 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
-            const userIds = input.ids;
-            const users = await User.find({ _id: { $in: userIds } }).lean();
-            if (!users.length) {
-                throw CustomError(ErrorName.USER_NOT_FOUND);
-            }
-            const vesselIds = users.filter(users => users.currentVessel).map(users => users.currentVessel);
-            const vessels = vesselIds.length > 0 ? await Vessel.find({ _id: { $in: vesselIds } }).lean() : [];
-            const vesselMap = vessels.reduce((acc, vessel) => {
-                acc[vessel._id.toString()] = vessel.name;
-                return acc;
-            }, {});
-            const userObjectIds = users.map(user => user._id);
-            const employees = userObjectIds.length > 0 ? await Employee.find({ user: { $in: userObjectIds } }).lean() : [];
-            const empDesignationIds = employees.map(employee => employee.empDesignation).filter(Boolean);
-            const designations = empDesignationIds.length > 0 ? await Designation.find({ _id: { $in: empDesignationIds } }).lean() : [];
-            const designationMap = designations.reduce((acc, designation) => {
-                acc[designation._id.toString()] = designation.name;
-                return acc;
-            }, {});
+
+            const pipeline = [
+                {
+                    $match: {
+                        _id: { $in: userIds },
+                        isDeleted: false
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'employees',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'employeeDetails',
+                    },
+                },
+                { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'vessels',
+                        localField: 'currentVessel',
+                        foreignField: '_id',
+                        as: 'vesselDetails',
+                    },
+                },
+                { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'employeeDetails.empDesignation',
+                        foreignField: '_id',
+                        as: 'designationDetails',
+                    },
+                },
+                { $unwind: { path: '$designationDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'uservessels',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'typeOfVesselDetails',
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: 'vessels',
+                                    localField: 'vessel',
+                                    foreignField: '_id',
+                                    as: 'vesselDetails',
+                                },
+                            },
+                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                            {
+                                $lookup: {
+                                    from: 'vesseltypes',
+                                    localField: 'vesselDetails.typeOfVessel',
+                                    foreignField: '_id',
+                                    as: 'vesselTypes',
+                                },
+                            },
+                            { $unwind: { path: '$vesselTypes', preserveNullAndEmptyArrays: true } },
+                        ],
+                    },
+                },
+                { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $group: {
+                        _id: '$_id',
+                        firstName: { $first: '$firstName' },
+                        lastName: { $first: '$lastName' },
+                        civilIdOrPassport: { $first: '$civilIdOrPassport' },
+                        email: { $first: '$email' },
+                        designationName: { $first: '$designationDetails.name' },
+                        vesselName: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.name',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselImoNumber: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.imoNumber',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselStatus: { $first: '$vesselStatus' },
+                        lastLoginAt: { $first: '$lastLoginAt' },
+                        createdAt: { $first: '$createdAt' },
+                        role: { $first: '$role' },
+                        vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                    },
+                },
+            ];
+
+            const projectStage = {
+                $project: {
+                    'First Name*': '$firstName',
+                    'Last Name': '$lastName',
+                    'User ID*': '$civilIdOrPassport',
+                    'Email*': '$email',
+                    'Employee Designation*': '$designationName',
+                    'Current Vessel': '$vesselName',
+                    'Last Login': {
+                        $cond: {
+                            if: { $eq: ['$lastLoginAt', null] },
+                            then: ' ',
+                            else: { $toDate: '$lastLoginAt' },
+                        },
+                    },
+                    'User Roles': '$role',
+                    'Vessel Type': '$vesselType',
+                    'Vessel Status': '$vesselStatus',
+                    'Vessel IMO Number': '$vesselImoNumber',
+                    'Created At': {
+                        $cond: {
+                            if: { $eq: ['$createdAt', null] },
+                            then: ' ',
+                            else: { $toDate: '$createdAt' },
+                        },
+                    },
+                },
+            };
+            pipeline.push(projectStage);
+            const users = await User.aggregate(pipeline);
             const data = users.map(user => {
-                const employee = employees.find(emp => emp.user.toString() === user._id.toString());
-                const empDesignation = employee && employee.empDesignation ? designationMap[employee.empDesignation.toString()] : " ";
-                return {
-                    "First Name": user.firstName,
-                    "Last Name": user.lastName,
-                    "Employee ID": user.civilIdOrPassport,
-                    "Email": user.email,
-                    "Last Login": user.lastLoginAt,
-                    "Created At": user.createdAt,
-                    "Vessel Status": user.vesselStatus,
-                    "Current Vessel": user.currentVessel ? vesselMap[user.currentVessel.toString()] : " ",
-                    "Employee Designation": empDesignation
-                };
+                const rowData = {};
+                hardcodedFields.forEach(field => {
+                    if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Last Login']));
+                    } else {
+                        rowData[field] = user[field] || ' ';
+                    }
+                });
+                return rowData;
             });
-            const workbook = xlsx.utils.book_new();
+            // const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
-            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
-            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const csvData = xlsx.utils.sheet_to_csv(worksheet);
+            // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const csvBuffer = Buffer.from(csvData,'utf-8');
             const excelFilePath = await UploadHelper.uploadExcel({
-                data: excelBuffer,
+                data: csvBuffer,
                 folderName: "exports",
-                fileName: `exported_users_${Date.now()}.xlsx`,
+                fileName: `exported_users_${Date.now()}.csv`,
                 uploadType: UploadHelper.uploadType.exportExcel,
             });
             if (excelFilePath) {
                 const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const urlObject = new URL(s3PresignedUrl);
+                const extractedfilePath = urlObject.pathname;
                 const exportEntry = new Export({
-                    filePath: s3PresignedUrl,
+                    filePath: extractedfilePath,
                     subscriberId: subscriberId,
                     createdBy: userId,
                     updatedBy: userId,
@@ -2462,15 +2628,14 @@ module.exports.mutations = {
                             value: `The export user process completed successfully.`,
                         },
                     ],
-
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
                     notifyAdmin: true,
                     notifiers: [],
                     additionalInfo: [
                         {
-                            infoType:"EXPORT_URL",
+                            infoType: "EXPORT_URL",
                             infoData: {
-                                filePath : excelFilePath
+                                filePath: excelFilePath
                             }
                         }
                     ],

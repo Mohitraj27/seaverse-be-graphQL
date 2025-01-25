@@ -231,7 +231,7 @@ type userVessels {
             isRegistered: Boolean
             empDesignation: [ID]
             vesselStatus: [VesselStatusEnum] 
-            vesselName: [String]
+            vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
         }
@@ -247,7 +247,7 @@ type userVessels {
             civilIdOrPassport: String
         }
         input UserObjectIDs {
-            ids: [ID!]!
+            ids: [ID!]
         }
         input ImportUserInput {
             firstName: String!
@@ -292,6 +292,7 @@ type userVessels {
             status: Boolean
             message: String
             filePath: String
+            fileName: String
         }
         type csvimportLogRes {
             id: ID,
@@ -336,6 +337,6 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(input: UserObjectIDs!): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
     `,
 };

@@ -344,6 +344,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
             });
 
         }
+
+        const existingCourses = existingLearningPlan.selectCourses.map(course => course.toString());
+        const inputCourses = input.selectCourses.map(course => course.toString());
+
+        const excludedCourses = existingCourses.filter(
+            (courseId) => !inputCourses.includes(courseId)
+        );
+
         const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
 
         existingLearningPlan.title = input.title || existingLearningPlan.title;
@@ -385,6 +393,15 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }
         );
 
+        const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { training: { $in: excludedCourses } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        )
+
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
         throw new Error(error.message)
@@ -397,7 +414,7 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isActive = true;
         filter.isRegistered = true;
-        filter.superAdmin = false;
+
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
                 if (!input.conditionType || input.conditionalCustomFields.length === 0) {
@@ -486,12 +503,15 @@ const getUsersAndCount = async (input) => {
                             valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
 
                         } else if (condition.type_of_Field === "GROUP") {
+
                             let groupIDs = [];
+                            let ids;
                             const groupType = condition.groupIDs.map(groupType => groupType.groupType);
                             const groupId = condition.groupIDs.map(groupId => groupId.groupIDs).flat();
                             const combinedArray = groupType.map((groupType, index) => {
                                 return { groupType, groupId: groupId[index] };
                             });
+
 
                             for (const item of combinedArray) {
 
@@ -499,21 +519,21 @@ const getUsersAndCount = async (input) => {
                                     errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
                                     continue;
                                 }
-
-
                                 switch (item.groupType) {
                                     case 'custom':
                                         const getCustomUsers = await getCustomGroupUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = getCustomUsers.map(user => user._id);
+                                        ids = getCustomUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
-
                                     case 'designation':
                                         const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = getDesignationUsers.map(user => user._id);
+                                        ids = getDesignationUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
                                     case 'role':
                                         const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = getRoleUsers.map(user => user._id);
+                                        ids = getRoleUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
                                     case 'subRole':
                                         const getSubRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
@@ -521,28 +541,32 @@ const getUsersAndCount = async (input) => {
                                         break;
                                     case 'vessel':
                                         const vesselUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = vesselUsers.map(user => user._id);
+                                        ids = vesselUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
+
                                         break;
                                     case 'vesselType':
                                         const vesselTypeUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = vesselTypeUsers.map(user => user._id);
+                                        ids = vesselTypeUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
-
                                     case 'regStatus':
                                         const regStatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = regStatusUsers.map(user => user._id);
+                                        ids = regStatusUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
-
                                     case 'vesselStatus':
                                         const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
-                                        groupIDs = vesselSttatusUsers.map(user => user._id);
+                                        ids = vesselSttatusUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
                                         break;
-
                                     default:
                                         errorList.push(errorMessages.INVALID_GROUP_TYPE);
                                         continue;
                                 }
                             }
+
+                            groupIDs = [...new Set(groupIDs)];
 
                             valueData = condition.isOrIsNot === 'IS'
                                 ? { [field]: { $in: groupIDs } }
@@ -616,6 +640,61 @@ const getUsersAndCount = async (input) => {
                 }
                 const queryOperator = input.conditionType === conditionTypeEnum.MATCH_ALL_CONDITION ? '$and' : '$or';
                 if (input.conditionalCustomFields && input.conditionalCustomFields.length > 0) {
+                    let groupIDs = [];
+                    let ids;
+                    for (const item of input.groupIDs) {
+                        if (!item.groupIDs) {
+                            errorList.push(errorMessages.GROUP_IDS_REQUIRED_FOR_GROUP_BASED);
+                            continue;
+                        }
+                        switch (item.groupType) {
+                            case 'custom':
+                                const getCustomUsers = await getCustomGroupUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = getCustomUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+
+                            case 'designation':
+                                const getDesignationUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = getDesignationUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'role':
+                                const getRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = getRoleUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'subRole':
+                                const getSubRoleUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = getSubRoleUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'vessel':
+                                const vesselUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = vesselUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'vesselType':
+                                const vesselTypeUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = vesselTypeUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'regStatus':
+                                const regStatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = regStatusUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'vesselStatus':
+                                const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = vesselSttatusUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            default:
+                                errorList.push(errorMessages.INVALID_GROUP_TYPE);
+                                continue;
+                        }
+                    }
+                    filter._id = { $in: groupIDs };
                     let conditions = await Promise.all(input.conditionalCustomFields.map(async condition => {
                         const fieldMapping = {
                             DESIGNATION: '_id',

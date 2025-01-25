@@ -10,7 +10,7 @@ const NotificationType = require("../notifications/notification_type.json");
 
 module.exports = {
     makeAuthUser: async user => {
-        
+
         if (user.role === Role.EMPLOYEE) {
             await user
                 .populate({ path: "subRoles", match: { isActive: true, isDeleted: { $ne: true } } })
@@ -60,7 +60,7 @@ module.exports = {
                 throw CustomError(ErrorName.UNAUTHORIZED);
             }
             const user = await User.findOne({ _id: decoded.userId, isDeleted: false });
-            if(!user){
+            if (!user) {
                 throw CustomError(ErrorName.USER_NOT_FOUND);
             }
             const tokenPayload = {
@@ -134,6 +134,8 @@ module.exports = {
             if (input.firstName) existingUser.firstName = input.firstName;
 
             if (input.lastName) existingUser.lastName = input.lastName;
+
+            if (input.lastName === '') existingUser.lastName = null;
 
             if (
                 input.civilIdOrPassport &&

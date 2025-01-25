@@ -3,20 +3,21 @@ const {
     ErrorName,
     AuthUser,
     SendEmail,
+    DbTransactionHelper,
 } = require("../../util");
 
 const { ObjectId } = require("../../tools");
 
 const { Vessel } = require("./vessel_model");
-const { User } = require("../user/user_model");
+const { User, DeletedUser } = require("../user/user_model");
 const LogHelper = require("../logs/log_helper");
 const LogType = require("../logs/log_type.json");
 const { UserVessel } = require("../user/user-vessel-bridge/userVessel_model");
 const NotificationHelper = require("../notifications/notification_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
-const {vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin} = require("../email-template/vesselStatusUpdate");
-const {sendNotifications} =require("../../util/firebase_helper");
+const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../email-template/vesselStatusUpdate");
+const { sendNotifications } = require("../../util/firebase_helper");
 
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
@@ -156,12 +157,12 @@ module.exports.queries = {
             if (vessel) {
                 return {
                     status: false,
-                    message : 'IMO number already exist.'
+                    message: 'IMO number already exist.'
                 };
             } else {
                 return {
                     status: true,
-                    message : 'IMO number is valid.'
+                    message: 'IMO number is valid.'
                 };
             }
         } catch (error) {
@@ -263,7 +264,26 @@ module.exports.mutations = {
             vessel.address = address;
             vessel.subscriber = subscriberId;
 
-            await vessel.save();
+            const updatedVessel = await vessel.save();
+
+            if (updatedVessel) {
+                if (isActive === false) {
+                    await UserVessel.updateMany(
+                        { vessel: vessel._id, isActive: true },
+                        { $set: { vesselStatus: "ONSHORE" } }
+                    );
+
+                    await User.updateMany(
+                        { currentVessel: vessel._id },
+                        { $set: { vesselStatus: "ONSHORE" } }
+                    );
+
+                    await DeletedUser.updateMany(
+                        { currentVessel: vessel._id },
+                        { $set: { vesselStatus: "ONSHORE" } }
+                    );
+                }
+            }
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
 
@@ -362,123 +382,155 @@ module.exports.mutations = {
     activateDeactivateVessel: async ({ ids }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            let vessel
-            const updatedVessels = [];
-            for (let id of ids) {
-                vessel = await Vessel.findOne({ _id: id });
-                if (!vessel) {
-                    throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
-                }
+            const result = await DbTransactionHelper.performDbTransaction(async (session) => {
+                let vessel;
+                const updatedVessels = [];
+                for (let id of ids) {
+                    vessel = await Vessel.findOne({ _id: id }).session(session);
+                    if (!vessel) {
+                        throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
+                    }
 
-                vessel.isActive = !vessel.isActive;
-                vessel.updatedBy = userId;
+                    vessel.isActive = !vessel.isActive;
+                    vessel.updatedBy = userId;
 
-                await vessel.save();
-                updatedVessels.push({
-                    id: vessel._id,
-                    name: vessel.name,
-                    isActive: vessel.isActive,
-                });
-                LogHelper.logActivity({
-                    subscriber: subscriberId,
-                    logType: LogType.VESSEL_LOG,
-                    operation: "ACTIVATE_DEACTIVATE",
-                    ipInfo: context.ipInfo,
-                    affected: [
-                        {
-                            targetRef: "Vessel",
-                            target: vessel._id,
-                        },
-                    ],
-                    additionalInfo: [
-                        {
-                            infoType: "VESSEL_INFO",
-                            infoData: JSON.stringify(vessel),
-                        },
-                    ],
-                    createdBy: userInfo,
-                });
-            }
-            if (updatedVessels.length > 0) {
-                const vesselNames = updatedVessels.map(v => v.name).join(", ");
-                const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
-    
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Vessel Status Updated Successfully`,
-                    messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                    notifyAdmin: true,
-                    affected: updatedVessels.map(v => ({
-                        targetRef: "Vessel",
-                        target: v.id,
-                    })),
-                    status:"SENT",
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-    
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Your Vessels have been Updated`,
-                    messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                    notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                    notifyAdmin: false,
-                    affected: updatedVessels.map(v => ({
-                        targetRef: "Vessel",
-                        target: v.id,
-                    })),
-                    notifiers: updatedVessels.map(v => v.id),
-                    employeeNotifiers: updatedVessels.map(v => v.id),   
-                    icon: notificationiconEnum.SUCCESS,
-                    status:"SENT",
-                    createdBy: userInfo,
-                });
-                const assignedUsers = await User.find({ currentVessel: vessel._id });
-                for (let user of assignedUsers) {
-                const emailContent = vesselStatusUpdateEmail({
-                    firstName: user.firstName,
-                    vesselName: vesselNames,
-                    vesselStatus: statusSummary,
-                });
-                await SendEmail({
-                    receiverEmail: user.email,
-                    subject: `Vessel Status Update: ${vesselNames}`,
-                    htmlContent: emailContent,
-                });
-                }
-                const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
-                    firstName: userInfo?.firstName,
-                    vesselName: vesselNames,
-                    vesselStatus: statusSummary,
-                });
-                await SendEmail({
-                    receiverEmail: userInfo?.email,
-                    subject: `Vessel Status Update: ${vesselNames}`,
-                    htmlContent: emailContentforAdmin,
-                })
-                const userVesselIdsToNotify = updatedVessels.map(v => v.id);
-                const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id');
-                if (matchingUsers.length > 0) {
-                    const userObjectIds = matchingUsers.map(user => user._id);
-                    await sendNotifications({
-                        userIds: userObjectIds,
-                        title: "Your Vessel Status has been Updated",
-                        body: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        content: { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
-                        webLink: ""
+                    await vessel.save({ session });
+                    updatedVessels.push({
+                        id: vessel._id,
+                        name: vessel.name,
+                        isActive: vessel.isActive,
                     });
-                } else{
-                    throw new Error("No users found with matching vessel IDs in their currentVessel field.");
+
+
+                    if (!vessel.isActive) {
+                        await UserVessel.updateMany(
+                            { vessel: vessel._id, isActive: true },
+                            { $set: { vesselStatus: "ONSHORE" } },
+                            { session }
+                        );
+
+                        await User.updateMany(
+                            { currentVessel: vessel._id },
+                            { $set: { vesselStatus: "ONSHORE" } },
+                            { session }
+                        );
+
+                        await DeletedUser.updateMany(
+                            { currentVessel: vessel._id },
+                            { $set: { vesselStatus: "ONSHORE" } },
+                            { session }
+                        );
+                    }
+                    LogHelper.logActivity({
+                        subscriber: subscriberId,
+                        logType: LogType.VESSEL_LOG,
+                        operation: "ACTIVATE_DEACTIVATE",
+                        ipInfo: context.ipInfo,
+                        affected: [
+                            {
+                                targetRef: "Vessel",
+                                target: vessel._id,
+                            },
+                        ],
+                        additionalInfo: [
+                            {
+                                infoType: "VESSEL_INFO",
+                                infoData: JSON.stringify(vessel),
+                            },
+                        ],
+                        createdBy: userInfo,
+                    });
                 }
-            }
-    
-            return {
-                success: true,
-                message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
-            };
+
+                if (updatedVessels.length > 0) {
+                    const vesselNames = updatedVessels.map(v => v.name).join(", ");
+                    const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Vessel Status Updated Successfully`,
+                        messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                        notifyAdmin: true,
+                        affected: updatedVessels.map(v => ({
+                            targetRef: "Vessel",
+                            target: v.id,
+                        })),
+                        status: "SENT",
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                        session,
+                    });
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Your Vessels have been Updated`,
+                        messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                        notifyAdmin: false,
+                        affected: updatedVessels.map(v => ({
+                            targetRef: "Vessel",
+                            target: v.id,
+                        })),
+                        notifiers: updatedVessels.map(v => v.id),
+                        employeeNotifiers: updatedVessels.map(v => v.id),
+                        icon: notificationiconEnum.SUCCESS,
+                        status: "SENT",
+                        createdBy: userInfo,
+                        session,
+                    });
+
+                    const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
+                    for (let user of assignedUsers) {
+                        const emailContent = vesselStatusUpdateEmail({
+                            firstName: user.firstName,
+                            vesselName: vesselNames,
+                            vesselStatus: statusSummary,
+                        });
+                        await SendEmail({
+                            receiverEmail: user.email,
+                            subject: `Vessel Status Update: ${vesselNames}`,
+                            htmlContent: emailContent,
+                            session,
+                        });
+                    }
+
+                    const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
+                        firstName: userInfo?.firstName,
+                        vesselName: vesselNames,
+                        vesselStatus: statusSummary,
+                    });
+                    await SendEmail({
+                        receiverEmail: userInfo?.email,
+                        subject: `Vessel Status Update: ${vesselNames}`,
+                        htmlContent: emailContentforAdmin,
+                        session,
+                    });
+
+                    const userVesselIdsToNotify = updatedVessels.map(v => v.id);
+                    const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id').session(session);
+                    if (matchingUsers.length > 0) {
+                        const userObjectIds = matchingUsers.map(user => user._id);
+                        await sendNotifications({
+                            userIds: userObjectIds,
+                            title: "Your Vessel Status has been Updated",
+                            body: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            content: { type: "VESSEL_STATUS_UPDATE", vesselIds: userVesselIdsToNotify },
+                            webLink: "",
+                            session,
+                        });
+                    }
+                }
+
+                return {
+                    success: true,
+                    message: `Vessel ${vessel.isActive ? 'activated' : 'deactivated'} successfully.`
+                };
+            });
+
+            return result;
         } catch (error) {
-            throw Error(error.message);
+            throw new Error(error.message);
         }
     },
 };

@@ -29,7 +29,7 @@ const notificationSchema = new Schema(
                 ref: "User",
             },
         ],
-        excludedUsers: [
+        usersMarkedAsRead: [
             {
                 type: ObjectId,
                 ref: "User",

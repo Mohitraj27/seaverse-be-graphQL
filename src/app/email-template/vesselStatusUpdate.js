@@ -48,7 +48,7 @@ function vesselStatusUpdateEmail(user) {
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        The status of the vessel  <strong>${user.vesselName}</strong> you are assigned to has been updated to <strong>${user.vesselStatus}</strong>.</br> Please log in to your account to review the updated status or reach out to your administrator if you have any questions.
+                                        The status of the vessel  <strong>${user.vesselName}</strong> you are assigned to has been updated to <strong>${user.vesselStatus}</strong>.
                                     </td>
                                 </tr>
                                 <tr>

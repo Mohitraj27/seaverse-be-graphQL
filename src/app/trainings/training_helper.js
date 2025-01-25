@@ -28,14 +28,7 @@ const levenshtein = require('fast-levenshtein');
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
-    if(!coverImage){
-            return {
-                _id: new ObjectId(),
-                url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/no+image.png'
-            };
-        }
-     else {
-       coverImage._id = coverImage._id ?? ObjectId();
+    coverImage._id = coverImage._id ?? ObjectId();
     const savedItem = await UploadHelper.uploadImage({
         data: coverImage,
         folderName: folderName ?? "cover-image",
@@ -48,7 +41,6 @@ const uploadTrainingImages = async ({ coverImage, folderName }) => {
             _id: coverImage._id,
             url: savedItem,
         };
-    }
     }
     return coverImage;
 };
@@ -77,12 +69,7 @@ const uploadCertificateTrainingImages = async ({ images, folderName }) => {
     return trainingCertificateImage;
 }
 const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
-    if(!bannerImage){
-        return {
-            _id: new ObjectId(),
-            url: 'https://squadra-media.s3.ap-south-1.amazonaws.com/seaverse/Frame+1171276610.png'
-        };
-    } else {
+
     bannerImage._id = bannerImage._id ?? ObjectId();
 
     const savedItem = await UploadHelper.uploadImage({
@@ -97,7 +84,6 @@ const uploadTrainingBannerImage = async ({ bannerImage, folderName }) => {
             _id: bannerImage._id,
             url: savedItem,
         };
-    }
     }
     return bannerImage;
 }
@@ -552,11 +538,15 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
     let bulkOperations = [];
 
+
+
     overallIdContentPercentagesMap.forEach(({ progressPercentages, durations }, overallId) => {
 
         const totalDuration = durations.reduce((sum, val) => sum + val, 0);
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
         const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
+
+
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
 
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
@@ -568,9 +558,12 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
             completedModules: completedCount
         };
 
+
         if (average == 100) {
             updateFields.status = "COMPLETED";
             updateFields.endDate = new Date();
+        } else if (average >= 0 && average < 100) {
+            updateFields.status = "IN_PROGRESS";
         }
 
         bulkOperations.push({
@@ -586,6 +579,96 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
     }
 
+}
+
+const calculateTimeSpend = async (overallIds, session) => {
+    try {
+
+        const overallProgressData = await OverallTrainingProgress.find(
+            { _id: { $in: overallIds } },
+            '_id contentData attemptCount'
+        ).session(session);
+
+        if (!overallProgressData.length) {
+            return;
+        }
+
+        const contentIdToOverallIdMap = new Map();
+        const contentIdToAttemptCountMap = new Map();
+        const allContentIds = new Set();
+        const overallIdToAttemptCountMap = new Map();
+
+
+        overallProgressData.forEach(({ _id: overallId, contentData, attemptCount }) => {
+            overallIdToAttemptCountMap.set(overallId.toString(), attemptCount);
+
+            contentData.forEach(module => {
+                module.contentIds.forEach(content => {
+                    const contentId = content;
+                    allContentIds.add(contentId);
+                    contentIdToOverallIdMap.set(contentId, overallId);
+                    contentIdToAttemptCountMap.set(contentId, attemptCount);
+                });
+            });
+        });
+
+
+        const contentDurations = await TrainingModuleContent.find(
+            { _id: { $in: Array.from(allContentIds) } },
+            '_id duration'
+        ).session(session);
+
+        const progressData = await TrainingProgress.find(
+            {
+                $or: Array.from(allContentIds).map(trainingModuleContent => {
+                    const overallTrainingProgress = contentIdToOverallIdMap.get(trainingModuleContent);
+                    const attemptCount = overallIdToAttemptCountMap.get(overallTrainingProgress.toString());
+                    return { trainingModuleContent, overallTrainingProgress, attemptCount };
+                })
+            },
+            'overallTrainingProgress trainingModuleContent progressPercentage'
+        ).session(session).lean();
+
+
+        const durationMap = new Map(contentDurations.map(content => [content._id.toString(), content.duration]));
+        const progressMap = new Map(
+            progressData.map(progress => [`${progress.overallTrainingProgress}-${progress.trainingModuleContent}`, progress.progressPercentage])
+        );
+
+        const timeSpendResults = {};
+
+        const bulkOperations = [];
+
+        overallProgressData.forEach(({ _id: overallId }) => {
+            let totalTimeSpend = 0;
+
+            Array.from(allContentIds).forEach(contentId => {
+                if (contentIdToOverallIdMap.get(contentId) === overallId) {
+
+                    const duration = durationMap.get(String(contentId)) || 0;
+                    const progressPercentage =
+                        progressMap.get(`${overallId}-${contentId}`) || 0;
+                    const contentTimeSpend = duration * (progressPercentage / 100);
+                    totalTimeSpend += contentTimeSpend;
+                }
+            });
+
+            bulkOperations.push({
+                updateOne: {
+                    filter: { _id: overallId },
+                    update: { $set: { timeSpend: totalTimeSpend.toFixed(2) } }
+                }
+            });
+
+        });
+
+        if (bulkOperations.length > 0) {
+            bulkWriteResult = await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+        }
+
+    } catch (error) {
+        console.error('Error calculating timeSpend for overallIds:', error.message);
+    }
 }
 
 const updateTrainingProgress = async (input, userId, session) => {
@@ -758,7 +841,8 @@ const updateTrainingProgress = async (input, userId, session) => {
     });
 
     const trainingModuleContents = await TrainingContentBridge.find({
-        trainingModule: { $in: trainingModuleIds }
+        trainingModule: { $in: trainingModuleIds },
+        isDeleted: { $ne: true }
     }).session(session);
 
     const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
@@ -826,7 +910,7 @@ const updateTrainingProgress = async (input, userId, session) => {
                 contentId: content.contentId,
                 trainingModuleId: module.moduleId,
                 overallId: overall.overallId,
-                questionAnswers: content?.questionAnswers || []
+                questionAnswers: content?.questionAnswers || null
             }))
         )
     );
@@ -848,6 +932,7 @@ const updateTrainingProgress = async (input, userId, session) => {
 
     if (overallIds) {
         await updateOverallProgressPercentage(overallDocs, session);
+        await calculateTimeSpend(overallIds, session)
     }
 
     const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
@@ -922,11 +1007,15 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
 
             const { contentId, trainingModuleId, overallId, questionAnswers } = data;
 
+
             const trainingId = overallIdToTrainingIdMap[overallId];
 
             const trainingModuleContent = trainingModuleContents.find(content => content._id.toString() === contentId.toString());
             const trainingModule = trainingModules.find(module => module._id.toString() === trainingModuleId.toString());
             const training = trainings.find(training => training._id.toString() === trainingId.toString());
+
+            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+            const attemptCount = overallDoc.attemptCount || 1;
 
             if (!trainingModuleContent || !trainingModule || !training) {
                 continue;
@@ -936,146 +1025,168 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                 continue;
             }
 
-            let totalScore = 0;
-            let acquiredScore = 0;
-            let skippedQuestions = 0;
-            let isPassed = false;
+            if (questionAnswers && questionAnswers !== null) {
 
-            const filteredQuestionAnswers = questionAnswers?.filter(el => {
-                if (Array.isArray(el?.answer)) {
-                    return el.answer.some(ans => ans && ans.trim() !== "");
-                }
-                return (
-                    el?.answer &&
-                    el.answer !== "" &&
-                    el.answer !== null &&
-                    el.answer !== undefined
-                );
-            }) || [];
+                let totalScore = 0;
+                let acquiredScore = 0;
+                let skippedQuestions = 0;
+                let isPassed = false;
 
-            const questionResults = trainingModuleContent.quiz.map(question => {
+                const filteredQuestionAnswers = questionAnswers?.filter(el => {
+                    if (Array.isArray(el?.answer)) {
+                        return el.answer.some(ans => ans && ans.trim() !== "");
+                    }
+                    return (
+                        el?.answer &&
+                        el.answer !== "" &&
+                        el.answer !== null &&
+                        el.answer !== undefined
+                    );
+                }) || [];
 
-                const userAnswer = filteredQuestionAnswers?.find(
-                    ans => ans.questionId.toString() === question._id.toString()
-                );
+                const questionResults = trainingModuleContent.quiz.map(question => {
 
-                totalScore += question.points;
+                    const userAnswer = filteredQuestionAnswers?.find(
+                        ans => ans.questionId.toString() === question._id.toString()
+                    );
 
-                if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
-                    skippedQuestions += 1;
+                    totalScore += question.points;
+
+                    if (!userAnswer || !userAnswer.answer || userAnswer.answer.length === 0) {
+                        skippedQuestions += 1;
+
+                        return {
+                            questionId: question._id,
+                            question: question.question,
+                            givenAnswer: null,
+                            correctAnswer: question.answerKey,
+                            isCorrectAnswer: false,
+                            points: question.points,
+                            negativePoints: question.negativePoints,
+                            isSkipped: true,
+                        };
+                    }
+
+                    let isCorrectAnswer;
+                    const isAnswerNumber = /^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(userAnswer.answer[0]);
+
+                    if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
+
+                        const threshold = 2;
+                        isCorrectAnswer = question.answerKey.some(correctAnswer => {
+                            const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
+                            return distance <= threshold;
+                        });
+
+                        if (isCorrectAnswer) {
+                            acquiredScore += question.points;
+                        } else {
+                            acquiredScore -= question.negativePoints;
+                        }
+
+                    } else {
+
+                        isCorrectAnswer = question.answerKey.every(correctAnswer =>
+                            userAnswer.answer.includes(correctAnswer)
+                        ) && userAnswer.answer.length === question.answerKey.length;
+
+                        if (isCorrectAnswer) {
+                            acquiredScore += question.points;
+                        } else {
+                            acquiredScore -= question.negativePoints;
+                        }
+
+                    }
 
                     return {
                         questionId: question._id,
                         question: question.question,
-                        givenAnswer: null,
+                        givenAnswer: userAnswer.answer,
                         correctAnswer: question.answerKey,
-                        isCorrectAnswer: false,
+                        isCorrectAnswer,
                         points: question.points,
                         negativePoints: question.negativePoints,
-                        isSkipped: true,
+                        isSkipped: false,
                     };
+                });
+
+                const scorePercentage = totalScore
+                    ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
+                    : 0;
+
+                isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
+
+                const quizEvaluationData = {
+                    contentId,
+                    trainingModuleId,
+                    trainingId,
+                    userId,
+                    attended: filteredQuestionAnswers.length,
+                    totalQuestions: trainingModuleContent.quiz.length,
+                    totalPoints: totalScore,
+                    acquiredMarks: acquiredScore,
+                    percentage: scorePercentage,
+                    skippedQuestions,
+                    isPassed,
+                    attendedQuestions: questionResults,
+                };
+
+                quizEvaluations.push(quizEvaluationData);
+
+                // const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+
+                // const attemptCount = overallDoc.attemptCount || 1;
+
+                const trainingProgressUpdates = {
+                    attended: filteredQuestionAnswers.length,
+                    totalQuestions: trainingModuleContent.quiz.length,
+                    totalPoints: totalScore,
+                    acquiredMarks: acquiredScore,
+                    percentage: scorePercentage,
+                    skippedQuestions,
+                    isPassed,
+                    attendedQuestions: questionResults,
                 }
 
-                let isCorrectAnswer;
-                const isAnswerNumber = /^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(userAnswer.answer[0]);
+                if (!isPassed) {
 
-                if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
-
-                    const threshold = 2;
-                    isCorrectAnswer = question.answerKey.some(correctAnswer => {
-                        const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
-                        return distance <= threshold;
+                    updateTrainingProgressData.push({
+                        updateOne: {
+                            filter: {
+                                overallTrainingProgress: overallId,
+                                trainingModuleContent: trainingModuleContent,
+                                attemptCount: attemptCount,
+                            },
+                            update: {
+                                $set: {
+                                    quizAttemptDetails: trainingProgressUpdates,
+                                    progressPercentage: 0,
+                                    status: "IN_PROGRESS",
+                                },
+                            },
+                            upsert: true,
+                        },
                     });
-
-                    if (isCorrectAnswer) {
-                        acquiredScore += question.points;
-                    } else {
-                        acquiredScore -= question.negativePoints;
-                    }
 
                 } else {
 
-                    isCorrectAnswer = question.answerKey.every(correctAnswer =>
-                        userAnswer.answer.includes(correctAnswer)
-                    ) && userAnswer.answer.length === question.answerKey.length;
-
-                    if (isCorrectAnswer) {
-                        acquiredScore += question.points;
-                    } else {
-                        acquiredScore -= question.negativePoints;
-                    }
+                    updateTrainingProgressData.push({
+                        updateOne: {
+                            filter: {
+                                overallTrainingProgress: overallId,
+                                trainingModuleContent: trainingModuleContent,
+                                attemptCount: attemptCount,
+                            },
+                            update: {
+                                $set: {
+                                    quizAttemptDetails: trainingProgressUpdates,
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
 
                 }
-
-                return {
-                    questionId: question._id,
-                    question: question.question,
-                    givenAnswer: userAnswer.answer,
-                    correctAnswer: question.answerKey,
-                    isCorrectAnswer,
-                    points: question.points,
-                    negativePoints: question.negativePoints,
-                    isSkipped: false,
-                };
-            });
-
-            const scorePercentage = totalScore
-                ? Math.max((acquiredScore / totalScore) * 100, 0).toFixed(2)
-                : 0;
-
-            isPassed = scorePercentage >= trainingModuleContent?.percentageCriteria;
-
-            const quizEvaluationData = {
-                contentId,
-                trainingModuleId,
-                trainingId,
-                userId,
-                attended: filteredQuestionAnswers.length,
-                totalQuestions: trainingModuleContent.quiz.length,
-                totalPoints: totalScore,
-                acquiredMarks: acquiredScore,
-                percentage: scorePercentage,
-                skippedQuestions,
-                isPassed,
-                attendedQuestions: questionResults,
-            };
-
-            quizEvaluations.push(quizEvaluationData);
-
-            const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
-
-            const attemptCount = overallDoc.attemptCount || 1;
-
-            const trainingProgressUpdates = {
-                attended: filteredQuestionAnswers.length,
-                totalQuestions: trainingModuleContent.quiz.length,
-                totalPoints: totalScore,
-                acquiredMarks: acquiredScore,
-                percentage: scorePercentage,
-                skippedQuestions,
-                isPassed,
-                attendedQuestions: questionResults,
-            }
-
-            if (!isPassed) {
-
-                updateTrainingProgressData.push({
-                    updateOne: {
-                        filter: {
-                            overallTrainingProgress: overallId,
-                            trainingModuleContent: trainingModuleContent,
-                            attemptCount: attemptCount,
-                        },
-                        update: {
-                            $set: {
-                                quizAttemptDetails: trainingProgressUpdates,
-                                progressPercentage: 0,
-                                status: "NOT_STARTED",
-                            },
-                        },
-                        upsert: true,
-                    },
-                });
 
             } else {
 
@@ -1088,7 +1199,8 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                         },
                         update: {
                             $set: {
-                                quizAttemptDetails: trainingProgressUpdates,
+                                progressPercentage: 0,
+                                status: "IN_PROGRESS",
                             },
                         },
                         upsert: true,
@@ -1126,13 +1238,21 @@ module.exports = {
 
         const trainingUpdateData = {};
         let trainingData;
+
+        const titleValue = input.title[0].value.trim();
+
         const existingTraining = await Training.findOne({
-            subscriber: subscriberId, "title.value": input.title[0].value,
+            subscriber: subscriberId,
+            "title.value": { $regex: `^${titleValue}$`, $options: "i" },
             _id: { $ne: input._id || null },
             isDeleted: { $ne: true },
         });
+
         if (existingTraining) {
-            throw CustomError(ErrorName.COURSE_TITLE_ALREADY_EXIST, `A training with this title "${input.title[0].value}" already exists.`);
+            throw CustomError(
+                ErrorName.COURSE_TITLE_ALREADY_EXIST,
+                `A training with this title "${input.title[0].value}" already exists.`
+            );
         }
         if (!input._id) {
             trainingUpdateData.UID = await generateTrainingUID({
@@ -1168,11 +1288,6 @@ module.exports = {
             }
         } else if (input._id && input.bannerImageDelete) {
             trainingUpdateData.bannerImage = null;
-        } else if(!bannerImage){
-            trainingUpdateData.bannerImage = await uploadTrainingBannerImage({
-                bannerImage: null,
-                folderName: trainingFilterConditions._id,
-            });
         }
 
         if (typeof input.enableEmailNotification === "boolean") trainingUpdateData.enableEmailNotification = input.enableEmailNotification;
@@ -1216,11 +1331,6 @@ module.exports = {
             }
         } else if (input._id && input.coverImageDelete) {
             trainingUpdateData.coverImage = null;
-        } else if(!coverImage){
-            trainingUpdateData.coverImage = await uploadTrainingImages({
-                coverImage: null,
-                folderName: trainingFilterConditions._id,
-            })
         }
 
         if (input.durationHours != null) {

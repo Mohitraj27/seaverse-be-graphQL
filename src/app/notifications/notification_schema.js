@@ -31,6 +31,7 @@ module.exports = {
             createdAt: String
             updatedAt: String
             icon: String
+            isRead: Boolean
         }
         type NotificationList {
             notifications: [Notification]
@@ -41,17 +42,37 @@ module.exports = {
             search: String
             dateFrom: String
             dateTo: String
+            isRead: Boolean
         }
         type dismissNotificationResponse {
             status: String
             message: String
         }
+        type markAllNotificationsAsReadResponse {
+            status: String
+            message: String
+            totalCount: Int
+        }
+        type GetNotificationsOutput {
+            notifications: [NotificationWrapper]
+            totalCount: Int
+        }
+        
+        type NotificationWrapper {
+            notifications: [Notification]  
+            notificationReadInfo: NotificationReadInfo 
+        }
+        type NotificationReadInfo {
+            isReadTrueCount: Int
+            isReadFalseCount: Int
+        }
     `,
     queries: `
-        getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput): NotificationList
+        getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
     `,
     mutations: `
-        dismissNotification(notificationId: ID!): dismissNotificationResponse
+        markEachNotificationAsRead(notificationId: ID!): dismissNotificationResponse
+        markAllNotificationsAsRead: markAllNotificationsAsReadResponse
     `,
     subscriptions: `
         onNotification: Notification

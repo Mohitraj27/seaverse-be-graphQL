@@ -7,13 +7,13 @@ const {
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
 const { Vessel } = require('../../vessle/vessel_model');
-const {vesselAssignmentEmail, vesselAssignmentEmailforAdmin} = require("../../email-template/assignVessel");
+const { vesselAssignmentEmail, vesselAssignmentEmailforAdmin } = require("../../email-template/assignVessel");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
         try {
 
-            const { subscriberId,userInfo } = AuthUser(context);
+            const { subscriberId, userInfo } = AuthUser(context);
 
             if (!input.vesselId || !input.userId) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Provide all the required fields");
@@ -31,20 +31,36 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
             }
 
-            await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
-                {
-                    $set: {
-                        isActive: false,
-                        deletedAt: Date.now()
-                    }
-                });
+            let newVesselUpdate;
+            
+            if (String(getUser?.currentVessel) === String(input.vesselId)) {
 
-            const newVesselUpdate = await UserVessel.create({
-                user: input.userId,
-                vessel: input.vesselId,
-                isActive: true,
-                vesselStatus: input.vesselStatus || 'ASSIGNED',
-            });
+                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                    {
+                        $set: {
+                            vesselStatus: input.vesselStatus || 'ONSHORE'
+                        }
+                    });
+
+            } else {
+
+                await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
+                    {
+                        $set: {
+                            isActive: false,
+                            deletedAt: Date.now()
+                        }
+                    });
+
+                newVesselUpdate = await UserVessel.create({
+                    user: input.userId,
+                    vessel: input.vesselId,
+                    isActive: true,
+                    vesselStatus: input.vesselStatus || 'ONSHORE',
+                });
+            }
+
+
 
             if (newVesselUpdate) {
 
@@ -52,8 +68,8 @@ module.exports.mutations = {
 
                 if (updateUser) {
                     const emailContent = vesselAssignmentEmail({
-                        firstName: getUser.firstName, 
-                        vesselName: getVessel.name, 
+                        firstName: getUser.firstName,
+                        vesselName: getVessel.name,
                     });
                     await SendEmail({
                         receiverEmail: getUser.email,

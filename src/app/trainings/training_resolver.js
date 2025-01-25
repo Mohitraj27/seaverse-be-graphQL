@@ -144,9 +144,53 @@ module.exports.queries = {
 
         const moduleBridgeIDs = training.trainingModules.map(module => module._id);
 
-        const countOfUsers = await OverallTrainingProgress.countDocuments({
-            training: { $in: training._id }
-        });
+        const totalUsersResult = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    training: id,
+                    isEnrolled: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: false
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    uniqueUsers: { $addToSet: '$user' }
+                }
+            },
+            {
+                $addFields: {
+                    countOfUsers: { $size: '$uniqueUsers' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    countOfUsers: 1
+                }
+            }
+        ]);
+        const countOfUsers = totalUsersResult[0]?.countOfUsers || 0;
 
         const latestContents = await TrainingContentBridge.find({
             trainingModule: { $in: moduleBridgeIDs },
@@ -193,7 +237,7 @@ module.exports.mutations = {
         const moduleContentIds = [];
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
-            if (!input.title?.length) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Title is required");
+            if (!input.title?.length || !input.title || input.title.some(item => item.value == "")) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course title is required");
             if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
         }
         if (input.training?.length && input.trainingModules?.length) {

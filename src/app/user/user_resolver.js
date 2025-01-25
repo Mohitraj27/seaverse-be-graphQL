@@ -7,9 +7,10 @@ const {
     SendEmail,
     EmailTemplate,
     DbTransactionHelper,
+    AuthUser,
 } = require("../../util");
 
-const { User } = require("./user_model");
+const { User, DeletedUser } = require("./user_model");
 const { Otp } = require("./otp_model");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { Employee } = require("./employee/employee_model");
@@ -18,6 +19,113 @@ const { SubscriberProfile } = require("./subscriber-profile/subscriber_profile_m
 const UserHelper = require("./user_helper");
 const SubscriberHelper = require("../saas/subscriber/subscriber_helper");
 const EmployeeHelper = require("./employee/employee_helper");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const { ImportLog } = require("./import-log/import_log_model");
+
+const AwsHelper = require("../../util/aws_helper");
+const NotificationHelper = require("../notifications/notification_helper");
+const notificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const Export = require("../user/exportUser/exportUser_model");
+
+module.exports.queries = {
+    downloadNotification: async ({ input }, context) => {
+
+
+
+        const { subscriberId, userInfo } = AuthUser(context);
+
+        try {
+
+            if (!input.downloadType || !input.id) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+            }
+
+            let fetchUrl;
+            if (input.downloadType == 'IMPORT_LOG') {
+                fetchUrl = await ImportLog.findById(input.id).lean().select("filePath");
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Import Log is ready!`,
+                    messageValue: `Your import log download is ready!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
+                    notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: fetchUrl?.filePath.url
+                            }
+                        }
+                    ],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
+                return {
+                    status: "SUCCESS",
+                    message: "Import Log Download is ready!",
+                };
+            }
+
+            if (input.downloadType == 'REPORT') {
+
+                const fetchUrl = await Export.findById(input.id).lean().select("filePath");
+
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Custom Report is ready!`,
+                    messageValue: `Your custom report download is ready!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
+                    notifyAdmin: true,
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: fetchUrl.filePath
+                            }
+                        }
+                    ],
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
+
+                return {
+                    status: "SUCCESS",
+                    message: "Import Log Download is ready!",
+                };
+
+            }
+
+            if (!fetchUrl.filePath) {
+
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `Failed!`,
+                    messageValue: `Your File Download is failed!`,
+                    notificationType: notificationType.IMPORT_LOG_DOWNLOAD_FAILED,
+                    notifyAdmin: true,
+                    affected: [],
+                    status: 'SENT',
+                    icon: notificationiconEnum.ERROR,
+                    createdBy: userInfo,
+                });
+
+                throw CustomError(ErrorName.NOT_FOUND, 'File not found!');
+            }
+
+        } catch (error) {
+            throw new Error(error.message);
+        }
+
+    }
+}
 
 module.exports.mutations = {
     createSaasAdmin: async ({ input }) => {
@@ -171,71 +279,112 @@ module.exports.mutations = {
         throw CustomError(ErrorName.BAD_REQUEST);
     },
     signIn: async ({ input }, context) => {
-        const existingUser = await User.findOne({
-            $or: [
-                { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-            ],
-            role: { $ne: Role.SAAS_ADMIN },
-            isActive: true,
-            isDeleted: { $ne: true },
-        }).populate({
-            path: 'subRoles',
-            select: '_id name permissions isActive isPredefined description isDefault primaryRole', 
-        });
-        
-        if (existingUser) {
-            const processValidUser = async () => {
-                if (input.firebaseToken) {
-                    existingUser.firebaseTokens = [input.firebaseToken];
+        try {
+            const signIn = await DbTransactionHelper.performDbTransaction(async session => {
+
+                const expiredUser = await User.findOne({
+                    $or: [
+                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                    ],
+                    isDeleted: true,
+                    deleteRequest: true,
+                    isActive: false
+                }).session(session);
+
+                if (expiredUser) {
+                    expiredUser.isDeleted = false;
+                    expiredUser.isActive = true;
+                    expiredUser.deleteRequest = false;
+                    expiredUser.deleteRequestDate = null;
+                    expiredUser.reasonForDelete = null;
+                    await expiredUser.save({ session });
+
+                    await OverallTrainingProgress.updateMany(
+                        { user: expiredUser._id },  
+                        {
+                            $set: {
+                                isDeleted: false,
+                            }
+                        } 
+                    ).session(session);
                 }
 
-                if (input.deviceId) {
-                    existingUser.deviceIds = [input.deviceId];
+
+                const existingUser = await User.findOne({
+                    $or: [
+                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                    ],
+                    role: { $ne: Role.SAAS_ADMIN },
+                    isActive: true,
+                    isDeleted: { $ne: true },
+                }).populate({
+                    path: 'subRoles',
+                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
+                }).session(session);
+
+                if (!existingUser) {
+                    return CustomError(ErrorName.USER_NOT_FOUND);
                 }
 
-                existingUser.lastLoginAt = Moment().format();
-                
-                await existingUser.save();
-                return await UserHelper.makeAuthUser(existingUser);
-            };
 
-            const valid = await CryptoHelper.compare(input.password, existingUser.password);
-            
-            if (valid) {
-                return await processValidUser();
-            } else if (existingUser.role === Role.EMPLOYEE) {
-                const subscriberProfile = await SubscriberProfile.findOne({
-                    subscriber: existingUser.subscriber,
-                })
-                    .lean()
-                    .select("employeeMasterPassword");
+                const processValidUser = async () => {
+                    if (input.firebaseToken) {
+                        existingUser.firebaseTokens = [input.firebaseToken];
+                    }
 
-                if (
-                    context.platform === Role.EMPLOYEE &&
-                    subscriberProfile?.employeeMasterPassword?.length
-                ) {
-                    const valid = await CryptoHelper.compare(
-                        input.password,
-                        subscriberProfile.employeeMasterPassword
-                    );
+                    if (input.deviceId) {
+                        existingUser.deviceIds = [input.deviceId];
+                    }
 
-                    if (valid) return await processValidUser();
+                    existingUser.lastLoginAt = Moment().format();
+                    await existingUser.save({ session });
+                    return await UserHelper.makeAuthUser(existingUser);
+                };
+
+
+                const valid = await CryptoHelper.compare(input.password, existingUser.password);
+
+                if (valid) {
+                    return await processValidUser();
+                } else if (existingUser.role === Role.EMPLOYEE) {
+
+                    const subscriberProfile = await SubscriberProfile.findOne({
+                        subscriber: existingUser.subscriber,
+                    }).lean().select("employeeMasterPassword").session(session);
+
+                    if (
+                        context.platform === Role.EMPLOYEE &&
+                        subscriberProfile?.employeeMasterPassword?.length
+                    ) {
+                        const valid = await CryptoHelper.compare(
+                            input.password,
+                            subscriberProfile.employeeMasterPassword
+                        );
+
+                        if (valid) {
+                            return await processValidUser();
+                        }
+                    }
+
+                    if (
+                        existingUser.isRegistered !== true &&
+                        existingUser.password === process.env.USER_DUMMY_PASSWORD
+                    ) {
+                        return CustomError(ErrorName.UNAUTHORIZED);
+                    }
                 }
 
-                if (
-                    existingUser.isRegistered !== true &&
-                    existingUser.password === process.env.USER_DUMMY_PASSWORD
-                ) {
-                    throw CustomError(ErrorName.UNAUTHORIZED);
-                }
-            }
 
-            throw CustomError(ErrorName.WRONG_PASSWORD);
+                return CustomError(ErrorName.WRONG_PASSWORD);
+            });
+            return signIn;
+
+        } catch (error) {
+            throw new Error(error.message);
         }
-
-        throw CustomError(ErrorName.USER_NOT_FOUND);
-    },
+    },    
     generateRefreshToken: async ({token}) => {
         if(!token) throw CustomError(ErrorName.NO_REFRESH_TOKEN);
         try {

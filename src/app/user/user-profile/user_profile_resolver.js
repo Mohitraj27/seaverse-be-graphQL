@@ -1,4 +1,4 @@
-const { CryptoHelper, MomentTimezone, ObjectId } = require("../../../tools");
+const { CryptoHelper, MomentTimezone, ObjectId, CronHelper } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
 
 const { User } = require("../user_model");
@@ -20,24 +20,14 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { sendNodeEmail, mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
+const {  mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
-const nodemailer = require('nodemailer');
+
 const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
 const {forgetPassword} = require('../../email-template/forgetPassword');
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_ENDPOINT,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_PORT == 465, 
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
+const EmployeeHelper = require("../employee/employee_helper");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 
 
 
@@ -439,15 +429,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED);
             }
             const forgetPasswordEmailContent = forgetPassword(token);
-            const mailOptions = {
-                from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-                to: email, 
-                subject: "Reset Password",
-                html: forgetPasswordEmailContent
-            };
-            
-            const result = await transporter.sendMail(mailOptions)
-
+            const result = await AwsHelper.sendEmail({ receiverEmail: email, subject: "Reset Password", htmlContent: forgetPasswordEmailContent })
             if (result) {
                 return {
                     success: true,
@@ -532,17 +514,37 @@ module.exports.mutations = {
     },
     selfDeleteRequest: async ({ input }, context) => {
         const { subscriberId, userId, userInfo } = AuthUser(context);
-
+    
         try {
             const { reasonForDelete } = input;
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
-            };
+            }
             if (!reasonForDelete || !reasonForDelete.trim().length) {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
-            const updateUser = await User.findByIdAndUpdate(userId, { $set: { deleteRequest: true, deleteRequestDate: Date.now(), reasonForDelete: reasonForDelete } });
+    
+            const updateUser = await User.findByIdAndUpdate(userId, { 
+                $set: { 
+                    deleteRequest: true, 
+                    isDeleted: true,
+                    isActive : false,
+                    deleteRequestDate: Date.now(), 
+                    reasonForDelete: reasonForDelete 
+                }
+            });
+            
+            await OverallTrainingProgress.updateMany(
+                { user: userId },
+                {
+                    $set: {
+                        isDeleted: true,
+                    }
+                }
+            );
+
             if (updateUser) {
+                
                 await sendNotificationOnDELETEREQUEST({
                     subscriber: subscriberId,
                     user: {
@@ -555,7 +557,8 @@ module.exports.mutations = {
                     action: "requested",
                     reasonForDelete,
                     createdBy: userInfo
-                })
+                });
+    
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.DELETE_REQUEST_LOG,
@@ -570,7 +573,13 @@ module.exports.mutations = {
                         }
                     ]
                 });
-                return "Deleted requested Successfully!";
+                const errors = [];
+    
+                if (errors.length > 0) {
+                    throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+                }
+
+                return "Delete request processed and user deleted successfully!";
             } else {
                 console.error(error);
                 throw new CustomError(ErrorName.FAILED);

@@ -55,11 +55,38 @@ module.exports.queries = {
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
         let filterConditions = { subscriber: subscriberId, training: input.training, isEnrolled: input.isEnrolled };
+
+        let sanitizedSearch;
+        if (input?.search) {
+            sanitizedSearch = input.search.trim().replace(/\s+/g, " ");
+        }
+
         const totalUsersResult = await OverallTrainingProgress.aggregate([
             {
                 $match: {
                     training: input.training,
                     isEnrolled: input.isEnrolled
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo",
+                    pipeline : [
+                      {
+                        $match :{
+                          isDeleted : false
+                        }
+                      }
+                    ]
+                }
+            },
+            {
+                $unwind: {
+                    path: "$userInfo",
+                    preserveNullAndEmptyArrays: false
                 }
             },
             {
@@ -109,14 +136,12 @@ module.exports.queries = {
                 }
             },
             {
-                $match: input?.search
+                $match: sanitizedSearch
                     ? {
-                        $or: input.search.split(' ').map(term => ({
-                            $or: [
-                                { 'userInfo.firstName': { $regex: term, $options: 'i' } },
-                                { 'userInfo.lastName': { $regex: term, $options: 'i' } }
-                            ]
-                        }))
+                        $or: [
+                            { 'userInfo.firstName': { $regex: sanitizedSearch, $options: 'i' } },
+                            { 'userInfo.lastName': { $regex: sanitizedSearch, $options: 'i' } }
+                        ]
                     }
                     : {}
             },
@@ -139,7 +164,7 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment
         }));
         return {
-            countOfUsers: totalUsersCount,
+            countOfUsers: formattedResults.length || 0,
             users: formattedResults,
         };
     },
@@ -867,6 +892,8 @@ module.exports.queries = {
 
             const totalCountofTraining = await OverallTrainingProgress.countDocuments({
                 training: trainingObjectId,
+                isDeleted: { $ne: true },
+                isEnrolled: { $ne: false }
             });
 
             let trainingDetails;
@@ -1409,7 +1436,7 @@ module.exports.mutations = {
             const inputUsers = await User.find({ email: { $in: input.users } });
 
             if (inputUsers.length === 0) {
-                throw CustomError(ErrorName.NOT_FOUND, "No users found with the provided email addresses");
+                return { invalidEmails };
             }
 
             const users = Array.from(
@@ -1445,7 +1472,7 @@ module.exports.mutations = {
                     if (verifiedUsers.notEnrolledEmails.length > 0) {
                         notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
                     }
-
+                    
                 }
 
                 if (input.type === "ENROLL") {
@@ -1888,7 +1915,7 @@ module.exports.mutations = {
             }
             const trainingData = await Training.findById(input.training);
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
-
+            const trainingTitle = trainingData.title[0]?.value;
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
                 _id: { $in: input.userIds }
@@ -1950,7 +1977,7 @@ module.exports.mutations = {
             });
             return {
                 status: true,
-                message: "Modules reset successfully"
+                message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
             throw Error(error.message);
