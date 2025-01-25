@@ -1031,19 +1031,23 @@ module.exports = {
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
         let newVessel;
+        if (input?.user?.currentVessel == null) {
+            await UserVessel.updateMany(
+                { user: existingEmployee?.user?._id, isActive: true },
+                { isActive: false, vesselStatus: VesselStatus.ONSHORE }
+            );
+        }
         if (input?.user?.currentVessel && input?.user?.currentVessel !== '') {
-
 
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
             if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
+
             if (String(input.user.currentVessel) !== String(existingEmployee?.user?.currentVessel?._id)) {
 
-                console.log('reached here!!!');
-
                 await UserVessel.updateMany(
-                    { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel, isActive: true },
-                    { isActive: false, vesselStatus: VesselStatus.ONSHORE }
+                    { user: existingEmployee?.user?._id, isActive: true },
+                    { isActive: false, vesselStatus: VesselStatus.ONSHORE, deletedAt: new Date() }
                 );
 
                 if (input?.user?.vesselStatus !== VesselStatus.ONSHORE) {
