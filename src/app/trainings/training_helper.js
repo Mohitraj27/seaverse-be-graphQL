@@ -352,7 +352,7 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
 
         const totalModules = new Set(contentDataArray.map((cd) => cd.moduleId)).size;
 
-        const mandatoryModules = otp.trainingDetails.manadatoryModules || totalModules;
+        const mandatoryModules = otp?.trainingDetails?.manadatoryModules || totalModules;
 
         const isTrainingCompleted =
             completedModulesCount >= mandatoryModules || completedModulesCount === totalModules;
