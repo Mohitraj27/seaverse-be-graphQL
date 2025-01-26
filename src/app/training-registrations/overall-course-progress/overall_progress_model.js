@@ -87,6 +87,10 @@ const overallProgressSchema = new Schema(
             type: Number,
             default: 0
         },
+        adminMarkedAsCompleted: {
+            type: Boolean,
+            default: false
+        },
         isEnrolled: Boolean,
         totalDuration: Number,
         timeSpend: Number
