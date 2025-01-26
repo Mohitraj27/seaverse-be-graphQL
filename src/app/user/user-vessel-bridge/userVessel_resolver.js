@@ -2,7 +2,8 @@ const {
     CustomError,
     ErrorName,
     AuthUser,
-    SendEmail
+    SendEmail,
+    VesselStatus
 } = require("../../../util");
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
@@ -32,15 +33,18 @@ module.exports.mutations = {
             }
 
             let newVesselUpdate;
-            
+
             if (String(getUser?.currentVessel) === String(input.vesselId)) {
 
                 newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
                     {
                         $set: {
-                            vesselStatus: input.vesselStatus || 'ONSHORE'
+                            vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
+                            isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                            deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
                         }
-                    });
+                    }
+                );
 
             } else {
 
@@ -48,23 +52,29 @@ module.exports.mutations = {
                     {
                         $set: {
                             isActive: false,
+                            vesselStatus: VesselStatus.ONSHORE,
                             deletedAt: Date.now()
                         }
+                    }
+                );
+
+                if (input.vesselStatus !== VesselStatus.ONSHORE) {
+
+                    newVesselUpdate = await UserVessel.create({
+                        user: input.userId,
+                        vessel: input.vesselId,
+                        isActive: true,
+                        vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
                     });
 
-                newVesselUpdate = await UserVessel.create({
-                    user: input.userId,
-                    vessel: input.vesselId,
-                    isActive: true,
-                    vesselStatus: input.vesselStatus || 'ONSHORE',
-                });
+                }
             }
 
 
 
             if (newVesselUpdate) {
 
-                const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId, vesselStatus: input.vesselStatus || 'ASSIGNED' }, { new: true });
+                const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselStatus == VesselStatus.ONSHORE ? null : input.vesselId, vesselStatus: input.vesselStatus || VesselStatus.ONSHORE }, { new: true });
 
                 if (updateUser) {
                     const emailContent = vesselAssignmentEmail({
