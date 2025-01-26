@@ -1480,7 +1480,7 @@ module.exports.mutations = {
                 }
 
                 if (input.type === "UNENROLL") {
-                    errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
+                    errorEmails = [...invalidEmails, ...notEnrolledEmails];
                 }
 
                 const remainingEmails = input.users.filter(email => !errorEmails.includes(email));

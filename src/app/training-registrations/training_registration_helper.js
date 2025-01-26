@@ -230,7 +230,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
 })
 
-const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
+const enrolUserVerificationHelper = (async (inputUsers, existingTrainings, fromUnenroll) => {
 
     try {
 
@@ -248,6 +248,9 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings) => {
                 }
             } else if (!user.isRegistered) {
                 unRegEmails.push(user.email)
+                if (fromUnenroll) {
+                    remainingUsers.push(user);
+                }
             } else if (!existEmail) {
                 if (!invalidEmails.includes(user.email)) {
                     invalidEmails.push(user.email)
@@ -624,6 +627,12 @@ module.exports = {
                     }
                 }
 
+                // During re-enrollment
+                const verifyRegistrationForReEnrollment = await enrolUserVerificationHelper(users, existingOverallProgresses, false);
+                if (verifyRegistrationForReEnrollment.unRegEmails.length > 0) {
+                    throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED, "Selected user is not registered!");
+                };
+
                 let userObjectIds = [];
                 if (users.length > 0) {
                     userObjectIds = users.map(user => user._id);
@@ -844,15 +853,12 @@ module.exports = {
                 if (inputUsers.length > 0) {
                     userObjectIds = inputUsers.map(user => user._id);
 
-                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses);
-
-                    if (verifiedUsers.unRegEmails.length > 0) {
-                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED);
-                    }
+                    const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses, true);
 
                     if (verifiedUsers.invalidEmails.length > 0) {
                         throw CustomError(ErrorName.INVALID_EMAIL);
                     }
+
                     if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
                         throw CustomError(ErrorName.EMPLOYEE_NOT_ENROLLED, "Selected employee is not enrolled before!");
                     }
