@@ -47,6 +47,7 @@ module.exports = {
                     Body: fileData,
                     ContentType: mimeType,
                     Metadata: { originalFileName },
+                    ContentDisposition: `attachment; filename="${originalFileName}"`
                 };
 
                 s3.upload(params, function (error, data) {
