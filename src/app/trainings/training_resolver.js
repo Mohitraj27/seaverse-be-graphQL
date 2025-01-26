@@ -656,6 +656,7 @@ module.exports.mutations = {
             fetchOverallTraining.attemptCount++;
             fetchOverallTraining.timeSpend = 0;
             fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
+            fetchOverallTraining.adminMarkedAsCompleted = false
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
