@@ -2,6 +2,7 @@
 const  ContactSupportUser  = require("./contact_support_model");
 const AWSHelper = require("../../util/aws_helper");
 const {User} = require("../../app/user/user_model");
+const { sendUserSupportAcknowledgment, sendAdminSupportNotification } = require('../../app/email-template/contactSupport');
 module.exports.mutations = {
     contactSupport: async ({ input }) => {
         try {
@@ -32,13 +33,13 @@ module.exports.mutations = {
             }
             await AWSHelper.sendEmail({
                 receiverEmail: process.env.SUPER_ADMIN_EMAIL,
-                subject,
-                htmlContent: message,
+                subject: `New Support Request`,
+                htmlContent: sendAdminSupportNotification(email, subject, message),
             });
             await AWSHelper.sendEmail({
                 receiverEmail: email,
-                subject,
-                htmlContent: message,
+                subject: "We've Received Your Support Request",
+                htmlContent: sendUserSupportAcknowledgment(email, subject, message),
             });
             const contactSupportData = new ContactSupportUser({
                 email,
