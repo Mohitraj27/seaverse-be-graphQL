@@ -345,12 +345,15 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
         }
 
-        const existingCourses = existingLearningPlan.selectCourses.map(course => course.toString());
-        const inputCourses = input.selectCourses.map(course => course.toString());
+        let existingCourses, inputCourses, excludedCourses;
+        if(existingLearningPlan && existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
+            existingCourses = existingLearningPlan.selectCourses.map(course => course.toString());
+            inputCourses = input.selectCourses.map(course => course.toString());
+            excludedCourses = existingCourses.filter(
+                (courseId) => !inputCourses.includes(courseId)
+            );
+        }
 
-        const excludedCourses = existingCourses.filter(
-            (courseId) => !inputCourses.includes(courseId)
-        );
 
         const oldAssignedLearnerIDs = existingLearningPlan.assignedLearnerIDs || [];
 
