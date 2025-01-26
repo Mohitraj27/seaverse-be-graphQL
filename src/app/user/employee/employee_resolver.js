@@ -602,16 +602,7 @@ module.exports.queries = {
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
                 filterConditions.empDesignation = { $in: filterInput.empDesignation };
             }
-            if (filterInput?.vesselStatus && filterInput.vesselStatus.length > 0) {
-                const userIdsByVesselStatus = await fetchVesselUsersByStatus(
-                    filterInput.vesselStatus,
-                    filterInput.vesselType,
-                    filterInput.vesselObjectId
-                );
-                if (userIdsByVesselStatus.length > 0) {
-                    filterConditions.user = { $in: userIdsByVesselStatus };
-                }
-            }
+
             const fetchResult = async pipeline => {
                 return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                     offset: skip,
@@ -625,8 +616,6 @@ module.exports.queries = {
                     allowDiskUse: true,
                 });
             };
-
-
 
             let sanitizedSearch;
             if (filterInput?.search) {
@@ -668,6 +657,9 @@ module.exports.queries = {
                     $match: {
                         "user.isDeleted": { $ne: true },
                         "user.role": { $in: ["LEARNER", "ADMIN"] },
+                        ...(filterInput?.vesselStatus?.length > 0 && {
+                            "user.vesselStatus": { $in: filterInput.vesselStatus },
+                        }),
                     },
                 },
                 {
@@ -1840,13 +1832,17 @@ module.exports.mutations = {
 
             if (input.user.currentVessel && input.user.vesselStatus) {
 
-                let userVesselUpdate = {
-                    user: savedUser,
-                    vessel: input.user.currentVessel ?? null,
-                    vesselStatus: input.user.vesselStatus ?? null,
-                };
+                if(input.user.vesselStatus !== 'ONSHORE') {
+                    
+                    let userVesselUpdate = {
+                        user: savedUser,
+                        vessel: input.user.currentVessel ?? null,
+                        vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                    };
+    
+                    savedUserVessel = await UserVessel.create(userVesselUpdate);
 
-                savedUserVessel = await UserVessel.create(userVesselUpdate);
+                }
                 if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
@@ -1921,7 +1917,7 @@ module.exports.mutations = {
 
             // };
 
-          
+
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
 
             // await transporter.sendMail(mailOptions, (error, info) => {
@@ -2600,7 +2596,7 @@ module.exports.mutations = {
             const csvData = xlsx.utils.sheet_to_csv(worksheet);
             // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
             // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const csvBuffer = Buffer.from(csvData,'utf-8');
+            const csvBuffer = Buffer.from(csvData, 'utf-8');
             const excelFilePath = await UploadHelper.uploadExcel({
                 data: csvBuffer,
                 folderName: "exports",
