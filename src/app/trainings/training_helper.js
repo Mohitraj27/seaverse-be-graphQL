@@ -352,7 +352,7 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
 
         const totalModules = new Set(contentDataArray.map((cd) => cd.moduleId)).size;
 
-        const mandatoryModules = otp.mandatoryModules || totalModules;
+        const mandatoryModules = otp.trainingDetails.manadatoryModules || totalModules;
 
         const isTrainingCompleted =
             completedModulesCount >= mandatoryModules || completedModulesCount === totalModules;
@@ -364,6 +364,7 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
             isTrainingCompleted,
         };
     });
+    
 };
 
 function mergeTrainingData(data) {
@@ -443,6 +444,14 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
             },
             { $match: { trainingProgressData: { $ne: [] } } },
             {
+                $lookup: {
+                    from: "trainings",
+                    localField: "training",
+                    foreignField: "_id",
+                    as: "trainingDetails"
+                }
+            },
+            {
                 $project: {
                     _id: 1,
                     user: 1,
@@ -451,7 +460,8 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
                     mandatoryModules: 1,
                     "contentData.moduleId": 1,
                     "contentData.contentIds": 1,
-                    trainingProgressData: 1
+                    trainingProgressData: 1,
+                    trainingDetails: { $arrayElemAt: ["$trainingDetails", 0] }
                 }
             },
         ]).session(session);
