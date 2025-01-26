@@ -1703,11 +1703,11 @@ module.exports.mutations = {
                 {
                     $set: {
                         status: "COMPLETED",
-                        progressPercentage: 100,
                         isComplete: true,
                         completedModules: trainingModuleIds.length,
                         isCertificateGenerated: true,
-                        startData: new Date(),
+                        adminMarkedAsCompleted: true,
+                        startData: { $ifNull: ["$startData", new Date()] },
                         endDate: new Date(),
                     }
                 }
