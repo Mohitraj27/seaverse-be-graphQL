@@ -661,36 +661,17 @@ module.exports = {
             },
         ]);
 
-        const vesselGroups = await UserVessel.aggregate([
+        const vesselGroups = await User.aggregate([
             {
                 $match: {
-                    isActive: true,
+                    isDeleted: false,
+                    currentVessel: { $ne: null },
                 },
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "userDetails",
-                    pipeline: [
-                        {
-                            $match: {
-                                isDeleted: { $ne: true },
-                                firstName: { $ne: null },
-                                email: { $ne: null },
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $unwind: "$userDetails",
             },
             {
                 $lookup: {
                     from: "vessels",
-                    localField: "vessel",
+                    localField: "currentVessel",
                     foreignField: "_id",
                     as: "vesselDetails",
                 },
@@ -700,14 +681,14 @@ module.exports = {
             },
             {
                 $group: {
-                    _id: "$vessel",
+                    _id: "$currentVessel",
                     groupName: { $first: "$vesselDetails.name" },
                     members: {
                         $push: {
-                            _id: "$userDetails._id",
-                            firstName: "$userDetails.firstName",
-                            lastName: "$userDetails.lastName",
-                            email: "$userDetails.email",
+                            _id: "$_id",
+                            firstName: "$firstName",
+                            lastName: "$lastName",
+                            email: "$email",
                             vesselStatus: "$vesselStatus",
                         },
                     },
@@ -742,31 +723,14 @@ module.exports = {
             },
         ]);
 
-        const vesselStatusGroups = await UserVessel.aggregate([
+        const vesselStatusGroups = await User.aggregate([
             {
                 $match: {
-                    isActive: true,
+                    isDeleted: false,
+                    vesselStatus: { $ne: null },
+                    firstName: { $ne: null },
+                    email: { $ne: null },
                 },
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "userDetails",
-                    pipeline: [
-                        {
-                            $match: {
-                                isDeleted: { $ne: true },
-                                firstName: { $ne: null },
-                                email: { $ne: null },
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $unwind: "$userDetails",
             },
             {
                 $group: {
@@ -774,10 +738,10 @@ module.exports = {
                     groupName: { $first: "$vesselStatus" },
                     members: {
                         $push: {
-                            _id: "$userDetails._id",
-                            firstName: "$userDetails.firstName",
-                            lastName: "$userDetails.lastName",
-                            email: "$userDetails.email",
+                            _id: "$_id",
+                            firstName: "$firstName",
+                            lastName: "$lastName",
+                            email: "$email",
                         },
                     },
                 },

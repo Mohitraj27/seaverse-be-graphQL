@@ -1480,7 +1480,7 @@ module.exports.mutations = {
                 }
 
                 if (input.type === "UNENROLL") {
-                    errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
+                    errorEmails = [...invalidEmails, ...notEnrolledEmails];
                 }
 
                 const remainingEmails = input.users.filter(email => !errorEmails.includes(email));
@@ -1703,11 +1703,11 @@ module.exports.mutations = {
                 {
                     $set: {
                         status: "COMPLETED",
-                        progressPercentage: 100,
                         isComplete: true,
                         completedModules: trainingModuleIds.length,
                         isCertificateGenerated: true,
-                        startData: new Date(),
+                        adminMarkedAsCompleted: true,
+                        startData: { $ifNull: ["$startData", new Date()] },
                         endDate: new Date(),
                     }
                 }
