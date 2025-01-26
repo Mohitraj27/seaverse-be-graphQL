@@ -718,6 +718,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'updatedAt': 1,
                             'quizPercentage': {
                                 '$ifNull': [
@@ -782,6 +783,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
+                        'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
                         'Enrollment Date': enrollmentDate,
                         'Unenrollment Date': unenrollmentDate,
                         'Completion Date': completionDate,
@@ -1093,7 +1095,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             foreignField: "training",
                             as: "initialContents",
                             let: {
-                                status: "$status"
+                                status: "$status",
+                                adminMarkedAsCompleted: "$adminMarkedAsCompleted",
                             },
                             pipeline: [
                                 {
@@ -1106,7 +1109,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 {
                                     $match: {
                                         $expr: {
-                                            $eq: ["$$status", "NOT_STARTED"]
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } 
+                                            ]
                                         }
                                     }
                                 },
@@ -1176,7 +1182,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             quizEvaluations: {
                                 $cond: {
                                     if: {
-                                        $eq: ["$status", "NOT_STARTED"]
+                                        $or: [
+                                          { $eq: ["$status", "NOT_STARTED"] },
+                                          { $eq: ["$adminMarkedAsCompleted", true] } 
+                                        ]
                                     },
                                     then: "$initialContents",
                                     else: "$quizEvaluations"
@@ -1232,6 +1241,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             },
                             status: {
                                 $first: "$status"
+                            },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
                                 $first: "$vesselInfo.name"
@@ -1321,6 +1333,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             status: {
                                 $first: "$status"
                             },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
+                            },
                             currentVessel: {
                                 $first: "$currentVessel"
                             },
@@ -1377,6 +1392,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             email: 1,
                             designation: 1,
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
                             empId: 1,
                             trainingTitle: 1,
@@ -1410,6 +1426,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const firstName = learner?.firstName || '';
                         const lastName = learner?.lastName || '';
                         const status = learner?.status || 'NOT APPLICABLE';
+                        const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
 
 
@@ -1430,6 +1447,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     Designation: designation,
                                     'Course Name': courseName,
                                     'Course Status': status,
+                                    'Admin Marked As Completed': isAdminMarkedAsCompleted,
                                     'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
@@ -2181,6 +2199,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             email: '$userInfo.email',
                             designation: "$designationInfo.name",
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
                             endDate: 1,
                             updatedAt: 1,
@@ -2264,10 +2283,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 ? `${Math.round(item.quizPercentage)}%`
                                 : 'Not Applicable';
                         const courseStatus = item.status || 'Not Started';
+
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
                         const courseName = item?.trainingTitle[0].value;
-
+                        const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const parsedItem = {
                             LearnerName: learnerName,
                             Email: item.email || '',
@@ -2275,6 +2295,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             Designation: item.designation || '',
                             CourseName: courseName,
                             CourseStatus: courseStatus,
+                            'Admin Marked As Completed': adminMarkedAsCompleted,
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
                             EnrolledDate: enrollmentDate,
@@ -2570,7 +2591,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'foreignField': 'training',
                             'as': 'initialContents',
                             'let': {
-                                'status': '$status'  
+                                'status': '$status',
+                                'adminMarkedAsCompleted': "$adminMarkedAsCompleted",  
                             },
                             'pipeline': [
                                 {
@@ -2581,12 +2603,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     }
                                 },
                                 {
-                                    '$match': {
-                                        '$expr': {
-                                            '$eq': ['$$status', 'NOT_STARTED']  
+                                    "$match": {
+                                        $expr: {
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } 
+                                            ]
                                         }
                                     }
-                                },
+                                },                                  
                                 {
                                     '$lookup': {
                                         'from': 'trainingmodules',
@@ -2637,12 +2662,17 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        '$addFields': {
-                            'quizEvaluations': {
-                                '$cond': {
-                                    'if': { '$eq': ['$status', 'NOT_STARTED'] },  
-                                    'then': '$initialContents',  
-                                    'else': '$quizEvaluations'   
+                        "$addFields": {
+                            "quizEvaluations": {
+                                "$cond": {
+                                    "if": {
+                                        "$or": [
+                                            { "$eq": ["$status", "NOT_STARTED"] },
+                                            { "$eq": ["$adminMarkedAsCompleted", true] }
+                                        ]
+                                    },
+                                    "then": "$initialContents",
+                                    "else": "$quizEvaluations"
                                 }
                             }
                         }
@@ -2683,6 +2713,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             },
                             'status': {
                                 '$first': '$status'
+                            },
+                            'adminMarkedAsCompleted' : {
+                                '$first' : '$adminMarkedAsCompleted'
                             },
                             'currentVessel': {
                                 '$first': '$vesselInfo.name'
@@ -2810,6 +2843,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'status': {
                                 '$first': '$status'
                             },
+                            'adminMarkedAsCompleted': {
+                                '$first': '$adminMarkedAsCompleted'
+                            },
                             'currentVessel': {
                                 '$first': '$currentVessel'
                             },
@@ -2930,6 +2966,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'email': 1,
                             'designation': 1,
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'createdAt': 1,
                             'currentVessel': 1,
                             'vesselType': 1,
@@ -2965,6 +3002,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     createdAt: new Date(item.createdAt).toLocaleString(),
                     email: item?.email ? item?.email : "Not Found",
                     status: item?.status ? item?.status : "Not Found",
+                    adminMarkedAsCompleted: item?.adminMarkedAsCompleted ? 'Yes' : 'No',
                     currentVessel: item?.currentVessel ? item?.currentVessel : "Not Found",
                     vesselType: item.vesselType ? item?.vesselType : "Not Found",
                     updatedAt: new Date(item.lastSeen).toLocaleString(),
@@ -2983,7 +3021,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const lastName = course?.lastName || '';
                             const status = course?.status || 'N/A';
                             const courseName = course?.trainingTitle[0].value;
-
+                            const adminMarkedAsCompleted = course?.adminMarkedAsCompleted ? 'Yes' : 'No';
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
                                 const hasQuiz = module.hasQuiz || false;
@@ -2996,6 +3034,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Lesson Name': moduleName,
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
+                                    'Admin Marked As Completed': adminMarkedAsCompleted,
                                 });
                             });
                         }
@@ -3968,6 +4007,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'updatedAt': 1,
                             'quizPercentage': {
                                 '$ifNull': [
@@ -4014,6 +4054,7 @@ const generateCustomReport = async ({ input }, context) => {
                 const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "N/A";
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
                 const timeSpent = item.totalTimeSpent ? parseInt(item.totalTimeSpent)+" mins" : 0+" mins";
+                const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
                 dataToExport.push({
                     Name: learnerName ?? "-",
@@ -4021,6 +4062,7 @@ const generateCustomReport = async ({ input }, context) => {
                     Designation: item.designation || null,
                     'Course Name': item.courseName ? item.courseName[0] : null,
                     Status: item.status || null,
+                    'Admin Marked As Completed': adminMarkedAsCompleted,
                     'Enrollment Date (UTC TimeZone)': enrollmentDate,
                     'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
                     'Completion Date (UTC TimeZone)': completionDate,
@@ -4225,7 +4267,8 @@ const generateCustomReport = async ({ input }, context) => {
                             foreignField: "training",
                             as: "initialContents",
                             let: {
-                                status: "$status"
+                                status: "$status",
+                                adminMarkedAsCompleted: "$adminMarkedAsCompleted",
                             },
                             pipeline: [
                                 {
@@ -4238,7 +4281,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 {
                                     $match: {
                                         $expr: {
-                                            $eq: ["$$status", "NOT_STARTED"]
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } // Add your second condition here
+                                            ]
                                         }
                                     }
                                 },
@@ -4308,7 +4354,10 @@ const generateCustomReport = async ({ input }, context) => {
                             quizEvaluations: {
                                 $cond: {
                                     if: {
-                                        $eq: ["$status", "NOT_STARTED"]
+                                        $or: [
+                                            { $eq: ["$status", "NOT_STARTED"] },
+                                            { $eq: ["$adminMarkedAsCompleted", true] }
+                                        ]
                                     },
                                     then: "$initialContents",
                                     else: "$quizEvaluations"
@@ -4364,6 +4413,9 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             status: {
                                 $first: "$status"
+                            },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
                                 $first: "$vesselInfo.name"
@@ -4453,6 +4505,9 @@ const generateCustomReport = async ({ input }, context) => {
                             status: {
                                 $first: "$status"
                             },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
+                            },
                             currentVessel: {
                                 $first: "$currentVessel"
                             },
@@ -4509,6 +4564,7 @@ const generateCustomReport = async ({ input }, context) => {
                             email: 1,
                             designation: 1,
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
                             empId: 1,
                             trainingTitle: 1,
@@ -4541,6 +4597,7 @@ const generateCustomReport = async ({ input }, context) => {
                     const lastName = learner?.lastName || '';
                     const status = learner?.status || 'NOT APPLICABLE';
                     const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
+                    const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
 
 
                     learner.modules.forEach((module, moduleIndex) => {
@@ -4560,6 +4617,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 Designation: designation,
                                 'Course Name': courseName,
                                 'Course Status': status,
+                                'Admin Marked As Completed': adminMarkedAsCompleted,
                                 'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
