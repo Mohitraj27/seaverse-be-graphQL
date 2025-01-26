@@ -1,98 +1,90 @@
 function registered_status(user) {
     return `
     <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Vessel Status Update</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                margin: 0;
-                padding: 0;
-                background-color: #f9fbfc;
-            }
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Employee</title>
+    <style>
+        @media screen and (max-width: 600px) {
             .container {
-                max-width: 600px;
-                margin: 20px auto;
-                padding: 20px;
-                background-color: #ffffff;
-                border-radius: 8px;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                padding: 20px 10px !important;
             }
-            .header {
-                text-align: center;
-                margin-bottom: 20px;
+
+            .logo {
+                padding: 20px 24px !important;
             }
-            .header img {
-                width: 120px;
-            }
+
             .content {
-                text-align: left;
-                margin-bottom: 20px;
+                width: 100% !important;
+                border-radius: 0 !important;
             }
-            .content h1 {
-                font-size: 22px;
-                color: #2c3e50;
-                margin-bottom: 10px;
-            }
-            .content p {
-                font-size: 16px;
-                color: #555;
-                margin: 5px 0;
-            }
-            .content strong {
-                color: #2c3e50;
-            }
-            .button {
-                display: inline-block;
-                padding: 12px 24px;
-                margin: 20px 0;
-                font-size: 16px;
-                color: #ffffff;
-                background-color: #003366;
-                text-decoration: none;
-                border-radius: 4px;
-                text-align: center;
-            }
-            .footer {
-                text-align: center;
-                font-size: 12px;
-                color: #888;
-                margin-top: 20px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <img src="https://yourlogo.com/seaverse-logo.png" alt="Seaverse Logo">
-            </div>
-            <div class="content">
-                <h1>Registered Status</h1>
-                <p>Hello <strong>${user.firstName}</strong> 👋,</p>
-                <p>
-                Your status is currently marked as Registered. 
-                </p>
-                <p>
 
-                Thanks,
-                Synergy Marine Group
+            .content-inner {
+                padding: 20px 24px !important;
+            }
+        }
+    </style>
+</head>
 
-                </p>
-        
-            </div>
-            <div class="footer">
-                Sent by Seaverse - Training for Advanced Navigation Techniques
-            </div>
-        </div>
-    </body>
-    </html>
+<body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
+    <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
+        <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+            <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <table style="background-color: #FFFFFF; border-radius: 8px; margin: 0 auto; width: 640px;" border="0"
+                    cellpadding="0" cellspacing="0" class="content">
+                    <tr>
+                        <td style="padding: 40px 48px;" class="content-inner">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td
+                                        style="font-family: 'Inter', sans-serif; font-weight: 700; font-size: 24px; line-height: 36px; color: #121A26;">
+                                        Registered Status
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        Hello <strong>${user.firstName}</strong> 👋
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        Your status is currently marked as Registered. 
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
+                                        <p>Thanks,</p>
+                                        <p>Synergy Marine Group</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td
+                style="padding: 24px 0; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
+                Sent by Seaverse - Training for all courses.
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
     `;
 }
-function registered_statusforAdmin({adminfirstName, userfirstName}) {
+function registered_statusforAdmin({ adminfirstName, userfirstName }) {
     return `
     <html lang="en">
     <head>
@@ -189,4 +181,4 @@ function registered_statusforAdmin({adminfirstName, userfirstName}) {
     </html>
     `;
 }
-module.exports = {registered_status,registered_statusforAdmin};
+module.exports = { registered_status, registered_statusforAdmin };

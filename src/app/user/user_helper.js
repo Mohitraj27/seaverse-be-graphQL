@@ -1,5 +1,5 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
-const { CustomError, ErrorName, Role, UploadHelper } = require("../../util");
+const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
 const { User } = require("./user_model");
 
@@ -185,8 +185,10 @@ module.exports = {
                 existingUser.languagePreference = input.languagePreference;
 
             if (input.isRegistered != null) existingUser.isRegistered = input.isRegistered;
-            if (input.currentVessel) existingUser.currentVessel = input.currentVessel;
-            if (input.vesselStatus) existingUser.vesselStatus = input.vesselStatus;
+            if (input.currentVessel) existingUser.currentVessel = input.vesselStatus !== VesselStatus.ONSHORE ? input.currentVessel : null;
+            if (!input.currentVessel) existingUser.currentVessel = null;
+            if (input.vesselStatus) existingUser.vesselStatus = input.vesselStatus ?? VesselStatus.ONSHORE;
+
 
             if (input.isProfileCompleted != null)
                 existingUser.isProfileCompleted = input.isProfileCompleted;
