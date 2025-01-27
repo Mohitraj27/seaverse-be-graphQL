@@ -336,6 +336,30 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             user: { $in: users.map(user => user._id) }
         });
 
+        let trainingIds, trainingModuleCounts, trainingIdToModuleCount;
+        
+        if (trainings.length > 0) {
+
+            trainingIds = trainings.map(training => training._id);
+            trainingModuleCounts = await TrainingModule.aggregate([
+                {
+                    $match: { training: { $in: trainingIds } }
+                },
+                {
+                    $group: {
+                        _id: "$training",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
+                acc[_id] = count;
+                return acc;
+            }, {});
+
+        }
+
         const existingProgressSet = new Set(
             existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
         );
@@ -385,7 +409,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             progressPercentage: 0.0,
                             completedModules: 0,
                             contentData: [],
-                            totalTrainingModules: 0,
+                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
                             startDate: null,
                             endDate: null,
                             unenrollmentDate: null,
