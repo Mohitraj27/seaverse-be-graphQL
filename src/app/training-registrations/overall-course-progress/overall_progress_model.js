@@ -45,6 +45,7 @@ const overallProgressSchema = new Schema(
         },
         startDate: Date,
         endDate: Date,
+        unenrollmentDate: Date,
         mandatoryModules: Number,
         completedModules: Number,
         totalTrainingModules: Number,
