@@ -337,7 +337,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         });
 
         let trainingIds, trainingModuleCounts, trainingIdToModuleCount;
-        
+
         if (trainings.length > 0) {
 
             trainingIds = trainings.map(training => training._id);
@@ -744,7 +744,7 @@ module.exports = {
                             const isAdmin = user?.subRoles?.includes(subRoleAdminId?._id);
                             const coursesData = await Promise.all(
                                 trainingsData.map(async (training) => {
-                                    const courseImage = await AWS_HELPER.fetchFile(training?.bannerImage?.url) ||
+                                    const courseImage = await AWS_HELPER.fetchFile(training?.coverImage?.url) ||
                                         'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
                                     return {
                                         trainingTitle: training?.title?.[0]?.value || ' ',
@@ -778,10 +778,11 @@ module.exports = {
                     await Promise.all(
                         input.trainings.map(async (trainingId) => {
                             try {
+                                const trainingtitle = await Training.find({ _id: trainingId }).select('title -_id');
                                 await NotificationHelper.createNotificationhelper({
                                     subscriber: subscriberId,
-                                    titleValue: `New Course has been enrolled to you`,
-                                    messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                                    titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been enrolled to you`,
+                                    messageValue: ` You have been successfully enrolled to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                                     notifyAdmin: false,
                                     notifiers: [userId],
@@ -805,19 +806,42 @@ module.exports = {
                         })
                     );
                 }
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `New Course Enrollment`,
-                    messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    employeeNotifiers: [],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
+
+                const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
+                if (userObjectIds.length > 1) {
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `New Course Enrollment`,
+                        messageValue: `${userInfo.firstName} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                        notifyAdmin: true,
+                        notifiers: [],
+                        employeeNotifiers: [],
+                        affected: [],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                } else {
+
+                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `New Course Enrollment`,
+                        messageValue: `${userInfo.firstName} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                        notifyAdmin: true,
+                        notifiers: [],
+                        employeeNotifiers: [],
+                        affected: [],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                }
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -966,10 +990,11 @@ module.exports = {
                     await Promise.all(
                         input.trainings.map(async (trainingId) => {
                             try {
+                                const trainingtitle = await Training.find({ _id: trainingId }).select('title -_id');
                                 await NotificationHelper.createNotificationhelper({
                                     subscriber: subscriberId,
-                                    titleValue: `A Course has been unenrolled to you`,
-                                    messageValue: `You have been unassigned from a  Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                                    titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been enrolled to you`,
+                                    messageValue: ` You have been successfully unenrolled to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                                     notifyAdmin: false,
                                     notifiers: [
@@ -995,26 +1020,42 @@ module.exports = {
                         })
                     );
                 }
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Course Unenrollment`,
-                    messageValue: `A  Course Unenrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.COURSE_UNENROLLMENT,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    employeeNotifiers: [],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-                await sendNotifications({
-                    userIds: userObjectIds,
-                    title: "Course Unenrollment",
-                    body: `You have been unenrolled from a course by ${userInfo.firstName} ${userInfo.lastName}.`,
-                    content: { type: "COURSE_UNENROLLMENT", courseIds: input.trainings },
-                    webUrl: "",
-                });
+
+                const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
+                if (userObjectIds.length > 1) {
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Course Unenrollment`,
+                        messageValue: `${userInfo.firstName} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                        notifyAdmin: true,
+                        notifiers: [],
+                        employeeNotifiers: [],
+                        affected: [],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                } else {
+
+                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Course Unenrollment`,
+                        messageValue: `${userInfo.firstName} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                        notifyAdmin: true,
+                        notifiers: [],
+                        employeeNotifiers: [],
+                        affected: [],
+                        status: 'SENT',
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                }
                 return {
                     message: "Course unenrollment successful!",
                 }

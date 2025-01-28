@@ -1773,7 +1773,7 @@ module.exports.mutations = {
                     }
                 })
             );
-            const courseImages = await AWS_HELPER.fetchFile(trainingData?.bannerImage?.url) ||
+            const courseImages = await AWS_HELPER.fetchFile(trainingData?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,
