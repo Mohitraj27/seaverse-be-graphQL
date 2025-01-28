@@ -375,7 +375,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                                 filter: { training, user: user._id },
                                 update: {
                                     $addToSet: { learningPlan: learningPlanId },
-                                    $set: { isEnrolled: true },
+                                    $set: { isEnrolled: true, unenrollmentDate: null},
                                 },
                             },
                         };
@@ -386,7 +386,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             updateOne: {
                                 filter: { training, user: user._id },
                                 update: {
-                                    $set: { directEnrollment: true },
+                                    $set: { directEnrollment: true, unenrollmentDate: null},
                                 },
                             },
                         };
@@ -412,6 +412,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             totalTrainingModules: trainingIdToModuleCount[training] || 0,
                             startDate: null,
                             endDate: null,
+                            unenrollmentDate: null,
                         },
                     },
                 };
@@ -674,7 +675,7 @@ module.exports = {
                     if (alreadyExistInCourse.length > 0) {
                         await OverallTrainingProgress.updateMany(
                             { user: { $in: userObjectIds }, training: { $in: input.trainings }, isEnrolled: false },
-                            { $set: { isEnrolled: true, directEnrollment: true } }
+                            { $set: { isEnrolled: true, directEnrollment: true, unenrollmentDate:null } }
                         );
                     }
                 }
@@ -947,6 +948,8 @@ module.exports = {
                                     lastConsumedContent: {},
                                     startDate: null,
                                     endDate: null,
+                                    unenrollmentDate : new Date(),
+                                    directEnrollment : false,
                                     status: 'NOT_STARTED',
                                     attemptCount: 1,
                                     timeSpend: 0,
