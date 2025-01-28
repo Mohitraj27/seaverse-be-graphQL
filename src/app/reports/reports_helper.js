@@ -51,8 +51,24 @@ const convertUnderscoreSeperatedStringToCamelCase = async (str) => {
         .join(''); 
 }
 
+const formatDate = (date) => {
+    if (date) {
+        const formattedDate = new Date(date);
+        return formattedDate.toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+        });
+    }
+    return null;
+};
 module.exports ={
     generateFileNameTimestamp,
     getAppliedFilters,
     convertUnderscoreSeperatedStringToCamelCase,
+    formatDate,
 }
