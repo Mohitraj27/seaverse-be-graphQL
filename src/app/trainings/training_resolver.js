@@ -157,12 +157,12 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline : [
-                      {
-                        $match :{
-                          isDeleted : false
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
                         }
-                      }
                     ]
                 }
             },
@@ -630,6 +630,10 @@ module.exports.mutations = {
 
         const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
 
+        if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND, "Course data not found!");
+        
+        const trainingModuleCount = await TrainingModule.find({ training: fetchOverallTraining.training._id }).countDocuments();
+
         const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
         const attemptType = fetchOverallTraining.training.attemptType;
         let attemptLimit;
@@ -656,6 +660,8 @@ module.exports.mutations = {
             fetchOverallTraining.attemptCount++;
             fetchOverallTraining.timeSpend = 0;
             fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
+            fetchOverallTraining.adminMarkedAsCompleted = false;
+            fetchOverallTraining.totalTrainingModules = trainingModuleCount || fetchOverallTraining.totalTrainingModules;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }

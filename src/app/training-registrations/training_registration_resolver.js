@@ -1480,7 +1480,7 @@ module.exports.mutations = {
                 }
 
                 if (input.type === "UNENROLL") {
-                    errorEmails = [...unregEmails, ...invalidEmails, ...notEnrolledEmails];
+                    errorEmails = [...invalidEmails, ...notEnrolledEmails];
                 }
 
                 const remainingEmails = input.users.filter(email => !errorEmails.includes(email));
@@ -1703,11 +1703,11 @@ module.exports.mutations = {
                 {
                     $set: {
                         status: "COMPLETED",
-                        progressPercentage: 100,
                         isComplete: true,
                         completedModules: trainingModuleIds.length,
                         isCertificateGenerated: true,
-                        startData: new Date(),
+                        adminMarkedAsCompleted: true,
+                        startData: { $ifNull: ["$startData", new Date()] },
                         endDate: new Date(),
                     }
                 }
@@ -1773,7 +1773,7 @@ module.exports.mutations = {
                     }
                 })
             );
-            const courseImages = await AWS_HELPER.fetchFile(trainingData?.bannerImage?.url) ||
+            const courseImages = await AWS_HELPER.fetchFile(trainingData?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,

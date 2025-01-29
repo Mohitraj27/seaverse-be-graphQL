@@ -107,6 +107,8 @@ module.exports = {
             vesselType
             vesselStatus
             custom
+            GROUP
+            MEMBER
         }
         input GroupInputForEnroll {
             groupType: groupTypeEnums!

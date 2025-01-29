@@ -22,9 +22,18 @@ module.exports.queries = {
             managingOrganization,
         } = AuthUser(context);
     try{
+
+        const pageLimit =[];
         const skip = pageInput?.skip ?? 0;
-        let limit = pageInput?.limit ?? 50;
-        let selectFirstThreeDays =[];
+        pageLimit.push(
+            {
+                $skip:skip
+            },
+        );
+        
+        const selectFirstThreeDays =[];
+
+
         if (skip === 0) {
             selectFirstThreeDays.push({
                 $match: {
@@ -36,8 +45,19 @@ module.exports.queries = {
                     }
                 }
             })
-            limit = 10000;
+            pageLimit.push(
+                {
+                    $limit: pageInput?.limit ?? 10000
+                }
+            );
+        }else{
+            pageLimit.push(
+                {
+                    $limit: pageInput?.limit ?? 50
+                }
+            );
         }
+
         let filterConditions = { /* subscriber: subscriberId, */ isDeleted: { $ne: true } };
 
         if (filterInput) {
@@ -111,12 +131,7 @@ module.exports.queries = {
                                 {
                                     $sort: { createdAt: -1 }
                                 },
-                                {
-                                    $skip: skip
-                                },
-                                {
-                                    $limit: limit
-                                }
+                                ...pageLimit,
                             ],
                             counts: [
                                 {
@@ -145,15 +160,15 @@ module.exports.queries = {
                     }
                 ]),
                 {
-                    offset: skip,
-                    limit,
+                    // offset: skip,
+                    // limit,
                     sort: { createdAt: "-1" },
                     customLabels: {
                         docs: "notifications",
                         totalDocs: "totalCount",
                         offset: "skip",
                     },
-                    pagination: limit !== 0,
+                    // pagination: limit !== 0,
                     allowDiskUse: true,
                 }
             );

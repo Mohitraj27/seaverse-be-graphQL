@@ -704,20 +704,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 ]
                             },
                             'createdAt': 1,
-                            'unenrolmentDate': {
-                                '$cond': {
-                                    'if': {
-                                        '$eq': [
-                                            '$isEnrolled', false
-                                        ]
-                                    },
-                                    'then': '$updatedAt',
-                                    'else': null
-                                }
-                            },
+                            'unenrolmentDate': '$unenrollmentDate',
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'updatedAt': 1,
                             'quizPercentage': {
                                 '$ifNull': [
@@ -747,26 +738,13 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     if (!learnerReportsByUser[learnerName]) {
                         learnerReportsByUser[learnerName] = [];
                     }
-                    const formatDate = (date) => {
-                        if (date) {
-                            const formattedDate = new Date(date);
-                            return formattedDate.toLocaleString('en-US', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                                hour12: true,
-                            });
-                        }
-                        return null;
-                    };
 
-                    const enrollmentDate = formatDate(item.createdAt);
-                    const completionDate = formatDate(item.completionDate);
-                    const startDate = item.startDate && item.startDate !== 'startDate' ? formatDate(item.startDate) : null;
-                    const unenrollmentDate = formatDate(item.unenrolmentDate);
+                    const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
+                    const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+                    const startDate = item?.startDate && item.startDate !== 'startDate'
+                        ? ReportsHelper.formatDate(item.startDate)
+                        : "Not Applicable";
+                    const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
 
                     const quizScore = (typeof item.quizPercentage === 'string')
                         ? item.quizPercentage
@@ -782,6 +760,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Designation: item.designation || null,
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
+                        'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
                         'Enrollment Date': enrollmentDate,
                         'Unenrollment Date': unenrollmentDate,
                         'Completion Date': completionDate,
@@ -1093,7 +1072,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             foreignField: "training",
                             as: "initialContents",
                             let: {
-                                status: "$status"
+                                status: "$status",
+                                adminMarkedAsCompleted: "$adminMarkedAsCompleted",
                             },
                             pipeline: [
                                 {
@@ -1106,7 +1086,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 {
                                     $match: {
                                         $expr: {
-                                            $eq: ["$$status", "NOT_STARTED"]
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } 
+                                            ]
                                         }
                                     }
                                 },
@@ -1176,7 +1159,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             quizEvaluations: {
                                 $cond: {
                                     if: {
-                                        $eq: ["$status", "NOT_STARTED"]
+                                        $or: [
+                                          { $eq: ["$status", "NOT_STARTED"] },
+                                          { $eq: ["$adminMarkedAsCompleted", true] } 
+                                        ]
                                     },
                                     then: "$initialContents",
                                     else: "$quizEvaluations"
@@ -1206,6 +1192,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             endDate: {
                                 $first: "$endDate"
                             },
+                            unenrollmentDate: {
+                                $first: "$unenrollmentDate"
+                            },
                             timeSpend: {
                                 $first: "$timeSpend"
                             },
@@ -1232,6 +1221,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             },
                             status: {
                                 $first: "$status"
+                            },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
                                 $first: "$vesselInfo.name"
@@ -1321,6 +1313,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             status: {
                                 $first: "$status"
                             },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
+                            },
                             currentVessel: {
                                 $first: "$currentVessel"
                             },
@@ -1332,6 +1327,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             },
                             createdAt: {
                                 $first: "$createdAt"
+                            },
+                            startDate: {
+                                $first: "$startDate"
+                            },
+                            endDate: {
+                                $first: "$endDate"
+                            },
+                            unenrollmentDate: {
+                                $first: "$unenrollmentDate"
                             },
                             lastSeen: {
                                 $first: "$lastSeen"
@@ -1377,7 +1381,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             email: 1,
                             designation: 1,
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
+                            startDate: 1,
+                            endDate: 1,
+                            unenrollmentDate: 1,
                             empId: 1,
                             trainingTitle: 1,
                             modules: {
@@ -1410,7 +1418,14 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const firstName = learner?.firstName || '';
                         const lastName = learner?.lastName || '';
                         const status = learner?.status || 'NOT APPLICABLE';
+                        const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
+                        const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
+                        const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
+                        const startDate = learner?.startDate && learner.startDate !== 'startDate'
+                            ? ReportsHelper.formatDate(learner.startDate)
+                            : "Not Applicable";
+                        const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
 
 
                         learner.modules.forEach((module, moduleIndex) => {
@@ -1430,10 +1445,15 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     Designation: designation,
                                     'Course Name': courseName,
                                     'Course Status': status,
+                                    'Admin Marked As Completed': isAdminMarkedAsCompleted,
                                     'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
+                                    'Enrollment Date': enrollmentDate,
+                                    'Course Started Date': startDate,
+                                    'Course Completion Date': completionDate,
+                                    'Unenrollment Date': unenrollmentDate,
                                 });
                             });
                         });
@@ -1537,7 +1557,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
-            messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+            messageValue: `An error occurred while generating the learners report`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAdmin: true,
             status: 'FAILED',
@@ -1857,7 +1877,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Course Report Export Failed`,
-                messageValue: `An error occurred while generating the Main Course report: ${err.message}.`,
+                messageValue: `An error occurred while generating Course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -2181,8 +2201,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                             email: '$userInfo.email',
                             designation: "$designationInfo.name",
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
+                            startDate: 1,
                             endDate: 1,
+                            unenrollmentDate: 1,
                             updatedAt: 1,
                             quizPercentage: {
                                 $ifNull: [
@@ -2240,23 +2263,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                     const parsedData = data.map(item => {
 
                         const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
-                        const formatDate = (date) => {
-                            if (date) {
-                                const formattedDate = new Date(date);
-                                return formattedDate.toLocaleString('en-US', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                    hour12: true,
-                                });
-                            }
-                            return null;
-                        };
-                        const enrollmentDate = formatDate(item.createdAt);
-                        const completionDate = formatDate(item.endDate);
+                        const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
+                        const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+                        const startDate = item?.startDate && item?.startDate !== 'startDate'
+                            ? ReportsHelper.formatDate(item?.startDate)
+                            : "Not Applicable";
+                        const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item?.unenrollmentDate) : "Not Applicable";
                         const timeSpent = item.totalTimeSpent ? item.totalTimeSpent+" mins" : '0 mins';
                         const quizScore = (typeof item.quizPercentage === 'string')
                             ? `${parseInt(item.quizPercentage, 10)}%`
@@ -2264,23 +2276,27 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 ? `${Math.round(item.quizPercentage)}%`
                                 : 'Not Applicable';
                         const courseStatus = item.status || 'Not Started';
+
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
                         const courseName = item?.trainingTitle[0].value;
-
+                        const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const parsedItem = {
                             LearnerName: learnerName,
                             Email: item.email || '',
                             EmployeeId: item.empId || '',
                             Designation: item.designation || '',
-                            CourseName: courseName,
-                            CourseStatus: courseStatus,
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
-                            EnrolledDate: enrollmentDate,
-                            CompletionDate: completionDate,
+                            CourseName: courseName,
+                            CourseStatus: courseStatus,
+                            'Admin Marked As Completed': adminMarkedAsCompleted,
                             TimeSpent: timeSpent,
                             QuizScore: quizScore,
+                            'Course Enrollment Date': enrollmentDate,
+                            'Course Started Date': startDate,
+                            'Course Unenrollment Date': unenrollmentDate,
+                            'Course Completion Date': completionDate,
                         };
 
                         return parsedItem;
@@ -2436,6 +2452,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'preserveNullAndEmptyArrays': false
                         }
                     }, {
+                        // Get the employee details of not deleted users
                         '$lookup': {
                             'from': 'employees',
                             'localField': 'user',
@@ -2492,6 +2509,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        // Get the quiz evaluation details from training progresses (Only for users who has started)
                         '$lookup': {
                             'from': 'trainingprogresses',
                             'localField': '_id',
@@ -2565,12 +2583,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     {
                         '$lookup': {
+                            // Each content data of NOT STARTED users
                             'from': 'trainingcontentbridges',
                             'localField': 'training',
                             'foreignField': 'training',
                             'as': 'initialContents',
                             'let': {
-                                'status': '$status'  
+                                'status': '$status',
+                                'adminMarkedAsCompleted': "$adminMarkedAsCompleted",  
                             },
                             'pipeline': [
                                 {
@@ -2581,12 +2601,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     }
                                 },
                                 {
-                                    '$match': {
-                                        '$expr': {
-                                            '$eq': ['$$status', 'NOT_STARTED']  
+                                    "$match": {
+                                        $expr: {
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } 
+                                            ]
                                         }
                                     }
-                                },
+                                },                                  
                                 {
                                     '$lookup': {
                                         'from': 'trainingmodules',
@@ -2637,12 +2660,18 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        '$addFields': {
-                            'quizEvaluations': {
-                                '$cond': {
-                                    'if': { '$eq': ['$status', 'NOT_STARTED'] },  
-                                    'then': '$initialContents',  
-                                    'else': '$quizEvaluations'   
+                        // Add the initial contents to the quiz evaluations of NOT STARTED users
+                        "$addFields": {
+                            "quizEvaluations": {
+                                "$cond": {
+                                    "if": {
+                                        "$or": [
+                                            { "$eq": ["$status", "NOT_STARTED"] },
+                                            { "$eq": ["$adminMarkedAsCompleted", true] }
+                                        ]
+                                    },
+                                    "then": "$initialContents",
+                                    "else": "$quizEvaluations"
                                 }
                             }
                         }
@@ -2654,6 +2683,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     ...matchStage,
+                    // Group by user and module
                     {
                         '$group': {
                             '_id': {
@@ -2684,6 +2714,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'status': {
                                 '$first': '$status'
                             },
+                            'adminMarkedAsCompleted' : {
+                                '$first' : '$adminMarkedAsCompleted'
+                            },
                             'currentVessel': {
                                 '$first': '$vesselInfo.name'
                             },
@@ -2695,6 +2728,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                             },
                             'createdAt': {
                                 '$first': '$createdAt'
+                            },
+                            'startDate': {
+                                '$first': '$startDate'
+                            },
+                            'endDate': {
+                                '$first': '$endDate'
+                            },
+                            'unenrollmentDate': {
+                                '$first': '$unenrollmentDate'
                             },
                             'lastSeen': {
                                 '$first': '$updatedAt'
@@ -2730,6 +2772,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             }
                         }
                     },
+                    // Sort the module contents by order
                     {
                         $addFields: { 
                             moduleContents: {
@@ -2740,6 +2783,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             }
                         }
                     },
+                    // Check if the user has a quiz
                     {
                         '$addFields': {
                             'hasQuiz': {
@@ -2761,6 +2805,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             }
                         }
                     }, {
+                        // Get the latest quiz content
                         '$addFields': {
                             'moduleContents': {
                                 '$cond': {
@@ -2786,7 +2831,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 }
                             }
                         }
-                    }, {
+                    }, 
+                    //Group by user and training
+                    {
                         '$group': {
                             '_id': {
                                 'userId': '$userId',
@@ -2810,6 +2857,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'status': {
                                 '$first': '$status'
                             },
+                            'adminMarkedAsCompleted': {
+                                '$first': '$adminMarkedAsCompleted'
+                            },
                             'currentVessel': {
                                 '$first': '$currentVessel'
                             },
@@ -2821,6 +2871,15 @@ const getSingleCourseReport = async ({ input }, context) => {
                             },
                             'createdAt': {
                                 '$first': '$createdAt'
+                            },
+                            'startDate': {
+                                '$first': '$startDate'
+                            },
+                            'endDate': {
+                                '$first': '$endDate'
+                            },
+                            'unenrollmentDate': {
+                                '$first': '$unenrollmentDate'
                             },
                             'lastSeen': {
                                 '$first': '$lastSeen'
@@ -2930,6 +2989,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'email': 1,
                             'designation': 1,
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'createdAt': 1,
                             'currentVessel': 1,
                             'vesselType': 1,
@@ -2947,6 +3007,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'sortBy': { 'order': 1 }
                                 }
                             },
+                            'startDate': 1,
+                            'endDate': 1,
+                            'unenrollmentDate': 1,
                             'lastSeen': 1,
                         }
                     },
@@ -2965,6 +3028,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     createdAt: new Date(item.createdAt).toLocaleString(),
                     email: item?.email ? item?.email : "Not Found",
                     status: item?.status ? item?.status : "Not Found",
+                    adminMarkedAsCompleted: item?.adminMarkedAsCompleted ? 'Yes' : 'No',
                     currentVessel: item?.currentVessel ? item?.currentVessel : "Not Found",
                     vesselType: item.vesselType ? item?.vesselType : "Not Found",
                     updatedAt: new Date(item.lastSeen).toLocaleString(),
@@ -2983,6 +3047,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const lastName = course?.lastName || '';
                             const status = course?.status || 'N/A';
                             const courseName = course?.trainingTitle[0].value;
+                            const adminMarkedAsCompleted = course?.adminMarkedAsCompleted ? 'Yes' : 'No';
+                            const enrollmentDate = course?.createdAt ? ReportsHelper.formatDate(course.createdAt) : "Not Applicable";
+                            const completionDate = course?.endDate ? ReportsHelper.formatDate(course.endDate) : "Not Applicable";
+                            const startDate = course?.startDate && course.startDate !== 'startDate'
+                                ? ReportsHelper.formatDate(course.startDate)
+                                : "Not Applicable";
+                            const unenrollmentDate = course?.unenrollmentDate ? ReportsHelper.formatDate(course.unenrollmentDate) : "Not Applicable";
+
 
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
@@ -2996,6 +3068,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Lesson Name': moduleName,
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
+                                    'Admin Marked As Completed': adminMarkedAsCompleted,
+                                    'Enrollment Date': enrollmentDate,
+                                    'Course Started Date': startDate,
+                                    'Course Completion Date': completionDate,
+                                    'Unenrollment Date': unenrollmentDate,
                                 });
                             });
                         }
@@ -3128,7 +3205,7 @@ const getSingleCourseReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Single Course Report Export Failed`,
-                messageValue: `An error occurred while generating the Single Course report: ${err.message}.`,
+                messageValue: `An error occurred while generating the individual course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -3624,7 +3701,7 @@ const getVesselMainReport = async ({ input }, context) => {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Main Vessel Report Export Failed`,
-            messageValue: `An error occurred while generating the main vessel report: ${err.message}.`,
+            messageValue: `An error occurred while generating the vessel report.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAdmin: true,
             status: 'FAILED',
@@ -3954,20 +4031,11 @@ const generateCustomReport = async ({ input }, context) => {
                                 ]
                             },
                             'createdAt': 1,
-                            'unenrolmentDate': {
-                                '$cond': {
-                                    'if': {
-                                        '$eq': [
-                                            '$isEnrolled', false
-                                        ]
-                                    },
-                                    'then': '$updatedAt',
-                                    'else': null
-                                }
-                            },
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
+                            unenrollmentDate: 1,
                             'status': 1,
+                            'adminMarkedAsCompleted': 1,
                             'updatedAt': 1,
                             'quizPercentage': {
                                 '$ifNull': [
@@ -3992,28 +4060,16 @@ const generateCustomReport = async ({ input }, context) => {
 
             data.forEach(item => {
                 const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
-                const formatDate = (date) => {
-                    if (date) {
-                        const formattedDate = new Date(date);
-                        return formattedDate.toLocaleString('en-US', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: true,
-                        });
-                    }
-                    return null;
-                };
-                const enrollmentDate = formatDate(item.createdAt);
-                const completionDate = formatDate(item.completionDate);
-                const startDate = item.startDate? formatDate(item.startDate) : item.startDate ;
-                const unenrollmentDate = formatDate(item.unenrolmentDate);
+                const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
+                const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+                const startDate = item?.startDate && item.startDate !== 'startDate'
+                    ? ReportsHelper.formatDate(item.startDate)
+                    : "Not Applicable";
+                const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
                 const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "N/A";
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
                 const timeSpent = item.totalTimeSpent ? parseInt(item.totalTimeSpent)+" mins" : 0+" mins";
+                const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
                 dataToExport.push({
                     Name: learnerName ?? "-",
@@ -4021,13 +4077,14 @@ const generateCustomReport = async ({ input }, context) => {
                     Designation: item.designation || null,
                     'Course Name': item.courseName ? item.courseName[0] : null,
                     Status: item.status || null,
-                    'Enrollment Date (UTC TimeZone)': enrollmentDate,
-                    'Unenrollment Date (UTC TimeZone)': unenrollmentDate,
-                    'Completion Date (UTC TimeZone)': completionDate,
-                    'Started Date (UTC TimeZone)': startDate,
+                    'Admin Marked As Completed': adminMarkedAsCompleted,
                     'Quiz Score': quizScore,
                     userState: userState,
                     'Time Spent (mins)': timeSpent,
+                    'Enrollment Date': enrollmentDate,
+                    'Course Started Date': startDate,
+                    'Course Completion Date': completionDate,
+                    'Unenrollment Date': unenrollmentDate,
                 });
             });
 
@@ -4225,7 +4282,8 @@ const generateCustomReport = async ({ input }, context) => {
                             foreignField: "training",
                             as: "initialContents",
                             let: {
-                                status: "$status"
+                                status: "$status",
+                                adminMarkedAsCompleted: "$adminMarkedAsCompleted",
                             },
                             pipeline: [
                                 {
@@ -4238,7 +4296,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 {
                                     $match: {
                                         $expr: {
-                                            $eq: ["$$status", "NOT_STARTED"]
+                                            $or: [
+                                                { $eq: ["$$status", "NOT_STARTED"] },
+                                                { $eq: ["$$adminMarkedAsCompleted", true] } // Add your second condition here
+                                            ]
                                         }
                                     }
                                 },
@@ -4308,7 +4369,10 @@ const generateCustomReport = async ({ input }, context) => {
                             quizEvaluations: {
                                 $cond: {
                                     if: {
-                                        $eq: ["$status", "NOT_STARTED"]
+                                        $or: [
+                                            { $eq: ["$status", "NOT_STARTED"] },
+                                            { $eq: ["$adminMarkedAsCompleted", true] }
+                                        ]
                                     },
                                     then: "$initialContents",
                                     else: "$quizEvaluations"
@@ -4338,6 +4402,9 @@ const generateCustomReport = async ({ input }, context) => {
                             endDate: {
                                 $first: "$endDate"
                             },
+                            unenrollmentDate: {
+                                $first: "$unenrollmentDate"
+                            },
                             timeSpend: {
                                 $first: "$timeSpend"
                             },
@@ -4364,6 +4431,9 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             status: {
                                 $first: "$status"
+                            },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
                                 $first: "$vesselInfo.name"
@@ -4453,6 +4523,9 @@ const generateCustomReport = async ({ input }, context) => {
                             status: {
                                 $first: "$status"
                             },
+                            adminMarkedAsCompleted: {
+                                $first: "$adminMarkedAsCompleted"
+                            },
                             currentVessel: {
                                 $first: "$currentVessel"
                             },
@@ -4464,6 +4537,15 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             createdAt: {
                                 $first: "$createdAt"
+                            },
+                            startDate: {
+                                $first: "$startDate"
+                            },
+                            endDate: {
+                                $first: "$endDate"
+                            },
+                            unenrollmentDate: {
+                                $first: "$unenrollmentDate"
                             },
                             lastSeen: {
                                 $first: "$lastSeen"
@@ -4509,7 +4591,11 @@ const generateCustomReport = async ({ input }, context) => {
                             email: 1,
                             designation: 1,
                             status: 1,
+                            adminMarkedAsCompleted: 1,
                             createdAt: 1,
+                            startDate: 1,
+                            endDate: 1,
+                            unenrollmentDate: 1,
                             empId: 1,
                             trainingTitle: 1,
                             modules: {
@@ -4541,6 +4627,13 @@ const generateCustomReport = async ({ input }, context) => {
                     const lastName = learner?.lastName || '';
                     const status = learner?.status || 'NOT APPLICABLE';
                     const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
+                    const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
+                    const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
+                    const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
+                    const startDate = learner?.startDate && learner.startDate !== 'startDate'
+                        ? ReportsHelper.formatDate(learner.startDate)
+                        : "Not Applicable";
+                    const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
 
 
                     learner.modules.forEach((module, moduleIndex) => {
@@ -4560,10 +4653,15 @@ const generateCustomReport = async ({ input }, context) => {
                                 Designation: designation,
                                 'Course Name': courseName,
                                 'Course Status': status,
+                                'Admin Marked As Completed': adminMarkedAsCompleted,
                                 'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
                                 'Quiz Score': quizScore,
+                                'Enrollment Date': enrollmentDate,
+                                'Course Started Date': startDate,
+                                'Course Completion Date': completionDate,
+                                'Unenrollment Date': unenrollmentDate,
                             });
                         });
                     });

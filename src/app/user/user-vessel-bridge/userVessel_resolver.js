@@ -2,7 +2,8 @@ const {
     CustomError,
     ErrorName,
     AuthUser,
-    SendEmail
+    SendEmail,
+    VesselStatus
 } = require("../../../util");
 const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
@@ -15,14 +16,16 @@ module.exports.mutations = {
 
             const { subscriberId, userInfo } = AuthUser(context);
 
-            if (!input.vesselId || !input.userId) {
+            if (!input.userId) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Provide all the required fields");
             }
 
-            const getVessel = await Vessel.findById(input.vesselId);
-
-            if (!getVessel) {
-                throw CustomError(ErrorName.VESSEL_NOT_FOUND, "Vessel not found");
+            let getVessel;
+            if (input.vesselId) {
+                getVessel = await Vessel.findById(input.vesselId);
+                if (!getVessel) {
+                    throw CustomError(ErrorName.VESSEL_NOT_FOUND, "Vessel not found");
+                }
             }
 
             const getUser = await User.findById(input.userId);
@@ -32,72 +35,107 @@ module.exports.mutations = {
             }
 
             let newVesselUpdate;
-            
-            if (String(getUser?.currentVessel) === String(input.vesselId)) {
+            let updateUser;
+            let newVessel;
 
-                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
-                    {
-                        $set: {
-                            vesselStatus: input.vesselStatus || 'ONSHORE'
+            if (input.vesselId) {
+
+                if (String(getUser?.currentVessel) === String(input.vesselId)) {
+
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                        {
+                            $set: {
+                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
+                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                            }
                         }
+                    );
+
+                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
+                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    updateUser = await getUser.save();
+
+                } else {
+
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                        {
+                            $set: {
+                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
+                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                            }
+                        }
+                    );
+
+                    newVessel = await UserVessel.create({
+                        user: input.userId,
+                        vessel: input.vesselId,
+                        vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
+                        isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
                     });
 
+                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
+                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    updateUser = await getUser.save();
+                }
             } else {
 
-                await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
+                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
                     {
                         $set: {
-                            isActive: false,
-                            deletedAt: Date.now()
+                            vesselStatus: input?.vesselStatus || VesselStatus.ONSHORE,
+                            isActive: input?.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                            deletedAt: input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
                         }
-                    });
+                    }
+                );
 
-                newVesselUpdate = await UserVessel.create({
-                    user: input.userId,
-                    vessel: input.vesselId,
-                    isActive: true,
-                    vesselStatus: input.vesselStatus || 'ONSHORE',
-                });
+                newVesselUpdate = await UserVessel.findOne({ user: input.userId })
+                    .sort({ updatedAt: -1 });
+
+                newVesselUpdate.vesselStatus = input?.vesselStatus || VesselStatus.ONSHORE;
+                newVesselUpdate.isActive = input?.vesselStatus === VesselStatus.ONSHORE ? false : !input.vesselId ? false : true;
+                newVesselUpdate.deletedAt = input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : !input.vesselId ? Date.now() : null;
+                await newVesselUpdate.save();
+
+                getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId ? input.vesselId : null;
+                getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                updateUser = await getUser.save();
+
             }
 
+            if (updateUser) {
 
-
-            if (newVesselUpdate) {
-
-                const updateUser = await User.findByIdAndUpdate(input.userId, { currentVessel: input.vesselId, vesselStatus: input.vesselStatus || 'ASSIGNED' }, { new: true });
-
-                if (updateUser) {
-                    const emailContent = vesselAssignmentEmail({
-                        firstName: getUser.firstName,
-                        vesselName: getVessel.name,
-                    });
-                    await SendEmail({
-                        receiverEmail: getUser.email,
-                        subject: `Vessel Assignment Notification`,
-                        htmlContent: emailContent,
-                    });
-                    const emailContentforAdmin = vesselAssignmentEmailforAdmin({
-                        firstName: userInfo.firstName,
-                        vesselName: getVessel.name,
-                        userName: getUser.firstName,
-                    })
-                    await SendEmail({
-                        receiverEmail: userInfo.email,
-                        subject: `User Vessel Assignment Notification`,
-                        htmlContent: emailContentforAdmin,
-                    })
-                    return {
-                        status: "Success",
-                        message: "The vessel assigned successfully!"
-                    }
+                const emailContent = vesselAssignmentEmail({
+                    firstName: getUser.firstName,
+                    vesselName: getVessel?.name || 'N/A',
+                });
+                await SendEmail({
+                    receiverEmail: getUser.email,
+                    subject: `Vessel Assignment Notification`,
+                    htmlContent: emailContent,
+                });
+                const emailContentforAdmin = vesselAssignmentEmailforAdmin({
+                    firstName: userInfo.firstName,
+                    vesselName: getVessel?.name || 'N/A',
+                    userName: getUser.firstName,
+                })
+                await SendEmail({
+                    receiverEmail: userInfo.email,
+                    subject: `User Vessel Assignment Notification`,
+                    htmlContent: emailContentforAdmin,
+                })
+                return {
+                    status: "Success",
+                    message: "The vessel updated successfully!"
                 }
 
             }
 
         } catch (error) {
-
             throw CustomError(ErrorName.FAILED, `${error.message}`);
-
         }
+
     }
 };

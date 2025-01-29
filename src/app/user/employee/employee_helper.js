@@ -1005,6 +1005,10 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
 
     const errors = [];
 
+    if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
+        return errors;
+    }
+
     if (!row["First Name*"]) {
         errors.push(`First Name is missing in row ${rowIndex + 1}.`);
     } else if (!validateName(row["First Name*"])) {
@@ -1064,13 +1068,6 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
-        }
-
-        if (status == vesselStatusEnum.ONSHORE.toLowerCase()) {
-            if (row["Vessel IMO Number"]) {
-                errors.push(`IMO Number is present in row ${rowIndex + 1} for Onshore status`);
-                return errors;
-            }
         }
     }
 
@@ -1199,67 +1196,72 @@ module.exports = {
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
         let newVessel;
+        if (input?.user?.currentVessel == null) {
+            await UserVessel.updateMany(
+                { user: existingEmployee?.user?._id, isActive: true },
+                { isActive: false, vesselStatus: VesselStatus.ONSHORE }
+            );
+        }
         if (input?.user?.currentVessel && input?.user?.currentVessel !== '') {
-
 
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
             if (!newVessel) throw new CustomError(ErrorName.INVALID_VESSEL);
 
+
             if (String(input.user.currentVessel) !== String(existingEmployee?.user?.currentVessel?._id)) {
 
                 await UserVessel.updateMany(
-                    { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel, isActive: true },
-                    { isActive: false }
+                    { user: existingEmployee?.user?._id, isActive: true },
+                    { isActive: false, vesselStatus: VesselStatus.ONSHORE, deletedAt: new Date() }
                 );
-                await UserVessel.create({
-                    user: existingEmployee?.user?._id,
-                    vessel: input?.user?.currentVessel,
-                    vesselStatus: input?.user?.vesselStatus || "ONSHORE",
-                })
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `User Vessel Updated Successfully`,
-                    messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
-                    notificationType: NotificationType.USER_VESSEL_UPDATE,
-                    notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "User",
-                            target: existingEmployee?.user?._id,
-                        },
-                    ],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Your Vessel has been Updated`,
-                    messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                    notificationType: NotificationType.USER_VESSEL_UPDATE,
-                    notifyAdmin: false,
-                    affected: [
-                        {
-                            targetRef: "User",
-                            target: existingEmployee?.user?._id,
-                        },
-                    ],
-                    notifiers: [existingEmployee?.user?._id],
-                    employeeNotifiers: [existingEmployee?.user?._id],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-                await sendNotifications({
-                    userIds: [existingEmployee?.user?._id],
-                    title: 'Vessel Updated',
-                    body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                    content: 'Vessel updated successfully',
-                    webLink: ""
-                });
-            }
-            else {
+
+                if (input?.user?.vesselStatus !== VesselStatus.ONSHORE) {
+
+                    await UserVessel.create({
+                        user: existingEmployee?.user?._id,
+                        vessel: input?.user?.currentVessel,
+                        vesselStatus: input?.user?.vesselStatus || VesselStatus.ONSHORE,
+                    });
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `User Vessel Updated Successfully`,
+                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+                        notificationType: NotificationType.USER_VESSEL_UPDATE,
+                        notifyAdmin: true,
+                        affected: [
+                            {
+                                targetRef: "User",
+                                target: existingEmployee?.user?._id,
+                            },
+                        ],
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `Your Vessel has been Updated`,
+                        messageValue: `You have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                        notificationType: NotificationType.USER_VESSEL_UPDATE,
+                        notifyAdmin: false,
+                        affected: [
+                            {
+                                targetRef: "User",
+                                target: existingEmployee?.user?._id,
+                            },
+                        ],
+                        notifiers: [existingEmployee?.user?._id],
+                        employeeNotifiers: [existingEmployee?.user?._id],
+                        icon: notificationiconEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                }
+                
+            } else {
                 await UserVessel.findOneAndUpdate(
                     { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
-                    { vesselStatus: input?.user?.vesselStatus }
+                    { vesselStatus: input?.user?.vesselStatus, isActive: input.user.vesselStatus === VesselStatus.ONSHORE ? false : true }
                 );
 
                 await NotificationHelper.createNotificationhelper({
@@ -1295,13 +1297,7 @@ module.exports = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-                await sendNotifications({
-                    userIds: [existingEmployee?.user?._id],
-                    title: 'Vessel Updated',
-                    body: `You have been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                    content: 'Vessel updated successfully',
-                    webLink: ""
-                });
+                
             }
         }
 
@@ -1859,7 +1855,7 @@ module.exports = {
         let userIndex = 0;
 
 
-        const existingVessels = await Vessel.find({ isDeleted: false, isActive: true })
+        const existingVessels = await Vessel.find({ isDeleted: false, isActive: true });
 
         const vesselMap = new Map(
             existingVessels.map(vessel => [
@@ -1906,20 +1902,19 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                        vesselStatus: user?.vesselStatus ? user.vesselStatus?.toUpperCase() : 'ONSHORE',
-                                        currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                        vesselStatus: user?.vesselStatus ? user.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
                             },
                         });
-
 
                         updatedEmailIds.push(user.email);
 
                         vesselAssociations.push({
                             email: user.email,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -1942,8 +1937,8 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
-                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
-                                    currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                                    currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
                         },
@@ -1955,7 +1950,7 @@ module.exports = {
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -1986,8 +1981,8 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email?.toLowerCase(),
-                                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
-                                        currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
                                     },
                                 },
                             },
@@ -1999,7 +1994,7 @@ module.exports = {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user?.imoNumber,
-                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
+                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -2020,8 +2015,8 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
-                                    currentVessel: vesselMap.get(user.imoNumber)?.id,
+                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                                    currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
                                 },
                             },
                         },
@@ -2033,7 +2028,7 @@ module.exports = {
                     vesselAssociations.push({
                         email: user.email,
                         imoNumber: user?.imoNumber,
-                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : 'ONSHORE',
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -2065,12 +2060,12 @@ module.exports = {
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
-                        currentVessel: vesselMap.get(user.imoNumber)?.id,
-                        vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
-                    if (user.imoNumber) {
+                    if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
                             imoNumber: user.imoNumber,
@@ -2186,20 +2181,25 @@ module.exports = {
                                     }
                                 });
 
-                                userVesselsInsert.push({
-                                    updateOne: {
-                                        filter: { user: user._id, vessel: vesselMap.get(vesselData.imoNumber).id },
-                                        update: {
-                                            $set: {
-                                                user: user._id,
-                                                vessel: vesselMap.get(vesselData.imoNumber).id,
-                                                vesselStatus: vesselData.vesselStatus.toUpperCase() || VesselStatus.ONSHORE,
-                                                isActive: true,
-                                            }
-                                        },
-                                        upsert: true
-                                    }
-                                });
+                                if (vesselData.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
+
+                                    userVesselsInsert.push({
+                                        updateOne: {
+                                            filter: { user: user._id, vessel: vesselMap.get(vesselData.imoNumber).id },
+                                            update: {
+                                                $set: {
+                                                    user: user._id,
+                                                    vessel: vesselMap.get(vesselData.imoNumber).id,
+                                                    vesselStatus: vesselData.vesselStatus.toUpperCase() || VesselStatus.ONSHORE,
+                                                    isActive: !vesselData.vesselStatus.toUpperCase() || vesselData.vesselStatus.toUpperCase() === VesselStatus.ONSHORE ? false : true,
+                                                }
+                                            },
+                                            upsert: true
+                                        }
+                                    });
+
+                                }
+
 
                             } else {
                                 userVesselsInsert.push({
@@ -2516,8 +2516,14 @@ module.exports = {
                     } else {
                         let formatedData;
                         if (row["User ID*"] !== fetchAdmin.civilIdOrPassport && row["Email*"] !== fetchAdmin.email) {
+
+                            if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
+                                return;
+                            }
+
                             formatedData = mapCSVRowToUser(row);
                             users.push(formatedData);
+
                         }
                     }
 

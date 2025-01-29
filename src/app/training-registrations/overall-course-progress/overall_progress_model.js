@@ -45,6 +45,7 @@ const overallProgressSchema = new Schema(
         },
         startDate: Date,
         endDate: Date,
+        unenrollmentDate: Date,
         mandatoryModules: Number,
         completedModules: Number,
         totalTrainingModules: Number,
@@ -86,6 +87,10 @@ const overallProgressSchema = new Schema(
         isAdminResetModule: {
             type: Number,
             default: 0
+        },
+        adminMarkedAsCompleted: {
+            type: Boolean,
+            default: false
         },
         isEnrolled: Boolean,
         totalDuration: Number,
