@@ -1557,7 +1557,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
-            messageValue: `An error occurred while generating the learners report: ${err.message}.`,
+            messageValue: `An error occurred while generating the learners report`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAdmin: true,
             status: 'FAILED',
@@ -1877,7 +1877,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Course Report Export Failed`,
-                messageValue: `An error occurred while generating the Main Course report: ${err.message}.`,
+                messageValue: `An error occurred while generating Course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -3205,7 +3205,7 @@ const getSingleCourseReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Single Course Report Export Failed`,
-                messageValue: `An error occurred while generating the Single Course report: ${err.message}.`,
+                messageValue: `An error occurred while generating the individual course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -3701,7 +3701,7 @@ const getVesselMainReport = async ({ input }, context) => {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Main Vessel Report Export Failed`,
-            messageValue: `An error occurred while generating the main vessel report: ${err.message}.`,
+            messageValue: `An error occurred while generating the vessel report.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAdmin: true,
             status: 'FAILED',
