@@ -1802,9 +1802,15 @@ module.exports.mutations = {
 
             const savedUser = await User.create({
                 subscriber: subscriberId,
-                ...input.user,
+                firstName: input.user.firstName,
+                lastName: input.user.lastName ?? null,
+                civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
+                isRegistered: input.user.isRegistered ?? true,
+                currentVessel: input.user.currentVessel ?? null,
+                vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                email: input.user.email,
+                password: input.user.password,
                 role: userRole,
-                isRegistered: input.user.isRegistered,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -1832,14 +1838,14 @@ module.exports.mutations = {
 
             if (input.user.currentVessel && input.user.vesselStatus) {
 
-                if(input.user.vesselStatus !== 'ONSHORE') {
-                    
+                if (input.user.vesselStatus !== 'ONSHORE') {
+
                     let userVesselUpdate = {
                         user: savedUser,
                         vessel: input.user.currentVessel ?? null,
                         vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
                     };
-    
+
                     savedUserVessel = await UserVessel.create(userVesselUpdate);
 
                 }
@@ -1852,79 +1858,59 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find();
-
-
-            const conditions = {
+            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
+                const conditions = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
                 currentStatus: savedUserVessel?.vesselStatus ?? null,
-                email: savedUser.email
+                email: savedUser.email,
+                _id: savedUser._id
             };
 
-            const filteredPlans = await filterLearningPlans(learningPlans, conditions);
+            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
-            const matchedLearningPlans = filteredPlans.map(plan => {
-                return {
-                    learningPlanID: plan._id,
-                    learningPlanName: plan.title,
-                    employeeID: savedUser._id,
-                    email: savedUser.email,
-                    designationID: input.empDesignation,
-                    vesselID: savedUserVessel.vessel,
-                    vesselTypeID: vessel?.typeOfVessel?._id,
-                    currentStatus: savedUserVessel.vesselStatus
-                };
-            });
-
-
-
-
-
-            if (filteredPlans?.length > 0) {
-                await LearningPlan.updateMany(
-                    { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                    [
-                        {
-                            $set: {
-                                assignedLearnerIDs: {
-                                    $ifNull: ["$assignedLearnerIDs", []]
-                                }
-                            }
-                        },
-                        {
-                            $set: {
-                                assignedLearnerIDs: {
-                                    $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-                                }
-                            }
-                        }
-                    ]
-                );
-            }
+            // const matchedLearningPlans = filteredPlans.map(plan => {
+            //     return {
+            //         learningPlanID: plan._id,
+            //         learningPlanName: plan.title,
+            //         employeeID: savedUser._id,
+            //         email: savedUser.email,
+            //         designationID: input.empDesignation,
+            //         vesselID: savedUserVessel?.vessel,
+            //         vesselTypeID: vessel?.typeOfVessel?._id,
+            //         currentStatus: savedUserVessel?.vesselStatus
+            //     };
+            // });
+            // if (filteredPlans?.length > 0) {
+            //     console.log('inside filtered Learning Plan',filteredPlans);
+            //     await LearningPlan.updateMany(
+            //         { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+            //         [
+            //             {
+            //                 $set: {
+            //                     assignedLearnerIDs: {
+            //                         $ifNull: ["$assignedLearnerIDs", []]
+            //                     }
+            //                 }
+            //             },
+            //             {
+            //                 $set: {
+            //                     assignedLearnerIDs: {
+            //                         $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
+            //                     }
+            //                 }
+            //             }
+            //         ]
+            //     );
+            // }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
                 templategeneratePassword: generatePassword,
             });
-            // const mailOptions = {
-            //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-            //     to: savedUser.email,
-            //     subject: "Welcome to SeaVerse!",
-            //     text: "",
-            //     html: emailContentforNewEmployee,
-
-            // };
-
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
-
-            // await transporter.sendMail(mailOptions, (error, info) => {
-            //     if (error) {
-            //         throw Error("Error sending email:");
-            //     }
-            // });
 
             return savedEmployees;
         });
@@ -2447,7 +2433,7 @@ module.exports.mutations = {
                 notifiers: [],
                 employeeNotifiers: [],
                 createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS,
+                icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);

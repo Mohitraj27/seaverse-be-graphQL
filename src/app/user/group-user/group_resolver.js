@@ -126,7 +126,7 @@ module.exports.queries = {
                 "Last Name": user?.lastName,
                 "Email": user?.email,
                 "Date Added": user?.createdAt,
-                "Date Deleted": "",
+                // "Date Deleted": "",
                 "Last Login Date": user?.lastLoginAt,
                 "User State": user?.isRegistered ? "Registered" : "Unregistered",
                 "Designation": user?.designation,
