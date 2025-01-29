@@ -20,12 +20,12 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const {  mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
+const { mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 
-const {resetPasswordRequest,resetPasswordRequestforAdmin} = require("../../email-template/passwordResetRequest");
-const {forgetPassword} = require('../../email-template/forgetPassword');
+const { resetPasswordRequest, resetPasswordRequestforAdmin } = require("../../email-template/passwordResetRequest");
+const { forgetPassword } = require('../../email-template/forgetPassword');
 const EmployeeHelper = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 
@@ -34,7 +34,7 @@ const { OverallTrainingProgress } = require("../../training-registrations/overal
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
-        
+
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
@@ -273,7 +273,7 @@ module.exports.queries = {
     },
     resetPassword: async (_, context) => {
 
-        const { userId,userInfo } = AuthUser(context);
+        const { userId, userInfo } = AuthUser(context);
 
         const user = await User.findById(userId);
 
@@ -289,14 +289,14 @@ module.exports.queries = {
 
         let errors = [];
         const resetPasswordHtml = resetPasswordRequest(user, token);
-        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user,token);
+        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
             receiverEmail: user.email,
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
         });
-         await AwsHelper.sendEmail({
+        await AwsHelper.sendEmail({
             receiverEmail: userInfo.email,
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtmlforAdmin,
@@ -416,7 +416,7 @@ module.exports.mutations = {
 
             const existingUser = await User.findOne({ email });
             if (!existingUser) {
-                throw  CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.NOT_FOUND);
             }
 
             const token = generateRandomString(10);
@@ -425,7 +425,7 @@ module.exports.mutations = {
             existingUser.resetPasswordExpires = Date.now() + (7 * 3600000);
             const updatedUser = await existingUser.save();
 
-            if(!updatedUser) {
+            if (!updatedUser) {
                 throw CustomError(ErrorName.FAILED);
             }
             const forgetPasswordEmailContent = forgetPassword(token);
@@ -435,10 +435,11 @@ module.exports.mutations = {
                     success: true,
                     message: "Email sent. Please check your email for reset link."
                 }
+            } else {
+                throw CustomError(ErrorName.FAILED, 'Failed to send reset link. Please try again.');
             }
 
         } catch (error) {
-            console.error(error);
             throw new Error(error.message)
         }
 
@@ -514,7 +515,7 @@ module.exports.mutations = {
     },
     selfDeleteRequest: async ({ input }, context) => {
         const { subscriberId, userId, userInfo } = AuthUser(context);
-    
+
         try {
             const { reasonForDelete } = input;
             if (!userId) {
@@ -523,17 +524,17 @@ module.exports.mutations = {
             if (!reasonForDelete || !reasonForDelete.trim().length) {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
-    
-            const updateUser = await User.findByIdAndUpdate(userId, { 
-                $set: { 
-                    deleteRequest: true, 
+
+            const updateUser = await User.findByIdAndUpdate(userId, {
+                $set: {
+                    deleteRequest: true,
                     isDeleted: true,
-                    isActive : false,
-                    deleteRequestDate: Date.now(), 
-                    reasonForDelete: reasonForDelete 
+                    isActive: false,
+                    deleteRequestDate: Date.now(),
+                    reasonForDelete: reasonForDelete
                 }
             });
-            
+
             await OverallTrainingProgress.updateMany(
                 { user: userId },
                 {
@@ -544,7 +545,7 @@ module.exports.mutations = {
             );
 
             if (updateUser) {
-                
+
                 await sendNotificationOnDELETEREQUEST({
                     subscriber: subscriberId,
                     user: {
@@ -558,7 +559,7 @@ module.exports.mutations = {
                     reasonForDelete,
                     createdBy: userInfo
                 });
-    
+
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.DELETE_REQUEST_LOG,
@@ -574,7 +575,7 @@ module.exports.mutations = {
                     ]
                 });
                 const errors = [];
-    
+
                 if (errors.length > 0) {
                     throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
                 }
