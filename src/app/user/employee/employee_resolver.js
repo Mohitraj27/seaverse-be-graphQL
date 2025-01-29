@@ -2447,7 +2447,7 @@ module.exports.mutations = {
                 notifiers: [],
                 employeeNotifiers: [],
                 createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS,
+                icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
