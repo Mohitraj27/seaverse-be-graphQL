@@ -3831,6 +3831,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        "$match": {
+                            isEnrolled: true
+                        }
+                    },
+                    {
                         "$lookup": {
                             "from": "users",
                             "localField": "user",
@@ -4114,6 +4119,11 @@ const generateCustomReport = async ({ input }, context) => {
                             localField: "training",
                             foreignField: "_id",
                             as: "trainingInfo"
+                        }
+                    },
+                    {
+                        "$match": {
+                            isEnrolled: true
                         }
                     },
                     {
