@@ -3477,7 +3477,14 @@ const getVesselMainReport = async ({ input }, context) => {
                         from: "overalltrainingprogresses",
                         localField: "onboardedUsers",
                         foreignField: "user",
-                        as: "trainingProgress"
+                        as: "trainingProgress",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isEnrolled: true
+                                }
+                            }
+                        ]
                     }
                 },
                 {
