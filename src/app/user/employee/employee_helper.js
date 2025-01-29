@@ -1155,13 +1155,10 @@ const sendBulkEmails = async (passwordEmailList) => {
 
 };
 const validateName = (name) => {
-    const nameRegex = /^[A-Za-z]+$/;
+    const nameRegex = /^[A-Za-z]+(\s[A-Za-z]+)*$/;
     const trimmedName = name.trim();
-    if (!nameRegex.test(trimmedName)) {
-        return false;
-    }
-    return true;
-};
+    return nameRegex.test(trimmedName);
+  };
 
 const moveExpiredDeletedUsers = async () => {
     CronHelper.schedule("0 0 * * *", async () => {
