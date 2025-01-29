@@ -557,6 +557,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "as": "employeeInfo"
                         }
                     },
+                    {
+                        "$match": {
+                            isEnrolled: true
+                        }
+                    },
                     ...matchUsers,
                     {
                         $lookup: {
@@ -879,6 +884,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         $match:
                         {
                             user: { $in: input.learnerIds }
+                        }
+                    },
+                    {
+                        "$match": {
+                            isEnrolled: true
                         }
                     },
                     {
