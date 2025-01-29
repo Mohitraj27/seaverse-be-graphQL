@@ -275,7 +275,7 @@ module.exports.mutations = {
         try {
             const filter = {
                 isDeleted: { $ne: true },
-                isRead: false,
+                usersMarkedAsRead: { $nin: [userId] },
                 $or: [
                     { notifiers: userId },
                     { subscriber: subscriberId },
@@ -292,8 +292,9 @@ module.exports.mutations = {
                     totalCount: count,
                 };
             }
-            await Notification.updateMany(filter, { $set: { isRead: true } });
-    
+            await Notification.updateMany(filter, {
+                $addToSet: { usersMarkedAsRead: userId },
+            });
             return {
                 status: "SUCCESS",
                 message: `${count} notifications marked as read successfully.`,
