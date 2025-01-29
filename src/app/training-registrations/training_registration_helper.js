@@ -327,14 +327,14 @@ const extractTrainingContentData = async (trainings) => {
     return { trainingModulesMap, trainingTotalModules };
 };
 
-const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId) => {
+const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId,session) => {
 
     let trainingProgressData;
     try {
         const existingProgressRecords = await OverallTrainingProgress.find({
             training: { $in: trainings.map(training => training._id) },
             user: { $in: users.map(user => user._id) }
-        });
+        }).session(session);
 
         let trainingIds, trainingModuleCounts, trainingIdToModuleCount;
         
@@ -351,7 +351,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                         count: { $sum: 1 }
                     }
                 }
-            ]);
+            ]).session(session);
 
             trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
                 acc[_id] = count;
@@ -420,7 +420,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         ).filter(entry => entry !== null);
 
         if (newProgressEntries.length > 0) {
-            trainingProgressData = await OverallTrainingProgress.bulkWrite(newProgressEntries);
+            trainingProgressData = await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
         }
     } catch (error) {
         console.log(error);
@@ -729,9 +729,8 @@ module.exports = {
                             let trainingProgressData;
 
                             let learningPlanId = input.learningPlan ? input.learningPlan._id : null;
-
-                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId);
-
+                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId , session);
+                        
                         }
 
                         const learningPlan = await LearningPlan.findById(input.learningPlan).select('emailNotification -_id');
@@ -774,11 +773,28 @@ module.exports = {
                         message: "Course enrollment successful!",
                     };
                 }
+
+                const trainingProgressDocuments = await OverallTrainingProgress.find({
+                    user: { $in: userObjectIds },
+                    training: { $in: input.trainings }
+                });
+
+                const trainingProgressMap = new Map();
+
+                trainingProgressDocuments.forEach(doc => {
+                    const key = `${doc.user.toString()}_${doc.training.toString()}`; 
+                    trainingProgressMap.set(key, doc._id);
+                });
+
                 for (const userId of userObjectIds) {
                     await Promise.all(
                         input.trainings.map(async (trainingId) => {
                             try {
-                                await NotificationHelper.createNotificationhelper({
+
+                                const key = `${userId.toString()}_${trainingId.toString()}`;
+                                const trainingProgressId = trainingProgressMap.get(key);
+
+                                const notificationData = {
                                     subscriber: subscriberId,
                                     titleValue: `New Course has been enrolled to you`,
                                     messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
@@ -794,11 +810,15 @@ module.exports = {
                                         {
                                             infoType: "VIEW_COURSE",
                                             infoData: {
-                                                filePath: trainingId
+                                                filePath: trainingId,
+                                                trainingProgressId: trainingProgressId
                                             }
-                                        }
+                                        },
                                     ]
-                                });
+                                }
+
+                                await NotificationHelper.createNotificationhelper(notificationData);
+
                             } catch (error) {
                                 throw Error(error.message);
                             }
