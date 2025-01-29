@@ -51,7 +51,9 @@ const { OverallTrainingProgress } = require("../../training-registrations/overal
 const { sendDeleteEmailToLearner } = require("../../email-template/sendDeleteEmailToLearner")
 const  targetAudience  = require('../../learning-plan/enumFields/targetAudienceEnum.json');
 const  audienceSelection  = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
-const { createTrainingRegistrationhelperforAutoenrolltoLP } = require('./autoenrollmentLPhelper');
+const { createTrainingRegistration } = require('../../training-registrations/training_registration_helper');
+const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
+const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -149,7 +151,38 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
 
     return false; 
 };
+async function enrollUsers(enrollData) {
+    try {
+        const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
+        const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
+        const trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingIds } });
+        if (!trainingRegistrations || trainingRegistrations.length === 0) {
+            throw new Error("No training registration found for the provided training IDs.");
+        }
+        const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
+        const trainingModuleCounts = await TrainingModule.find({ training: enrollData.trainings }).countDocuments();
+        const enrollmentDocs = userIds.map(userId => ({
+            isComplete: false,
+            isCertificateGenerated: false,
+            learningPlan: enrollData.learningPlan || null,
+            training: trainingIds[0], 
+            user: userId,
+            trainingRegistration: trainingRegistrationIds[0], 
+            status: "NOT_STARTED",
+            isEnrolled: true,
+            progressPercentage: 0,
+            completedModules: 0,
+            totalTrainingModules: trainingModuleCounts || 0,
+        }));
+        const insertedEnrollments = await OverallTrainingProgress.insertMany(enrollmentDocs);
+        return insertedEnrollments;
+
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED, error.message);
+    }
+}
 const filterLearningPlans = async (learningPlans, conditions,context,session) => {
+    const { userInfo, subscriberId } = AuthUser(context);
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -181,21 +214,14 @@ const filterLearningPlans = async (learningPlans, conditions,context,session) =>
                     type: "ENROLL",
                     learningPlan: plan._id
                 }
-                console.log('recheed 1');
-                console.log('enrollData matched first condition' ,enrollData);
-                console.log(typeof createTrainingRegistrationhelperforAutoenrolltoLP); 
-
-              const result2 =  await createTrainingRegistrationhelperforAutoenrolltoLP(enrollData,context,session);
-              console.log('results2 matched  first condition ',result2);
-                return true;
+            await enrollUsers(enrollData);
+            return true;
             } else if ( plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC ) {
                  
                 const isValid = evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields,conditions);
-                console.log('isValid outside',isValid);
                 if (isValid) {
-                    console.log('isValid',isValid);
                     const userIdtoBeInserted = conditions._id;
-                  const result =  await LearningPlan.updateMany(
+                     await LearningPlan.updateMany(
                         { _id: plan._id },
                         [
                             {
@@ -212,21 +238,16 @@ const filterLearningPlans = async (learningPlans, conditions,context,session) =>
                             },
                         ]
                     );
-                    console.log('Got result',result);
                     const enrollData = {
                         trainings: plan.selectCourses,
                         users: userIdtoBeInserted,
                         type: "ENROLL",
                         learningPlan: plan._id
                     }
-                    console.log('reached 2')
-                    console.log('enrollData matched first condition',enrollData);
-                    console.log('This is the type of that helper function',typeof createTrainingRegistrationhelperforAutoenrolltoLP); 
-                  const result2=  await createTrainingRegistrationhelperforAutoenrolltoLP(enrollData,context);
-                  console.log('result 2 matched second condition',result2);
-                    return true; 
-                }
-            }  
+                await enrollUsers(enrollData);
+                return true; 
+            }
+        }  
             // if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES){
             //     console.log('Isnide Group Based this is the conditionalCustomFields',plan.conditionalCustomFields);
             //     console.log('Isnide Group Based this is the conditionType',plan.conditionType);
