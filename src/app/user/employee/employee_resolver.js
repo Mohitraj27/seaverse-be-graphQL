@@ -1870,18 +1870,18 @@ module.exports.mutations = {
 
             const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
-            const matchedLearningPlans = filteredPlans.map(plan => {
-                return {
-                    learningPlanID: plan._id,
-                    learningPlanName: plan.title,
-                    employeeID: savedUser._id,
-                    email: savedUser.email,
-                    designationID: input.empDesignation,
-                    vesselID: savedUserVessel.vessel,
-                    vesselTypeID: vessel?.typeOfVessel?._id,
-                    currentStatus: savedUserVessel.vesselStatus
-                };
-            });
+            // const matchedLearningPlans = filteredPlans.map(plan => {
+            //     return {
+            //         learningPlanID: plan._id,
+            //         learningPlanName: plan.title,
+            //         employeeID: savedUser._id,
+            //         email: savedUser.email,
+            //         designationID: input.empDesignation,
+            //         vesselID: savedUserVessel?.vessel,
+            //         vesselTypeID: vessel?.typeOfVessel?._id,
+            //         currentStatus: savedUserVessel?.vesselStatus
+            //     };
+            // });
             // if (filteredPlans?.length > 0) {
             //     console.log('inside filtered Learning Plan',filteredPlans);
             //     await LearningPlan.updateMany(
@@ -1909,23 +1909,8 @@ module.exports.mutations = {
                 email: savedUser.email,
                 templategeneratePassword: generatePassword,
             });
-            // const mailOptions = {
-            //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-            //     to: savedUser.email,
-            //     subject: "Welcome to SeaVerse!",
-            //     text: "",
-            //     html: emailContentforNewEmployee,
-
-            // };
-
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
-
-            // await transporter.sendMail(mailOptions, (error, info) => {
-            //     if (error) {
-            //         throw Error("Error sending email:");
-            //     }
-            // });
 
             return savedEmployees;
         });
