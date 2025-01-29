@@ -1868,7 +1868,7 @@ module.exports.mutations = {
                 _id: savedUser._id
             };
 
-            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
+            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
