@@ -1802,9 +1802,15 @@ module.exports.mutations = {
 
             const savedUser = await User.create({
                 subscriber: subscriberId,
-                ...input.user,
+                firstName: input.user.firstName,
+                lastName: input.user.lastName ?? null,
+                civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
+                isRegistered: input.user.isRegistered ?? true,
+                currentVessel: input.user.currentVessel ?? null,
+                vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                email: input.user.email,
+                password: input.user.password,
                 role: userRole,
-                isRegistered: input.user.isRegistered,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -1832,14 +1838,14 @@ module.exports.mutations = {
 
             if (input.user.currentVessel && input.user.vesselStatus) {
 
-                if(input.user.vesselStatus !== 'ONSHORE') {
-                    
+                if (input.user.vesselStatus !== 'ONSHORE') {
+
                     let userVesselUpdate = {
                         user: savedUser,
                         vessel: input.user.currentVessel ?? null,
                         vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
                     };
-    
+
                     savedUserVessel = await UserVessel.create(userVesselUpdate);
 
                 }
@@ -1859,7 +1865,7 @@ module.exports.mutations = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? null,
+                currentStatus: savedUserVessel?.vesselStatus ?? 'ONSHORE',
                 email: savedUser.email
             };
 
