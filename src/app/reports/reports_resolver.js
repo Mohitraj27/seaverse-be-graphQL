@@ -557,6 +557,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "as": "employeeInfo"
                         }
                     },
+                    {
+                        "$match": {
+                            isEnrolled: true
+                        }
+                    },
                     ...matchUsers,
                     {
                         $lookup: {
@@ -879,6 +884,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         $match:
                         {
                             user: { $in: input.learnerIds }
+                        }
+                    },
+                    {
+                        "$match": {
+                            isEnrolled: true
                         }
                     },
                     {
@@ -3467,7 +3477,14 @@ const getVesselMainReport = async ({ input }, context) => {
                         from: "overalltrainingprogresses",
                         localField: "onboardedUsers",
                         foreignField: "user",
-                        as: "trainingProgress"
+                        as: "trainingProgress",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isEnrolled: true
+                                }
+                            }
+                        ]
                     }
                 },
                 {
@@ -3814,6 +3831,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
+                        "$match": {
+                            isEnrolled: true
+                        }
+                    },
+                    {
                         "$lookup": {
                             "from": "users",
                             "localField": "user",
@@ -4097,6 +4119,11 @@ const generateCustomReport = async ({ input }, context) => {
                             localField: "training",
                             foreignField: "_id",
                             as: "trainingInfo"
+                        }
+                    },
+                    {
+                        "$match": {
+                            isEnrolled: true
                         }
                     },
                     {
