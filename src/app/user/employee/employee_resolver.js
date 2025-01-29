@@ -1852,18 +1852,17 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find();
-
-
-            const conditions = {
+            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
+                const conditions = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
                 currentStatus: savedUserVessel?.vesselStatus ?? null,
-                email: savedUser.email
+                email: savedUser.email,
+                _id: savedUser._id
             };
 
-            const filteredPlans = await filterLearningPlans(learningPlans, conditions);
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             const matchedLearningPlans = filteredPlans.map(plan => {
                 return {
@@ -1877,32 +1876,28 @@ module.exports.mutations = {
                     currentStatus: savedUserVessel.vesselStatus
                 };
             });
-
-
-
-
-
-            if (filteredPlans?.length > 0) {
-                await LearningPlan.updateMany(
-                    { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                    [
-                        {
-                            $set: {
-                                assignedLearnerIDs: {
-                                    $ifNull: ["$assignedLearnerIDs", []]
-                                }
-                            }
-                        },
-                        {
-                            $set: {
-                                assignedLearnerIDs: {
-                                    $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-                                }
-                            }
-                        }
-                    ]
-                );
-            }
+            // if (filteredPlans?.length > 0) {
+            //     console.log('inside filtered Learning Plan',filteredPlans);
+            //     await LearningPlan.updateMany(
+            //         { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
+            //         [
+            //             {
+            //                 $set: {
+            //                     assignedLearnerIDs: {
+            //                         $ifNull: ["$assignedLearnerIDs", []]
+            //                     }
+            //                 }
+            //             },
+            //             {
+            //                 $set: {
+            //                     assignedLearnerIDs: {
+            //                         $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
+            //                     }
+            //                 }
+            //             }
+            //         ]
+            //     );
+            // }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
