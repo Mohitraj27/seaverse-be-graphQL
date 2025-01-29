@@ -423,7 +423,6 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             trainingProgressData = await OverallTrainingProgress.bulkWrite(newProgressEntries);
         }
     } catch (error) {
-        console.log(error);
         throw Error(error.message);
     }
 
@@ -615,19 +614,21 @@ module.exports = {
 
                 autoSyncUsers = await getAutoSyncUsers(input.groups);
 
-                customGroups = input.groups.filter(group => group.groupType === 'custom');
+                customGroups = input.groups.filter(group => group.groupType === 'custom' || group.groupType === 'MEMBER' || group.groupType === 'GROUP');
+                
 
                 if (customGroups && customGroups.length > 0) {
                     customGroupUsers = await getCustomGroupUsers(customGroups);
                 }
 
                 allUsersFetched = [...autoSyncUsers, ...customGroupUsers];
+                
             }
 
             const fetchedUserIds = allUsersFetched.map(user => user._id);
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
-
+            
             if (input.type === "ENROLL") {
 
                 let users = [];
@@ -652,11 +653,16 @@ module.exports = {
                     }
                 }
 
-                // During re-enrollment
-                const verifyRegistrationForReEnrollment = await enrolUserVerificationHelper(users, existingOverallProgresses, false);
-                if (verifyRegistrationForReEnrollment.unRegEmails.length > 0) {
-                    throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED, "Selected user is not registered!");
-                };
+                let verifyRegistrationForReEnrollment;
+                if (existingOverallProgresses && existingOverallProgresses.length > 0) {
+
+                    // During re-enrollment
+                    verifyRegistrationForReEnrollment = await enrolUserVerificationHelper(users, existingOverallProgresses, false);
+                    if (verifyRegistrationForReEnrollment.unRegEmails.length > 0) {
+                        throw CustomError(ErrorName.EMPLOYEE_NOT_REGISTERED, "Selected user is not registered!");
+                    };
+
+                }
 
                 let userObjectIds = [];
                 if (users.length > 0) {
