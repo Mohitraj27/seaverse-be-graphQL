@@ -57,22 +57,21 @@ function sendWelcomeEmailsToLearner(user){
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Welcome to Seaverse! We're excited to have you on board.
-                                        As a new member of our learning community, you now have access to a wide range
-                                        of courses designed to help you enhance your skills and achieve your goals
-                                    </td>
+                                       Welcome back to Seaverse! We're thrilled to have you with us again. 
+                                       As a valued member of our learning community, you continue to have access to a wide range of courses to help you enhance your skills and reach your goals.
+                                        </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        To get started, simply log in to your account and explore the available courses.
-                                    </td>
+                                       Log in to your account to pick up right where you left off or explore new courses.
+                                        </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p>Notable Team</p>
+                                        <p>Synergy Marine Group</p>
                                     </td>
                                 </tr>
                                 <tr>
