@@ -161,20 +161,52 @@ async function enrollUsers(enrollData) {
         }
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
         const trainingModuleCounts = await TrainingModule.find({ training: enrollData.trainings }).countDocuments();
-        const enrollmentDocs = userIds.map(userId => ({
-            isComplete: false,
-            isCertificateGenerated: false,
-            learningPlan: enrollData.learningPlan || null,
-            training: trainingIds[0], 
-            user: userId,
-            trainingRegistration: trainingRegistrationIds[0], 
-            status: "NOT_STARTED",
-            isEnrolled: true,
-            progressPercentage: 0,
-            completedModules: 0,
-            totalTrainingModules: trainingModuleCounts || 0,
-        }));
-        const insertedEnrollments = await OverallTrainingProgress.insertMany(enrollmentDocs);
+        // const enrollmentDocs = userIds.map(userId => ({
+        //     isComplete: false,
+        //     isCertificateGenerated: false,
+        //     learningPlan: enrollData.learningPlan || null,
+        //     training: trainingIds[0], 
+        //     user: userId,
+        //     trainingRegistration: trainingRegistrationIds[0], 
+        //     status: "NOT_STARTED",
+        //     isEnrolled: true,
+        //     progressPercentage: 0,
+        //     completedModules: 0,
+        //     totalTrainingModules: trainingModuleCounts || 0,
+        // }));
+        // const insertedEnrollments = await OverallTrainingProgress.insertMany(enrollmentDocs);
+
+        const insertedEnrollments = [];
+
+        for (const userId of userIds) {
+            for (const trainingId of trainingIds) {
+                const existingEnrollment = await OverallTrainingProgress.findOne({ user: userId, training: trainingId });
+
+                if (existingEnrollment) {
+                    await OverallTrainingProgress.findOneAndUpdate(
+                        { user: userId, training: trainingId },
+                        { $addToSet: { learningPlan: enrollData.learningPlan } },
+                        { new: true }
+                    );
+                } else {
+                    const newEnrollment = await OverallTrainingProgress.create({
+                        isComplete: false,
+                        isCertificateGenerated: false,
+                        learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
+                        training: trainingId,
+                        user: userId,
+                        trainingRegistration: trainingRegistrationIds[0],
+                        status: "NOT_STARTED",
+                        isEnrolled: true,
+                        progressPercentage: 0,
+                        completedModules: 0,
+                        totalTrainingModules: trainingModuleCounts || 0,
+                    });
+                    insertedEnrollments.push(newEnrollment);
+                }
+            }
+        }
+
         return insertedEnrollments;
 
     } catch (error) {
