@@ -1019,7 +1019,7 @@ module.exports = {
                                 const trainingtitle = await Training.find({ _id: trainingId }).select('title -_id');
                                 await NotificationHelper.createNotificationhelper({
                                     subscriber: subscriberId,
-                                    titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been enrolled to you`,
+                                    titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been unenrolled to you`,
                                     messageValue: ` You have been successfully unenrolled to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                                     notificationType: NotificationType.COURSE_UNENROLLMENT,
                                     notifyAdmin: false,
