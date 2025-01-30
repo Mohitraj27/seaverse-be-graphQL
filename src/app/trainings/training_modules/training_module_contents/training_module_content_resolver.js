@@ -791,7 +791,7 @@ module.exports.mutations = {
 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `New Training Module Content Created`,
+                titleValue: `New  Content Created`,
                 messageValue: `A new ${contentTypeNotification} has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
                 notifyAdmin: true,
@@ -932,7 +932,7 @@ module.exports.mutations = {
 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: `New Training Module Content Created`,
+                titleValue: `New Content Created`,
                 messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
                 notifyAdmin: true,
