@@ -242,8 +242,8 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings, fromU
 
         for (let user of inputUsers) {
             const existEmail = await User.findOne({ email: user.email });
-            if (!Validator.isEmail(user.email)) {
-                if (!invalidEmails.includes(user.email)) {
+            if (!Validator.isEmail(user.email ?? '')) {
+                if (!invalidEmails.includes(user.email ?? '')) {
                     invalidEmails.push(user.email)
                 }
             } else if (!user.isRegistered) {
@@ -252,8 +252,8 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings, fromU
                     remainingUsers.push(user);
                 }
             } else if (!existEmail) {
-                if (!invalidEmails.includes(user.email)) {
-                    invalidEmails.push(user.email)
+                if (!invalidEmails.includes(user.email?? '')) {
+                    invalidEmails.push(user.email ?? '')
                 }
             } else {
                 remainingUsers.push(user);
@@ -279,12 +279,12 @@ const enrolUserVerificationHelper = (async (inputUsers, existingTrainings, fromU
 
             if (alreadyEnrolledUserIds.length > 0) {
                 const enrolledUsers = await User.find({ _id: { $in: alreadyEnrolledUserIds } });
-                alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email));
+                alreadyEnrolledEmails.push(...enrolledUsers.map(user => user.email ?? ''));
             }
 
             if (notEnrolledUserIds.length > 0) {
                 const nonEnrolledUsers = await User.find({ _id: { $in: notEnrolledUserIds } });
-                notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email));
+                notEnrolledEmails.push(...nonEnrolledUsers.map(user => user.email ?? ''));
             }
         }
 
