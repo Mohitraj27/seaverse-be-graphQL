@@ -1286,6 +1286,7 @@ const deleteEmployees = async ({ input }, context) => {
                 employee: deletedEmployee,
                 action: "DELETED",
                 createdBy: userInfo,
+                icons: notificationiconEnum.SUCCESS,
             });
 
             LogHelper.logActivity({
@@ -1435,8 +1436,8 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
                 { $set: { subRoles: [] } }
             );
-            operationType = "Removed subroles for LEARNER";
-            notificationMessage = "Your subroles have been removed.";
+            operationType = "Removed Roles for LEARNER";
+            notificationMessage = "Your Roles have been removed.";
         }
     } else if (input.change === "Delete") {
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
@@ -2321,10 +2322,10 @@ module.exports.mutations = {
                     })
                 })
             );
-            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the subrole "${validSubRole.name}" successfully.`;
+            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the Role "${validSubRole.name}" successfully.`;
             const adminNotification = {
                 subscriber: subscriberId,
-                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                title: [{ lang: "en", value: "Role Assigned Successfully" }],
                 message: [
                     {
                         lang: "en",
@@ -2346,11 +2347,11 @@ module.exports.mutations = {
 
             const userNotifications = usersToUpdate.map(user => ({
                 subscriber: subscriberId,
-                title: [{ lang: "en", value: "Subrole Assigned Successfully" }],
+                title: [{ lang: "en", value: "Role Assigned Successfully" }],
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned the subrole "${validSubRole.name}".`,
+                        value: `You have been assigned to the Role "${validSubRole.name}".`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2374,20 +2375,20 @@ module.exports.mutations = {
             for (const userId of userIdsToSend) {
                 await sendNotifications({
                     userIds: userId,
-                    title: "Subrole Assigned Successfully",
-                    body: `You have been assigned the subrole "${validSubRole.name}".`,
-                    content: `You have been assigned the subrole "${validSubRole.name}".`,
+                    title: "Role Assigned Successfully",
+                    body: `You have been assigned the Role "${validSubRole.name}".`,
+                    content: `You have been assigned the Role "${validSubRole.name}".`,
                     webLink: "",
                 });
             }
             return {
                 success: true,
-                message: "Subrole successfully assigned to all learners",
+                message: "Role successfully assigned to all learners",
             };
         } catch (error) {
             return {
                 success: false,
-                message: `Error assigning subrole: ${error.message}`,
+                message: `Error assigning Role: ${error.message}`,
             };
         }
     },
