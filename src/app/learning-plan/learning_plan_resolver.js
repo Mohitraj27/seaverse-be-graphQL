@@ -497,7 +497,7 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
-                        assignedLearnerIDs: 1,
+                        assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
                         conditionalCustomFields: 1,
                         emailNotification: 1,
                         pushNotification: 1,
