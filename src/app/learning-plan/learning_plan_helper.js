@@ -290,7 +290,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
         if (input.selectCourses && input.selectCourses.length > 0) {
             const isValidCourses = await validatePickingCourses(input.selectCourses);
             if (!isValidCourses) {
-                errorList.push(errorMessages.INVALID_COURSE_SELECTION);
+                errorList.push(errorMessages.IS_RETIRED_COURSES_SELECTION);
             }
         }
         if (errorList.length > 0) {
