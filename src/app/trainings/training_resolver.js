@@ -662,6 +662,7 @@ module.exports.mutations = {
             fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
             fetchOverallTraining.adminMarkedAsCompleted = false;
             fetchOverallTraining.totalTrainingModules = trainingModuleCount || fetchOverallTraining.totalTrainingModules;
+            fetchOverallTraining.isCertificatePresent = fetchOverallTraining.training.isCertificate ?? false;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }
