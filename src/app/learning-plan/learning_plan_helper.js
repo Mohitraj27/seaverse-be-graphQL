@@ -332,6 +332,9 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 errorList.push("Condition Type is required for AUTOMATIC audience selection.");
             }
         }
+        if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs) {
+            existingLearningPlan.groupIDs = input.groupIDs;
+        }
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
