@@ -1707,7 +1707,7 @@ module.exports.mutations = {
                         completedModules: trainingModuleIds.length,
                         isCertificateGenerated: true,
                         adminMarkedAsCompleted: true,
-                        startData: { $ifNull: ["$startData", new Date()] },
+                        startDate: { $ifNull: ["$startDate", new Date()] },
                         endDate: new Date(),
                     }
                 }
@@ -1839,6 +1839,10 @@ module.exports.mutations = {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
+            const trainingInfo = await Training.find({ _id: input?.training }).select('_id title isCertificate').lean();
+            const trainingData = trainingInfo[0];
+
+            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             if (input.userIds && input.userIds.length > 0) {
 
                 const result = await OverallTrainingProgress.updateMany(
@@ -1859,7 +1863,8 @@ module.exports.mutations = {
                             lastConsumedContent: {},
                             totalDuration: 0,
                             timeSpend: 0,
-                            attemptCount: 1
+                            attemptCount: 1,
+                            isCertificatePresent : trainingData.isCertificate ?? false
                         }
                     },
                 );
@@ -1896,6 +1901,7 @@ module.exports.mutations = {
                             totalDuration: 0,
                             timeSpend: 0,
                             attemptCount: 1,
+                            isCertificatePresent : trainingData.isCertificate ?? false
                         }
                     }
                 );
@@ -1913,8 +1919,8 @@ module.exports.mutations = {
                 }
 
             }
-            const trainingData = await Training.findById(input.training);
-            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+
+            
             const trainingTitle = trainingData.title[0]?.value;
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
@@ -1980,6 +1986,7 @@ module.exports.mutations = {
                 message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
+            console.log(error);
             throw Error(error.message);
         }
     }
