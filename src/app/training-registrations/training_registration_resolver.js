@@ -1698,20 +1698,31 @@ module.exports.mutations = {
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
-            await OverallTrainingProgress.updateMany(
-                { training: input.training, user: { $in: input.userIds } },
-                {
-                    $set: {
-                        status: "COMPLETED",
-                        isComplete: true,
-                        completedModules: trainingModuleIds.length,
-                        isCertificateGenerated: true,
-                        adminMarkedAsCompleted: true,
-                        startDate: { $ifNull: ["$startDate", new Date()] },
-                        endDate: new Date(),
+            const recordsToUpdate = await OverallTrainingProgress.find({
+                training: input.training,
+                user: { $in: input.userIds }
+            });
+
+            const updateOps = recordsToUpdate.map((record) => {
+                return {
+                    updateOne: {
+                        filter: { _id: record._id },
+                        update: {
+                            $set: {
+                                status: "COMPLETED",
+                                isComplete: true,
+                                completedModules: trainingModuleIds.length,
+                                isCertificateGenerated: true,
+                                adminMarkedAsCompleted: true,
+                                startDate: record.startDate || new Date(),
+                                endDate: new Date(),
+                            }
+                        }
                     }
-                }
-            );
+                };
+            });
+
+            await OverallTrainingProgress.bulkWrite(updateOps);
 
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
