@@ -170,7 +170,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
 };
 // Helper function to create enrollment object
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent) => ({
     isComplete: false,
     isCertificateGenerated: false,
     learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
@@ -182,6 +182,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     progressPercentage: 0,
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
+    isCertificatePresent : isCertificatePresent ?? false,
 });
 
 async function enrollUsers(enrollDataArray) {
@@ -225,6 +226,15 @@ async function enrollUsers(enrollDataArray) {
         const bulkOps = [];
         const insertedEnrollments = [];
 
+        const trainings =  [...new Set(enrollDataArray.flatMap(el => el.trainings))];
+
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
         for (const enrollData of enrollDataArray) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
             const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
@@ -249,7 +259,8 @@ async function enrollUsers(enrollDataArray) {
                             trainingId,
                             enrollData,
                             trainingRegistrationIds,
-                            trainingModuleCounts
+                            trainingModuleCounts,
+                            trainingDataById[trainingId.toString()].isCertificate ?? false
                         );
                         insertedEnrollments.push(newEnrollment);
                     }
