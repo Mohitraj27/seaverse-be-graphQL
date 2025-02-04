@@ -376,7 +376,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             id => !newAssignedLearnerIDs.includes(id.toString())
         );
 
-        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
+        if (existingLearningPlan.assignedLearnerIDs && existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
                 users: existingLearningPlan?.assignedLearnerIDs,
