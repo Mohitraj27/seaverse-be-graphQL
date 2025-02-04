@@ -21,6 +21,10 @@ const trainingCertificateSchema = new Schema(
             ref: "Training",
             required: true,
         },
+        migrationTraining: {
+            type: ObjectId,
+            ref: "MigrationCourse",
+        },
         organization: {
             type: ObjectId,
             ref: "Organization",

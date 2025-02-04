@@ -51,7 +51,6 @@ const { OverallTrainingProgress } = require("../../training-registrations/overal
 const { sendDeleteEmailToLearner } = require("../../email-template/sendDeleteEmailToLearner")
 const  targetAudience  = require('../../learning-plan/enumFields/targetAudienceEnum.json');
 const  audienceSelection  = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
-const { createTrainingRegistration } = require('../../training-registrations/training_registration_helper');
 const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
 const sendCredentialMail = async ({ userData }) => {
