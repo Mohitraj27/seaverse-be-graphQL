@@ -360,6 +360,13 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
 
         }
 
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').session(session).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
         const existingProgressSet = new Set(
             existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
         );
@@ -405,6 +412,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             trainingRegistration: registrationId,
                             subscriberId: subscriberId.toString(),
                             status: 'NOT_STARTED',
+                            isCertificatePresent: trainingDataById[training._id.toString()].isCertificate ?? false,
                             isEnrolled: true,
                             progressPercentage: 0.0,
                             completedModules: 0,
