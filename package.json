@@ -46,7 +46,7 @@
 		"mime-types": "2.1.35",
 		"moment": "2.29.1",
 		"moment-timezone": "^0.5.40",
-		"mongoose": "^5.12.13",
+		"mongoose": "^5.13.23",
 		"mongoose-aggregate-paginate-v2": "1.0.6",
 		"nanoid": "3.1.23",
 		"node-cron": "3.0.2",

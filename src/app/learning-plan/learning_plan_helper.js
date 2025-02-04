@@ -332,6 +332,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 errorList.push("Condition Type is required for AUTOMATIC audience selection.");
             }
         }
+        if (existingLearningPlan.targetAudience === targetAudienceEnum.GROUP_BASED && input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
+            existingLearningPlan.groupIDs = []; // Clear groupIDs
+        }
+        if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs) {
+            existingLearningPlan.groupIDs = input.groupIDs;
+        }
+       
         if (errorList.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -376,7 +383,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             id => !newAssignedLearnerIDs.includes(id.toString())
         );
 
-        if (existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
+        if (existingLearningPlan.assignedLearnerIDs && existingLearningPlan.assignedLearnerIDs.length > 0 && shouldUpdateUsers && existingLearningPlan.selectCourses && existingLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: existingLearningPlan.selectCourses,
                 users: existingLearningPlan?.assignedLearnerIDs,

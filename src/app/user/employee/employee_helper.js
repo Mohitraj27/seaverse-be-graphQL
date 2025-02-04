@@ -53,6 +53,7 @@ const  targetAudience  = require('../../learning-plan/enumFields/targetAudienceE
 const  audienceSelection  = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
 const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
+const  mongoose  = require('mongoose');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -92,25 +93,37 @@ const sendCredentialMail = async ({ userData }) => {
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
     const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
     const matches = conditionalCustomFields.map((field) => {
-        const { type_of_Field, valueOfField, isOrIsNot , groupIDs} = field;
+        const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
 
         switch (type_of_Field) {
             case "DESIGNATION":
+                if(designationID === null || designationID === undefined){
+                    return true;
+                }
                 return isOrIsNot === "IS"
                     ? valueOfField.includes(designationID)
                     : !valueOfField.includes(designationID);
 
             case "VESSEL":
+                if (vesselID === null || vesselID === undefined) {
+                    return true;
+                }
                 return isOrIsNot === "IS"
                     ? valueOfField.includes(vesselID)
                     : !valueOfField.includes(vesselID);
 
             case "VESSEL_TYPE":
+                if (vesselTypeID === null || vesselTypeID === undefined) {
+                    return true;
+                }
                 return isOrIsNot === "IS"
                     ? valueOfField.includes(vesselTypeID)
                     : !valueOfField.includes(vesselTypeID);
 
             case "CURRENT_STATUS":
+                if (currentStatus === null || currentStatus === undefined) {
+                    return true;
+                }
                 return isOrIsNot === "IS"
                     ? valueOfField.includes(currentStatus)
                     : !valueOfField.includes(currentStatus);
@@ -124,13 +137,13 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                 return groupIDs?.some((group) => {
                     switch (group.groupType) {
                         case "designation":
-                            return group.groupIDs.includes(designationID);
+                            return String(group.groupIDs?.[0]) === String(designationID);
                         case "vessel":
-                            return group.groupIDs.includes(vesselID);
+                            return String(group.groupIDs?.[0]) === String(vesselID);
                         case "vesselType":
-                            return group.groupIDs.includes(vesselTypeID);
+                            return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
-                            return group.groupIDs.includes(currentStatus);
+                            return String(group.groupIDs?.[0]) === String(currentStatus);
                         default:
                             return false;
                     }
@@ -141,211 +154,267 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
     });
 
     if (conditionType === "MATCH_ANY_CONDITION") {
-        return matches.some((match) => match === true);
+        const res = matches.some((match) => match === true);
+        return res;
     }
 
     if (conditionType === "MATCH_ALL_CONDITION") {
-        return matches.every((match) => match === true);
+        const resp = matches.every((match) => match === true);
+        return resp;
     }
 
-    return false; 
+    return false;
 };
-async function enrollUsers(enrollData) {
+
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent) => ({
+    isComplete: false,
+    isCertificateGenerated: false,
+    learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
+    training: trainingId,
+    user: userId,
+    trainingRegistration: trainingRegistrationIds[0],
+    status: "NOT_STARTED",
+    isEnrolled: true,
+    progressPercentage: 0,
+    completedModules: 0,
+    totalTrainingModules: trainingModuleCounts || 0,
+    isCertificatePresent : isCertificatePresent ?? false,
+});
+
+async function enrollUsers(enrollDataArray) {
     try {
-        const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
-        const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
-        const trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingIds } });
+        const allUserIds = [];
+        const allTrainingIds = [];
+
+        for (const enrollData of enrollDataArray) {
+            const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
+            const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
+
+            allUserIds.push(...userIds);
+            allTrainingIds.push(...trainingIds);
+        }
+
+        const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
+        const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
+
+        const trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+
         if (!trainingRegistrations || trainingRegistrations.length === 0) {
             throw new Error("No training registration found for the provided training IDs.");
         }
-        const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
-        const trainingModuleCounts = await TrainingModule.find({ training: enrollData.trainings }).countDocuments();
-        // const enrollmentDocs = userIds.map(userId => ({
-        //     isComplete: false,
-        //     isCertificateGenerated: false,
-        //     learningPlan: enrollData.learningPlan || null,
-        //     training: trainingIds[0], 
-        //     user: userId,
-        //     trainingRegistration: trainingRegistrationIds[0], 
-        //     status: "NOT_STARTED",
-        //     isEnrolled: true,
-        //     progressPercentage: 0,
-        //     completedModules: 0,
-        //     totalTrainingModules: trainingModuleCounts || 0,
-        // }));
-        // const insertedEnrollments = await OverallTrainingProgress.insertMany(enrollmentDocs);
 
+        const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
+        const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+
+        const existingEnrollments = await OverallTrainingProgress.find({
+            user: { $in: userObjectIds },
+            training: { $in: trainingObjectIds }
+        });
+
+        const existingEnrollmentMap = new Map(
+            existingEnrollments.map(enrollment =>
+                [`${enrollment.user}-${enrollment.training}`, enrollment]
+            )
+        );
+
+        const bulkOps = [];
         const insertedEnrollments = [];
 
-        for (const userId of userIds) {
-            for (const trainingId of trainingIds) {
-                const existingEnrollment = await OverallTrainingProgress.findOne({ user: userId, training: trainingId });
+        const trainings =  [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-                if (existingEnrollment) {
-                    await OverallTrainingProgress.findOneAndUpdate(
-                        { user: userId, training: trainingId },
-                        { $addToSet: { learningPlan: enrollData.learningPlan } },
-                        { new: true }
-                    );
-                } else {
-                    const newEnrollment = await OverallTrainingProgress.create({
-                        isComplete: false,
-                        isCertificateGenerated: false,
-                        learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
-                        training: trainingId,
-                        user: userId,
-                        trainingRegistration: trainingRegistrationIds[0],
-                        status: "NOT_STARTED",
-                        isEnrolled: true,
-                        progressPercentage: 0,
-                        completedModules: 0,
-                        totalTrainingModules: trainingModuleCounts || 0,
-                    });
-                    insertedEnrollments.push(newEnrollment);
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        for (const enrollData of enrollDataArray) {
+            const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
+            const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
+
+            for (const userId of userIds) {
+                for (const trainingId of trainingIds) {
+                    const key = `${userId}-${trainingId}`;
+                    const existingEnrollment = existingEnrollmentMap.get(key);
+
+                    if (existingEnrollment) {
+                        bulkOps.push({
+                            updateOne: {
+                                filter: { _id: existingEnrollment._id },
+                                update: {
+                                    $addToSet: { learningPlan: enrollData.learningPlan }
+                                }
+                            }
+                        });
+                    } else {
+                        const newEnrollment = createEnrollmentObject(
+                            userId,
+                            trainingId,
+                            enrollData,
+                            trainingRegistrationIds,
+                            trainingModuleCounts,
+                            trainingDataById[trainingId.toString()].isCertificate ?? false
+                        );
+                        insertedEnrollments.push(newEnrollment);
+                    }
                 }
             }
         }
 
-        return insertedEnrollments;
+        let allEnrollments = [];
+        if (insertedEnrollments.length > 0) {
+            const insertedDocs = await OverallTrainingProgress.insertMany(
+                insertedEnrollments,
+                { ordered: false }
+            );
+            allEnrollments.push(...insertedDocs);
+        }
 
+        if (bulkOps.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkOps);
+        }
+
+        const duplicates = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    user: { $in: userObjectIds },
+                    training: { $in: trainingObjectIds }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        user: "$user",
+                        training: "$training"
+                    },
+                    entries: {
+                        $push: {
+                            _id: "$_id",
+                            learningPlan: "$learningPlan",
+                            createdAt: "$createdAt"
+                        }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $match: {
+                    count: { $gt: 1 }
+                }
+            }
+        ]);
+
+        if (duplicates.length > 0) {
+            const mergeBulkOps = [];
+
+            for (const dup of duplicates) {
+
+                const sortedEntries = dup.entries.sort((a, b) => a.createdAt - b.createdAt);
+                const oldestEntry = sortedEntries[0];
+
+                const combinedLearningPlans = [...new Set(
+                    sortedEntries.flatMap(entry => entry.learningPlan)
+                        .map(id => id.toString())
+                )].map(id => new mongoose.Types.ObjectId(id));
+
+                mergeBulkOps.push({
+                    updateOne: {
+                        filter: { _id: oldestEntry._id },
+                        update: {
+                            $set: { learningPlan: combinedLearningPlans }
+                        }
+                    }
+                });
+
+                const idsToDelete = sortedEntries.slice(1).map(entry => entry._id);
+                if (idsToDelete.length > 0) {
+                    mergeBulkOps.push({
+                        deleteMany: {
+                            filter: { _id: { $in: idsToDelete } }
+                        }
+                    });
+                }
+            }
+
+            if (mergeBulkOps.length > 0) {
+                await OverallTrainingProgress.bulkWrite(mergeBulkOps);
+                console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
+            }
+        }
+
+        const finalEnrollments = await OverallTrainingProgress.find({
+            user: { $in: userObjectIds },
+            training: { $in: trainingObjectIds }
+        });
+
+        return finalEnrollments;
     } catch (error) {
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
-const filterLearningPlans = async (learningPlans, conditions,context,session) => {
-    const { userInfo, subscriberId } = AuthUser(context);
+
+
+const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
+
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
+    }
+    if (!Array.isArray(userConditions)) {
+        throw new Error("userConditions should be an array");
     }
 
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
-            if ( plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES ) {
-                const userIdtoBeInserted = conditions._id;
+            const usersToEnroll = [];
+
+            if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+                const userIds = userConditions.map(user => user._id);
+
                 await LearningPlan.updateMany(
                     { _id: plan._id },
                     [
-                        {
-                            $set: {
-                                assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
-                            },
-                        },
-                        {
-                            $set: {
-                                assignedLearnerIDs: {
-                                    $concatArrays: ["$assignedLearnerIDs", [userIdtoBeInserted]],
-                                },
-                            },
-                        },
+                        { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
+                        { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
                     ]
                 );
-                const enrollData = {
-                    trainings: plan.selectCourses,
-                    users: userIdtoBeInserted,
-                    type: "ENROLL",
-                    learningPlan: plan._id
-                }
-            await enrollUsers(enrollData);
-            return true;
-            } else if ( plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC ) {
-                 
-                const isValid = evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields,conditions);
-                if (isValid) {
-                    const userIdtoBeInserted = conditions._id;
-                     await LearningPlan.updateMany(
+
+                usersToEnroll.push(...userIds);
+            } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                const validUsers = userConditions.filter(user =>
+                    evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                );
+
+                const userIds = validUsers.map(user => user._id);
+
+                if (userIds.length > 0) {
+                    await LearningPlan.updateMany(
                         { _id: plan._id },
                         [
-                            {
-                                $set: {
-                                    assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
-                                },
-                            },
-                            {
-                                $set: {
-                                    assignedLearnerIDs: {
-                                        $concatArrays: ["$assignedLearnerIDs", [userIdtoBeInserted]],
-                                    },
-                                },
-                            },
+                            { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
+                            { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
                         ]
                     );
-                    const enrollData = {
-                        trainings: plan.selectCourses,
-                        users: userIdtoBeInserted,
-                        type: "ENROLL",
-                        learningPlan: plan._id
-                    }
-                await enrollUsers(enrollData);
-                return true; 
+                    usersToEnroll.push(...userIds);
+                }
             }
-        }  
-            // if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES){
-            //     console.log('Isnide Group Based this is the conditionalCustomFields',plan.conditionalCustomFields);
-            //     console.log('Isnide Group Based this is the conditionType',plan.conditionType);
-            //     // console.log('please check the conditons',conditions);
-            //     console.log('isValid',isValid);
-            //     if (isValid) {
-            //         console.log('this is plan id',plan._id);
-            //         console.log('This is conditions',conditions._id);
-            //         const userIdtoBeInserted = conditions._id;
-            //         await LearningPlan.updateMany(
-            //             { _id: plan._id },
-            //             [
-            //                 {
-            //                     $set: {
-            //                         assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
-            //                     },
-            //                 },
-            //                 {
-            //                     $set: {
-            //                         assignedLearnerIDs: {
-            //                             $concatArrays: ["$assignedLearnerIDs", [userIdtoBeInserted]],
-            //                         },
-            //                     },
-            //                 },
-            //             ]
-            //         );  
-            //         console.log("Isnide Group Based and AUTOMATIC Update executed successfully");
-            //         return true; 
-            //     }
-            // }
-            // else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC){
-            //     console.log('Isnide Group Based this is the conditionalCustomFields',plan.conditionalCustomFields);
-            //     console.log('Isnide Group Based this is the conditionType',plan.conditionType);
-            //     // console.log('please check the conditons',conditions);
-            //      const isValid = evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, conditions);
-            //     console.log('isValid',isValid);
-            //     if (isValid) {
-            //         console.log('this is plan id',plan._id);
-            //         console.log('This is conditions',conditions._id);
-            //         const userIdtoBeInserted = conditions._id;
-            //         await LearningPlan.updateMany(
-            //             { _id: plan._id },
-            //             [
-            //                 {
-            //                     $set: {
-            //                         assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
-            //                     },
-            //                 },
-            //                 {
-            //                     $set: {
-            //                         assignedLearnerIDs: {
-            //                             $concatArrays: ["$assignedLearnerIDs", [userIdtoBeInserted]],
-            //                         },
-            //                     },   
-            //                 },
-            //             ]
-            //         );  
-            //         console.log("Isnide Group Based and AUTOMATIC Update executed successfully");
-            //         return true; 
-            //     }
-            // }
-            return false; 
+
+            if (usersToEnroll.length > 0) {
+                const enrollData = {
+                    trainings: plan.selectCourses,
+                    users: usersToEnroll,
+                    type: "ENROLL",
+                    learningPlan: plan._id,
+                    session
+                };
+                await enrollUsers([enrollData]);
+                return true;
+            }
+            return false;
         })
     );
     return filteredPlans.filter(Boolean);
-};
-
+}
 const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1352,28 +1421,6 @@ module.exports = {
             currentStatus: input?.user?.vesselStatus || existingEmployee?.user?.vesselStatus,
             email: existingEmployee?.user?.email
         };
-        // const learningPlans = await LearningPlan.find();
-        // const filteredPlans = await filterLearningPlans(learningPlans, conditions);
-
-        // if (filteredPlans?.length > 0) {
-        //     const planIds = filteredPlans.map(lp => lp._id);
-
-        //     await LearningPlan.updateMany(
-        //         {
-        //             _id: { $in: planIds },
-        //             $or: [
-        //                 { assignedLearnerIDs: { $exists: false } },
-        //                 { assignedLearnerIDs: null }
-        //             ]
-        //         },
-        //         { $set: { assignedLearnerIDs: [] } }
-        //     );
-
-        //     await LearningPlan.updateMany(
-        //         { _id: { $in: planIds } },
-        //         { $addToSet: { assignedLearnerIDs: existingEmployee.user._id } }
-        //     );
-        // }
 
         let employeeUpdateData = {};
         if (input.empDesignation) {
@@ -2322,7 +2369,6 @@ module.exports = {
             employees.forEach(employee => {
                 empDesignationMap[employee.user] = employee.empDesignation;
             });
-
             const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
             const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
             const vesselTypeMap = {};
@@ -2331,111 +2377,39 @@ module.exports = {
             });
 
 
-            const learningPlans = await LearningPlan.find();
-            async function processAutoEnrollmentLearningPlans() {
-                try {
+            const learningPlans = await LearningPlan.find({ isDeleted: false,status: 'ACTIVE' });
+            let conditionsList = []
+            try {
+                allUpdatedUsers.forEach(user => {
+                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
-                    let filteredPlans = [];
-                    allUpdatedUsers.forEach(user => {
-                        const empDesignation = empDesignationMap[user._id];
+                    const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
+                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
 
-                        const typeOfVesselIds = vesselTypeMap[user.currentVessel];
+                    const conditions = {
+                        designationID: empDesignation,
+                        vesselID: user.currentVessel ?? null,
+                        vesselTypeID: typeOfVesselIds ?? null,
+                        currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
+                        email: user.email,
+                        _id: user._id
 
-                        const conditions = {
-                            designationID: empDesignation,
-                            vesselID: user.currentVessel,
-                            vesselTypeID: typeOfVesselIds,
-                            currentStatus: user.vesselStatus,
-                            email: user.email,
-                        };
-                        function filterLearningPlans(learningPlans, conditions) {
-                            const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
+                    };
 
-                            return learningPlans?.filter(plan => {
-                                const { conditionType, conditionalCustomFields } = plan;
+                    conditionsList.push(conditions);
 
-                                let matches = conditionalCustomFields.map(field => {
-                                    const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
+                });
 
-                                    switch (type_of_Field) {
-                                        case "DESIGNATION":
-                                            return isOrIsNot === "IS"
-                                                ? valueOfField.includes(designationID)
-                                                : !valueOfField.includes(designationID);
+                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
 
-                                        case "VESSEL":
-                                            return isOrIsNot === "IS"
-                                                ? valueOfField.includes(vesselID)
-                                                : !valueOfField.includes(vesselID);
 
-                                        case "VESSEL_TYPE":
-                                            return isOrIsNot === "IS"
-                                                ? valueOfField.includes(vesselTypeID)
-                                                : !valueOfField.includes(vesselTypeID);
-
-                                        case "CURRENT_STATUS":
-                                            return isOrIsNot === "IS"
-                                                ? valueOfField.includes(currentStatus)
-                                                : !valueOfField.includes(currentStatus);
-                                        case "EMAIL":
-                                            return isOrIsNot === "IS"
-                                                ? valueOfField.includes(email)
-                                                : !valueOfField.includes(email);
-                                        case "GROUP":
-                                            return groupIDs?.some(group => {
-                                                switch (group.groupType) {
-                                                    case "designation":
-                                                        return group.groupIDs.includes(designationID);
-                                                    case "vessel":
-                                                        return group.groupIDs.includes(vesselID);
-                                                    case "vesselType":
-                                                        return group.groupIDs.includes(vesselTypeID);
-                                                    case "vesselStatus":
-                                                        return group.groupIDs.includes(currentStatus);
-                                                    default:
-                                                        return false;
-                                                }
-                                            });
-                                        default:
-                                            return false;
-                                    }
-                                });
-
-                                if (conditionType === "MATCH_ANY_CONDITION") {
-                                    return matches.some(match => match === true);
-                                }
-
-                                if (conditionType === "MATCH_ALL_CONDITION") {
-                                    return matches.every(match => match === true);
-                                }
-
-                                return false;
-                            });
-                        }
-
-                        const plans = filterLearningPlans(learningPlans, conditions);
-                        if (plans?.length > 0) {
-                            filteredPlans.push(...plans);
-                        }
-                    });
-
-                    if (filteredPlans.length > 0) {
-                        const allUserIds = allUpdatedUsers.map(user => user._id);
-                        await LearningPlan.updateMany(
-                            { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                            {
-                                $addToSet: {
-                                    assignedLearnerIDs: { $each: allUserIds }
-                                }
-                            }
-                        );
-
-                    }
-                } catch (error) {
-                    console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
+                if (filteredPlans.length > 0) {
+                    console.log("filteredPlans: ",filteredPlans);
                 }
+            } catch (error) {
+                console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
             }
-            processAutoEnrollmentLearningPlans();
+
 
 
             if (passwordEmailList.length > 0) {
