@@ -156,19 +156,16 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
 
     if (conditionType === "MATCH_ANY_CONDITION") {
         const res = matches.some((match) => match === true);
-        console.log(res, "res");
         return res;
     }
 
     if (conditionType === "MATCH_ALL_CONDITION") {
         const resp = matches.every((match) => match === true);
-        console.log(resp, "resp");
         return resp;
     }
 
     return false;
 };
-// Helper function to create enrollment object
 
 const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent) => ({
     isComplete: false,
@@ -190,7 +187,6 @@ async function enrollUsers(enrollDataArray) {
         const allUserIds = [];
         const allTrainingIds = [];
 
-        // Collect all user IDs and training IDs from the enrollDataArray
         for (const enrollData of enrollDataArray) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
             const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
@@ -199,7 +195,6 @@ async function enrollUsers(enrollDataArray) {
             allTrainingIds.push(...trainingIds);
         }
 
-        // Convert to ObjectIds
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
 
@@ -281,7 +276,6 @@ async function enrollUsers(enrollDataArray) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
         }
 
-        // Now check for duplicates after all enrollments are complete
         const duplicates = await OverallTrainingProgress.aggregate([
             {
                 $match: {
@@ -312,22 +306,19 @@ async function enrollUsers(enrollDataArray) {
             }
         ]);
 
-        // Process duplicates if found
         if (duplicates.length > 0) {
             const mergeBulkOps = [];
 
             for (const dup of duplicates) {
-                // Sort entries by createdAt to keep the oldest one
+
                 const sortedEntries = dup.entries.sort((a, b) => a.createdAt - b.createdAt);
                 const oldestEntry = sortedEntries[0];
 
-                // Combine all learning plans into a single unique array
                 const combinedLearningPlans = [...new Set(
                     sortedEntries.flatMap(entry => entry.learningPlan)
                         .map(id => id.toString())
                 )].map(id => new mongoose.Types.ObjectId(id));
 
-                // Update the oldest entry with combined learning plans
                 mergeBulkOps.push({
                     updateOne: {
                         filter: { _id: oldestEntry._id },
@@ -337,7 +328,6 @@ async function enrollUsers(enrollDataArray) {
                     }
                 });
 
-                // Delete newer duplicates
                 const idsToDelete = sortedEntries.slice(1).map(entry => entry._id);
                 if (idsToDelete.length > 0) {
                     mergeBulkOps.push({
@@ -348,14 +338,12 @@ async function enrollUsers(enrollDataArray) {
                 }
             }
 
-            // Execute the merge operations
             if (mergeBulkOps.length > 0) {
                 await OverallTrainingProgress.bulkWrite(mergeBulkOps);
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
 
-        // Get final result after merging
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }
@@ -369,7 +357,7 @@ async function enrollUsers(enrollDataArray) {
 
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
-    // const { userInfo, subscriberId } = AuthUser(context);
+
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -397,11 +385,9 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
-                console.log(validUsers, "validUsers"); // Now this will log user objects, not true/false
 
                 const userIds = validUsers.map(user => user._id);
-                console.log(userIds, "userIds");
-                console.log(userIds, "userIds");
+
                 if (userIds.length > 0) {
                     await LearningPlan.updateMany(
                         { _id: plan._id },
@@ -1436,28 +1422,6 @@ module.exports = {
             currentStatus: input?.user?.vesselStatus || existingEmployee?.user?.vesselStatus,
             email: existingEmployee?.user?.email
         };
-        // const learningPlans = await LearningPlan.find();
-        // const filteredPlans = await filterLearningPlans(learningPlans, conditions);
-
-        // if (filteredPlans?.length > 0) {
-        //     const planIds = filteredPlans.map(lp => lp._id);
-
-        //     await LearningPlan.updateMany(
-        //         {
-        //             _id: { $in: planIds },
-        //             $or: [
-        //                 { assignedLearnerIDs: { $exists: false } },
-        //                 { assignedLearnerIDs: null }
-        //             ]
-        //         },
-        //         { $set: { assignedLearnerIDs: [] } }
-        //     );
-
-        //     await LearningPlan.updateMany(
-        //         { _id: { $in: planIds } },
-        //         { $addToSet: { assignedLearnerIDs: existingEmployee.user._id } }
-        //     );
-        // }
 
         let employeeUpdateData = {};
         if (input.empDesignation) {
@@ -2415,15 +2379,13 @@ module.exports = {
 
 
             const learningPlans = await LearningPlan.find({ isDeleted: false,status: 'ACTIVE' });
-            console.log(allUpdatedUsers, "allUpdatedUsers");
             let conditionsList = []
             try {
                 allUpdatedUsers.forEach(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
                     const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
-                    console.log(empDesignation, "empDesignation");
-                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];//check this
+                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
 
                     const conditions = {
                         designationID: empDesignation,
@@ -2438,14 +2400,12 @@ module.exports = {
                     conditionsList.push(conditions);
 
                 });
-                console.log(conditionsList)
 
                 const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
 
 
                 if (filteredPlans.length > 0) {
-                    console.log(filteredPlans, "filteredPlans");
-
+                    console.log("filteredPlans: ",filteredPlans);
                 }
             } catch (error) {
                 console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
