@@ -32,12 +32,6 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
         const userCourse = await UserCourseMap.findOne({ course: migrationcoursesObjectId }).session(session);
         
         const userIds = userCourse?.user;
-        // const userDetails = userCourse?.map(data => ({
-        //     user: data.user,
-        //     pdfUrl: data.pdfUrl,
-        //     certificateNumber: data.certificateNumber,
-        //     createdAt: data.createdAt
-        // }));
 
         const createOrUpdateCertificate = await TrainingCertificate.updateMany(
             {
@@ -51,7 +45,8 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
                     isFromMigration: true,
                     migrationTraining: migrationCourse._id,
                     pdfUrl: userCourse.certificatePdf,
-                    certificateNumber: userCourse.certificateId
+                    certificateNumber: userCourse.certificateId,
+                    issuedAt: userCourse.issuedAt
                 }
             },
             { upsert: true }

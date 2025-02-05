@@ -18,6 +18,9 @@ const userCourseMap = new Schema(
         certificatePdf: {
             type: String
         },
+        issuedAt: {
+            type: Date
+        }
     },
     { timestamps: true }
 );

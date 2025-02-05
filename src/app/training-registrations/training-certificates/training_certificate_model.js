@@ -72,6 +72,9 @@ const trainingCertificateSchema = new Schema(
             type: String,
             trim: true,
         },
+        issuedAt: {
+            type: Date,
+        },
         authoringTitle:{
             type: String,
             trim: true,
