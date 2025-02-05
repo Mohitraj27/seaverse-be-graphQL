@@ -28,29 +28,33 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
         training.migrationcoursesId = migrationCourse._id;
         training.isFromMigration = migrationCourse.isFromMigration;
         const savedTrainingData = await training.save({ session });
-        
-        const userCourse = await UserCourseMap.findOne({ course: migrationcoursesObjectId }).session(session);
-        
-        const userIds = userCourse?.user;
 
-        const createOrUpdateCertificate = await TrainingCertificate.updateMany(
-            {
-                user: { $in: userIds },
-                migrationTraining: migrationCourse._id,
-                training: savedTrainingData._id,
-                isFromMigration: { $ne: false },
-            },
-            {
-                $set: {
-                    isFromMigration: true,
+        const userCourse = await UserCourseMap.findOne({ course: migrationcoursesObjectId }).session(session);
+
+        if (userCourse) {
+
+            const userIds = userCourse?.user;
+
+            const createOrUpdateCertificate = await TrainingCertificate.updateMany(
+                {
+                    user: { $in: userIds },
                     migrationTraining: migrationCourse._id,
-                    pdfUrl: userCourse.certificatePdf,
-                    certificateNumber: userCourse.certificateId,
-                    issuedAt: userCourse.issuedAt
-                }
-            },
-            { upsert: true }
-        ).session(session);
+                    training: savedTrainingData._id,
+                    isFromMigration: { $ne: false },
+                },
+                {
+                    $set: {
+                        isFromMigration: true,
+                        migrationTraining: migrationCourse._id,
+                        pdfUrl: userCourse.certificatePdf,
+                        certificateNumber: userCourse.certificateId,
+                        issuedAt: userCourse.issuedAt
+                    }
+                },
+                { upsert: true }
+            ).session(session);
+
+        }
 
         // const newTrainingRegistration = new TrainingRegistration({
         //     subscriber: subscriberId,
