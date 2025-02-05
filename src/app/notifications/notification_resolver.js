@@ -242,20 +242,26 @@ module.exports.mutations = {
 
             if (!notification.usersMarkedAsRead.includes(userId)) {
                 notification.usersMarkedAsRead.push(userId);
-            }
 
-            const updatedNotification = await notification.save();
+                const updatedNotification = await notification.save();
 
-            if (updatedNotification) {
-                return {
-                    status: "01",
-                    message: "Notification marked as read successfully"
+                if (updatedNotification) {
+                    return {
+                        status: "01",
+                        message: "Notification marked as read successfully"
+                    };
+                } else {
+                    return {
+                        status: "00",
+                        message: "Failed to mark notification as read"
+                    };
                 }
             } else {
+
                 return {
-                    status: "00",
-                    message: "Failed to mark notification as read"
-                }
+                    status: "01",
+                    message: "Notification was already marked as read"
+                };
             }
 
         } catch (error) {
@@ -276,25 +282,12 @@ module.exports.mutations = {
             const filter = {
                 isDeleted: { $ne: true },
                 usersMarkedAsRead: { $nin: [userId] },
-                $or: [
-                    { notifiers: userId },
-                    { subscriber: subscriberId },
-                    { employeeNotifiers: employeeId },
-                ],
             };
-    
-            const count = await Notification.countDocuments(filter);
-    
-            if (count === 0) {
-                return {
-                    status: "SUCCESS",
-                    message: "No notifications to mark as read.",
-                    totalCount: count,
-                };
-            }
-            await Notification.updateMany(filter, {
+
+            const updatedNotifications = await Notification.updateMany(filter, {
                 $addToSet: { usersMarkedAsRead: userId },
             });
+            const count = updatedNotifications.nModified ?? 0;
             return {
                 status: "SUCCESS",
                 message: `${count} notifications marked as read successfully.`,
