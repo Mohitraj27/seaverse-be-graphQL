@@ -1,14 +1,12 @@
 module.exports = {
     types: `
-    
-  type MigrationCourses {
+  type migrationCourses {
         _id: ID!
-        courseId: String
-        courseName: String
+        title: [LocalisedData]!
         isFromMigration: Boolean
       }  
   type MigrationCoursePage {
-        MigrationCourses: [MigrationCourses]
+        migrationCourses: [migrationCourses]
         totalCount: Int
        }
   input MigrationCoursesFilter{
