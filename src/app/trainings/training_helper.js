@@ -1315,7 +1315,16 @@ module.exports = {
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
-        if (input.allowMultipleAttempts) {
+        if ('allowMultipleAttempts' in input) {
+
+            console.log('input.attemptType');
+            console.log(input.attemptType);
+
+            console.log('input.allowMultipleAttempts');
+            console.log(input.allowMultipleAttempts);
+
+
+            
             trainingUpdateData.allowMultipleAttempts = input.allowMultipleAttempts;
             if (input.attemptFlexibility) trainingUpdateData.attemptFlexibility = input.attemptFlexibility;
             if (input.attemptType) trainingUpdateData.attemptType = input.attemptType;
