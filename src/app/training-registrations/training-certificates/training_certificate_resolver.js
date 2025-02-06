@@ -275,7 +275,7 @@ module.exports.queries = {
                     },
                 },)
             }
-            if(filterInput?.isFromMigration !== undefined || filterInput?.isFromMigration !== null){
+            if(filterInput?.isFromMigration !== undefined){
                 matchStage.push({
                     $match: {
                         isFromMigration: { $eq: filterInput.isFromMigration },
