@@ -88,6 +88,7 @@ module.exports = {
             name : String
             courseId : ID
             courseProgressId : ID
+            isFromMigration : Boolean
         }
         
     `,
