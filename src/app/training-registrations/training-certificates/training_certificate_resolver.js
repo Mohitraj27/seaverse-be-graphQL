@@ -275,6 +275,13 @@ module.exports.queries = {
                     },
                 },)
             }
+            if(filterInput?.isFromMigration !== undefined){
+                matchStage.push({
+                    $match: {
+                        isFromMigration: { $eq: filterInput.isFromMigration },
+                    },
+                });
+            }
 
             const certificatesQuery = [
                 { $match: { user: ObjectId(id) } },
