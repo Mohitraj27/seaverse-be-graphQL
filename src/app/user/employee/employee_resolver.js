@@ -62,23 +62,6 @@ const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-
 const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
-async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {
-        isActive: true,
-    };
-    if (vesselStatus && vesselStatus.length > 0) {
-        userVesselFilter.vesselStatus = { $in: vesselStatus };
-    }
-    if (vesselType && vesselType.length > 0) {
-        userVesselFilter.vesselType = { $in: vesselType };
-    }
-    if (vesselObjectId) {
-        userVesselFilter.vesselObjectId = vesselObjectId;
-    }
-    const userVessels = await UserVessel.find(userVesselFilter).select("user");
-    const userIds = userVessels.map(vessel => vessel.user);
-    return userIds;
-}
 function formatDateWithSuffix(date) {
     const day = date.getDate();
     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
@@ -1885,26 +1868,7 @@ module.exports.mutations = {
             // });
             if (filteredPlans?.length > 0) {
                 console.log('inside filtered Learning Plan',filteredPlans);
-                // await LearningPlan.updateMany(
-                //     { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-                //     [
-                //         {
-                //             $set: {
-                //                 assignedLearnerIDs: {
-                //                     $ifNull: ["$assignedLearnerIDs", []]
-                //                 }
-                //             }
-                //         },
-                //         {
-                //             $set: {
-                //                 assignedLearnerIDs: {
-                //                     $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-                //                 }
-                //             }
-                //         }
-                //     ]
-                // );
-            }
+                }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
@@ -1932,7 +1896,7 @@ module.exports.mutations = {
             message: "User created successfully!",
         };
     },
-    updateEmployee: async ({ id, input }, context) => {
+    updateEmployee: async ({ id, input }, context ,session) => {
 
         const {
             role,
@@ -1983,7 +1947,8 @@ module.exports.mutations = {
                     role: role,
                     userInfo: userInfo,
                 },
-                context
+                context,
+                session
             );
             const updatedFields = Object.keys(input).reduce((changes, key) => {
                 if (currentEmployee[key] !== input[key]) {
