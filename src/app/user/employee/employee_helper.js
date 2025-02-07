@@ -1408,19 +1408,11 @@ module.exports = {
             { currentRole: role }
         );
 
-        console.log(input?.empDesignation, existingEmployee?.empDesignation);
-        console.log(input?.user?.currentVessel, existingEmployee?.user?.currentVessel?._id);
-        console.log(input?.user?.vesselStatus, existingEmployee?.user?.vesselStatus);
-
-        // Remove the user from all the existing learning plans
         if (
-            (input?.empDesignation.toString() !== existingEmployee?.empDesignation.toString()) ||
-            (input?.user?.currentVessel.toString() !== existingEmployee?.user?.currentVessel.toString()) ||
-            (input?.user?.vesselStatus.toString() !== existingEmployee?.user?.vesselStatus.toString())
+            (input?.empDesignation.toString() != existingEmployee?.empDesignation.toString()) ||
+            (input?.user?.currentVessel.toString() != existingEmployee?.user?.currentVessel.toString()) ||
+            (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus)
         ) {
-
-            console.log(`shouldn't reach here!!!`);
-
 
             if (existingEmployee?.user?._id) {
 
