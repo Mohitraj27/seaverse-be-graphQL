@@ -6,6 +6,12 @@ const { CustomError, ErrorName } = require('../../../util/error_helper');
 const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
 const AwsHelper = require("../../../util/aws_helper");
 
+const chunkArray = (array, chunkSize) => {
+    return Array.from({ length: Math.ceil(array.length / chunkSize) }, (_, index) =>
+        array.slice(index * chunkSize, index * chunkSize + chunkSize)
+    );
+};
+
 const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
 
     if (
@@ -14,7 +20,11 @@ const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
         subject?.trim()?.length
     ) {
         try {
-            const emailPromises = receiverEmails.map(async (receiverEmail) => {
+
+            const emailChunks = chunkArray(receiverEmails, 50);
+
+            const emailPromises = emailChunks.map(async (receiverEmail) => {
+                
                 if (receiverEmail.email?.trim()?.length) {
 
                     // const mailOptions = {
@@ -27,7 +37,7 @@ const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
 
                     return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
                     // return transporter.sendMail(mailOptions);
-                    
+
                 } else {
                     return Promise.reject(new Error("Invalid email address"));
                 }
@@ -37,6 +47,8 @@ const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
 
             const success = results.filter(res => res.status === "fulfilled");
             const errors = results.filter(res => res.status === "rejected");
+
+            console.log(success, errors);
 
             return {
                 status: "success",
