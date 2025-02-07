@@ -1282,7 +1282,7 @@ module.exports = {
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
     moveExpiredDeletedUsers,
-    updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context) => {
+    updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
         employeeFilterConditions.user = id;
@@ -1498,7 +1498,17 @@ module.exports = {
             },
             { new: true, lean: true }
         ).populate("user empDesignation managerObjectId");
-
+        const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );  
+        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
+        const conditions = [{
+            designationID: input.empDesignation || existingEmployee.empDesignation,
+            vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id ,
+            vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
+            currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
+            email: input?.user?.email,
+            _id: existingEmployee?._id
+        }];
+        const result = await filterLearningPlans(learningPlans,conditions,context,session);
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
