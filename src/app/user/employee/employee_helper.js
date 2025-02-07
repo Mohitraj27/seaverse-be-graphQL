@@ -1421,15 +1421,15 @@ module.exports = {
                     userObjectIds: { $nin: [existingEmployee?.user?._id] }
                 }).select('_id');
 
-                const removeUserFromLearningPlan = await LearningPlan.updateMany(
-                    {
-                        assignedLearnerIDs: existingEmployee?.user?._id,
-                        userObjectIds: { $nin: [existingEmployee?.user?._id] }
-                    },
-                    {
-                        $pull: { assignedLearnerIDs: existingEmployee?.user?._id }
-                    }
-                );
+                // const removeUserFromLearningPlan = await LearningPlan.updateMany(
+                //     {
+                //         assignedLearnerIDs: existingEmployee?.user?._id,
+                //         userObjectIds: { $nin: [existingEmployee?.user?._id] }
+                //     },
+                //     {
+                //         $pull: { assignedLearnerIDs: existingEmployee?.user?._id }
+                //     }
+                // );
 
                 const removeUserFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
                     { user: existingEmployee?.user?._id },
@@ -1447,13 +1447,6 @@ module.exports = {
         //     { _id: { $in: existingLearningPlans.map(lp => lp._id) } },
         //     { $pull: { assignedLearnerIDs: existingEmployee.user._id } }
         // );
-        const conditions = {
-            designationID: input.empDesignation || existingEmployee.empDesignation,
-            vesselID: input?.user?.currentVessel || existingEmployee?.user?.currentVessel?._id,
-            vesselTypeID: newVessel?.typeOfVessel?._id || existingEmployee?.user?.currentVessel?.typeOfVessel?._id,
-            currentStatus: input?.user?.vesselStatus || existingEmployee?.user?.vesselStatus,
-            email: existingEmployee?.user?.email
-        };
 
         let employeeUpdateData = {};
         if (input.empDesignation) {
@@ -1498,17 +1491,17 @@ module.exports = {
             },
             { new: true, lean: true }
         ).populate("user empDesignation managerObjectId");
-        const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );  
+        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
         const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
         const conditions = [{
             designationID: input.empDesignation || existingEmployee.empDesignation,
-            vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id ,
+            vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id,
             vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
             currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
             email: input?.user?.email,
             _id: existingEmployee?._id
         }];
-        const result = await filterLearningPlans(learningPlans,conditions,context,session);
+        const result = await filterLearningPlans(learningPlans, conditions, context, session);
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
