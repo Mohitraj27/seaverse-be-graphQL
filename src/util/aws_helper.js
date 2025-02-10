@@ -88,52 +88,52 @@ module.exports = {
             if (location) return filePath;
         }
     },
-    sendEmail: async ({ receiverEmail, subject, htmlContent }) => {
-        if (
-            receiverEmail?.trim()?.length &&
-            subject?.trim()?.length &&
-            htmlContent?.trim()?.length
-        ) {
-            try {
-                const ses = new AWS.SES({
-                    accessKeyId: process.env.AWS_ACCESS_KEY,
-                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-                    region: process.env.AWS_REGION,
-                });
+    // sendEmail: async ({ receiverEmail, subject, htmlContent }) => {
+    //     if (
+    //         receiverEmail?.trim()?.length &&
+    //         subject?.trim()?.length &&
+    //         htmlContent?.trim()?.length
+    //     ) {
+    //         try {
+    //             const ses = new AWS.SES({
+    //                 accessKeyId: process.env.AWS_ACCESS_KEY,
+    //                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    //                 region: process.env.AWS_REGION,
+    //             });
 
-                const charSet = "UTF-8";
-                const params = {
-                    Source: `${process.env.SUBSCRIBER_NAME} < ${process.env.EMAIL_VERIFIED_SENDER} >`,
-                    Destination: {
-                        ToAddresses: [receiverEmail],
-                    },
-                    Message: {
-                        Subject: {
-                            Data: subject,
-                            Charset: charSet,
-                        },
-                        Body: {
-                            Text: {
-                                Data: htmlContent,
-                                Charset: charSet,
-                            },
-                            Html: {
-                                Data: htmlContent,
-                                Charset: charSet,
-                            },
-                        },
-                    },
-                };
+    //             const charSet = "UTF-8";
+    //             const params = {
+    //                 Source: `${process.env.SUBSCRIBER_NAME} < ${process.env.EMAIL_VERIFIED_SENDER} >`,
+    //                 Destination: {
+    //                     ToAddresses: [receiverEmail],
+    //                 },
+    //                 Message: {
+    //                     Subject: {
+    //                         Data: subject,
+    //                         Charset: charSet,
+    //                     },
+    //                     Body: {
+    //                         Text: {
+    //                             Data: htmlContent,
+    //                             Charset: charSet,
+    //                         },
+    //                         Html: {
+    //                             Data: htmlContent,
+    //                             Charset: charSet,
+    //                         },
+    //                     },
+    //                 },
+    //             };
 
-                const response = await ses.sendEmail(params).promise();
-                if (response) {
-                    return response;
-                }
-            } catch (e) {
-                throw Error(e.message);
-            }
-        }
-    },
+    //             const response = await ses.sendEmail(params).promise();
+    //             if (response) {
+    //                 return response;
+    //             }
+    //         } catch (e) {
+    //             throw Error(e.message);
+    //         }
+    //     }
+    // },
 
     uploadDir: async (folderPath, folder, s3Path) => {
         if (folderPath) {
