@@ -9,6 +9,7 @@ const {
     DbTransactionHelper,
     UploadHelper,
     VesselStatus,
+    SqliteEmailHelper,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -1712,10 +1713,8 @@ module.exports.mutations = {
                 }
 
                 if (message.type === 'EMAIL') {
-                    await sendNodeEmailBulk({
-                        receiverEmails: message.data.email,
-                        subject: message.data.subject
-                    })
+                    SqliteEmailHelper.insertEmails(message.data.email);
+                    await sendNodeEmailBulk({ subject: message.data.subject });
                 }
             });
 
@@ -1842,8 +1841,8 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
-                const conditions = [{
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            const conditions = [{
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
@@ -1852,7 +1851,7 @@ module.exports.mutations = {
                 _id: savedUser._id
             }];
 
-             const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -1867,8 +1866,8 @@ module.exports.mutations = {
             //     };
             // });
             if (filteredPlans?.length > 0) {
-                console.log('inside filtered Learning Plan',filteredPlans);
-                }
+                console.log('inside filtered Learning Plan', filteredPlans);
+            }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
@@ -1896,7 +1895,7 @@ module.exports.mutations = {
             message: "User created successfully!",
         };
     },
-    updateEmployee: async ({ id, input }, context ,session) => {
+    updateEmployee: async ({ id, input }, context, session) => {
 
         const {
             role,

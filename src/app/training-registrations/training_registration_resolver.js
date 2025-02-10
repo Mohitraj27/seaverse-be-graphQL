@@ -74,12 +74,12 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline : [
-                      {
-                        $match :{
-                          isDeleted : false
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
                         }
-                      }
                     ]
                 }
             },
@@ -1472,7 +1472,7 @@ module.exports.mutations = {
                     if (verifiedUsers.notEnrolledEmails.length > 0) {
                         notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
                     }
-                    
+
                 }
 
                 if (input.type === "ENROLL") {
@@ -1875,7 +1875,7 @@ module.exports.mutations = {
                             totalDuration: 0,
                             timeSpend: 0,
                             attemptCount: 1,
-                            isCertificatePresent : trainingData.isCertificate ?? false
+                            isCertificatePresent: trainingData.isCertificate ?? false
                         }
                     },
                 );
@@ -1912,7 +1912,7 @@ module.exports.mutations = {
                             totalDuration: 0,
                             timeSpend: 0,
                             attemptCount: 1,
-                            isCertificatePresent : trainingData.isCertificate ?? false
+                            isCertificatePresent: trainingData.isCertificate ?? false
                         }
                     }
                 );
@@ -1931,7 +1931,7 @@ module.exports.mutations = {
 
             }
 
-            
+
             const trainingTitle = trainingData.title[0]?.value;
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
