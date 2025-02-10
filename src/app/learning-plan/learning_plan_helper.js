@@ -222,6 +222,7 @@ const createLearningPlanHelper = async (input, context) => {
             pushNotification: input.pushNotification,
         });
         await newLearningPlan.save();
+
         if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
