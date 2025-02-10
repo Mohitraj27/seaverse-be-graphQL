@@ -49,11 +49,11 @@ const { sendNotifications } = require("../../../util/firebase_helper");
 const { VesselStatus: vesselStatusEnum } = require("../../../util");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { sendDeleteEmailToLearner } = require("../../email-template/sendDeleteEmailToLearner")
-const  targetAudience  = require('../../learning-plan/enumFields/targetAudienceEnum.json');
-const  audienceSelection  = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const targetAudience = require('../../learning-plan/enumFields/targetAudienceEnum.json');
+const audienceSelection = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
 const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
-const  mongoose  = require('mongoose');
+const mongoose = require('mongoose');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -97,7 +97,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
 
         switch (type_of_Field) {
             case "DESIGNATION":
-                if(designationID === null || designationID === undefined){
+                if (designationID === null || designationID === undefined) {
                     return true;
                 }
                 return isOrIsNot === "IS"
@@ -178,7 +178,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     progressPercentage: 0,
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
-    isCertificatePresent : isCertificatePresent ?? false,
+    isCertificatePresent: isCertificatePresent ?? false,
 });
 
 async function enrollUsers(enrollDataArray) {
@@ -220,7 +220,7 @@ async function enrollUsers(enrollDataArray) {
         const bulkOps = [];
         const insertedEnrollments = [];
 
-        const trainings =  [...new Set(enrollDataArray.flatMap(el => el.trainings))];
+        const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
         const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').lean();
 
@@ -1226,7 +1226,7 @@ const validateName = (name) => {
     const nameRegex = /^[A-Za-z]+(\s[A-Za-z]+)*$/;
     const trimmedName = name.trim();
     return nameRegex.test(trimmedName);
-  };
+};
 
 const moveExpiredDeletedUsers = async () => {
     CronHelper.schedule("0 0 * * *", async () => {
@@ -1287,7 +1287,7 @@ module.exports = {
         const employeeFilterConditions = { subscriber: subscriberId };
         employeeFilterConditions.user = id;
 
-        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName", populate: ({ path: "currentVessel", select: "name isActive" }) })
+        const existingEmployee = await Employee.findOne({ user: employeeFilterConditions.user }).populate({ path: "user", select: "currentVessel firstName lastName vesselStatus", populate: ({ path: "currentVessel", select: "name isActive" }) })
             .lean();
 
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
@@ -1354,7 +1354,7 @@ module.exports = {
                     });
 
                 }
-                
+
             } else {
                 await UserVessel.findOneAndUpdate(
                     { user: existingEmployee?.user?._id, vessel: existingEmployee?.user?.currentVessel?._id, isActive: true },
@@ -1394,7 +1394,7 @@ module.exports = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-                
+
             }
         }
 
@@ -1407,13 +1407,29 @@ module.exports = {
             },
             { currentRole: role }
         );
-        const existingLearningPlans = await LearningPlan.find({
-            assignedLearnerIDs: existingEmployee.user._id
-        });
-        await LearningPlan.updateMany(
-            { _id: { $in: existingLearningPlans.map(lp => lp._id) } },
-            { $pull: { assignedLearnerIDs: existingEmployee.user._id } }
-        );
+
+        if (
+            (input?.empDesignation.toString() != existingEmployee?.empDesignation.toString()) ||
+            (input.user.currentVessel && (input?.user?.currentVessel.toString() != existingEmployee?.user?.currentVessel?._id.toString())) ||
+            (input.user.vesselStatus && (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus))
+        ) {
+
+            if (existingEmployee?.user?._id) {
+
+                const learningPlans = await LearningPlan.find({
+                    assignedLearnerIDs: existingEmployee?.user?._id,
+                    userObjectIds: { $nin: [existingEmployee?.user?._id] }
+                }).select('_id');
+
+                const removeUserFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                    { user: existingEmployee?.user?._id },
+                    { $pull: { learningPlan: { $in: learningPlans.map(lp => lp._id) } } }
+                );
+
+            }
+
+        }
+
 
         let employeeUpdateData = {};
         if (input.empDesignation) {
@@ -1458,17 +1474,17 @@ module.exports = {
             },
             { new: true, lean: true }
         ).populate("user empDesignation managerObjectId");
-        const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );  
+        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
         const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
         const conditions = [{
             designationID: input.empDesignation || existingEmployee.empDesignation,
-            vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id ,
+            vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id,
             vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
             currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
             email: input?.user?.email,
             _id: existingEmployee?._id
         }];
-        const result = await filterLearningPlans(learningPlans,conditions,context,session);
+        const result = await filterLearningPlans(learningPlans, conditions, context, session);
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
@@ -2380,7 +2396,7 @@ module.exports = {
             });
 
 
-            const learningPlans = await LearningPlan.find({ isDeleted: false,status: 'ACTIVE' });
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             let conditionsList = []
             try {
                 allUpdatedUsers.forEach(user => {
@@ -2407,7 +2423,7 @@ module.exports = {
 
 
                 if (filteredPlans.length > 0) {
-                    console.log("filteredPlans: ",filteredPlans);
+                    console.log("filteredPlans: ", filteredPlans);
                 }
             } catch (error) {
                 console.error(`Error in Autoenrollment Learning Plans ${error.message}`);

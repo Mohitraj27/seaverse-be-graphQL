@@ -297,7 +297,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length, isCertificatePresent : trainingDataById[doc.training.toString()].isCertificate } },
+                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length, isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate } },
                     },
                 });
             }
@@ -482,7 +482,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
-            isCertificatePresent : true
+            isCertificatePresent: true
         }).session(session);
 
         if (overallDocs.length > 0) {
@@ -1315,12 +1315,15 @@ module.exports = {
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
-        if (input.allowMultipleAttempts) {
+        if ('allowMultipleAttempts' in input) {
+
             trainingUpdateData.allowMultipleAttempts = input.allowMultipleAttempts;
             if (input.attemptFlexibility) trainingUpdateData.attemptFlexibility = input.attemptFlexibility;
             if (input.attemptType) trainingUpdateData.attemptType = input.attemptType;
             if (input.attemptType === "LIMITED_ATTEMPT" && input.setLimitAttempt) {
                 trainingUpdateData.setLimitAttempt = input.setLimitAttempt;
+            } else {
+                trainingUpdateData.setLimitAttempt = null;
             }
 
             if (input.disableFurtherAttemptsOnPass) trainingUpdateData.disableFurtherAttemptsOnPass = input.disableFurtherAttemptsOnPass;
