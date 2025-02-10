@@ -24,7 +24,6 @@ const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
-const { LearningPlanUser } = require("./learning_plan_users_model");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -216,20 +215,13 @@ const createLearningPlanHelper = async (input, context) => {
             conditionalCustomFields: input.conditionalCustomFields,
             userObjectIds: input.userObjectIds,
             selectCourses: input.selectCourses,
-            // assignedLearnerIDs: input.userObjectIds || userIds,
+            assignedLearnerIDs: input.userObjectIds || userIds,
             createdBy: input.createdBy,
             updatedBy: input.updatedBy,
             emailNotification: input.emailNotification,
             pushNotification: input.pushNotification,
         });
-        const newLP = await newLearningPlan.save();
-
-        const bulkUsers = userIds.map(user => ({
-            user: user._id,
-            learningPlan: newLP._id
-        }));
-
-        await LearningPlanUser.insertMany(bulkUsers);
+        await newLearningPlan.save();
 
         if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
