@@ -18,12 +18,9 @@ const sendNodeEmailBulk = async ({ subject }) => {
                 const emailBatch = await SqliteEmailHelper.fetchEmailBatch();
 
                 if (emailBatch.length === 0) {
-                    console.log("All emails sent and cleaned up!");
                     break;
                 }
                 const emailPromises = emailBatch.map(async (receiverEmail) => {
-
-                    console.log(receiverEmail);
 
                     if (receiverEmail.email?.trim()?.length) {
                         return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
