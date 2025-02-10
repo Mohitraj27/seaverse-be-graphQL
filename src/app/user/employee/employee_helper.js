@@ -1409,9 +1409,9 @@ module.exports = {
         );
 
         if (
-            (input?.empDesignation != existingEmployee?.empDesignation) ||
-            (input?.user?.currentVessel != existingEmployee?.user?.currentVessel) ||
-            (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus)
+            (input?.empDesignation.toString() != existingEmployee?.empDesignation.toString()) ||
+            (input.user.currentVessel && (input?.user?.currentVessel.toString() != existingEmployee?.user?.currentVessel?._id.toString())) ||
+            (input.user.vesselStatus && (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus))
         ) {
 
             if (existingEmployee?.user?._id) {
@@ -1429,6 +1429,7 @@ module.exports = {
             }
 
         }
+
 
         let employeeUpdateData = {};
         if (input.empDesignation) {

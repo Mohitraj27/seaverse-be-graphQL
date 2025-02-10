@@ -50,26 +50,4 @@ const deleteEmailBatch = (ids) => {
     });
 };
 
-// const getPendingEmails = () => {
-//     return new Promise((resolve, reject) => {
-//         db.all(`SELECT * FROM emails WHERE status = 'PENDING'`, (err, rows) => {
-//             if (err) reject(err);
-//             else resolve(rows);
-//         });
-//     });
-// };
-
-// const updateEmailStatus = (id, status) => {
-//     return new Promise((resolve, reject) => {
-//         db.run(
-//             `UPDATE emails SET status = ? WHERE id = ?`,
-//             [status, id],
-//             function (err) {
-//                 if (err) reject(err);
-//                 else resolve(true);
-//             }
-//         );
-//     });
-// };
-
 module.exports = { insertEmails, fetchEmailBatch, deleteEmailBatch };
