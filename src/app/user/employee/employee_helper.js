@@ -1409,8 +1409,8 @@ module.exports = {
         );
 
         if (
-            (input?.empDesignation.toString() != existingEmployee?.empDesignation.toString()) ||
-            (input?.user?.currentVessel.toString() != existingEmployee?.user?.currentVessel.toString()) ||
+            (input?.empDesignation != existingEmployee?.empDesignation) ||
+            (input?.user?.currentVessel != existingEmployee?.user?.currentVessel) ||
             (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus)
         ) {
 
@@ -1421,16 +1421,6 @@ module.exports = {
                     userObjectIds: { $nin: [existingEmployee?.user?._id] }
                 }).select('_id');
 
-                // const removeUserFromLearningPlan = await LearningPlan.updateMany(
-                //     {
-                //         assignedLearnerIDs: existingEmployee?.user?._id,
-                //         userObjectIds: { $nin: [existingEmployee?.user?._id] }
-                //     },
-                //     {
-                //         $pull: { assignedLearnerIDs: existingEmployee?.user?._id }
-                //     }
-                // );
-
                 const removeUserFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
                     { user: existingEmployee?.user?._id },
                     { $pull: { learningPlan: { $in: learningPlans.map(lp => lp._id) } } }
@@ -1439,14 +1429,6 @@ module.exports = {
             }
 
         }
-
-        // const existingLearningPlans = await LearningPlan.find({
-        //     assignedLearnerIDs: existingEmployee.user._id
-        // });
-        // await LearningPlan.updateMany(
-        //     { _id: { $in: existingLearningPlans.map(lp => lp._id) } },
-        //     { $pull: { assignedLearnerIDs: existingEmployee.user._id } }
-        // );
 
         let employeeUpdateData = {};
         if (input.empDesignation) {
