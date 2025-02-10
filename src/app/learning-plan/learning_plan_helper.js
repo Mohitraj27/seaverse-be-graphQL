@@ -215,11 +215,7 @@ const createLearningPlanHelper = async (input, context) => {
                 audienceSelection: input.audienceSelection,
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields,
-            selectCourses: input.selectCourses,
-            selectCourses: input.selectCourses,
-            assignedLearnerIDs: input.userObjectIds || userIds,
                 selectCourses: input.selectCourses,
-            assignedLearnerIDs: input.userObjectIds || userIds,
                 createdBy: input.createdBy,
                 updatedBy: input.updatedBy,
                 emailNotification: input.emailNotification,
@@ -268,7 +264,6 @@ const createLearningPlanHelper = async (input, context) => {
     
         // Save the Learning Plan after assignments have been added
         await newLearningPlan.save();
-        
         // Fetch the assignments for enrollment
         const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id }).select('assignedLearnerId');
         if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
