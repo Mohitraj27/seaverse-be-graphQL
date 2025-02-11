@@ -24,6 +24,7 @@ const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
+const  LearningPlanAssignment  = require('../learning-plan/assignedLearner/assignedLearnerModel');
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -205,27 +206,70 @@ const createLearningPlanHelper = async (input, context) => {
             conditionalCustomFields: input.conditionalCustomFields,
             groupIDs: input.groupIDs
         });
-        const newLearningPlan = new LearningPlan({
-            title: input.title,
-            targetAudience,
-            groupIDs: input.groupIDs,
-            status: input.status,
-            audienceSelection: input.audienceSelection,
-            conditionType: input.conditionType,
-            conditionalCustomFields: input.conditionalCustomFields,
-            userObjectIds: input.userObjectIds,
-            selectCourses: input.selectCourses,
-            assignedLearnerIDs: input.userObjectIds || userIds,
-            createdBy: input.createdBy,
-            updatedBy: input.updatedBy,
-            emailNotification: input.emailNotification,
-            pushNotification: input.pushNotification,
-        });
+        const createNewLearningPlan = async (input) => {
+            return new LearningPlan({
+                title: input.title,
+                targetAudience,
+                groupIDs: input.groupIDs,
+                status: input.status,
+                audienceSelection: input.audienceSelection,
+                conditionType: input.conditionType,
+                conditionalCustomFields: input.conditionalCustomFields,
+                selectCourses: input.selectCourses,
+                createdBy: input.createdBy,
+                updatedBy: input.updatedBy,
+                emailNotification: input.emailNotification,
+                pushNotification: input.pushNotification,
+            });
+        };
+    
+        let newLearningPlan;
+    
+        // If audience selection is MANUAL
+        if (input.audienceSelection === audienceSelection.MANUAL) {
+            newLearningPlan = await createNewLearningPlan(input);
+    
+            const assigments = input.userObjectIds.map(userId => ({
+                learningPlanId: newLearningPlan._id,
+                assignedLearnerId: userId,
+                isManuallyAdded: true,
+                createdBy: input.createdBy,
+                updatedBy: input.updatedBy,
+            }));
+    
+            await LearningPlanAssignment.insertMany(assigments);
+        } 
+        // If audience selection is NOT MANUAL
+        else  {
+            newLearningPlan = await createNewLearningPlan(input);
+    
+            const { userIds } = await getUsersAndCount({
+                targetAudience: input.targetAudience,
+                audienceSelection: input.audienceSelection,
+                conditionType: input.conditionType,
+                conditionalCustomFields: input.conditionalCustomFields,
+                groupIDs: input.groupIDs
+            });
+    
+            const assignments = userIds.map(userId => ({
+                learningPlanId: newLearningPlan._id,
+                assignedLearnerId: userId,
+                isManuallyAdded: false,
+                createdBy: input.createdBy,
+                updatedBy: input.updatedBy,
+            }));
+    
+            await LearningPlanAssignment.insertMany(assignments);
+        }
+    
+        // Save the Learning Plan after assignments have been added
         await newLearningPlan.save();
-        if (newLearningPlan.assignedLearnerIDs?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
+        // Fetch the assignments for enrollment
+        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id }).select('assignedLearnerId');
+        if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses && newLearningPlan.selectCourses.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
-                users: newLearningPlan?.assignedLearnerIDs,
+                users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
                 type: "ENROLL",
                 learningPlan: newLearningPlan._id
             }

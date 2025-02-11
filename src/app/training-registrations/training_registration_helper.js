@@ -771,11 +771,11 @@ module.exports = {
                                 courses: coursesData,
                                 isAdmin: isAdmin
                             });
-                            sendEmail({
-                                receiverEmail: user.email,
-                                subject: "Course Enrollment",
-                                htmlContent: emailContent,
-                            });
+                            // sendEmail({
+                            //     receiverEmail: user.email,
+                            //     subject: "Course Enrollment",
+                            //     htmlContent: emailContent,
+                            // });
                         });
 
                         return savedTrainingRegistration;
