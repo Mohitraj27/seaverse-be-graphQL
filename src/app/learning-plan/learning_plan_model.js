@@ -73,20 +73,12 @@ const learningPlanSchema = new Schema(
                 },
             }
         ],
-        userObjectIds: [{
-            type: ObjectId,
-            ref: "User"
-        }],
         selectCourses: [{
             type: ObjectId,
             ref: "Training",
             required: function() {
                 return this.status !== LearningPlanStatus.DRAFT;
             }
-        }],
-        assignedLearnerIDs: [{ 
-            type: ObjectId, 
-            ref: "User" 
         }],
         createdBy: {
             type: ObjectId,
@@ -128,9 +120,6 @@ learningPlanSchema.pre('save', function (next) {
     }
     if (this.audienceSelection === "AUTOMATIC" && (!this.conditionType || !this.conditionalCustomFields || this.conditionalCustomFields.length === 0)) {
         errors.push("Condition type and conditional custom fields are required when audience selection is AUTOMATIC.");
-    }
-    if (this.audienceSelection === "MANUAL" && (!this.userObjectIds || this.userObjectIds.length === 0)) {
-        errors.push("A list of user ObjectIds is required for MANUAL audience selection.");
     }
     if (errors.length > 0) {
         return next(new Error(errors.join(" ")));
