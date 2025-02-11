@@ -450,6 +450,25 @@ module.exports.queries = {
                     }
                 },
                 {
+                    $lookup: {
+                        from: "learningplanassignments",
+                        localField: "_id",
+                        foreignField: "learningPlanId",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $map: {
+                                input: "$assignedLearners",
+                                as: "assignment",
+                                in: "$$assignment.assignedLearnerId"
+                            }
+                        }
+                    }
+                },
+                {
                     $addFields: {
                         selectCourses: {
                             $filter: {
@@ -458,6 +477,28 @@ module.exports.queries = {
                                 cond: { $eq: ["$$course.isDeleted", false] }
                             }
                         }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "assignedLearnerIDs",
+                        foreignField: "_id",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $filter: {
+                                input: "$assignedLearners",
+                                as: "learner",
+                                cond: { $eq: ["$$learner.isDeleted", false] }
+                            }
+                        },
+                        numberOfAssignedLearners: { 
+                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
+                        },
                     }
                 },
                 {
@@ -474,7 +515,14 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
-                        assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
+                        numberOfAssignedLearners: 1,
+                        assignedLearnerIDs: {
+                            $map: {
+                                input: "$assignedLearnerIDs",
+                                as: "learner",
+                                in: "$$learner._id"
+                            }
+                        },
                         conditionalCustomFields: 1,
                         emailNotification: 1,
                         pushNotification: 1,
@@ -674,6 +722,28 @@ module.exports.queries = {
                     }
                 },
                 {
+                    $lookup: {
+                        from: "learningplanassignments",
+                        localField: "_id",
+                        foreignField: "learningPlanId",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $map: {
+                                input: "$assignedLearners",
+                                as: "assignment",
+                                in: "$$assignment.assignedLearnerId"
+                            }
+                        },
+                        numberOfAssignedLearners: { 
+                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
+                        },
+                    }
+                },
+                {
                     $project: {
                         _id: 1,
                         title: 1,
@@ -687,6 +757,7 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
+                        numberOfAssignedLearners: 1,
                         assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
                         overallTrainingProgress: 1,
