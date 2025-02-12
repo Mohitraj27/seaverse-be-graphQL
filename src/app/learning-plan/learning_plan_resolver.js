@@ -11,6 +11,7 @@ const { get } = require("lodash");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
+const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -153,6 +154,7 @@ module.exports.mutations = {
             learningPlan.updatedBy = userId;
 
             await learningPlan.save();
+            await LearningPlanAssignment.deleteMany({learningPlanId: id});
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
