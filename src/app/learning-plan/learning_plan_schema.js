@@ -165,6 +165,7 @@ module.exports = {
             conditionType: ConditionTypeEnum
             conditionalCustomFields:[ConditionalCustomField]
             assignedLearnerIDs: [ID]
+            numberOfAssignedLearners: Int
             isDeleted: Boolean
             createdBy: User
             updatedBy: User
