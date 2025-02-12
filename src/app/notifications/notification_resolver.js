@@ -115,7 +115,6 @@ module.exports.queries = {
                     {
                         $facet: {
                             notifications: [
-                                ...selectFirstThreeDays,
                                 {
                                     $addFields: {
                                         isRead: {
@@ -128,6 +127,7 @@ module.exports.queries = {
                                         }
                                     }
                                 },
+                                ...selectFirstThreeDays,
                                 {
                                     $sort: { createdAt: -1 }
                                 },
