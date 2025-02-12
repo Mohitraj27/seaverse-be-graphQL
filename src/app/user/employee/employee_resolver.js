@@ -630,14 +630,6 @@ module.exports.queries = {
                     $unwind: "$user",
                 },
                 {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "user.subRoles",
-                        foreignField: "_id",
-                        as: "user.subRoles",
-                    }
-                },
-                {
                     $match: {
                         "user.isDeleted": { $ne: true },
                         "user.role": { $in: ["LEARNER", "ADMIN"] },
@@ -646,6 +638,77 @@ module.exports.queries = {
                         }),
                     },
                 },
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
+                            },
+                        },
+                    ]
+                    : []),
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
+
                 {
                     $lookup: {
                         from: "uservessels",
@@ -768,104 +831,6 @@ module.exports.queries = {
                                 "userVessels.vesselDetails.typeOfVesselDetails._id": {
                                     $in: filterInput.vesselType.map(id => ObjectId(id)),
                                 },
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.search
-                    ? [
-                        {
-                            $match: {
-                                $or: [
-                                    {
-                                        $expr: {
-                                            $regexMatch: {
-                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                regex: ".*" + sanitizedSearch + ".*",
-                                                options: "i",
-                                            },
-                                        },
-                                    },
-                                    {
-                                        "user.email": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    /* {
-                                        "user.civilIdOrPassport": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    }, */
-                                    /* {
-                                        "user.companyEmail": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "user.phone.number": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        employeeNo: {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "userVessels.vesselDetails.name": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "empDesignation.name": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    }, */
-                                ],
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.role?.length > 0
-                    ? [
-                        {
-                            $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
-                                    ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.isRegistered !== undefined
-                    ? [
-                        {
-                            $match: {
-                                "user.isRegistered": filterInput.isRegistered,
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.lastSeen
-                    ? [
-                        {
-                            $match: {
-                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                "user.isResetPasswordDialog": { $ne: false },
                             },
                         },
                     ]

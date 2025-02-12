@@ -164,7 +164,7 @@ userSchema.virtual("employee", {
 
 userSchema.index({ email: "text" });
 
-userSchema.index({ _id: 1, role: 1 });
+userSchema.index({ _id: 1, role: 1, currentVessel: 1 });
 
 userSchema.plugin(AggregatePaginate);
 
