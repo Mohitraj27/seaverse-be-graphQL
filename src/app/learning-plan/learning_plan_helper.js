@@ -196,6 +196,14 @@ const createLearningPlanHelper = async (input, context) => {
     let errorList = [];
 
     try {
+        const existingLearningPlan = await LearningPlan.findOne({
+             title: input.title,
+             isDeleted: false,
+         });
+         if (existingLearningPlan) {
+             errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+             return { success: false, errors: errorList };
+         }
         basicValidations(input,errorList);
         audienceSelectionValidation(input,errorList);
         await audienceSelectionIsMannualValidation(input,errorList);
@@ -205,17 +213,6 @@ const createLearningPlanHelper = async (input, context) => {
         }
         const targetAudience = input.targetAudience || targetAudienceEnum.EVERYONE_IN_ORGANIZATION;
         let groupIDs = [];
-
-        if (errorList.length > 0) {
-            return { success: false, errors: errorList };
-        }
-        const existingLearningPlan = await LearningPlan.findOne({
-             title: input.title,
-             isDeleted: false,
-         });
-         if (existingLearningPlan) {
-             errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
-         }
         const createNewLearningPlan = async (input) => {
             return new LearningPlan({
                 title: input.title,
@@ -302,6 +299,15 @@ const clearFieldsBasedOnConditions = (input, errorList) => {
 const updateLearningPlanHelper = async (id, input, context) => {
     let errorList = [];
     try {
+        const titleAlreadyExist = await LearningPlan.findOne({
+            title: input.title,
+            isDeleted: false,
+            _id: { $ne: id }
+        })
+        if(titleAlreadyExist){
+            errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+            return { success: false, errors: errorList };
+        }
         basicValidations(input,errorList);
         audienceSelectionValidation(input,errorList);
         await audienceSelectionIsMannualValidation(input,errorList);
