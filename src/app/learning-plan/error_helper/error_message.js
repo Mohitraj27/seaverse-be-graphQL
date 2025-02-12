@@ -1,6 +1,7 @@
 
 module.exports = {
     TITLE_REQUIRED: "Please provide a title for the learning plan.",
+    LEARNING_PLAN_NOT_FOUND: "Learning Plan not Found",
     TARGET_AUDIENCE_REQUIRED: "Please select a target audience for the learning plan.",
     AUDIENCE_SELECTION_REQUIRED: "Audience selection is mandatory. Please choose an option.",
     SELECT_COURSES_REQUIRED: "You must select at least one course.",

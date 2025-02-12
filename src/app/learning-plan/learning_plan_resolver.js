@@ -208,9 +208,9 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            learningPlan.updatedBy = userId;
-            learningPlan.updatedAt = new Date();
-            learningPlan.isUpdated = true;
+            validation.learningPlan.updatedBy = userId;
+            validation.learningPlan.updatedAt = new Date();
+            validation.learningPlan.isUpdated = true;
 
             await learningPlan.save();
             LogHelper.logActivity({
@@ -221,13 +221,13 @@ module.exports.mutations = {
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: learningPlan._id,
+                        target: validation.learningPlan._id,
                     },
                 ],
                 additionalInfo: [
                     {
                         infoType: "LEARNING_PLAN_INFO",
-                        infoData: JSON.stringify(learningPlan),
+                        infoData: JSON.stringify(validation.learningPlan),
                     },
                 ],
                 createdBy: userInfo,
@@ -241,14 +241,15 @@ module.exports.mutations = {
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: learningPlan._id,
+                        target: validation.learningPlan._id,
                     },
                 ],
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            return learningPlan;
+            const updatedLearningPlan = validation.learningPlan;
+            return updatedLearningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
