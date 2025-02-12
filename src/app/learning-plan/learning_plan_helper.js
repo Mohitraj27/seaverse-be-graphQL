@@ -185,9 +185,7 @@ const additionalValidationConditionalCustomFields = async (input, operation, err
     if (input.selectCourses?.length > 0) {
         const isValidCourses = await validatePickingCourses(input.selectCourses);
         if (!isValidCourses) {
-        const errorMessage = operation === 'create' 
-            ? errorMessages.INVALID_COURSE_SELECTION 
-            : errorMessages.IS_RETIRED_COURSES_SELECTION;
+        const errorMessage = operation === 'create' ? errorMessages.INVALID_COURSE_SELECTION : errorMessages.IS_RETIRED_COURSES_SELECTION;
         errorList.push(errorMessage);
         }
     }
