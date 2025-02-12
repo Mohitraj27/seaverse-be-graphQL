@@ -1713,8 +1713,12 @@ module.exports.mutations = {
                 }
 
                 if (message.type === 'EMAIL') {
+
                     SqliteEmailHelper.insertEmails(message.data.email);
+                    const emails = SqliteEmailHelper.fetchEmailBatch();
+
                     await sendNodeEmailBulk({ subject: message.data.subject });
+
                 }
             });
 

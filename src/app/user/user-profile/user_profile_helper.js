@@ -7,12 +7,41 @@ const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
 const AwsHelper = require("../../../util/aws_helper");
 const { SqliteEmailHelper } = require('../../../util');
 
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const sendWithRetry = async (emailBatch, retryCount = 0) => {
+    try {
+
+        const emailPromises = emailBatch.map(async (receiverEmail) => {
+
+            if (receiverEmail.email?.trim()?.length) {
+                return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+
+        });
+
+        return await Promise.allSettled(emailPromises);
+
+    } catch (error) {
+
+        if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {
+            await delay(2 ** retryCount * 1000);
+            return sendWithRetry(receiverEmail, retryCount + 1);
+        }
+        throw error;
+
+    }
+};
+
 const sendNodeEmailBulk = async ({ subject }) => {
 
     if (subject?.trim()?.length) {
 
         try {
-            let results;
+            let results = [];
             while (true) {
 
                 const emailBatch = await SqliteEmailHelper.fetchEmailBatch();
@@ -20,19 +49,15 @@ const sendNodeEmailBulk = async ({ subject }) => {
                 if (emailBatch.length === 0) {
                     break;
                 }
-                const emailPromises = emailBatch.map(async (receiverEmail) => {
 
-                    if (receiverEmail.email?.trim()?.length) {
-                        return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
-                    } else {
-                        return Promise.reject(new Error("Invalid email address"));
-                    }
+                const batchResults = await sendWithRetry(emailBatch);
 
-                });
+                results = results.concat(batchResults);
 
-                results = await Promise.allSettled(emailPromises);
+                await delay(200);
 
                 const emailIds = emailBatch.map(email => email.id);
+
                 await SqliteEmailHelper.deleteEmailBatch(emailIds);
 
             }
