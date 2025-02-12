@@ -69,6 +69,7 @@ module.exports = {
     `,
     queries: `
         getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
+        getNotificationsForApp(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
     `,
     mutations: `
         markEachNotificationAsRead(notificationId: ID!): dismissNotificationResponse
