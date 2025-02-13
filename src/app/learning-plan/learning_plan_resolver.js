@@ -744,6 +744,53 @@ module.exports.queries = {
                         numberOfAssignedLearners: { 
                             $size: { $ifNull: ["$assignedLearnerIDs", []] } 
                         },
+                        userObjectIds: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: "$assignedLearners",
+                                        as: "assignment",
+                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] }
+                                    }
+                                },
+                                as: "filteredAssignment",
+                                in: "$$filteredAssignment.assignedLearnerId"
+                            }
+                        }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userObjectIds",
+                        foreignField: "_id",
+                        as: "userDetails",
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    firstName: 1,
+                                    lastName: 1,
+                                    email: 1
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    $addFields: {
+                        userObjectIds: {
+                            $map: {
+                                input: "$userDetails",
+                                as: "user",
+                                in: {
+                                    _id: "$$user._id",
+                                    firstName: "$$user.firstName",
+                                    lastName: "$$user.lastName",
+                                    email: "$$user.email"
+                                }
+                            }
+                        }
                     }
                 },
                 {
