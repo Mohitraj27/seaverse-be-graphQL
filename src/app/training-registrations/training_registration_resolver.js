@@ -1383,7 +1383,7 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+        // const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
     verifyRegistrationEmails: async ({ input }, context) => {
