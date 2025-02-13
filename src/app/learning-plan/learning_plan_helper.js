@@ -24,7 +24,7 @@ const vesselStatusEnum = require("../../util/vessel_status.json");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
-const  LearningPlanAssignment  = require('../learning-plan/assignedLearner/assignedLearnerModel');
+const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 const learningPlanStatus = require('./enumFields/learning_plan_status.json')
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
@@ -136,7 +136,7 @@ const basicValidations = (input, errorList) => {
         }
     }
 };
-const audienceSelectionValidation = async (input, errorList) =>{
+const audienceSelectionValidation = async (input, errorList) => {
     if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.conditionalCustomFields?.some(
         ({ type_of_Field, groupIDs, isOrIsNot }) => type_of_Field === 'GROUP' && groupIDs && isOrIsNot === 'IS')) {
         errorList.push(errorMessages.INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED);
@@ -154,8 +154,8 @@ const audienceSelectionValidation = async (input, errorList) =>{
         errorList.push(errorMessages.CONDITIONAL_FIELDS_NOT_ALLOWED_FOR_ALL_EMPLOYEES);
     }
     if ((input.audienceSelection === audienceSelection.AUTOMATIC) &&
-    (!input.conditionType || !input.conditionalCustomFields || input.conditionalCustomFields.length === 0)) {
-    errorList.push(errorMessages.AUTOMATIC_SELECTION_FIELDS_REQUIRED);
+        (!input.conditionType || !input.conditionalCustomFields || input.conditionalCustomFields.length === 0)) {
+        errorList.push(errorMessages.AUTOMATIC_SELECTION_FIELDS_REQUIRED);
     }
 };
 const audienceSelectionIsMannualValidation = async (input, errorList) => {
@@ -176,7 +176,7 @@ const audienceSelectionIsMannualValidation = async (input, errorList) => {
         }
     }
 };
-const additionalValidationConditionalCustomFields = async (input, operation, errorList) =>{
+const additionalValidationConditionalCustomFields = async (input, operation, errorList) => {
 
     if (input.conditionalCustomFields?.length > 0) {
         const conditionalFieldErrors = await validateConditionalCustomFields(input.conditionalCustomFields);
@@ -185,8 +185,8 @@ const additionalValidationConditionalCustomFields = async (input, operation, err
     if (input.selectCourses?.length > 0) {
         const isValidCourses = await validatePickingCourses(input.selectCourses);
         if (!isValidCourses) {
-        const errorMessage = operation === 'create' ? errorMessages.INVALID_COURSE_SELECTION : errorMessages.IS_RETIRED_COURSES_SELECTION;
-        errorList.push(errorMessage);
+            const errorMessage = operation === 'create' ? errorMessages.INVALID_COURSE_SELECTION : errorMessages.IS_RETIRED_COURSES_SELECTION;
+            errorList.push(errorMessage);
         }
     }
 }
@@ -195,17 +195,17 @@ const createLearningPlanHelper = async (input, context) => {
 
     try {
         const existingLearningPlan = await LearningPlan.findOne({
-             title: input.title,
-             isDeleted: false,
-         });
-         if (existingLearningPlan) {
-             errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
-             return { success: false, errors: errorList };
-         }
-        basicValidations(input,errorList);
-        audienceSelectionValidation(input,errorList);
-        await audienceSelectionIsMannualValidation(input,errorList);
-        await additionalValidationConditionalCustomFields(input,'create',errorList);
+            title: input.title,
+            isDeleted: false,
+        });
+        if (existingLearningPlan) {
+            errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+            return { success: false, errors: errorList };
+        }
+        basicValidations(input, errorList);
+        audienceSelectionValidation(input, errorList);
+        await audienceSelectionIsMannualValidation(input, errorList);
+        await additionalValidationConditionalCustomFields(input, 'create', errorList);
         if (errorList.length > 0) {
             return { sucess: false, errors: errorList };
         }
@@ -227,13 +227,13 @@ const createLearningPlanHelper = async (input, context) => {
                 pushNotification: input.pushNotification,
             });
         };
-    
+
         let newLearningPlan;
-    
+
         // If audience selection is MANUAL
         if (input.audienceSelection === audienceSelection.MANUAL) {
             newLearningPlan = await createNewLearningPlan(input);
-    
+
             const assigments = input.userObjectIds.map(userId => ({
                 learningPlanId: newLearningPlan._id,
                 assignedLearnerId: userId,
@@ -241,12 +241,12 @@ const createLearningPlanHelper = async (input, context) => {
                 createdBy: input.createdBy,
                 updatedBy: input.updatedBy,
             }));
-    
+
             await LearningPlanAssignment.insertMany(assigments);
-        } 
-        else  {
+        }
+        else {
             newLearningPlan = await createNewLearningPlan(input);
-    
+
             const { userIds } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
                 audienceSelection: input.audienceSelection,
@@ -254,7 +254,7 @@ const createLearningPlanHelper = async (input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-    
+
             const assignments = userIds.map(userId => ({
                 learningPlanId: newLearningPlan._id,
                 assignedLearnerId: userId,
@@ -262,7 +262,7 @@ const createLearningPlanHelper = async (input, context) => {
                 createdBy: input.createdBy,
                 updatedBy: input.updatedBy,
             }));
-    
+
             await LearningPlanAssignment.insertMany(assignments);
         }
         await newLearningPlan.save();
@@ -302,20 +302,20 @@ const updateLearningPlanHelper = async (id, input, context) => {
             isDeleted: false,
             _id: { $ne: id }
         })
-        if(titleAlreadyExist){
+        if (titleAlreadyExist) {
             errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
             return { success: false, errors: errorList };
         }
-        basicValidations(input,errorList);
-        audienceSelectionValidation(input,errorList);
-        await audienceSelectionIsMannualValidation(input,errorList);
-        await additionalValidationConditionalCustomFields(input,'update',errorList);
-        clearFieldsBasedOnConditions(input,errorList);
+        basicValidations(input, errorList);
+        audienceSelectionValidation(input, errorList);
+        await audienceSelectionIsMannualValidation(input, errorList);
+        await additionalValidationConditionalCustomFields(input, 'update', errorList);
+        clearFieldsBasedOnConditions(input, errorList);
         const existingLearningPlan = await LearningPlan.findOne({
             _id: id,
-            isDeleted:false
+            isDeleted: false
         });
-        if(!existingLearningPlan){
+        if (!existingLearningPlan) {
             errorList.push(errorMessages.LEARNING_PLAN_NOT_FOUND);
         }
         if (errorList.length > 0) {
@@ -331,10 +331,10 @@ const updateLearningPlanHelper = async (id, input, context) => {
         existingLearningPlan.emailNotification = input.updateemailNotifications;
         existingLearningPlan.pushNotification = input.updatepushNotifications;
         await existingLearningPlan.save();
-        
-        
-        
-        const removedLearnersID = await LearningPlanAssignment.find({learningPlanId: existingLearningPlan._id}).select('assignedLearnerId -_id');
+
+
+
+        const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         await LearningPlanAssignment.deleteMany({
             learningPlanId: existingLearningPlan._id
@@ -379,10 +379,10 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 type: "ENROLL",
                 learningPlan: existingLearningPlan._id
             };
-          await createTrainingRegistration(enrollData, context);
+            await createTrainingRegistration(enrollData, context);
         }
         let existingCourses, inputCourses, excludedCourses;
-        if(existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
+        if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
             existingCourses = existingLearningPlan.selectCourses.map(course => course.toString());
             inputCourses = input.selectCourses.map(course => course.toString());
             excludedCourses = existingCourses.filter((courseId) => !inputCourses.includes(courseId)).map(courseId => new mongoose.Types.ObjectId(courseId.toString()));
@@ -399,7 +399,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }
         );
         const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-            { training: { $in: excludedCourses } ,isDeleted: { $ne: true }},
+            { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
             {
                 $pull: {
                     learningPlan: existingLearningPlan._id
@@ -407,7 +407,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }
         );
 
-        
+
         const updatedLearningPlan = await LearningPlan.findById(id).lean();
         return { learningPlan: updatedLearningPlan, success: true };
     } catch (error) {
@@ -951,11 +951,12 @@ const mergeUsersData = (inputData) => {
     };
 };
 
-const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = []) => {
+const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = [], pageInput) => {
 
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
 
+        const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
 
         let startDate, endDate;
@@ -999,6 +1000,12 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
         const pipeline = [
             {
                 $match: matchCriteria,
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
             },
             {
                 $unwind: "$learningPlan"

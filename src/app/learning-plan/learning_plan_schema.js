@@ -251,7 +251,7 @@ module.exports = {
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
-        getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String,filteredLearnerData: [String!]): LearningPlan
+        getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String,filteredLearnerData: [String!], pageInput: pageInput): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
     `,
     mutations: `

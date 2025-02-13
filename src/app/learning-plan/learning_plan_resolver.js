@@ -154,7 +154,7 @@ module.exports.mutations = {
             learningPlan.updatedBy = userId;
 
             await learningPlan.save();
-            await LearningPlanAssignment.deleteMany({learningPlanId: id});
+            await LearningPlanAssignment.deleteMany({ learningPlanId: id });
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -499,8 +499,8 @@ module.exports.queries = {
                                 cond: { $eq: ["$$learner.isDeleted", false] }
                             }
                         },
-                        numberOfAssignedLearners: { 
-                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
+                        numberOfAssignedLearners: {
+                            $size: { $ifNull: ["$assignedLearnerIDs", []] }
                         },
                     }
                 },
@@ -595,7 +595,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData }, context) => {
+    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -611,36 +611,10 @@ module.exports.queries = {
                 { $match: queryConditions },
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "userObjectIds",
-                        foreignField: "_id",
-                        as: "userObjectIds"
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "createdBy",
-                        foreignField: "_id",
-                        as: "createdByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "updatedByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
+                        from: "learningplanassignments",
+                        localField: "_id",
+                        foreignField: "learningPlanId",
+                        as: "assignedLearners"
                     }
                 },
                 {
@@ -653,61 +627,13 @@ module.exports.queries = {
                             {
                                 $project: {
                                     _id: 1,
-                                    UID: 1,
-                                    trainingCategories: 1,
-                                    trainingSubCategories: 1,
                                     title: 1,
                                     description: 1,
-                                    instructions: 1,
-                                    overview: 1,
-                                    feedback: 1,
-                                    feedbackContent: 1,
                                     images: 1,
-                                    price: 1,
-                                    durationHours: 1,
-                                    certificateValidity: 1,
-                                    targetAudienceId: 1,
-                                    courseType: 1,
-                                    enableFreeFlow: 1,
-                                    unlockOn: 1,
-                                    status: 1,
-                                    trainingModuleContents: 1,
                                     courseId: 1,
-                                    course_validity: 1,
-                                    courseLevel: 1,
-                                    hideCourseProgress: 1,
-                                    allowMultipleAttempts: 1,
-                                    attemptFlexibility: 1,
-                                    attemptType: 1,
-                                    setLimitAttempt: 1,
-                                    disableFurtherAttemptsOnPass: 1,
-                                    lockModulesBetweenAttempts: 1,
-                                    setTimeLimitForModule: 1,
-                                    approvalStatus: 1,
-                                    certifications: 1,
                                     bannerImage: 1,
-                                    appliedAt: 1,
-                                    approvedAt: 1,
-                                    rejectedAt: 1,
-                                    isActive: 1,
-                                    createdBy: 1,
-                                    isDeleted: 1,
-                                    createdAt: 1,
-                                    trainingModules: 1,
-                                    scorm: 1,
-                                    groupTrainingModule: 1,
-                                    skills: 1,
-                                    userFeedback: 1,
-                                    managerFeedback: 1,
-                                    setFrequency: 1,
-                                    enableEmailNotification: 1,
-                                    setReminder: 1,
-                                    setFrequencyDate: 1,
-                                    manadatoryModules: 1,
-                                    classroomModule: 1,
-                                    authorName: 1,
-                                    isOrdered: 1,
                                     coverImage: 1,
+                                    isDeleted: 1
                                 },
                             },
                         ],
@@ -725,14 +651,6 @@ module.exports.queries = {
                     }
                 },
                 {
-                    $lookup: {
-                        from: "learningplanassignments",
-                        localField: "_id",
-                        foreignField: "learningPlanId",
-                        as: "assignedLearners"
-                    }
-                },
-                {
                     $addFields: {
                         assignedLearnerIDs: {
                             $map: {
@@ -741,8 +659,8 @@ module.exports.queries = {
                                 in: "$$assignment.assignedLearnerId"
                             }
                         },
-                        numberOfAssignedLearners: { 
-                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
+                        numberOfAssignedLearners: {
+                            $size: { $ifNull: ["$assignedLearners", []] }
                         },
                         userObjectIds: {
                             $map: {
@@ -808,21 +726,10 @@ module.exports.queries = {
                         updatedAt: 1,
                         selectCourses: 1,
                         numberOfAssignedLearners: 1,
-                        assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
                         overallTrainingProgress: 1,
                         emailNotification: 1,
                         pushNotification: 1,
-                        "createdBy._id": "$createdByDetails._id",
-                        "createdBy.firstName": "$createdByDetails.firstName",
-                        "createdBy.lastName": "$createdByDetails.lastName",
-                        "createdBy.email": "$createdByDetails.email",
-                        "createdBy.role": "$createdByDetails.role",
-                        "updatedBy._id": "$updatedByDetails._id",
-                        "updatedBy.firstName": "$updatedByDetails.firstName",
-                        "updatedBy.lastName": "$updatedByDetails.lastName",
-                        "updatedBy.email": "$updatedByDetails.email",
-                        "updatedBy.role": "$updatedByDetails.role"
                     }
                 }
             ]);
@@ -832,7 +739,7 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
 
             return detailedPlan;
         } catch (error) {
