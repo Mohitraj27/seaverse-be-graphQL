@@ -493,7 +493,6 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 //     },
                 // };
                 return {
-<<<<<<< HEAD
                     learningPlan: learningPlanId ? [learningPlanId] : [],
                     directEnrollment: learningPlanId ? false : true,
                     training: training,
@@ -509,28 +508,6 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                     startDate: null,
                     endDate: null,
                     unenrollmentDate: null,
-=======
-                    insertOne: {
-                        document: {
-                            learningPlan: learningPlanId ? [learningPlanId] : [],
-                            directEnrollment: learningPlanId ? false : true,
-                            training: training,
-                            user: user._id,
-                            trainingRegistration: registrationId,
-                            subscriberId: subscriberId.toString(),
-                            status: 'NOT_STARTED',
-                            isCertificatePresent: trainingDataById[training._id.toString()].isCertificate ?? false,
-                            isEnrolled: true,
-                            progressPercentage: 0.0,
-                            completedModules: 0,
-                            contentData: [],
-                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                            startDate: null,
-                            endDate: null,
-                            unenrollmentDate: null,
-                        },
-                    },
->>>>>>> origin/main
                 };
             })
         ).filter(entry => entry !== null);
