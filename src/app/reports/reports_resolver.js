@@ -159,7 +159,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -511,7 +511,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -1618,7 +1618,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -2009,7 +2009,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -3304,7 +3304,7 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -4816,7 +4816,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     try {
 
         const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 50;
+        const limit = pageInput?.limit ? pageInput.limit : 20;
         let matchStage = [];
         let pageLimit = [];
         if (limit > 0) {
@@ -4994,7 +4994,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5217,7 +5217,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5472,7 +5472,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId, feedback: { $exists: true, $ne: null } };
         let trainingData = null;
@@ -5710,7 +5710,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
