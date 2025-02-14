@@ -328,7 +328,8 @@ module.exports.queries = {
             }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
-
+                { $skip: parsedSkip },
+                { $limit: parsedLimit },
                 { $match: queryConditions },
                 {
                     $lookup: {
@@ -371,85 +372,22 @@ module.exports.queries = {
                 },
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "updatedByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
-                    }
-                },
-                {
-                    $lookup: {
                         from: "trainings",
                         localField: "selectCourses",
                         foreignField: "_id",
                         as: "courseDetails",
-                        // pipeline: [
-                        //     {
-                        //         $project: {
-                        //             _id: 1,
-                        //             UID: 1,
-                        //             trainingCategories: 1,
-                        //             trainingSubCategories: 1,
-                        //             title: 1,
-                        //             description: 1,
-                        //             instructions: 1,
-                        //             overview: 1,
-                        //             feedback: 1,
-                        //             feedbackContent: 1,
-                        //             images: 1,
-                        //             price: 1,
-                        //             durationHours: 1,
-                        //             certificateValidity: 1,
-                        //             targetAudienceId: 1,
-                        //             courseType: 1,
-                        //             enableFreeFlow: 1,
-                        //             unlockOn: 1,
-                        //             status: 1,
-                        //             trainingModuleContents: 1,
-                        //             courseId: 1,
-                        //             course_validity: 1,
-                        //             courseLevel: 1,
-                        //             hideCourseProgress: 1,
-                        //             allowMultipleAttempts: 1,
-                        //             attemptFlexibility: 1,
-                        //             attemptType: 1,
-                        //             setLimitAttempt: 1,
-                        //             disableFurtherAttemptsOnPass: 1,
-                        //             lockModulesBetweenAttempts: 1,
-                        //             setTimeLimitForModule: 1,
-                        //             approvalStatus: 1,
-                        //             certifications: 1,
-                        //             bannerImage: 1,
-                        //             coverImage: 1,
-                        //             appliedAt: 1,
-                        //             approvedAt: 1,
-                        //             rejectedAt: 1,
-                        //             isActive: 1,
-                        //             createdBy: 1,
-                        //             isDeleted: 1,
-                        //             createdAt: 1,
-                        //             trainingModules: 1,
-                        //             scorm: 1,
-                        //             groupTrainingModule: 1,
-                        //             skills: 1,
-                        //             userFeedback: 1,
-                        //             managerFeedback: 1,
-                        //             setFrequency: 1,
-                        //             enableEmailNotification: 1,
-                        //             setReminder: 1,
-                        //             setFrequencyDate: 1,
-                        //             manadatoryModules: 1,
-                        //             classroomModule: 1,
-                        //             authorName: 1,
-                        //             isOrdered: 1
-                        //         },
-                        //     },
-                        // ],
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    UID: 1,
+                                    title: 1,
+                                    bannerImage: 1,
+                                    coverImage: 1,
+                                    isDeleted: 1,
+                                },
+                            },
+                        ],
                     }
                 },
                 {
@@ -492,15 +430,8 @@ module.exports.queries = {
                 },
                 {
                     $addFields: {
-                        assignedLearnerIDs: {
-                            $filter: {
-                                input: "$assignedLearners",
-                                as: "learner",
-                                cond: { $eq: ["$$learner.isDeleted", false] }
-                            }
-                        },
                         numberOfAssignedLearners: {
-                            $size: { $ifNull: ["$assignedLearnerIDs", []] }
+                            $size: { $ifNull: ["$assignedLearners", []] }
                         },
                     }
                 },
@@ -508,44 +439,21 @@ module.exports.queries = {
                     $project: {
                         _id: 1,
                         title: 1,
-                        targetAudience: 1,
-                        groupIDs: 1,
-                        userObjectIds: 1,
                         status: 1,
-                        audienceSelection: 1,
-                        conditionType: 1,
                         isDeleted: 1,
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
                         numberOfAssignedLearners: 1,
-                        assignedLearnerIDs: {
-                            $map: {
-                                input: "$assignedLearnerIDs",
-                                as: "learner",
-                                in: "$$learner._id"
-                            }
-                        },
-                        conditionalCustomFields: 1,
-                        emailNotification: 1,
-                        pushNotification: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
-                        "createdBy.email": "$createdByDetails.email",
-                        "createdBy.role": "$createdByDetails.role",
-                        "updatedBy._id": "$updatedByDetails._id",
-                        "updatedBy.firstName": "$updatedByDetails.firstName",
-                        "updatedBy.lastName": "$updatedByDetails.lastName",
-                        "updatedBy.email": "$updatedByDetails.email",
-                        "updatedBy.role": "$updatedByDetails.role"
                     }
                 }
                 ,
                 { $sort: { updatedAt: -1 } },
-                { $skip: parsedSkip },
-                { $limit: parsedLimit },
             ]);
+
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
