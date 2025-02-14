@@ -1,6 +1,5 @@
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { certificateLayout } = require("./certificateLayout_model");
-const { MigrationCourses, UserCourses } = require("../migrationcourses/migrationcourses_model");
 const {  CustomError, ErrorName,AuthUser ,UploadHelper, DbTransactionHelper} = require("../../../util");
 module.exports = {
     createOrupdateCertificateLayout: async({},context)=>{

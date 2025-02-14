@@ -9,6 +9,7 @@ const {
     DbTransactionHelper,
     UploadHelper,
     VesselStatus,
+    SqliteEmailHelper,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -62,23 +63,6 @@ const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-
 const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
-async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
-    const userVesselFilter = {
-        isActive: true,
-    };
-    if (vesselStatus && vesselStatus.length > 0) {
-        userVesselFilter.vesselStatus = { $in: vesselStatus };
-    }
-    if (vesselType && vesselType.length > 0) {
-        userVesselFilter.vesselType = { $in: vesselType };
-    }
-    if (vesselObjectId) {
-        userVesselFilter.vesselObjectId = vesselObjectId;
-    }
-    const userVessels = await UserVessel.find(userVesselFilter).select("user");
-    const userIds = userVessels.map(vessel => vessel.user);
-    return userIds;
-}
 function formatDateWithSuffix(date) {
     const day = date.getDate();
     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
@@ -646,14 +630,6 @@ module.exports.queries = {
                     $unwind: "$user",
                 },
                 {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "user.subRoles",
-                        foreignField: "_id",
-                        as: "user.subRoles",
-                    }
-                },
-                {
                     $match: {
                         "user.isDeleted": { $ne: true },
                         "user.role": { $in: ["LEARNER", "ADMIN"] },
@@ -662,6 +638,77 @@ module.exports.queries = {
                         }),
                     },
                 },
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
+                            },
+                        },
+                    ]
+                    : []),
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
+
                 {
                     $lookup: {
                         from: "uservessels",
@@ -784,104 +831,6 @@ module.exports.queries = {
                                 "userVessels.vesselDetails.typeOfVesselDetails._id": {
                                     $in: filterInput.vesselType.map(id => ObjectId(id)),
                                 },
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.search
-                    ? [
-                        {
-                            $match: {
-                                $or: [
-                                    {
-                                        $expr: {
-                                            $regexMatch: {
-                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                regex: ".*" + sanitizedSearch + ".*",
-                                                options: "i",
-                                            },
-                                        },
-                                    },
-                                    {
-                                        "user.email": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    /* {
-                                        "user.civilIdOrPassport": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    }, */
-                                    /* {
-                                        "user.companyEmail": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "user.phone.number": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        employeeNo: {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "userVessels.vesselDetails.name": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "empDesignation.name": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    }, */
-                                ],
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.role?.length > 0
-                    ? [
-                        {
-                            $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
-                                    ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.isRegistered !== undefined
-                    ? [
-                        {
-                            $match: {
-                                "user.isRegistered": filterInput.isRegistered,
-                            },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.lastSeen
-                    ? [
-                        {
-                            $match: {
-                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                "user.isResetPasswordDialog": { $ne: false },
                             },
                         },
                     ]
@@ -1729,10 +1678,12 @@ module.exports.mutations = {
                 }
 
                 if (message.type === 'EMAIL') {
-                    await sendNodeEmailBulk({
-                        receiverEmails: message.data.email,
-                        subject: message.data.subject
-                    })
+
+                    SqliteEmailHelper.insertEmails(message.data.email);
+                    const emails = SqliteEmailHelper.fetchEmailBatch();
+
+                    await sendNodeEmailBulk({ subject: message.data.subject });
+
                 }
             });
 
@@ -1859,17 +1810,17 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
-                const conditions = {
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            const conditions = [{
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? null,
+                currentStatus: savedUserVessel?.vesselStatus ?? "ONSHORE",
                 email: savedUser.email,
                 _id: savedUser._id
-            };
+            }];
 
-            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -1883,28 +1834,9 @@ module.exports.mutations = {
             //         currentStatus: savedUserVessel?.vesselStatus
             //     };
             // });
-            // if (filteredPlans?.length > 0) {
-            //     console.log('inside filtered Learning Plan',filteredPlans);
-            //     await LearningPlan.updateMany(
-            //         { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-            //         [
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $ifNull: ["$assignedLearnerIDs", []]
-            //                     }
-            //                 }
-            //             },
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-            //                     }
-            //                 }
-            //             }
-            //         ]
-            //     );
-            // }
+            if (filteredPlans?.length > 0) {
+                console.log('inside filtered Learning Plan', filteredPlans);
+            }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
@@ -1932,7 +1864,7 @@ module.exports.mutations = {
             message: "User created successfully!",
         };
     },
-    updateEmployee: async ({ id, input }, context) => {
+    updateEmployee: async ({ id, input }, context, session) => {
 
         const {
             role,
@@ -1983,7 +1915,8 @@ module.exports.mutations = {
                     role: role,
                     userInfo: userInfo,
                 },
-                context
+                context,
+                session
             );
             const updatedFields = Object.keys(input).reduce((changes, key) => {
                 if (currentEmployee[key] !== input[key]) {

@@ -505,6 +505,25 @@ module.exports.queries = {
                     }
                 },
                 {
+                    $lookup: {
+                        from: "users",
+                        localField: "assignedLearnerIDs",
+                        foreignField: "_id",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $filter: {
+                                input: "$assignedLearners",
+                                as: "learner",
+                                cond: { $eq: ["$$learner.isDeleted", false] }
+                            }
+                        }
+                    }
+                },
+                {
                     $project: {
                         _id: 1,
                         title: 1,
