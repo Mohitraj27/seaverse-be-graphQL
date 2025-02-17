@@ -300,7 +300,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         const titleAlreadyExist = await LearningPlan.findOne({
             title: input.title,
             isDeleted: false,
-            _id: { $ne: id }
         })
         if (titleAlreadyExist) {
             errorList.push(errorMessages.LEARNING_PLAN_EXISTS);

@@ -8,7 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
 } = require("../../../util");
-const { CryptoHelper, PubSubHelper, Validator, CronHelper } = require("../../../tools");
+const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -54,6 +54,8 @@ const audienceSelection = require('../../learning-plan/enumFields/audienceSelect
 const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
 const mongoose = require('mongoose');
+const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const { clear } = require("geoip-lite");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -370,35 +372,80 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
-
-                await LearningPlan.updateMany(
-                    { _id: plan._id },
-                    [
-                        { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
-                        { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
-                    ]
-                );
-
+                // await LearningPlan.updateMany(
+                //     { _id: plan._id },
+                //     [
+                //         { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
+                //         { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
+                //     ]
+                // );
+                const assignments = userIds.map(userId => ({
+                    learningPlanId: plan._id,
+                    assignedLearnerId: userId,
+                    isMannuallyAdded: false,
+                    createdBy: context.user.userId,
+                    updatedBy: context.user.userId,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }));
+                console.log('this is assignements data',assignments);
+                if(assignments?.length){
+                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments,{ ordered: false });
+                    console.log("Data got enrolled:", dataenrolled);
+                }
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
-
                 const userIds = validUsers.map(user => user._id);
+                console.log('this is userID',userIds);
+                console.log(userConditions);
+                const userIDtoberemoved = userConditions.map(userId1 => ObjectId(userId1._id));
+                if (userIds?.length > 0 || validUsers?.length > 0) {
+                    // ✅ If no valid users, delete all assignments related to the plan
+                    
+                    const assignments = userIds.map(userId => ({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: userId,
+                        isMannuallyAdded: false,
+                        createdBy: context.user.userId,
+                        updatedBy: context.user.userId,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }));
+                    console.log('this is assignements data',assignments);
+                    if(assignments?.length){
+                        const dataenrolled = await LearningPlanAssignment.insertMany(assignments,{ ordered: false });
+                        console.log("Data got enrolled:", dataenrolled);
+                    }
+                     usersToEnroll.push(...userIds);
+                    }
+                  else if(userIds?.length === 0 || validUsers?.length ===0){
+                    // ✅ If no valid users, delete all assignments related to the plan
+                    console.log(typeof plan._id);
+                    console.log('this is plan Id',plan._id);
+                    console.log(typeof userIDtoberemoved);
+                    console.log('Iside delete',userIDtoberemoved);
 
-                if (userIds.length > 0) {
-                    await LearningPlan.updateMany(
-                        { _id: plan._id },
-                        [
-                            { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
-                            { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
-                        ]
-                    );
-                    usersToEnroll.push(...userIds);
-                }
-            }
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: userIDtoberemoved }
+                    });
+                    console.log("Existing Assignments Before Deletion:", existingAssignments);
+                    if(existingAssignments?.length>0){
+                        const deleteResult = await LearningPlanAssignment.deleteMany({
+                            learningPlanId: plan._id,
+                            assignedLearnerId : { $in: userIDtoberemoved }  
+                        });
 
+                      console.log("Deleted Assignments Result:", deleteResult);
+                    
+                         }   else{
+                       console.log('No matching records for deletion');
+                    }
+                 }
+            }   
             if (usersToEnroll.length > 0) {
                 const enrollData = {
                     trainings: plan.selectCourses,
@@ -1485,6 +1532,7 @@ module.exports = {
             _id: existingEmployee?._id
         }];
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
+        console.log('result for update', result);
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
