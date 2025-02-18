@@ -223,7 +223,16 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Vessel Created: ${vessel.name}`,
+                messageValue: `A New Vessel: ${vessel.name} has been created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.VESSEL_CREATED,
+                notifyAdmin: true,
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Vessel created successfully.',
@@ -306,7 +315,16 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `${vessel.name} Vessel Updated`,
+                messageValue: `${vessel.name} has been Updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.VESSEL_UPDATED,
+                notifyAdmin: true,
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
