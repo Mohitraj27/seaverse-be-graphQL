@@ -643,6 +643,20 @@ module.exports.mutations = {
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
+            if (input.title) {
+                const titleValues = input.title.map(x => x.value.trim());
+                if (titleValues.some(x => x === "")) {
+                    throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
+                }
+            }
+
+            if (input.description) {
+                const descriptionValues = input.description.map(x => x.value.trim());
+                if (descriptionValues.some(x => x === "")) {
+                    throw CustomError(ErrorName.INVALID_DESCRIPTION, "Description cannot be empty");
+                }
+            }
+
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
                     "title.value": x.value.trim(),
