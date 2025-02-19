@@ -619,7 +619,7 @@ module.exports.queries = {
 
                 return {
                     ...result,
-                    totalCount: empCount
+                    totalCount: empCount ?? 0,
                 }
             };
 
@@ -896,8 +896,8 @@ module.exports.queries = {
 
             return {
                 employees: result.employees,
-                totalCount: result.employees.length,
-                totalEmployees : result.totalCount
+                totalCount: result?.employees.length ?? 0,
+                totalEmployees : result?.totalCount ?? 0
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
