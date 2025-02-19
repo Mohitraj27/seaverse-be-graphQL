@@ -21,6 +21,11 @@ const { TrainingContentBridge } = require("../../training_content_bridge/trainin
 const NotificationHelper = require("../../../notifications/notification_helper");
 const NotificationType = require("../../../notifications/notification_type.json");
 const notificationiconEnum = require("../../../notifications/notification_icon.json");
+
+function escapeRegex(str) {
+    return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -38,9 +43,12 @@ module.exports.queries = {
         if (recentlyModified) {
             filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
         }
+
         if (search) {
-            filterConditions['title.value'] = { $regex: search, $options: "i" };
+            const escapedSearch = escapeRegex(search);
+            filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
         }
+
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
@@ -115,7 +123,7 @@ module.exports.queries = {
                                         {
                                             $match: {
                                                 isDeleted: false,
-                                                isActive : true
+                                                isActive: true
                                             }
                                         }
                                     ]
@@ -158,7 +166,7 @@ module.exports.queries = {
             }
         );
 
-        if (!contents) {
+        if (contents.contents.length === 0) {
             return {
                 contents: [],
                 totalCount: 0,
