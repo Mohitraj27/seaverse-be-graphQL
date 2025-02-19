@@ -571,7 +571,7 @@ module.exports.mutations = {
     },
     syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
 
-        const { role, userId, userInfo } = AuthUser(context);
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
 
         try {
 
@@ -604,7 +604,7 @@ module.exports.mutations = {
                 let syncContentErrors = [];
                 const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
-                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, session);
+                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
 
                 if (syncContentErrors.length > 0) {
                     throw CustomError(ErrorName.FAILED, syncContentErrors[0]);

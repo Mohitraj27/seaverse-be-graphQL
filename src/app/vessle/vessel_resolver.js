@@ -325,7 +325,6 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
