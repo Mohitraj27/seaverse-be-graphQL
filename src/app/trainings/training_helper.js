@@ -528,7 +528,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
             if (emails.length > 0) {
                 for (const item of emails) {
-                    sendEmail({
+                    await sendEmail({
                         receiverEmail: item.email,
                         subject: `Congratulations on Completing the ${item?.emailContent?.trainingTitle} Course!`,
                         htmlContent: item.emailContent,
