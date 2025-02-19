@@ -40,7 +40,7 @@ module.exports.queries = {
         try {
             const inProgressNotification = {
                 subscriber: subscriberId,
-                title: [{ lang: "en", value: `User Export In Progress` }],
+                title: [{ lang: "en", value: `User Group Export In Progress` }],
                 message: [
                     {
                         lang: "en",
@@ -53,7 +53,7 @@ module.exports.queries = {
                 employeeNotifiers: [],
                 affected:[],
                 createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS,
+                icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
