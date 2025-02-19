@@ -606,7 +606,7 @@ module.exports.queries = {
             const fetchResult = async pipeline => {
                 const empData = await Employee.aggregate(pipeline);
                 const empCount = empData.length;
-                const result = await Employee.aggregatePaginate(empData, {
+                const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                     offset: skip,
                     limit,
                     customLabels: {
