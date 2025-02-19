@@ -604,7 +604,9 @@ module.exports.queries = {
             }
 
             const fetchResult = async pipeline => {
-                return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
+                const empData = await Employee.aggregate(pipeline);
+                const empCount = empData.length;
+                const result = await Employee.aggregatePaginate(empData, {
                     offset: skip,
                     limit,
                     customLabels: {
@@ -613,8 +615,12 @@ module.exports.queries = {
                         offset: "skip",
                     },
                     pagination: limit !== 0,
-                    allowDiskUse: true,
                 });
+
+                return {
+                    ...result,
+                    totalCount: empCount
+                }
             };
 
             let sanitizedSearch;
@@ -891,6 +897,7 @@ module.exports.queries = {
             return {
                 employees: result.employees,
                 totalCount: result.employees.length,
+                totalEmployees : result.totalCount
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);

@@ -77,6 +77,7 @@ type userVessels {
             batch: Batch
             employees: [Employee]
             totalCount: Int
+            totalEmployees : Int
             isRegistered: Boolean
         }
         type deleteReqResponse {
