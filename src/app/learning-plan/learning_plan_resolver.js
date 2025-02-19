@@ -286,34 +286,35 @@ module.exports.queries = {
             if (filterInput?.lastModified) {
                 delete queryConditions.lastModified
                 const today = Moment();
+                const endOfToday = today.clone().endOf("day").toDate();
                 switch (filterInput.lastModified) {
                     case "TODAY":
-                        startDate = today.startOf("day").toDate();
-                        endDate = today.endOf("day").toDate();
+                        startDate = today.clone().startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "YESTERDAY":
-                        startDate = today.subtract(1, "day").startOf("day").toDate();
-                        endDate = today.subtract(1, "day").endOf("day").toDate();
+                        startDate =  today.clone().subtract(1, "day").startOf("day").toDate();
+                        endDate = today.clone().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
-                        startDate = today.subtract(7, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_30_DAYS":
-                        startDate = today.subtract(30, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_3_MONTHS":
-                        startDate = today.subtract(3, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_6_MONTHS":
-                        startDate = today.subtract(6, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_YEAR":
-                        startDate = today.subtract(1, "year").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     default:
                         break;
