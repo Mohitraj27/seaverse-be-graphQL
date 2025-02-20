@@ -22,7 +22,11 @@ const TrainingCertificateHelper = require("../training-registrations/training-ce
 const { TrainingModuleContent } = require("./training_modules/training_module_contents/training_module_content_model");
 const { QuizEvaluation } = require("../quizzes/quiz-attempts/quiz_evaluation_model");
 const { TrainingContentBridge } = require("./training_content_bridge/training_content_model");
+const notificationiconEnum = require("../notifications/notification_icon.json");
 const { sendNotifications } = require("../../util/firebase_helper");
+const courseCompletion = require("../email-template/courseCompletion");
+const AWS_HELPER = require("../../util/aws_helper");
+const { sendEmail } = require("../../util/aws_helper");
 
 const levenshtein = require('fast-levenshtein');
 
@@ -409,7 +413,7 @@ function mergeTrainingData(data) {
     return Object.values(mergedData);
 }
 
-const validateAndGenerateCertificate = async (overallIds, userId, session) => {
+const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, session) => {
 
     if (overallIds.length > 0) {
 
@@ -479,6 +483,68 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
         const completedOverallIds = trainingCompletionStatus.filter((item) => item.isTrainingCompleted).map((item) => item.overallTrainingProgressId);
 
+        if (completedOverallIds.length > 0) {
+
+            const trainingData = await OverallTrainingProgress.find({
+                _id: { $in: completedOverallIds }
+            }).populate('training').populate('user').session(session);
+
+            const notifications = [];
+            const emails = [];
+
+            for (const item of trainingData) {
+
+                const trainingName = item?.training?.title[0]?.value;
+                const userId = item?.user;
+
+                notifications.push({
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `Course completed successfully!` }],
+                    message: [{ lang: "en", value: `You have successfully completed the course '${trainingName ?? ''}'` }],
+                    notificationType: NotificationType.COURSE_COMPLETION,
+                    notifyAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    additionalInfo: [],
+                    affected: [],
+                    createdBy: null,
+                    status: 'SENT',
+                    icon: notificationiconEnum.SUCCESS,
+                    isRead: false,
+                });
+
+                const courseImages = await AWS_HELPER.fetchFile(item?.training?.coverImage?.url) ||
+                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
+
+                emailContent = courseCompletion({
+                    firstName: item.user.firstName,
+                    trainingTitle: trainingName,
+                    durationHours: item?.training?.durationHours,
+                    courseId: item.training,
+                    courseImage: courseImages
+                });
+
+                emails.push({
+                    email: item.user.email,
+                    emailContent
+                })
+
+            }
+
+            await NotificationHelper.createNotification(notifications);
+
+            if (emails.length > 0) {
+                for (const item of emails) {
+                    await sendEmail({
+                        receiverEmail: item.email,
+                        subject: `Congratulations on Completing the ${item?.emailContent?.trainingTitle} Course!`,
+                        htmlContent: item.emailContent,
+                    });
+                }
+            }
+
+        }
+
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
@@ -487,23 +553,33 @@ const validateAndGenerateCertificate = async (overallIds, userId, session) => {
 
         if (overallDocs.length > 0) {
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+            const sendCertificateNotification = [];
             for (const doc of overallDocs) {
                 const training = await Training.findById(doc.training);
                 const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
                 const isCertificate = training?.isCertificate;
                 if (courseTitle && !doc.isCertificateGenerated) {
                     if (isCertificate) {
-                        await sendNotifications({
-                            userIds: [userId],
-                            title: `Certificate Generated Successfully`,
-                            body: `Your certificate for the course ${courseTitle} has been successfully generated.`,
-                            content: "Certificate Details",
-                            webLink: ""
+                        sendCertificateNotification.push({
+                            subscriber: subscriberId,
+                            title: [{ lang: "en", value: `Your course certificate issued` }],
+                            message: [{ lang: "en", value: `Your certificate for the course '${courseTitle ?? ''}' has been issued.` }],
+                            notificationType: NotificationType.COURSE_COMPLETION,
+                            notifyAdmin: false,
+                            notifiers: [userId],
+                            employeeNotifiers: [userId],
+                            additionalInfo: [],
+                            affected: [],
+                            createdBy: null,
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            isRead: false,
                         });
-
                     }
                 }
             }
+
+            await NotificationHelper.createNotification(sendCertificateNotification);
 
             await OverallTrainingProgress.updateMany(
                 { _id: { $in: overallDocs.map(doc => doc._id) } },
@@ -689,7 +765,7 @@ const calculateTimeSpend = async (overallIds, session) => {
     }
 }
 
-const updateTrainingProgress = async (input, userId, session) => {
+const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -953,7 +1029,7 @@ const updateTrainingProgress = async (input, userId, session) => {
         await calculateTimeSpend(overallIds, session)
     }
 
-    const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, session);
+    const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, subscriberId, session);
 
     return { updatedCount: bulkOps.length };
 };

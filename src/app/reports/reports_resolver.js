@@ -159,7 +159,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -511,7 +511,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -745,7 +745,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
 
                     const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
-                    const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+                    const completionDate = item?.completionDate ? ReportsHelper.formatDate(item.completionDate) : "Not Applicable";
                     const startDate = item?.startDate && item.startDate !== 'startDate'
                         ? ReportsHelper.formatDate(item.startDate)
                         : "Not Applicable";
@@ -766,10 +766,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date': enrollmentDate,
-                        'Unenrollment Date': unenrollmentDate,
-                        'Completion Date': completionDate,
-                        'Started Date': startDate,
+                        'Enrollment Date (Asia/Calcutta TimeZone) ': enrollmentDate,
+                        'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                        'Completion Date (Asia/Calcutta TimeZone)': completionDate,
+                        'Started Date (Asia/Calcutta TimeZone)': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
@@ -1460,10 +1460,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date': enrollmentDate,
-                                    'Course Started Date': startDate,
-                                    'Course Completion Date': completionDate,
-                                    'Unenrollment Date': unenrollmentDate,
+                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
+                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
+                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
+                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
                                 });
                             });
                         });
@@ -1618,7 +1618,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -2009,7 +2009,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -3079,10 +3079,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
                                     'Admin Marked As Completed': adminMarkedAsCompleted,
-                                    'Enrollment Date': enrollmentDate,
-                                    'Course Started Date': startDate,
-                                    'Course Completion Date': completionDate,
-                                    'Unenrollment Date': unenrollmentDate,
+                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
+                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
+                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
+                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
                                 });
                             });
                         }
@@ -3304,7 +3304,7 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -4103,10 +4103,10 @@ const generateCustomReport = async ({ input }, context) => {
                     'Quiz Score': quizScore,
                     userState: userState,
                     'Time Spent (mins)': timeSpent,
-                    'Enrollment Date': enrollmentDate,
-                    'Course Started Date': startDate,
-                    'Course Completion Date': completionDate,
-                    'Unenrollment Date': unenrollmentDate,
+                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
+                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
+                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
+                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
                 });
             });
 
@@ -4685,10 +4685,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
                                 'Quiz Score': quizScore,
-                                'Enrollment Date': enrollmentDate,
-                                'Course Started Date': startDate,
-                                'Course Completion Date': completionDate,
-                                'Unenrollment Date': unenrollmentDate,
+                                'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
+                                'Course Started Date (Asia/Calcutta TimeZone)': startDate,
+                                'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
+                                'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
                             });
                         });
                     });
@@ -4816,7 +4816,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     try {
 
         const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 50;
+        const limit = pageInput?.limit ? pageInput.limit : 20;
         let matchStage = [];
         let pageLimit = [];
         if (limit > 0) {
@@ -4994,7 +4994,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5217,7 +5217,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5472,7 +5472,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId, feedback: { $exists: true, $ne: null } };
         let trainingData = null;
@@ -5710,7 +5710,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 

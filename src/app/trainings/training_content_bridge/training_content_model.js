@@ -29,4 +29,8 @@ const trainingContentBridge = new Schema(
     { timestamps: true }
 );
 
+trainingContentBridge.index({ training: 1 });
+trainingContentBridge.index({ trainingModule: 1 });
+trainingContentBridge.index({ trainingContent: 1 });
+
 module.exports.TrainingContentBridge = Model("TrainingContentBridge", trainingContentBridge);

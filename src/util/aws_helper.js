@@ -126,6 +126,7 @@ module.exports = {
                 };
 
                 const response = await ses.sendEmail(params).promise();
+                
                 if (response) {
                     return response;
                 }
