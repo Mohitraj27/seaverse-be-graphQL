@@ -261,8 +261,9 @@ module.exports.queries = {
     getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
+        const skip = pageInput?.skip || 0;
+        const limit = pageInput?.limit || 50;
+
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
@@ -296,7 +297,7 @@ module.exports.queries = {
                         endDate = endOfToday;
                         break;
                     case "YESTERDAY":
-                        startDate =  today.clone().subtract(1, "day").startOf("day").toDate();
+                        startDate = today.clone().subtract(1, "day").startOf("day").toDate();
                         endDate = today.clone().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
@@ -329,9 +330,10 @@ module.exports.queries = {
             }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
-                { $skip: parsedSkip },
-                { $limit: parsedLimit },
                 { $match: queryConditions },
+                { $sort: { updatedAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
                 {
                     $lookup: {
                         from: "groups",
@@ -470,8 +472,6 @@ module.exports.queries = {
                         "createdBy.lastName": "$createdByDetails.lastName",
                     }
                 }
-                ,
-                { $sort: { updatedAt: -1 } },
             ]);
 
             for (const learningPlan of learningPlans) {
