@@ -26,6 +26,9 @@ const userVesselSchema = new Schema(
     { timestamps: true }
 );
 
+userVesselSchema.index({ user: 1 });
+userVesselSchema.index({ vessel: 1 });
+
 const UserVessel = Model("UserVessel", userVesselSchema);
 
 module.exports = {

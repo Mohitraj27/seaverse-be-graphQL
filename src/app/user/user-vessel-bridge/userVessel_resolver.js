@@ -9,6 +9,9 @@ const { User } = require("../user_model");
 const { UserVessel } = require("./userVessel_model");
 const { Vessel } = require('../../vessle/vessel_model');
 const { vesselAssignmentEmail, vesselAssignmentEmailforAdmin } = require("../../email-template/assignVessel");
+const NotificationHelper = require("../../notifications/notification_helper");
+const NotificationType = require("../../notifications/notification_type.json");
+const notificationEnum = require("../../notifications/notification_icon.json")
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -121,6 +124,16 @@ module.exports.mutations = {
                     vesselName: getVessel?.name || 'N/A',
                     userName: getUser.firstName,
                 })
+                await NotificationHelper.createNotificationhelper({
+                    subscriber: subscriberId,
+                    titleValue: `New Vessel Assigned: ${getVessel?.name}`,
+                    messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    notificationType: NotificationType.VESSEL_CREATED,
+                    notifyAdmin: true,
+                    status: "SENT",
+                    icon: notificationEnum.SUCCESS,
+                    createdBy: userInfo,
+                });
                 await SendEmail({
                     receiverEmail: userInfo.email,
                     subject: `User Vessel Assignment Notification`,
