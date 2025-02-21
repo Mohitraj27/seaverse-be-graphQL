@@ -608,10 +608,15 @@ module.exports.queries = {
                 {
                     $lookup: {
                         from: "users",
-                        localField: "userObjectIds",
+                        localField: "assignedLearnerIDs",
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
+                            {
+                                $match: {
+                                    isDeleted: { $ne: true }
+                                }
+                            },
                             {
                                 $project: {
                                     _id: 1,
