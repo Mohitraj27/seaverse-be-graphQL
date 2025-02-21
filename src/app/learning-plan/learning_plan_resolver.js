@@ -612,10 +612,13 @@ module.exports.queries = {
                 {
                     $lookup: {
                         from: "users",
-                        localField: "userObjectIds",
+                        localField: "assignedLearnerIDs",
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
+                            {
+                                $match: { isDeleted: { $ne: true } }
+                            },
                             {
                                 $project: {
                                     _id: 1,
@@ -672,7 +675,7 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
-
+            console.log('This is detailed plan',detailedPlan.overallProgress);
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
