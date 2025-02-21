@@ -210,11 +210,16 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            validation.learningPlan.updatedBy = userId;
-            validation.learningPlan.updatedAt = new Date();
-            validation.learningPlan.isUpdated = true;
+            const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
+            if (!updatedLearningPlan) {
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
+            }
+            updatedLearningPlan.updatedBy = userId;
+            updatedLearningPlan.updatedAt = new Date();
+            updatedLearningPlan.isUpdated = true;
 
-            await learningPlan.save();
+            // Save updated learning plan
+            await updatedLearningPlan.save();
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -250,7 +255,6 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            const updatedLearningPlan = validation.learningPlan;
             return updatedLearningPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);

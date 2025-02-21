@@ -25,5 +25,6 @@ module.exports = {
     GROUP_IDS_GROUP_TYPE_REQUIRED_FOR_GROUP_BASED: "Both group IDs and group type are required for a group-based field.",
     VALUE_OF_FIELD_NOT_REQUIRED_FOR_GROUP_BASED: "Field value is not required for group-based fields.",
     INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED: "The conditional custom fields provided for a group-based audience selection are invalid.",
-    IS_RETIRED_COURSES_SELECTION: "One or more courses selected have been moved to the retired state. To continue editing the learning plan, please remove the retired courses."
+    IS_RETIRED_COURSES_SELECTION: "One or more courses selected have been moved to the retired state. To continue editing the learning plan, please remove the retired courses.",
+    FAILED_TO_SAVE_LEARNING_PLAN: "Failed to save the learning plan. Please try again."
 };
