@@ -384,68 +384,88 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     assignedLearnerId: userId,
                     isMannuallyAdded: false,
                     createdBy: context.user.userId,
-                    updatedBy: context.user.userId,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
+                    updatedBy: context.user.userId
                 }));
-                console.log('this is assignements data',assignments);
-                if(assignments?.length){
-                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments,{ ordered: false });
-                    console.log("Data got enrolled:", dataenrolled);
+
+                if (assignments?.length) {
+                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
                 }
+
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+
+                console.log('plan');
+                console.log(plan);
+
+                console.log('userConditions');
+                console.log(userConditions);
+
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
+
+                console.log('validUsers');
+                console.log(validUsers);
+
+                const validUserIds = new Set(validUsers.map(user => user._id));
+
+                const usersToRemove = userConditions
+                    .filter(user => !validUserIds.has(user._id))
+                    .map(user => user._id);
+
+                console.log('usersToRemove');
+                console.log(usersToRemove);
+
                 const userIds = validUsers.map(user => user._id);
-                console.log('this is userID',userIds);
-                console.log(userConditions);
-                const userIDtoberemoved = userConditions.map(userId1 => ObjectId(userId1._id));
-                if (userIds?.length > 0 || validUsers?.length > 0) {
-                    // ✅ If no valid users, delete all assignments related to the plan
-                    
-                    const assignments = userIds.map(userId => ({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: userId,
-                        isMannuallyAdded: false,
-                        createdBy: context.user.userId,
-                        updatedBy: context.user.userId,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    }));
-                    console.log('this is assignements data',assignments);
-                    if(assignments?.length){
-                        const dataenrolled = await LearningPlanAssignment.insertMany(assignments,{ ordered: false });
-                        console.log("Data got enrolled:", dataenrolled);
-                    }
-                     usersToEnroll.push(...userIds);
-                    }
-                  else if(userIds?.length === 0 || validUsers?.length ===0){
-                    // ✅ If no valid users, delete all assignments related to the plan
-                    console.log(typeof plan._id);
-                    console.log('this is plan Id',plan._id);
-                    console.log(typeof userIDtoberemoved);
-                    console.log('Iside delete',userIDtoberemoved);
+
+                if (validUsers?.length > 0) {
 
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
-                        assignedLearnerId: { $in: userIDtoberemoved }
-                    });
-                    console.log("Existing Assignments Before Deletion:", existingAssignments);
-                    if(existingAssignments?.length>0){
-                        const deleteResult = await LearningPlanAssignment.deleteMany({
-                            learningPlanId: plan._id,
-                            assignedLearnerId : { $in: userIDtoberemoved }  
-                        });
+                        assignedLearnerId: { $in: userIds }
+                    }, { assignedLearnerId: 1 });
 
-                      console.log("Deleted Assignments Result:", deleteResult);
-                    
-                         }   else{
-                       console.log('No matching records for deletion');
+                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                    const newAssignments = userIds
+                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                        .map(userId => ({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: userId,
+                            isMannuallyAdded: false,
+                            createdBy: context.user.userId,
+                            updatedBy: context.user.userId,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }));
+
+                    if (newAssignments.length > 0) {
+                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
-                 }
-            }   
+
+                    // const assignments = userIds.map(userId => ({
+                    //     learningPlanId: plan._id,
+                    //     assignedLearnerId: userId,
+                    //     isMannuallyAdded: false,
+                    //     createdBy: context.user.userId,
+                    //     updatedBy: context.user.userId
+                    // }));
+
+                    // if (assignments?.length) {
+                    //     const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                    // }
+                    // usersToEnroll.push(...userIds);
+                }
+
+                if (usersToRemove.length > 0) {
+
+                    const deleteResult = await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove }
+                    });
+
+                }
+            }
             if (usersToEnroll.length > 0) {
                 const enrollData = {
                     trainings: plan.selectCourses,
@@ -1529,7 +1549,7 @@ module.exports = {
             vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
             currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
             email: input?.user?.email,
-            _id: existingEmployee?._id
+            _id: existingEmployee?.user?._id
         }];
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
         console.log('result for update', result);

@@ -254,7 +254,7 @@ const createLearningPlanHelper = async (input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            if(userIds?.length>0){
+
             const assignments = userIds.map(userId => ({
                 learningPlanId: newLearningPlan._id,
                 assignedLearnerId: userId,
@@ -264,7 +264,7 @@ const createLearningPlanHelper = async (input, context) => {
             }));
 
             await LearningPlanAssignment.insertMany(assignments);
-            }
+
         }
         await newLearningPlan.save();
         const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id }).select('assignedLearnerId');
