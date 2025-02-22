@@ -44,7 +44,7 @@ module.exports.queries = {
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -159,7 +159,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,

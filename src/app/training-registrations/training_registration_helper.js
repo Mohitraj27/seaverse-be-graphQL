@@ -839,7 +839,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo.firstName} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -856,7 +856,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo.firstName} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -1053,7 +1053,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
-                        messageValue: `${userInfo.firstName} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -1070,7 +1070,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
-                        messageValue: `${userInfo.firstName} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],

@@ -63,7 +63,7 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `New Course has been enrolled to you`,
-            messageValue: `You have been assigned to a new Course by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `You have been assigned to a new Course by ${userInfo?.firstName} ${userInfo?.lastName}.`,
             notificationType: NotificationType.NEW_MIGRATION_COURSE_ENROLLMENT,
             notifyAdmin: false,
             notifiers: [userIds],
@@ -84,7 +84,7 @@ async function createOrUpdateTrainingMigrationCourses({ input }, session, contex
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `New Course Enrollment`,
-            messageValue: `A new Course Enrollment has been successfully done by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `A new Course Enrollment has been successfully done by ${userInfo?.firstName} ${userInfo?.lastName}.`,
             notificationType: NotificationType.NEW_MIGRATION_COURSE_ENROLLMENT,
             notifyAdmin: true,
             notifiers: [],
