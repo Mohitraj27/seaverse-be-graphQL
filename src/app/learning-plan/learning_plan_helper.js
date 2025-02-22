@@ -189,23 +189,35 @@ const additionalValidationConditionalCustomFields = async (input, operation, err
             errorList.push(errorMessage);
         }
     }
-}
+};
+const validateGroupAndConditionalFields = async (input, errorList) => {
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
+        const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
+        
+        for (const field of input.conditionalCustomFields || []) {
+            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) { 
+                errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
+            }
+        }
+    }
+};
 const createLearningPlanHelper = async (input, context) => {
     let errorList = [];
 
     try {
-        const existingLearningPlan = await LearningPlan.findOne({
-            title: input.title,
-            isDeleted: false,
-        });
-        if (existingLearningPlan) {
-            errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
-            return { success: false, errors: errorList };
-        }
+        // const existingLearningPlan = await LearningPlan.findOne({
+        //     title: input.title,
+        //     isDeleted: false,
+        // });
+        // if (existingLearningPlan) {
+        //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+        //     return { success: false, errors: errorList };
+        // }
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await audienceSelectionIsMannualValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, 'create', errorList);
+        await validateGroupAndConditionalFields(input,errorList);
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -302,20 +314,21 @@ const clearFieldsBasedOnConditions = async (input, errorList) => {
 const updateLearningPlanHelper = async (id, input, context) => {
     let errorList = [];
     try {
-        const titleAlreadyExist = await LearningPlan.findOne({
-            title: input.title,
-            isDeleted: false,
-            _id: { $ne: id }
-        })
-        if (titleAlreadyExist) {
-            errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
-            return { success: false, errors: errorList };
-        }
+        // const titleAlreadyExist = await LearningPlan.findOne({
+        //     title: input.title,
+        //     isDeleted: false,
+        //     _id: { $ne: id }
+        // })
+        // if (titleAlreadyExist) {
+        //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
+        //     return { success: false, errors: errorList };
+        // }
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await audienceSelectionIsMannualValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, 'update', errorList);
         await clearFieldsBasedOnConditions(input, errorList);
+        await validateGroupAndConditionalFields(input,errorList);
         const existingLearningPlan = await LearningPlan.findOne({
             _id: id,
             isDeleted: false

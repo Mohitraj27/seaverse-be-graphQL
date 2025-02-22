@@ -60,7 +60,7 @@ module.exports.mutations = {
             });
             return result.learningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, error.message);
         }
     },
     updateLearningPlanStatus: async ({ input }, context) => {
@@ -132,7 +132,7 @@ module.exports.mutations = {
                 updatedLearningPlans: updatedPlans,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_UPDATE_STATUS, error.message);
         }
     },
     deleteLearningPlan: async ({ id }, context) => {
@@ -195,7 +195,7 @@ module.exports.mutations = {
                 message: 'Learning Plan  deleted successfully.'
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LEARNING_PLAN, `${error.message}`);
         }
 
     },
@@ -257,7 +257,7 @@ module.exports.mutations = {
             });
             return updatedLearningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
         }
     }
 };
@@ -675,7 +675,6 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
-            console.log('This is detailed plan',detailedPlan.overallProgress);
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
