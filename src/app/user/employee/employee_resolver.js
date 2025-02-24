@@ -10,6 +10,7 @@ const {
     UploadHelper,
     VesselStatus,
     SqliteEmailHelper,
+    dummyPassword,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -1038,8 +1039,8 @@ module.exports.queries = {
                     });
                     html = htmlContent;
                 } else {
-                    const generatePassword = generateRandomString(10);
-                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                    const password = dummyPassword.dummy_pwd;
+                    currentUserData.password = await CryptoHelper.hash(password, 10);
                     try {
                         await currentUserData.save();
                     } catch {
@@ -1049,7 +1050,7 @@ module.exports.queries = {
                     const htmlContent = sendEmailToLearner({
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
-                        temp_password: generatePassword,
+                        temp_password: password,
                         buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
@@ -1748,11 +1749,9 @@ module.exports.mutations = {
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
             const savedEmployees = [];
 
-            const generatePassword = generateRandomString(10);
-
             input.user.password = input.user.password
-                ? await CryptoHelper.hash(input.user.password, 10)
-                : await CryptoHelper.hash(generatePassword, 10);
+            ? await CryptoHelper.hash(input.user.password, 10)
+            : await CryptoHelper.hash(dummyPassword.dummy_pwd, 10);
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -1847,7 +1846,7 @@ module.exports.mutations = {
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
-                templategeneratePassword: generatePassword,
+                templategeneratePassword: dummyPassword.dummy_pwd,
             });
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })

@@ -7,6 +7,7 @@ const {
     Role,
     EmailTemplate,
     VesselStatus,
+    dummyPassword,
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper } = require("../../../tools");
 
@@ -1169,11 +1170,6 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
         }
-
-        if (status.toUpperCase() === VesselStatus.ONSHORE && row["Vessel IMO Number"]) {
-            errors.push(`IMO Number should not be provided for onshore users in row ${rowIndex + 1}`);
-            return errors;
-        }
     }
 
     if (row["Vessel IMO Number"]) {
@@ -2152,7 +2148,7 @@ module.exports = {
                 } else {
 
 
-                    let password = generateRandomString(16);
+                    let password = dummyPassword.dummy_pwd;
 
                     inserts.push({
                         civilIdOrPassport: user.civilIdOrPassport,
