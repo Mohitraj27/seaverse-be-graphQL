@@ -2329,7 +2329,8 @@ module.exports.mutations = {
                     })
                 })
             );
-            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the Role "${validSubRole.name}" successfully.`;
+            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
