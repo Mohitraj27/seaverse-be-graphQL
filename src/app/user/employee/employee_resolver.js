@@ -2461,7 +2461,8 @@ module.exports.mutations = {
 
         try {
             const notifications = [];
-            const exportStartTime = new Date();
+            // const exportStartTime = new Date();
+            /* Ticket Number : SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
@@ -2480,7 +2481,7 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
-
+            */
             const pipeline = [
                 {
                     $match: {
@@ -2669,7 +2670,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 };
-                notifications.push(successNotification);
+                // notifications.push(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,

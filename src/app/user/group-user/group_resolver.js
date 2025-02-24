@@ -35,9 +35,10 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
         const notifications = [];
-        const exportStartTime = new Date();
+        // const exportStartTime = new Date();
 
         try {
+            /* ticket No SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Group Export In Progress` }],
@@ -56,7 +57,8 @@ module.exports.queries = {
                 icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
-            await NotificationHelper.createNotification(notifications);
+            */
+            // await NotificationHelper.createNotification(notifications);
             let memberIds;
             let selectedGroup;
             let userDetails = [];
