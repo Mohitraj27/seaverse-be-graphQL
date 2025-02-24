@@ -43,11 +43,11 @@ const employeeSchema = new Schema(
         designation: {
             type: String,
             trim: true,
-            required:true,
+            required: true,
         },
         managerObjectId: {
             type: ObjectId,
-            ref: "User",  
+            ref: "User",
             required: false,
             default: null
         },
@@ -99,19 +99,19 @@ const employeeSchema = new Schema(
             type: Boolean,
             default: false,
         },
-        customField:[
+        customField: [
             {
-                type:{
+                type: {
                     type: String,
                     required: true,
                 },
-                field_name:{
-                    type:String,
-                    required:true,
+                field_name: {
+                    type: String,
+                    required: true,
                 },
-                value:{
-                    type:String,
-                    required:true,
+                value: {
+                    type: String,
+                    required: true,
                 },
 
             }
@@ -126,10 +126,7 @@ employeeSchema.virtual("trainingCertificates", {
     foreignField: "employee",
 });
 
-employeeSchema.index({ _id: 1, subscriber: 1, user: 1 });
-
-employeeSchema.index({ subscriber: 1, organization: 1 });
-
+employeeSchema.index({ _id: 1, user: 1, empDesignation: 1 });
 employeeSchema.index({ createdAt: -1 });
 
 employeeSchema.plugin(AggregatePaginate);

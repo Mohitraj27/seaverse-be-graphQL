@@ -93,10 +93,15 @@ const overallProgressSchema = new Schema(
             default: false
         },
         isEnrolled: Boolean,
+        isCertificatePresent: Boolean,
         totalDuration: Number,
         timeSpend: Number
     },
     { timestamps: true }
 )
+
+
+overallProgressSchema.index({ user: 1, training: 1 });
+overallProgressSchema.index({ status: 1 });
 
 module.exports.OverallTrainingProgress = Model("OverallTrainingProgress", overallProgressSchema);

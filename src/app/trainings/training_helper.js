@@ -236,6 +236,13 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
+        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate').session(session).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
         if (trainingIds.length == 0) {
             errors.push(`Training couldn't found`);
             return;
@@ -294,7 +301,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length } },
+                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length, isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate } },
                     },
                 });
             }
@@ -488,7 +495,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             for (const item of trainingData) {
 
                 const trainingName = item?.training?.title[0]?.value;
-                const userId = item?.user;
+                const userId = item?.user?._id;
 
                 notifications.push({
                     subscriber: subscriberId,
@@ -540,7 +547,8 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
-            trainingRegistration: { $ne: null }
+            trainingRegistration: { $ne: null },
+            isCertificatePresent: true
         }).session(session);
 
         if (overallDocs.length > 0) {
@@ -571,7 +579,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 }
             }
 
-            await NotificationHelper.createNotification(sendCertificateNotification);
+            if (sendCertificateNotification.length > 0) {
+                await NotificationHelper.createNotification(sendCertificateNotification);
+            }
 
             await OverallTrainingProgress.updateMany(
                 { _id: { $in: overallDocs.map(doc => doc._id) } },
@@ -1383,12 +1393,15 @@ module.exports = {
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
 
-        if (input.allowMultipleAttempts) {
+        if ('allowMultipleAttempts' in input) {
+
             trainingUpdateData.allowMultipleAttempts = input.allowMultipleAttempts;
             if (input.attemptFlexibility) trainingUpdateData.attemptFlexibility = input.attemptFlexibility;
             if (input.attemptType) trainingUpdateData.attemptType = input.attemptType;
             if (input.attemptType === "LIMITED_ATTEMPT" && input.setLimitAttempt) {
                 trainingUpdateData.setLimitAttempt = input.setLimitAttempt;
+            } else {
+                trainingUpdateData.setLimitAttempt = null;
             }
 
             if (input.disableFurtherAttemptsOnPass) trainingUpdateData.disableFurtherAttemptsOnPass = input.disableFurtherAttemptsOnPass;

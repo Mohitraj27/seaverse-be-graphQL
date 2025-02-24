@@ -33,11 +33,12 @@ const getMainLearnersReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let deteledUsersStage = [];
+        /* Ticket No : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learners Report Exported In Progress`,
-                messageValue: `The learners report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The learners report has been started and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -45,7 +46,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
@@ -159,7 +160,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -389,7 +390,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -420,7 +421,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
-                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message}.`,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${userInfo?.firstName} ${userInfo?.lastName}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -439,12 +440,12 @@ const getSingleLearnerReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let learnerData = [];
-
+        /* Ticket No: SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: ` Learner's report export In Progress`,
-                messageValue: `The learner's report export has been initiated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The learner's report export has been initiated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -452,7 +453,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
@@ -513,7 +514,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -852,7 +853,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [{
@@ -1534,7 +1535,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -1588,12 +1589,12 @@ const getMainCoursesReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Course Report Exported In Progress`,
-                messageValue: `The main course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The main course report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -1601,7 +1602,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
 
@@ -1620,7 +1621,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -1857,7 +1858,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Courses Report Exported Successfully`,
-                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -1910,12 +1911,12 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Selected Course Report Export In Progress`,
-                messageValue: `The single course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The single course report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -1923,7 +1924,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (!input?.reportType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
         }
@@ -2011,7 +2012,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -2329,7 +2330,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Enrollment Report Exported Successfully`,
-                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
                             additionalInfo: [
@@ -2399,7 +2400,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Enrollment Report Exported Successfully`,
-                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -3116,7 +3117,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Quiz Report Exported Successfully`,
-                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
                             additionalInfo: [
@@ -3185,7 +3186,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Quiz Report Exported Successfully`,
-                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -3238,12 +3239,12 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket Number : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Vessel Report Exported In Progress`,
-                messageValue: `The Vessel report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The Vessel report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -3251,6 +3252,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
+            */
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
@@ -3306,7 +3308,7 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -3689,7 +3691,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Main Vessel Report Exported Successfully`,
-                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -4757,7 +4759,7 @@ const generateCustomReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
-                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAdmin: true,
                 additionalInfo: [
@@ -4818,7 +4820,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     try {
 
         const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 50;
+        const limit = pageInput?.limit ? pageInput.limit : 20;
         let matchStage = [];
         let pageLimit = [];
         if (limit > 0) {
@@ -4996,7 +4998,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5219,7 +5221,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5474,7 +5476,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId, feedback: { $exists: true, $ne: null } };
         let trainingData = null;
@@ -5712,7 +5714,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 

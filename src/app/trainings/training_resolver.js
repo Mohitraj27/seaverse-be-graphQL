@@ -329,8 +329,13 @@ module.exports.mutations = {
                 );
             }
 
+            if (!input._id) {
+                input._id = savedTraining._id;
+            }
             if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
-                await createOrUpdateTrainingMigrationCourses({ input }, session, context);
+                let errors = [];
+                await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
+                if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
             } else {
                 if (input.migrationcoursesId) {
                     const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
@@ -631,7 +636,7 @@ module.exports.mutations = {
         const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
 
         if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND, "Course data not found!");
-        
+
         const trainingModuleCount = await TrainingModule.find({ training: fetchOverallTraining.training._id }).countDocuments();
 
         const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
@@ -662,6 +667,7 @@ module.exports.mutations = {
             fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
             fetchOverallTraining.adminMarkedAsCompleted = false;
             fetchOverallTraining.totalTrainingModules = trainingModuleCount || fetchOverallTraining.totalTrainingModules;
+            fetchOverallTraining.isCertificatePresent = fetchOverallTraining.training.isCertificate ?? false;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }

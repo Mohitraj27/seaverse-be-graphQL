@@ -215,4 +215,5 @@ module.exports = {
     Language: require("./language"),
     EmailTemplate: require("./email_template"),
     OverallProgressStatus : require("./overall_course_progress_status.json"),
+    SqliteEmailHelper: require("./sqlite_email_helper"),
 };

@@ -115,7 +115,6 @@ module.exports.queries = {
                     {
                         $facet: {
                             notifications: [
-                                ...selectFirstThreeDays,
                                 {
                                     $addFields: {
                                         isRead: {
@@ -128,6 +127,7 @@ module.exports.queries = {
                                         }
                                     }
                                 },
+                                ...selectFirstThreeDays,
                                 {
                                     $sort: { createdAt: -1 }
                                 },
@@ -225,6 +225,225 @@ module.exports.queries = {
         throw CustomError(GET_NOTIFICATION_FAILED,error.message);
     }
 },
+    getNotificationsForApp: async ({ pageInput, filterInput }, context) => {
+        const {
+            role,
+            userId,
+            userPermissions,
+            subscriberId,
+            employeeId,
+            isOrganizationManager,
+            managingOrganization,
+        } = AuthUser(context);
+        try {
+
+            const pageLimit = [];
+            const skip = pageInput?.skip ?? 0;
+            pageLimit.push(
+                {
+                    $skip: skip
+                },
+            );
+            pageLimit.push(
+                {
+                    $limit: pageInput?.limit ?? 50
+                }
+            );
+
+            const selectFirstThreeDays = [];
+
+
+           /*  if (skip === 0) {
+                selectFirstThreeDays.push({
+                    $match: {
+                        $expr: {
+                            $gte: [
+                                "$createdAt",
+                                new Date(new Date() - 3 * 24 * 60 * 60 * 1000)
+                            ]
+                        }
+                    }
+                })
+                pageLimit.push(
+                    {
+                        $limit: pageInput?.limit ?? 10000
+                    }
+                );
+            } else {
+                pageLimit.push(
+                    {
+                        $limit: pageInput?.limit ?? 50
+                    }
+                );
+            } */
+
+            let filterConditions = { /* subscriber: subscriberId, */ isDeleted: { $ne: true } };
+
+            if (filterInput) {
+                if (filterInput.notificationType) {
+                    filterConditions.notificationType = filterInput.notificationType;
+                }
+
+                if (filterInput.search) {
+                    filterConditions.$or = [
+                        {
+                            "title.value": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                        {
+                            "message.value": {
+                                $regex: ".*" + filterInput.search + ".*",
+                                $options: "i",
+                            },
+                        },
+                    ];
+                }
+
+                if (filterInput.dateFrom || filterInput.dateTo) {
+                    filterConditions.createdAt = {};
+                    if (filterInput.dateFrom)
+                        filterConditions.createdAt.$gte = Moment(filterInput.dateFrom)
+                            .startOf("day")
+                            .toDate();
+
+                    if (filterInput.dateTo)
+                        filterConditions.createdAt.$lte = Moment(filterInput.dateTo)
+                            .endOf("day")
+                            .toDate();
+                }
+            }
+
+            const fetchResult = async pipeline => {
+                let result = Notification.aggregatePaginate(
+                    Notification.aggregate([
+                        ...pipeline,
+                        {
+                            $addFields: {
+                                isRead: {
+                                    $in: [
+                                        userId,
+                                        {
+                                            $ifNull: ["$usersMarkedAsRead", []]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $facet: {
+                                notifications: [
+                                    {
+                                        $addFields: {
+                                            isRead: {
+                                                $in: [
+                                                    userId,
+                                                    {
+                                                        $ifNull: ["$usersMarkedAsRead", []]
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    ...selectFirstThreeDays,
+                                    {
+                                        $sort: { createdAt: -1 }
+                                    },
+                                    ...pageLimit,
+                                ],
+                                counts: [
+                                    ...selectFirstThreeDays,
+                                    { $sort: { createdAt: -1 } },
+                                    ...pageLimit,
+                                    {
+                                        $group: {
+                                            _id: null,
+                                            isReadTrueCount: {
+                                                $sum: {
+                                                    $cond: [{ $eq: ["$isRead", true] }, 1, 0]
+                                                }
+                                            },
+                                            isReadFalseCount: {
+                                                $sum: {
+                                                    $cond: [{ $eq: ["$isRead", false] }, 1, 0]
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $project: {
+                                notifications: 1,
+                                notificationReadInfo: { $arrayElemAt: ["$counts", 0] }
+                            }
+                        }
+                    ]),
+                    {
+                        sort: { createdAt: "-1" },
+                        customLabels: {
+                            docs: "notifications",
+                            totalDocs: "totalCount",
+                            offset: "skip",
+                        },
+                        allowDiskUse: true,
+                    }
+                );
+                return result;
+            };
+
+
+            const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
+
+            const checkIfAdmin = await User.findOne({
+                _id: userId,
+                subRoles: subRoleAdminId._id
+            }).lean();
+
+            if (context.platform === Role.ADMIN) {
+
+                filterConditions.$and = [
+                    { notifyAdmin: true },
+                ];
+
+                const pipeline = [{ $match: filterConditions }];
+                let result = await fetchResult(pipeline);
+                return result
+
+            } else if (context.platform === Role.ADMIN && checkIfAdmin) {
+
+                filterConditions.$and = [
+                    { notifyAdmin: true },
+                ];
+
+                const pipeline = [{ $match: filterConditions }];
+
+                return fetchResult(pipeline);
+
+            } else if (context.platform === Role.LEARNER) {
+
+                filterConditions.$and = [
+                    { notifyAdmin: false },
+                    { notifiers: userId },
+                ];
+
+                const pipeline = [{ $match: filterConditions }];
+                const result = await fetchResult(pipeline);
+
+                return result;
+            }
+
+            return {
+                notifications: [],
+                totalCount: 0,
+            };
+        } catch (error) {
+            console.log(error);
+            throw CustomError(GET_NOTIFICATION_FAILED, error.message);
+        }
+    },
 };
 module.exports.mutations = {
     markEachNotificationAsRead: async ({ notificationId }, context) => {
@@ -242,20 +461,26 @@ module.exports.mutations = {
 
             if (!notification.usersMarkedAsRead.includes(userId)) {
                 notification.usersMarkedAsRead.push(userId);
-            }
 
-            const updatedNotification = await notification.save();
+                const updatedNotification = await notification.save();
 
-            if (updatedNotification) {
-                return {
-                    status: "01",
-                    message: "Notification marked as read successfully"
+                if (updatedNotification) {
+                    return {
+                        status: "01",
+                        message: "Notification marked as read successfully"
+                    };
+                } else {
+                    return {
+                        status: "00",
+                        message: "Failed to mark notification as read"
+                    };
                 }
             } else {
+
                 return {
-                    status: "00",
-                    message: "Failed to mark notification as read"
-                }
+                    status: "01",
+                    message: "Notification was already marked as read"
+                };
             }
 
         } catch (error) {

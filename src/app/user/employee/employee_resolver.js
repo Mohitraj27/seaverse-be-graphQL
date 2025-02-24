@@ -9,6 +9,7 @@ const {
     DbTransactionHelper,
     UploadHelper,
     VesselStatus,
+    SqliteEmailHelper,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -62,6 +63,7 @@ const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-
 const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
+const { DynamicData } = require("./employee_dynamicData_model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -652,14 +654,6 @@ module.exports.queries = {
                     $unwind: "$user",
                 },
                 {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "user.subRoles",
-                        foreignField: "_id",
-                        as: "user.subRoles",
-                    }
-                },
-                {
                     $match: {
                         "user.isDeleted": { $ne: true },
                         "user.role": { $in: ["LEARNER", "ADMIN"] },
@@ -668,6 +662,77 @@ module.exports.queries = {
                         }),
                     },
                 },
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
+                            },
+                        },
+                    ]
+                    : []),
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
+
                 {
                     $lookup: {
                         from: "uservessels",
@@ -769,7 +834,11 @@ module.exports.queries = {
                         latestUpdatedAt: -1,
                     },
                 },
-
+                {
+                    $sort : {
+                        "user.firstName": 1
+                    }
+                },
                 ...(filterInput?.vesselName?.length > 0
                     ? [
                         {
@@ -814,12 +883,12 @@ module.exports.queries = {
                                             $options: "i",
                                         },
                                     },
-                                    /* {
+                                    {
                                         "user.civilIdOrPassport": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
-                                    }, */
+                                    },
                                     /* {
                                         "user.companyEmail": {
                                             $regex: ".*" + sanitizedSearch + ".*",
@@ -1129,7 +1198,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.WELCOME_EMAIL_SENT,
@@ -1195,6 +1264,42 @@ module.exports.queries = {
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
+    getDynamicData : async ({ userId }, context) => {
+        const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
+            AuthUser(context);
+        try {
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+    
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+    
+            const dynamicDataRecord = await DynamicData.findOne({ userId });
+    
+            if (!dynamicDataRecord) {
+                return {
+                    status: false,
+                    message: "No dynamic data found for this user",
+                    data: null,
+                };
+            }
+    
+            return {
+                status: true,
+                message: "Data fetched successfully",
+                data: dynamicDataRecord,
+            };
+        } catch (error) {
+            return {
+                status: false,
+                message: error.message ,
+                data: null,
+            };
         }
     }
 
@@ -1425,7 +1530,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -1435,7 +1540,7 @@ const manageRole = async ({ input }, context) => {
                 { $set: { role: "EMPLOYEE" } }
             );
             operationType = "Removed role as AUTHOR";
-            notificationMessage = "Your role has been changed to EMPLOYEE.";
+            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
@@ -1444,12 +1549,12 @@ const manageRole = async ({ input }, context) => {
                 { $set: { subRoles: [] } }
             );
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = "Your Roles have been removed.";
+            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = "Your account has been deleted.";
+        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -1759,10 +1864,12 @@ module.exports.mutations = {
                 }
 
                 if (message.type === 'EMAIL') {
-                    await sendNodeEmailBulk({
-                        receiverEmails: message.data.email,
-                        subject: message.data.subject
-                    })
+
+                    SqliteEmailHelper.insertEmails(message.data.email);
+                    const emails = SqliteEmailHelper.fetchEmailBatch();
+
+                    await sendNodeEmailBulk({ subject: message.data.subject });
+
                 }
             });
 
@@ -1889,17 +1996,17 @@ module.exports.mutations = {
             });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
-                const conditions = {
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            const conditions = [{
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? null,
+                currentStatus: savedUserVessel?.vesselStatus ?? "ONSHORE",
                 email: savedUser.email,
                 _id: savedUser._id
-            };
+            }];
 
-            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -1913,28 +2020,9 @@ module.exports.mutations = {
             //         currentStatus: savedUserVessel?.vesselStatus
             //     };
             // });
-            // if (filteredPlans?.length > 0) {
-            //     console.log('inside filtered Learning Plan',filteredPlans);
-            //     await LearningPlan.updateMany(
-            //         { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-            //         [
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $ifNull: ["$assignedLearnerIDs", []]
-            //                     }
-            //                 }
-            //             },
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-            //                     }
-            //                 }
-            //             }
-            //         ]
-            //     );
-            // }
+            if (filteredPlans?.length > 0) {
+                console.log('inside filtered Learning Plan', filteredPlans);
+            }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
@@ -1950,19 +2038,22 @@ module.exports.mutations = {
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
+        // Jira Ticket SEAV-55
+        /*
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
+        */
 
         return {
             status: true,
             message: "User created successfully!",
         };
     },
-    updateEmployee: async ({ id, input }, context) => {
+    updateEmployee: async ({ id, input }, context, session) => {
 
         const {
             role,
@@ -2013,7 +2104,8 @@ module.exports.mutations = {
                     role: role,
                     userInfo: userInfo,
                 },
-                context
+                context,
+                session
             );
             const updatedFields = Object.keys(input).reduce((changes, key) => {
                 if (currentEmployee[key] !== input[key]) {
@@ -2352,7 +2444,8 @@ module.exports.mutations = {
                     })
                 })
             );
-            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the Role "${validSubRole.name}" successfully.`;
+            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -2381,7 +2474,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}".`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2452,14 +2545,15 @@ module.exports.mutations = {
             }
             await checkUserRegType(userObjectIds?.ids, userObjectIds?.regType);
             const notifications = [];
-            const exportStartTime = new Date();
+            // const exportStartTime = new Date();
+            /* Ticket Number : SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -2471,7 +2565,7 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
-
+            */
             const pipeline = [
                 {
                     $match: {
@@ -2641,7 +2735,7 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
@@ -2660,7 +2754,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 };
-                notifications.push(successNotification);
+                // notifications.push(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
@@ -2673,6 +2767,54 @@ module.exports.mutations = {
             }
         } catch (error) {
             throw new Error(error.message);
+        }
+    },
+    createOrUpdateDynamicData : async ({ input }, context) => {
+    const { role,  userInfo, userPermissions, subscriberId, isOrganizationManager } =
+        AuthUser(context);
+        try {
+            const { userId, jsonData } = input;
+    
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+    
+            if (!jsonData || typeof jsonData !== "object") {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "jsonData is required and should be an object");
+            }
+    
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+    
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+    
+            const existingRecord = await DynamicData.findOne({ userId });
+    
+            let savedData;
+    
+            if (existingRecord) {
+                existingRecord.jsonData = jsonData;
+                savedData = await existingRecord.save();
+            } else {
+                savedData = await DynamicData.create({
+                    userId,
+                    jsonData,
+                });
+            }
+    
+            return {
+                status: true,
+                message: existingRecord ? "Data updated successfully!" : "Data created successfully!",
+                data: savedData,
+            };
+    
+        } catch (error) {
+
+            return {
+                status: false,
+                message: error.message || "An error occurred",
+            };
         }
     }
 

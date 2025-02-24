@@ -5,35 +5,62 @@ const { User } = require("../user_model");
 const { CustomError, ErrorName } = require('../../../util/error_helper');
 const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
 const AwsHelper = require("../../../util/aws_helper");
+const { SqliteEmailHelper } = require('../../../util');
 
-const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
 
-    if (
-        Array.isArray(receiverEmails) &&
-        receiverEmails.length > 0 &&
-        subject?.trim()?.length
-    ) {
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const sendWithRetry = async (emailBatch, retryCount = 0) => {
+    try {
+
+        const emailPromises = emailBatch.map(async (receiverEmail) => {
+
+            if (receiverEmail.email?.trim()?.length) {
+                return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+
+        });
+
+        return await Promise.allSettled(emailPromises);
+
+    } catch (error) {
+
+        if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {
+            await delay(2 ** retryCount * 1000);
+            return sendWithRetry(receiverEmail, retryCount + 1);
+        }
+        throw error;
+
+    }
+};
+
+const sendNodeEmailBulk = async ({ subject }) => {
+
+    if (subject?.trim()?.length) {
+
         try {
-            const emailPromises = receiverEmails.map(async (receiverEmail) => {
-                if (receiverEmail.email?.trim()?.length) {
+            let results = [];
+            while (true) {
 
-                    // const mailOptions = {
-                    //     from: `"${process.env.SUBSCRIBER_NAME}" <${process.env.EMAIL_VERIFIED_SENDER}>`,
-                    //     to: receiverEmail.email,
-                    //     subject: subject,
-                    //     text: sendEmailToLearner(receiverEmail),
-                    //     html: sendEmailToLearner(receiverEmail)
-                    // };
+                const emailBatch = await SqliteEmailHelper.fetchEmailBatch();
 
-                    return await AwsHelper.sendEmail({ receiverEmail: receiverEmail.email, subject: "Welcome to Seaverse!", htmlContent: sendEmailToLearner(receiverEmail) });
-                    // return transporter.sendMail(mailOptions);
-                    
-                } else {
-                    return Promise.reject(new Error("Invalid email address"));
+                if (emailBatch.length === 0) {
+                    break;
                 }
-            });
 
-            const results = await Promise.allSettled(emailPromises);
+                const batchResults = await sendWithRetry(emailBatch);
+
+                results = results.concat(batchResults);
+
+                await delay(200);
+
+                const emailIds = emailBatch.map(email => email.id);
+
+                await SqliteEmailHelper.deleteEmailBatch(emailIds);
+
+            }
 
             const success = results.filter(res => res.status === "fulfilled");
             const errors = results.filter(res => res.status === "rejected");
@@ -51,11 +78,7 @@ const sendNodeEmailBulk = async ({ receiverEmails, subject }) => {
                 message: error.message,
             };
         }
-    } else {
-        return {
-            status: "error",
-            message: "Invalid input parameters",
-        };
+
     }
 };
 

@@ -315,6 +315,24 @@ type FetchFileResponse {
     message: String
     url: String
 }
+        type DynamicData {
+            userId: ID!
+            jsonData: JSON  # Dynamic JSON data
+            createdAt: String
+            updatedAt: String
+        }
+
+        type DynamicDataResponse {
+            status: Boolean
+            message: String
+            data: DynamicData
+        }
+
+        input DynamicDataInput {
+            userId: ID!
+            jsonData: JSON!
+        }
+        
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
@@ -327,6 +345,7 @@ type FetchFileResponse {
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
          fetchSampleFile: FetchFileResponse!
+        getDynamicData(userId: ID!): DynamicDataResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
@@ -340,5 +359,6 @@ type FetchFileResponse {
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
         exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
+        createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
     `,
 };

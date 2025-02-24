@@ -44,7 +44,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
@@ -110,7 +110,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,
                         affected: [
@@ -175,7 +175,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAdmin: true,
                 affected: [
@@ -235,7 +235,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
@@ -386,100 +386,96 @@ module.exports.queries = {
                         localField: "selectCourses",
                         foreignField: "_id",
                         as: "courseDetails",
-                        pipeline: [
-                            {
-                                $project: {
-                                    _id: 1,
-                                    UID: 1,
-                                    trainingCategories: 1,
-                                    trainingSubCategories: 1,
-                                    title: 1,
-                                    description: 1,
-                                    instructions: 1,
-                                    overview: 1,
-                                    feedback: 1,
-                                    feedbackContent: 1,
-                                    images: 1,
-                                    price: 1,
-                                    durationHours: 1,
-                                    certificateValidity: 1,
-                                    targetAudienceId: 1,
-                                    courseType: 1,
-                                    enableFreeFlow: 1,
-                                    unlockOn: 1,
-                                    status: 1,
-                                    trainingModuleContents: 1,
-                                    courseId: 1,
-                                    course_validity: 1,
-                                    courseLevel: 1,
-                                    hideCourseProgress: 1,
-                                    allowMultipleAttempts: 1,
-                                    attemptFlexibility: 1,
-                                    attemptType: 1,
-                                    setLimitAttempt: 1,
-                                    disableFurtherAttemptsOnPass: 1,
-                                    lockModulesBetweenAttempts: 1,
-                                    setTimeLimitForModule: 1,
-                                    approvalStatus: 1,
-                                    certifications: 1,
-                                    bannerImage: 1,
-                                    coverImage: 1,
-                                    appliedAt: 1,
-                                    approvedAt: 1,
-                                    rejectedAt: 1,
-                                    isActive: 1,
-                                    createdBy: 1,
-                                    isDeleted: 1,
-                                    createdAt: 1,
-                                    trainingModules: 1,
-                                    scorm: 1,
-                                    groupTrainingModule: 1,
-                                    skills: 1,
-                                    userFeedback: 1,
-                                    managerFeedback: 1,
-                                    setFrequency: 1,
-                                    enableEmailNotification: 1,
-                                    setReminder: 1,
-                                    setFrequencyDate: 1,
-                                    manadatoryModules: 1,
-                                    classroomModule: 1,
-                                    authorName: 1,
-                                    isOrdered: 1
-                                },
-                            },
-                        ],
+                        // pipeline: [
+                        //     {
+                        //         $project: {
+                        //             _id: 1,
+                        //             UID: 1,
+                        //             trainingCategories: 1,
+                        //             trainingSubCategories: 1,
+                        //             title: 1,
+                        //             description: 1,
+                        //             instructions: 1,
+                        //             overview: 1,
+                        //             feedback: 1,
+                        //             feedbackContent: 1,
+                        //             images: 1,
+                        //             price: 1,
+                        //             durationHours: 1,
+                        //             certificateValidity: 1,
+                        //             targetAudienceId: 1,
+                        //             courseType: 1,
+                        //             enableFreeFlow: 1,
+                        //             unlockOn: 1,
+                        //             status: 1,
+                        //             trainingModuleContents: 1,
+                        //             courseId: 1,
+                        //             course_validity: 1,
+                        //             courseLevel: 1,
+                        //             hideCourseProgress: 1,
+                        //             allowMultipleAttempts: 1,
+                        //             attemptFlexibility: 1,
+                        //             attemptType: 1,
+                        //             setLimitAttempt: 1,
+                        //             disableFurtherAttemptsOnPass: 1,
+                        //             lockModulesBetweenAttempts: 1,
+                        //             setTimeLimitForModule: 1,
+                        //             approvalStatus: 1,
+                        //             certifications: 1,
+                        //             bannerImage: 1,
+                        //             coverImage: 1,
+                        //             appliedAt: 1,
+                        //             approvedAt: 1,
+                        //             rejectedAt: 1,
+                        //             isActive: 1,
+                        //             createdBy: 1,
+                        //             isDeleted: 1,
+                        //             createdAt: 1,
+                        //             trainingModules: 1,
+                        //             scorm: 1,
+                        //             groupTrainingModule: 1,
+                        //             skills: 1,
+                        //             userFeedback: 1,
+                        //             managerFeedback: 1,
+                        //             setFrequency: 1,
+                        //             enableEmailNotification: 1,
+                        //             setReminder: 1,
+                        //             setFrequencyDate: 1,
+                        //             manadatoryModules: 1,
+                        //             classroomModule: 1,
+                        //             authorName: 1,
+                        //             isOrdered: 1
+                        //         },
+                        //     },
+                        // ],
                     }
                 },
                 {
                     $addFields: {
                         selectCourses: {
-                            $map: {
-                                input: "$selectCourses",
-                                as: "courseId",
-                                in: {
-                                    $let: {
-                                        vars: {
-                                            matchedCourse: {
-                                                $arrayElemAt: [
-                                                    {
-                                                        $filter: {
-                                                            input: "$courseDetails",
-                                                            as: "course",
-                                                            cond: { $eq: ["$$course._id", "$$courseId"] }
-                                                        }
-                                                    },
-                                                    0
-                                                ]
-                                            }
-                                        },
-                                        in: {
-                                            $mergeObjects: [
-                                                { _id: "$$courseId" },
-                                                "$$matchedCourse"
-                                            ]
-                                        }
-                                    }
-                                }
+                            $filter: {
+                                input: "$courseDetails",
+                                as: "course",
+                                cond: { $eq: ["$$course.isDeleted", false] }
+                            }
+                        }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "assignedLearnerIDs",
+                        foreignField: "_id",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $filter: {
+                                input: "$assignedLearners",
+                                as: "learner",
+                                cond: { $eq: ["$$learner.isDeleted", false] }
                             }
                         }
                     }
@@ -498,7 +494,13 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
-                        assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] },
+                        assignedLearnerIDs: {
+                            $map: {
+                                input: "$assignedLearnerIDs",
+                                as: "learner",
+                                in: "$$learner._id"
+                            }
+                        },
                         conditionalCustomFields: 1,
                         emailNotification: 1,
                         pushNotification: 1,
@@ -689,33 +691,10 @@ module.exports.queries = {
                 {
                     $addFields: {
                         selectCourses: {
-                            $map: {
-                                input: "$selectCourses",
-                                as: "courseId",
-                                in: {
-                                    $let: {
-                                        vars: {
-                                            matchedCourse: {
-                                                $arrayElemAt: [
-                                                    {
-                                                        $filter: {
-                                                            input: "$courseDetails",
-                                                            as: "course",
-                                                            cond: { $eq: ["$$course._id", "$$courseId"] }
-                                                        }
-                                                    },
-                                                    0
-                                                ]
-                                            }
-                                        },
-                                        in: {
-                                            $mergeObjects: [
-                                                { _id: "$$courseId" },
-                                                "$$matchedCourse"
-                                            ]
-                                        }
-                                    }
-                                }
+                            $filter: {
+                                input: "$courseDetails",
+                                as: "course",
+                                cond: { $eq: ["$$course.isDeleted", false] }
                             }
                         }
                     }

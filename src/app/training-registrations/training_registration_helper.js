@@ -360,6 +360,13 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
 
         }
 
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').session(session).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
         const existingProgressSet = new Set(
             existingProgressRecords.map(record => `${record.training.toString()}-${record.user.toString()}`)
         );
@@ -405,6 +412,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             trainingRegistration: registrationId,
                             subscriberId: subscriberId.toString(),
                             status: 'NOT_STARTED',
+                            isCertificatePresent: trainingDataById[training._id.toString()].isCertificate ?? false,
                             isEnrolled: true,
                             progressPercentage: 0.0,
                             completedModules: 0,
@@ -839,7 +847,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo.firstName} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -856,7 +864,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo.firstName} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -1053,7 +1061,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
-                        messageValue: `${userInfo.firstName} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
@@ -1070,7 +1078,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
-                        messageValue: `${userInfo.firstName} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                         notifyAdmin: true,
                         notifiers: [],
