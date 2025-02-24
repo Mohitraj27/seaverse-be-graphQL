@@ -38,6 +38,7 @@ const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const Roles = require("../../util/role.json");
 const AWS_HELPER = require("../../util/aws_helper");
 const mongoose = require("mongoose");
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -640,6 +641,98 @@ const mergeContentDetails = (combineTrainingDetails, contentData) => {
 
 }
 
+const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
+    try {
+        const emailPromises = emailBatch.map(async (email) => {
+            const { to, subject, html } = email;
+            if (to?.trim()?.length) {
+                return await AWS_HELPER.sendEmail({ to, subject, html });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+        });
+        return await Promise.allSettled(emailPromises);
+    } catch (error) {
+        if (
+            error.message.includes("Maximum sending rate exceeded") &&
+            retryCount < 5
+        ) {
+            await delay(2 ** retryCount * 1000);
+            return sendWithRetry(emailBatch, retryCount + 1);
+        }
+        throw error;
+    }
+};
+const sendCourseEmailBulk = async (action='ENROLL') => {
+    try {
+        let results = [];
+        while (true) {
+            const emailBatch = await SqliteEmailHelper.fetchCourseEmailBatch(action);
+            if (!emailBatch.length) break;
+
+            // Generate HTML content dynamically
+            const emailsToSend = emailBatch.map(email => {
+                let html;
+                const coursesData = JSON.parse(email.courses);
+
+                switch (email.action) {
+                    case 'ENROLL':
+                        html = courseEnrollment({
+                            firstName: email.firstName,
+                            courses: coursesData.courses || [],
+                            isAdmin: Boolean(email.isAdmin),
+                        });
+                        break;
+
+                    case 'UNENROLL':
+                        html = courseUnenrollmentEmail({
+                            firstName: email.firstName,
+                            courseTitle: coursesData.courseTitle,
+                            email: email.email,
+                        });
+                        break;
+                    default:
+                        throw new Error('Unknown action');
+                }
+                return { to: email.email, subject: email.subject, html };
+            });
+
+            // Send emails (use sendWithRetry logic from existing code)
+            const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            results = results.concat(batchResults);
+            await delay(200); 
+
+            // Delete processed emails
+            const emailIds = emailBatch.map(email => email.id);
+            await SqliteEmailHelper.deleteCourseEmailBatch(emailIds); 
+        }
+
+        // Return summary ( in case you have to verify success and errors, console the results)
+        const { successCount, errorCount, errors } = summarizeResults(results);
+
+        return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
+
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
+};
+  
+  // Example helper to summarize results (adjust as needed)
+  const summarizeResults = (results) => {
+    const [success, errors] = results.reduce(
+      (acc, res) => [
+        acc[0].concat(res.status === 'fulfilled' ? res : []),
+        acc[1].concat(res.status === 'rejected' ? res : []),
+      ],
+      [[], []]
+    );
+    return {
+      successCount: success.length,
+      errorCount: errors.length,
+      errors: errors.map(err => err.reason.message),
+    };
+  };
+
 module.exports = {
     enrolUserVerificationHelper,
     createTrainingProgressHelper,
@@ -880,18 +973,19 @@ module.exports = {
                             courseImage: imageUrlMap.get(training?._id),
                         }));
 
-                        // Prepare email data without explicit loops
+                        // Prepare email data for insertion into SQLite queue
                         const emailData = users.map(user => ({
                             receiverEmail: user.email,
-                            subject: "Course Enrollment",
-                            htmlContent: courseEnrollment({
-                                firstName: user.firstName,
-                                courses: coursesDataMap,
-                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                            })
+                            firstName: user.firstName,
+                            courses: coursesDataMap,
+                            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
-                        // Send all emails in parallel (Uncomment when needed)
-                        await Promise.all(emailData.map(sendEmail));
+
+                        // Insert emails into the course_emails table
+                        SqliteEmailHelper.insertCourseEmails(emailData);
+                        // Send the emails batch by batch
+                        await sendCourseEmailBulk();
+
                         return savedTrainingRegistration;
                     }
                 );
@@ -1179,19 +1273,22 @@ module.exports = {
                         );
 
                         // Generate email payloads
-                        const emailPayloads = inputUsers.flatMap(user =>
+                        const emailData = inputUsers.flatMap(user =>
                             input.trainings.map(trainingId => ({
                                 receiverEmail: user.email,
                                 subject: `Unenrolled from ${trainingMap.get(trainingId.toString()) || ' '}`,
-                                htmlContent: courseUnenrollmentEmail({
-                                    firstName: user.firstName,
-                                    email: user.email,
-                                    courseTitle: trainingMap.get(trainingId.toString()) || ' ',
-                                })
+                                firstName: user.firstName,
+                                courses: JSON.stringify({ courseTitle: trainingMap.get(trainingId.toString()) || ' ' }),
+                                action: 'UNENROLL', 
+                                status: 'PENDING' 
                             }))
                         );
 
-                        await Promise.all(emailPayloads.map(sendEmail));
+                        // Insert emails into the course_emails table
+                        SqliteEmailHelper.insertCourseEmails(emailData);
+                        // Send the emails batch by batch
+                        await sendCourseEmailBulk(action='UNENROLL');
+
                         return updateTrainingRegistration;
                     }
                 );
