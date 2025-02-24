@@ -1620,12 +1620,10 @@ const checkUserRegType = async (userIds, regType) => {
     }
 
     if (regType === 0) {
-        // regType 0 allows any combination of users with regType 1 or 2
         if (![...regTypes].every(type => type === 1 || type === 2)) {
             throw CustomError(ErrorName.INVALID_REG_TYPE, "regType 0 only allows users with regType 1 or 2.");
         }
     } else {
-        // regType 1 or 2 should only allow users with the same regType
         if (regTypes.size !== 1 || !regTypes.has(regType)) {
             throw CustomError(ErrorName.INVALID_REG_TYPE, "All selected users must have the same regType.");
         }
