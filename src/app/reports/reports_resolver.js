@@ -491,7 +491,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const dateFilter = {};
 
                 if (startDate) {
-                    dateFilter['$gte'] = new Date(startDate);
+                    const startDateObj = new Date(startDate);
+                    startDateObj.setHours(0, 0, 0, 0);
+                    dateFilter['$gte'] = startDateObj;
                 }
 
                 if (endDate) {
