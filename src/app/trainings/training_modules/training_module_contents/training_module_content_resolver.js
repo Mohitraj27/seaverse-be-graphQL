@@ -21,6 +21,11 @@ const { TrainingContentBridge } = require("../../training_content_bridge/trainin
 const NotificationHelper = require("../../../notifications/notification_helper");
 const NotificationType = require("../../../notifications/notification_type.json");
 const notificationiconEnum = require("../../../notifications/notification_icon.json");
+
+function escapeRegex(str) {
+    return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -38,9 +43,12 @@ module.exports.queries = {
         if (recentlyModified) {
             filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
         }
+
         if (search) {
-            filterConditions['title.value'] = { $regex: search, $options: "i" };
+            const escapedSearch = escapeRegex(search);
+            filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
         }
+
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
@@ -115,7 +123,7 @@ module.exports.queries = {
                                         {
                                             $match: {
                                                 isDeleted: false,
-                                                isActive : true
+                                                isActive: true
                                             }
                                         }
                                     ]
@@ -158,7 +166,7 @@ module.exports.queries = {
             }
         );
 
-        if (!contents) {
+        if (contents.contents.length === 0) {
             return {
                 contents: [],
                 totalCount: 0,
@@ -607,7 +615,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Deleted`,
-                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
                     notifyAdmin: true,
                     affected: [
@@ -635,6 +643,20 @@ module.exports.mutations = {
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
+            if (input.title) {
+                const titleValues = input.title.map(x => x.value.trim());
+                if (titleValues.some(x => x === "")) {
+                    throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
+                }
+            }
+            /*
+            if (input.description) {
+                const descriptionValues = input.description.map(x => x.value.trim());
+                if (descriptionValues.some(x => x === "")) {
+                    throw CustomError(ErrorName.INVALID_DESCRIPTION, "Description cannot be empty");
+                }
+            }
+            */
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
                     "title.value": x.value.trim(),
@@ -1210,7 +1232,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
-                messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
@@ -1387,7 +1409,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                     notifyAdmin: true,
                     affected: [],
@@ -1438,7 +1460,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                     notifyAdmin: true,
                     affected: [
@@ -1513,7 +1535,7 @@ module.exports.mutations = {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Content Successfully Pushed to the Courses`,
-            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
             notificationType: NotificationType.CONTENT_PUSHED,
             notifyAdmin: true,
             affected: inputContents.map((content) => ({

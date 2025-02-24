@@ -44,7 +44,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
@@ -110,7 +110,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,
                         affected: [
@@ -175,7 +175,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAdmin: true,
                 affected: [
@@ -235,7 +235,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
@@ -286,34 +286,35 @@ module.exports.queries = {
             if (filterInput?.lastModified) {
                 delete queryConditions.lastModified
                 const today = Moment();
+                const endOfToday = today.clone().endOf("day").toDate();
                 switch (filterInput.lastModified) {
                     case "TODAY":
-                        startDate = today.startOf("day").toDate();
-                        endDate = today.endOf("day").toDate();
+                        startDate = today.clone().startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "YESTERDAY":
-                        startDate = today.subtract(1, "day").startOf("day").toDate();
-                        endDate = today.subtract(1, "day").endOf("day").toDate();
+                        startDate =  today.clone().subtract(1, "day").startOf("day").toDate();
+                        endDate = today.clone().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
-                        startDate = today.subtract(7, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_30_DAYS":
-                        startDate = today.subtract(30, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_3_MONTHS":
-                        startDate = today.subtract(3, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_6_MONTHS":
-                        startDate = today.subtract(6, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_YEAR":
-                        startDate = today.subtract(1, "year").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     default:
                         break;

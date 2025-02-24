@@ -588,7 +588,9 @@ module.exports.queries = {
             }
 
             const fetchResult = async pipeline => {
-                return Employee.aggregatePaginate(Employee.aggregate(pipeline), {
+                const empData = await Employee.aggregate(pipeline);
+                const empCount = empData.length;
+                const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
                     offset: skip,
                     limit,
                     customLabels: {
@@ -597,8 +599,12 @@ module.exports.queries = {
                         offset: "skip",
                     },
                     pagination: limit !== 0,
-                    allowDiskUse: true,
                 });
+
+                return {
+                    ...result,
+                    totalCount: empCount ?? 0,
+                }
             };
 
             let sanitizedSearch;
@@ -839,7 +845,8 @@ module.exports.queries = {
 
             return {
                 employees: result.employees,
-                totalCount: result.employees.length,
+                totalCount: result?.employees.length ?? 0,
+                totalEmployees : result?.totalCount ?? 0
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
@@ -1071,7 +1078,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.WELCOME_EMAIL_SENT,
@@ -1367,7 +1374,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -1377,7 +1384,7 @@ const manageRole = async ({ input }, context) => {
                 { $set: { role: "EMPLOYEE" } }
             );
             operationType = "Removed role as AUTHOR";
-            notificationMessage = "Your role has been changed to EMPLOYEE.";
+            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
@@ -1386,12 +1393,12 @@ const manageRole = async ({ input }, context) => {
                 { $set: { subRoles: [] } }
             );
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = "Your Roles have been removed.";
+            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = "Your account has been deleted.";
+        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -2284,7 +2291,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}".`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2359,7 +2366,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -2541,7 +2548,7 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
