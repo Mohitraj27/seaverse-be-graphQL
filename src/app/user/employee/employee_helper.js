@@ -543,7 +543,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName}`;
+            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName ?? ""}`.trim();
             const employeeEmail = notificationData.employee?.user?.email;
 
             const notification = {
