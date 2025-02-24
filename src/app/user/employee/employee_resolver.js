@@ -2015,12 +2015,15 @@ module.exports.mutations = {
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
+        // Jira Ticket SEAV-55
+        /*
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
+        */
 
         return {
             status: true,
