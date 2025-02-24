@@ -818,12 +818,12 @@ module.exports.queries = {
                                             $options: "i",
                                         },
                                     },
-                                    /* {
+                                    {
                                         "user.civilIdOrPassport": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
-                                    }, */
+                                    },
                                     /* {
                                         "user.companyEmail": {
                                             $regex: ".*" + sanitizedSearch + ".*",
