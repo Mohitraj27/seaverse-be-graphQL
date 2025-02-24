@@ -248,7 +248,8 @@ type userVessels {
             civilIdOrPassport: String
         }
         input UserObjectIDs {
-            ids: [ID!]
+            ids: [ID!]!
+            regType: Int!
         }
         input ImportUserInput {
             firstName: String!
@@ -338,6 +339,6 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
     `,
 };

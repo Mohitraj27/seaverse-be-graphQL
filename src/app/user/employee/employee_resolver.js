@@ -1606,6 +1606,31 @@ const respondToDeleteRequest = async ({ input }, context) => {
     }
 };
 
+const checkUserRegType = async (userIds, regType) => {
+    const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType');
+
+    if (!employeeRecords?.length) {
+        throw CustomError(ErrorName.NOT_FOUND, "No employees found for provided userObjectIds.");
+    }
+
+    const regTypes = new Set(employeeRecords.map(emp => emp.regType));
+
+    if (![0,1,2].includes(regType)) {
+        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
+    }
+
+    if (regType === 0) {
+        // regType 0 allows any combination of users with regType 1 or 2
+        if (![...regTypes].every(type => type === 1 || type === 2)) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "regType 0 only allows users with regType 1 or 2.");
+        }
+    } else {
+        // regType 1 or 2 should only allow users with the same regType
+        if (regTypes.size !== 1 || !regTypes.has(regType)) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "All selected users must have the same regType.");
+        }
+    }
+};
 module.exports.mutations = {
     respondToDeleteRequest,
     manageRole,
@@ -2400,7 +2425,7 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ userObjectIds }, context) => {
+    exportUserToCsv: async ({ userObjectIds}, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
@@ -2423,8 +2448,11 @@ module.exports.mutations = {
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
             ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
             : defaultExportUserIds;
-
         try {
+            if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
+                throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
+            }
+            await checkUserRegType(userObjectIds?.ids, userObjectIds?.regType);
             const notifications = [];
             const exportStartTime = new Date();
             const inProgressNotification = {
