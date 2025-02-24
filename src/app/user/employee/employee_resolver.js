@@ -769,7 +769,11 @@ module.exports.queries = {
                         latestUpdatedAt: -1,
                     },
                 },
-
+                {
+                    $sort : {
+                        "user.firstName": 1
+                    }
+                },
                 ...(filterInput?.vesselName?.length > 0
                     ? [
                         {
