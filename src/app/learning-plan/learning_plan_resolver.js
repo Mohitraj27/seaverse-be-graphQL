@@ -470,6 +470,7 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
+                        audienceSelection: 1,
                         numberOfAssignedLearners: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
@@ -477,6 +478,8 @@ module.exports.queries = {
                     }
                 }
             ]);
+
+            console.log(learningPlans);
 
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
