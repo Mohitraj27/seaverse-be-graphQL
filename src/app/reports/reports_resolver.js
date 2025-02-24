@@ -33,6 +33,7 @@ const getMainLearnersReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let deteledUsersStage = [];
+        /* Ticket No : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -45,7 +46,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
@@ -439,7 +440,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let learnerData = [];
-
+        /* Ticket No: SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -452,7 +453,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
@@ -1586,7 +1587,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -1599,7 +1600,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
 
@@ -1908,7 +1909,7 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -1921,7 +1922,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (!input?.reportType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
         }
@@ -3236,7 +3237,7 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket Number : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -3249,6 +3250,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
+            */
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
