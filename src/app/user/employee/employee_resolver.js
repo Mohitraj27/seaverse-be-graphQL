@@ -575,11 +575,11 @@ module.exports.queries = {
                 "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name"
             };
 
-            const field = sortInput?.field ?? "FIRST_NAME"; // Default to "FIRST_NAME" if no field is provided
-            const fieldPath = fieldMapping[field]; //assign the key in db to the fieldPath input from request
+            const field = sortInput?.field ?? "FIRST_NAME";
+            const fieldPath = fieldMapping[field];
 
             if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE") {
-                //check condition for the fields that must be converted into lowercase for comparison
+
                 sortingStage.push({
                     $addFields: {
                         [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
@@ -597,7 +597,7 @@ module.exports.queries = {
                     }
                 });
             } else {
-                //default to sort by name in ascending order 
+
                 sortingStage.push({
                     $addFields: {
                         lowercaseFirstname: { $toLower: "$user.firstName" }
