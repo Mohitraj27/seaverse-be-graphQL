@@ -267,20 +267,20 @@ const createLearningPlanHelper = async (input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            if(userIds?.length>0){
-            const assignments = userIds.map(userId => ({
-                learningPlanId: newLearningPlan._id,
-                assignedLearnerId: userId,
-                isManuallyAdded: false,
-                createdBy: input.createdBy,
-                updatedBy: input.updatedBy,
-            }));
+            if (userIds?.length > 0) {
+                const assignments = userIds.map(userId => ({
+                    learningPlanId: newLearningPlan._id,
+                    assignedLearnerId: userId,
+                    isManuallyAdded: false,
+                    createdBy: input.createdBy,
+                    updatedBy: input.updatedBy,
+                }));
 
-            await LearningPlanAssignment.insertMany(assignments);
+                await LearningPlanAssignment.insertMany(assignments);
             }
         }
         await newLearningPlan.save();
-        if(!newLearningPlan._id){
+        if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
         const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id }).select('assignedLearnerId');
@@ -328,11 +328,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
         await audienceSelectionIsMannualValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, 'update', errorList);
         await clearFieldsBasedOnConditions(input, errorList);
-        await validateGroupAndConditionalFields(input,errorList);
+        await validateGroupAndConditionalFields(input, errorList);
         const existingLearningPlan = await LearningPlan.findOne({
             _id: id,
             isDeleted: false
         });
+        const existingCourses = existingLearningPlan?.selectCourses || [];
+        const existingCoursesToString = existingCourses.map(course => course.toString());
         if (!existingLearningPlan) {
             errorList.push(errorMessages.LEARNING_PLAN_NOT_FOUND);
         }
@@ -362,7 +364,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
             learningPlanId: existingLearningPlan._id
         });
 
-
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnerIdsArray }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        );
 
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
@@ -406,23 +415,18 @@ const updateLearningPlanHelper = async (id, input, context) => {
             };
             await createTrainingRegistration(enrollData, context);
         }
-        let existingCourses, inputCourses, excludedCourses;
+        let inputCourses = [], excludedCourses = [];
         if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
-            existingCourses = existingLearningPlan.selectCourses.map(course => course.toString());
+
             inputCourses = input.selectCourses.map(course => course.toString());
-            excludedCourses = existingCourses.filter((courseId) => !inputCourses.includes(courseId)).map(courseId => new mongoose.Types.ObjectId(courseId.toString()));
+
+            excludedCourses = existingCoursesToString
+                .filter(courseId => !inputCourses.includes(courseId))
+                .map(courseId => new ObjectId(courseId));
+
         }
 
 
-
-        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-            { user: { $in: removedLearnerIdsArray }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
-            {
-                $pull: {
-                    learningPlan: existingLearningPlan._id
-                }
-            }
-        );
         const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
             { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
             {
