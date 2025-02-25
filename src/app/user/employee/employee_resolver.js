@@ -1827,7 +1827,7 @@ module.exports.mutations = {
                 _id: savedUser._id
             }];
 
-            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
+            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -1841,9 +1841,9 @@ module.exports.mutations = {
             //         currentStatus: savedUserVessel?.vesselStatus
             //     };
             // });
-            if (filteredPlans?.length > 0) {
-                console.log('inside filtered Learning Plan', filteredPlans);
-            }
+            // if (filteredPlans?.length > 0) {
+            //     console.log('inside filtered Learning Plan', filteredPlans);
+            // }
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,

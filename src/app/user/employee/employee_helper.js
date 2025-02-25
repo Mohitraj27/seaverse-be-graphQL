@@ -1537,7 +1537,7 @@ module.exports = {
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
         }];
-        const result = await filterLearningPlans(learningPlans, conditions, context, session);
+        // const result = await filterLearningPlans(learningPlans, conditions, context, session);
       
         return savedEmployee;
     },
@@ -2473,12 +2473,12 @@ module.exports = {
 
                 });
 
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
 
 
-                if (filteredPlans.length > 0) {
-                    console.log("filteredPlans: ", filteredPlans);
-                }
+                // if (filteredPlans.length > 0) {
+                //     console.log("filteredPlans: ", filteredPlans);
+                // }
             } catch (error) {
                 console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
             }
