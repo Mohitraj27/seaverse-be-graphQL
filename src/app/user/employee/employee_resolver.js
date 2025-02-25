@@ -82,6 +82,7 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     return userIds;
 }
 function formatDateWithSuffix(date) {
+   /*  
     const day = date.getDate();
     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
         (day % 10 === 2 && day !== 12) ? 'nd' :
@@ -91,7 +92,19 @@ function formatDateWithSuffix(date) {
     const month = monthNames[date.getMonth()];
     const year = date.getFullYear();
 
-    return `${day}${suffix} ${month} ${year}`;
+    return `${day}${suffix} ${month} ${year}`; 
+    */
+
+    if (date) {
+        const formattedDate = new Date(date);
+        return formattedDate.toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+    }
+
+    return null;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -2533,7 +2546,8 @@ module.exports.mutations = {
             'Last Login',
             'Created At',
             'User Roles',
-            'Vessel Type'
+            'Vessel Type',
+            'User Status',
         ];
         const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
@@ -2660,6 +2674,8 @@ module.exports.mutations = {
                         createdAt: { $first: '$createdAt' },
                         role: { $first: '$role' },
                         vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                        isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
+                        isRegistered: { $first: '$isRegistered' },
                     },
                 },
             ];
@@ -2690,21 +2706,35 @@ module.exports.mutations = {
                             else: { $toDate: '$createdAt' },
                         },
                     },
+                    isResetPasswordDialog:1,
+                    'User Status':{
+                        $cond: {
+                            if: { $eq: ['$isRegistered', true] },
+                            then: 'Active',
+                            else: 'Inactive',
+                        },
+                    },
                 },
             };
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
             const data = users.map(user => {
                 const rowData = {};
+                const isResetPassword = user?.isResetPasswordDialog ?? true;
                 hardcodedFields.forEach(field => {
+                    if (field === 'isResetPasswordDialog') {
+                        return;
+                    }
                     if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
-                        rowData[field] = formatDateWithSuffix(new Date(user['Last Login']));
+                        rowData[field] = isResetPassword ? formatDateWithSuffix(new Date(user['Last Login'])): "" ;
+                    } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Created At']));
                     } else {
                         rowData[field] = user[field] || ' ';
                     }
                 });
                 return rowData;
-            });
+            });            
             // const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
             const csvData = xlsx.utils.sheet_to_csv(worksheet);
