@@ -479,7 +479,6 @@ module.exports.queries = {
                 }
             ]);
 
-            console.log(learningPlans);
 
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
@@ -527,7 +526,7 @@ module.exports.queries = {
                 totalCount: learningPlans?.length,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+        throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
@@ -680,7 +679,7 @@ module.exports.queries = {
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
             return detailedPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getUsersForLearningPlan: async ({ input }, context) => {

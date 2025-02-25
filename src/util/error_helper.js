@@ -91,7 +91,8 @@ const errorName = {
     INVALID_DESCRIPTION: "INVALID_DESCRIPTION",
     LEARNING_PLAN_NOT_UPDATED: "LEARNING_PLAN_NOT_UPDATED",
     FAILED_TO_UPDATE_STATUS: "FAILED_TO_UPDATE_STATUS",
-    FAILED_TO_DELETE_LEARNING_PLAN: "FAILED_TO_DELETE_LEARNING_PLAN"
+    FAILED_TO_DELETE_LEARNING_PLAN: "FAILED_TO_DELETE_LEARNING_PLAN",
+    FAILED_TO_FETCH_LEARNING_PLAN: "FAILED_TO_FETCH_LEARNING_PLAN"
 };
 
 const errorType = {
@@ -554,6 +555,11 @@ const errorType = {
         message: 'Failed to delete learning plan',
         statusCode: 400,
         type: "FAILED_TO_DELETE_LEARNING_PLAN"
+    },
+    FAILED_TO_FETCH_LEARNING_PLAN:{
+        message: 'Failed to fetch learning plan',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_LEARNING_PLAN"
     }
 };
 
