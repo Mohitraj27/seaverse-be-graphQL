@@ -769,10 +769,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date (Asia/Calcutta TimeZone) ': enrollmentDate,
-                        'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
-                        'Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                        'Started Date (Asia/Calcutta TimeZone)': startDate,
+                        'Enrollment Date (UTC) ': enrollmentDate,
+                        'Unenrollment Date (UTC)': unenrollmentDate,
+                        'Completion Date (UTC)': completionDate,
+                        'Started Date (UTC)': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
@@ -1463,10 +1463,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         });
@@ -2306,10 +2306,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'Admin Marked As Completed': adminMarkedAsCompleted,
                             TimeSpent: timeSpent,
                             QuizScore: quizScore,
-                            'Course Enrollment Date': enrollmentDate,
-                            'Course Started Date': startDate,
-                            'Course Unenrollment Date': unenrollmentDate,
-                            'Course Completion Date': completionDate,
+                            'Course Enrollment Date (UTC)': enrollmentDate,
+                            'Course Started Date (UTC)': startDate,
+                            'Course Unenrollment Date (UTC)': unenrollmentDate,
+                            'Course Completion Date (UTC)': completionDate,
                         };
 
                         return parsedItem;
@@ -3082,10 +3082,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
                                     'Admin Marked As Completed': adminMarkedAsCompleted,
-                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         }
@@ -4107,10 +4107,10 @@ const generateCustomReport = async ({ input }, context) => {
                     'Quiz Score': quizScore,
                     userState: userState,
                     'Time Spent (mins)': timeSpent,
-                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                    'Enrollment Date (UTC)': enrollmentDate,
+                    'Course Started Date (UTC)': startDate,
+                    'Course Completion Date (UTC)': completionDate,
+                    'Unenrollment Date (UTC)': unenrollmentDate,
                 });
             });
 
@@ -4689,10 +4689,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
                                 'Quiz Score': quizScore,
-                                'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                'Enrollment Date (UTC)': enrollmentDate,
+                                'Course Started Date (UTC)': startDate,
+                                'Course Completion Date (UTC)': completionDate,
+                                'Unenrollment Date (UTC)': unenrollmentDate,
                             });
                         });
                     });
