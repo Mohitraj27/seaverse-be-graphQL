@@ -177,7 +177,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAdmin: true,
                 affected: [

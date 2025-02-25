@@ -495,7 +495,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             for (const item of trainingData) {
 
                 const trainingName = item?.training?.title[0]?.value;
-                const userId = item?.user;
+                const userId = item?.user?._id;
 
                 notifications.push({
                     subscriber: subscriberId,
@@ -579,7 +579,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 }
             }
 
-            await NotificationHelper.createNotification(sendCertificateNotification);
+            if (sendCertificateNotification.length > 0) {
+                await NotificationHelper.createNotification(sendCertificateNotification);
+            }
 
             await OverallTrainingProgress.updateMany(
                 { _id: { $in: overallDocs.map(doc => doc._id) } },

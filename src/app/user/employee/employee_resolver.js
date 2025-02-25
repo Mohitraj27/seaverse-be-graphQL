@@ -63,6 +63,24 @@ const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-
 const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
+const { DynamicData } = require("./employee_dynamicData_model");
+async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
+    const userVesselFilter = {
+        isActive: true,
+    };
+    if (vesselStatus && vesselStatus.length > 0) {
+        userVesselFilter.vesselStatus = { $in: vesselStatus };
+    }
+    if (vesselType && vesselType.length > 0) {
+        userVesselFilter.vesselType = { $in: vesselType };
+    }
+    if (vesselObjectId) {
+        userVesselFilter.vesselObjectId = vesselObjectId;
+    }
+    const userVessels = await UserVessel.find(userVesselFilter).select("user");
+    const userIds = userVessels.map(vessel => vessel.user);
+    return userIds;
+}
 function formatDateWithSuffix(date) {
     const day = date.getDate();
     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
@@ -512,7 +530,7 @@ module.exports.queries = {
             },
         ]);
     },
-    getEmployees: async ({ pageInput, filterInput }, context) => {
+    getEmployees: async ({ pageInput, filterInput, sortInput }, context) => {
         const {
             role,
             userPermissions,
@@ -544,6 +562,54 @@ module.exports.queries = {
             let filterConditions = {
                 subscriber: subscriberId,
             };
+            
+            const sortingStage = [];
+            const sortOrder = sortInput?.sortOrder ?? 1;
+
+            const fieldMapping = {
+                "FIRST_NAME": "user.firstName",
+                "DESIGNATION": "empDesignation.name",
+                "STATUS": "user.vesselStatus",
+                "USER_ROLE": "user.role",
+                "LAST_SEEN": "user.lastLoginAt",
+                "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name"
+            };
+
+            const field = sortInput?.field ?? "FIRST_NAME";
+            const fieldPath = fieldMapping[field];
+
+            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE") {
+
+                sortingStage.push({
+                    $addFields: {
+                        [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        [`lowercase${field}`]: sortOrder
+                    }
+                });
+            } else if (fieldPath) {
+                sortingStage.push({
+                    $sort: {
+                        [fieldPath]: sortOrder
+                    }
+                });
+            } else {
+
+                sortingStage.push({
+                    $addFields: {
+                        lowercaseFirstname: { $toLower: "$user.firstName" }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        lowercaseFirstname: 1
+                    }
+                });
+            }
+
 
             if (filterInput?.lastSeen) {
                 const today = Moment();
@@ -816,7 +882,6 @@ module.exports.queries = {
                         latestUpdatedAt: -1,
                     },
                 },
-
                 ...(filterInput?.vesselName?.length > 0
                     ? [
                         {
@@ -841,6 +906,105 @@ module.exports.queries = {
                         },
                     ]
                     : []),
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    /* {
+                                        "user.companyEmail": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.phone.number": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        employeeNo: {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "userVessels.vesselDetails.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "empDesignation.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
+                            },
+                        },
+                    ]
+                    : []),
+                ...sortingStage,
             ]);
 
             return {
@@ -1078,7 +1242,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
+                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.WELCOME_EMAIL_SENT,
@@ -1144,6 +1308,42 @@ module.exports.queries = {
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
+    getDynamicData : async ({ userId }, context) => {
+        const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
+            AuthUser(context);
+        try {
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+    
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+    
+            const dynamicDataRecord = await DynamicData.findOne({ userId });
+    
+            if (!dynamicDataRecord) {
+                return {
+                    status: false,
+                    message: "No dynamic data found for this user",
+                    data: null,
+                };
+            }
+    
+            return {
+                status: true,
+                message: "Data fetched successfully",
+                data: dynamicDataRecord,
+            };
+        } catch (error) {
+            return {
+                status: false,
+                message: error.message ,
+                data: null,
+            };
         }
     }
 
@@ -1374,7 +1574,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -1384,7 +1584,7 @@ const manageRole = async ({ input }, context) => {
                 { $set: { role: "EMPLOYEE" } }
             );
             operationType = "Removed role as AUTHOR";
-            notificationMessage = "Your role has been changed to EMPLOYEE.";
+            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
 
         if (input.removeType === "REMOVE_AS_ADMIN") {
@@ -1393,12 +1593,12 @@ const manageRole = async ({ input }, context) => {
                 { $set: { subRoles: [] } }
             );
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = "Your Roles have been removed.";
+            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
         updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = "Your account has been deleted.";
+        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -1555,6 +1755,29 @@ const respondToDeleteRequest = async ({ input }, context) => {
     }
 };
 
+const checkUserRegType = async (userIds, regType) => {
+    const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType');
+
+    if (!employeeRecords?.length) {
+        throw CustomError(ErrorName.NOT_FOUND, "No employees found for provided userObjectIds.");
+    }
+
+    const regTypes = new Set(employeeRecords.map(emp => emp.regType));
+
+    if (![0,1,2].includes(regType)) {
+        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
+    }
+
+    if (regType === 0) {
+        if (![...regTypes].every(type => type === 1 || type === 2)) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "regType 0 only allows users with regType 1 or 2.");
+        }
+    } else {
+        if (regTypes.size !== 1 || !regTypes.has(regType)) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "All selected users must have the same regType.");
+        }
+    }
+};
 module.exports.mutations = {
     respondToDeleteRequest,
     manageRole,
@@ -1859,12 +2082,15 @@ module.exports.mutations = {
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
+        // Jira Ticket SEAV-55
+        /*
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
+        */
 
         return {
             status: true,
@@ -2262,7 +2488,8 @@ module.exports.mutations = {
                     })
                 })
             );
-            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the Role "${validSubRole.name}" successfully.`;
+            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -2291,7 +2518,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}".`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2333,7 +2560,7 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ userObjectIds }, context) => {
+    exportUserToCsv: async ({ userObjectIds}, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
@@ -2356,17 +2583,21 @@ module.exports.mutations = {
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
             ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
             : defaultExportUserIds;
-
         try {
+            if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
+                throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
+            }
+            await checkUserRegType(userObjectIds?.ids, userObjectIds?.regType);
             const notifications = [];
-            const exportStartTime = new Date();
+            // const exportStartTime = new Date();
+            /* Ticket Number : SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -2378,7 +2609,7 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
-
+            */
             const pipeline = [
                 {
                     $match: {
@@ -2548,7 +2779,7 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
@@ -2567,7 +2798,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 };
-                notifications.push(successNotification);
+                // notifications.push(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
@@ -2580,6 +2811,54 @@ module.exports.mutations = {
             }
         } catch (error) {
             throw new Error(error.message);
+        }
+    },
+    createOrUpdateDynamicData : async ({ input }, context) => {
+    const { role,  userInfo, userPermissions, subscriberId, isOrganizationManager } =
+        AuthUser(context);
+        try {
+            const { userId, jsonData } = input;
+    
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+    
+            if (!jsonData || typeof jsonData !== "object") {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "jsonData is required and should be an object");
+            }
+    
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+    
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+    
+            const existingRecord = await DynamicData.findOne({ userId });
+    
+            let savedData;
+    
+            if (existingRecord) {
+                existingRecord.jsonData = jsonData;
+                savedData = await existingRecord.save();
+            } else {
+                savedData = await DynamicData.create({
+                    userId,
+                    jsonData,
+                });
+            }
+    
+            return {
+                status: true,
+                message: existingRecord ? "Data updated successfully!" : "Data created successfully!",
+                data: savedData,
+            };
+    
+        } catch (error) {
+
+            return {
+                status: false,
+                message: error.message || "An error occurred",
+            };
         }
     }
 

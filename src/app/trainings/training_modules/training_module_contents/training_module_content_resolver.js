@@ -615,7 +615,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Deleted`,
-                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
                     notifyAdmin: true,
                     affected: [
@@ -649,14 +649,14 @@ module.exports.mutations = {
                     throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
                 }
             }
-
+            /*
             if (input.description) {
                 const descriptionValues = input.description.map(x => x.value.trim());
                 if (descriptionValues.some(x => x === "")) {
                     throw CustomError(ErrorName.INVALID_DESCRIPTION, "Description cannot be empty");
                 }
             }
-
+            */
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
                     "title.value": x.value.trim(),
@@ -1232,7 +1232,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
-                messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                 notifyAdmin: true,
                 affected: [
@@ -1409,7 +1409,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                     notifyAdmin: true,
                     affected: [],
@@ -1460,7 +1460,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
+                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
                     notifyAdmin: true,
                     affected: [
@@ -1535,7 +1535,7 @@ module.exports.mutations = {
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Content Successfully Pushed to the Courses`,
-            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
+            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
             notificationType: NotificationType.CONTENT_PUSHED,
             notifyAdmin: true,
             affected: inputContents.map((content) => ({

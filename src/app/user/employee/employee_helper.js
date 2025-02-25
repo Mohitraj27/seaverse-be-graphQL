@@ -596,7 +596,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName}`;
+            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName ?? ""}`.trim();
             const employeeEmail = notificationData.employee?.user?.email;
 
             const notification = {
@@ -1222,6 +1222,11 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
             return errors;
         }
+
+        if (status.toUpperCase() === VesselStatus.ONSHORE && row["Vessel IMO Number"]) {
+            errors.push(`IMO Number should not be provided for onshore users in row ${rowIndex + 1}`);
+            return errors;
+        }
     }
 
     if (row["Vessel IMO Number"]) {
@@ -1376,7 +1381,7 @@ module.exports = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `User Vessel Updated Successfully`,
-                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
                         notifyAdmin: true,
                         affected: [
@@ -1417,7 +1422,7 @@ module.exports = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `User Vessel Updated Successfully`,
-                    messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name}`,
+                    messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
 
                     notificationType: NotificationType.USER_VESSEL_UPDATE,
                     notifyAdmin: true,
