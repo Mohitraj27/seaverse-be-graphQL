@@ -472,55 +472,55 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                     return null;
                 }
 
-                // return {
-                //     insertOne: {
-                //         document: {
-                //             learningPlan: learningPlanId ? [learningPlanId] : [],
-                //             directEnrollment: learningPlanId ? false : true,
-                //             training: training,
-                //             user: user._id,
-                //             trainingRegistration: registrationId,
-                //             subscriberId: subscriberId.toString(),
-                //             status: 'NOT_STARTED',
-                //             isEnrolled: true,
-                //             progressPercentage: 0.0,
-                //             completedModules: 0,
-                //             contentData: [],
-                //             totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                //             startDate: null,
-                //             endDate: null,
-                //             unenrollmentDate: null,
-                //         },
-                //     },
-                // };
                 return {
-                    learningPlan: learningPlanId ? [learningPlanId] : [],
-                    directEnrollment: learningPlanId ? false : true,
-                    training: training,
-                    user: user._id,
-                    trainingRegistration: registrationId,
-                    subscriberId: subscriberId.toString(),
-                    status: 'NOT_STARTED',
-                    isEnrolled: true,
-                    progressPercentage: 0.0,
-                    completedModules: 0,
-                    contentData: [],
-                    totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                    startDate: null,
-                    endDate: null,
-                    unenrollmentDate: null,
+                    insertOne: {
+                        document: {
+                            learningPlan: learningPlanId ? [learningPlanId] : [],
+                            directEnrollment: learningPlanId ? false : true,
+                            training: training,
+                            user: user._id,
+                            trainingRegistration: registrationId,
+                            subscriberId: subscriberId.toString(),
+                            status: 'NOT_STARTED',
+                            isEnrolled: true,
+                            progressPercentage: 0.0,
+                            completedModules: 0,
+                            contentData: [],
+                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                            startDate: null,
+                            endDate: null,
+                            unenrollmentDate: null,
+                        },
+                    },
                 };
+                // return {
+                //     learningPlan: learningPlanId ? [learningPlanId] : [],
+                //     directEnrollment: learningPlanId ? false : true,
+                //     training: training,
+                //     user: user._id,
+                //     trainingRegistration: registrationId,
+                //     subscriberId: subscriberId.toString(),
+                //     status: 'NOT_STARTED',
+                //     isEnrolled: true,
+                //     progressPercentage: 0.0,
+                //     completedModules: 0,
+                //     contentData: [],
+                //     totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                //     startDate: null,
+                //     endDate: null,
+                //     unenrollmentDate: null,
+                // };
             })
         ).filter(entry => entry !== null);
 
         if (newProgressEntries.length > 0) {
-            trainingProgressData = await OverallTrainingProgress.insertMany(newProgressEntries, { session });
+            await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
         }
     } catch (error) {
         throw Error(error.message);
     }
 
-    return trainingProgressData;
+    return true;
 };
 
 const getAutoSyncUsers = (async (groups) => {
@@ -663,7 +663,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
         throw error;
     }
 };
-const sendCourseEmailBulk = async (action='ENROLL') => {
+const sendCourseEmailBulk = async (action = 'ENROLL') => {
     try {
         let results = [];
         while (true) {
@@ -700,11 +700,11 @@ const sendCourseEmailBulk = async (action='ENROLL') => {
             // Send emails (use sendWithRetry logic from existing code)
             const batchResults = await sendCourseMailsWithRetry(emailsToSend);
             results = results.concat(batchResults);
-            await delay(200); 
+            await delay(200);
 
             // Delete processed emails
             const emailIds = emailBatch.map(email => email.id);
-            await SqliteEmailHelper.deleteCourseEmailBatch(emailIds); 
+            await SqliteEmailHelper.deleteCourseEmailBatch(emailIds);
         }
 
         // Return summary ( in case you have to verify success and errors, console the results)
@@ -716,22 +716,22 @@ const sendCourseEmailBulk = async (action='ENROLL') => {
         return { success: false, message: error.message };
     }
 };
-  
-  // Example helper to summarize results (adjust as needed)
-  const summarizeResults = (results) => {
+
+// Example helper to summarize results (adjust as needed)
+const summarizeResults = (results) => {
     const [success, errors] = results.reduce(
-      (acc, res) => [
-        acc[0].concat(res.status === 'fulfilled' ? res : []),
-        acc[1].concat(res.status === 'rejected' ? res : []),
-      ],
-      [[], []]
+        (acc, res) => [
+            acc[0].concat(res.status === 'fulfilled' ? res : []),
+            acc[1].concat(res.status === 'rejected' ? res : []),
+        ],
+        [[], []]
     );
     return {
-      successCount: success.length,
-      errorCount: errors.length,
-      errors: errors.map(err => err.reason.message),
+        successCount: success.length,
+        errorCount: errors.length,
+        errors: errors.map(err => err.reason.message),
     };
-  };
+};
 
 module.exports = {
     enrolUserVerificationHelper,
@@ -1279,15 +1279,15 @@ module.exports = {
                                 subject: `Unenrolled from ${trainingMap.get(trainingId.toString()) || ' '}`,
                                 firstName: user.firstName,
                                 courses: JSON.stringify({ courseTitle: trainingMap.get(trainingId.toString()) || ' ' }),
-                                action: 'UNENROLL', 
-                                status: 'PENDING' 
+                                action: 'UNENROLL',
+                                status: 'PENDING'
                             }))
                         );
 
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
-                        await sendCourseEmailBulk(action='UNENROLL');
+                        await sendCourseEmailBulk(action = 'UNENROLL');
 
                         return updateTrainingRegistration;
                     }
