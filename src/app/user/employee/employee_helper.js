@@ -393,28 +393,14 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-
-                console.log('plan');
-                console.log(plan);
-
-                console.log('userConditions');
-                console.log(userConditions);
-
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
-
-                console.log('validUsers');
-                console.log(validUsers);
-
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
                     .map(user => user._id);
-
-                console.log('usersToRemove');
-                console.log(usersToRemove);
 
                 const userIds = validUsers.map(user => user._id);
 
@@ -1552,7 +1538,7 @@ module.exports = {
             _id: existingEmployee?.user?._id
         }];
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
-        console.log('result for update', result);
+      
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
