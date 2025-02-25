@@ -267,16 +267,16 @@ const createLearningPlanHelper = async (input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            if (userIds?.length > 0) {
-                const assignments = userIds.map(userId => ({
-                    learningPlanId: newLearningPlan._id,
-                    assignedLearnerId: userId,
-                    isManuallyAdded: false,
-                    createdBy: input.createdBy,
-                    updatedBy: input.updatedBy,
-                }));
+            if(userIds?.length>0){
+            const assignments = userIds.map(userId => ({
+                learningPlanId: newLearningPlan._id,
+                assignedLearnerId: userId,
+                isManuallyAdded: false,
+                createdBy: input.createdBy,
+                updatedBy: input.updatedBy,
+            }));
 
-                await LearningPlanAssignment.insertMany(assignments);
+            await LearningPlanAssignment.insertMany(assignments);
             }
         }
         await newLearningPlan.save();
@@ -325,7 +325,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         // }
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
-        await audienceSelectionIsMannualValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, 'update', errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);

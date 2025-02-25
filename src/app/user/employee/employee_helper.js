@@ -8,7 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
 } = require("../../../util");
-const { CryptoHelper, PubSubHelper, Validator, CronHelper } = require("../../../tools");
+const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
 
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
@@ -54,6 +54,8 @@ const audienceSelection = require('../../learning-plan/enumFields/audienceSelect
 const { TrainingModuleContent } = require("../../trainings/training_modules/training_module_contents/training_module_content_model");
 const { TrainingModule } = require('../../trainings/training_modules/training_module_model');
 const mongoose = require('mongoose');
+const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const { clear } = require("geoip-lite");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -370,35 +372,86 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
+                // await LearningPlan.updateMany(
+                //     { _id: plan._id },
+                //     [
+                //         { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
+                //         { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
+                //     ]
+                // );
+                const assignments = userIds.map(userId => ({
+                    learningPlanId: plan._id,
+                    assignedLearnerId: userId,
+                    isMannuallyAdded: false,
+                    createdBy: context.user.userId,
+                    updatedBy: context.user.userId
+                }));
 
-                await LearningPlan.updateMany(
-                    { _id: plan._id },
-                    [
-                        { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
-                        { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
-                    ]
-                );
+                if (assignments?.length) {
+                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                }
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
+                const validUserIds = new Set(validUsers.map(user => user._id));
+
+                const usersToRemove = userConditions
+                    .filter(user => !validUserIds.has(user._id))
+                    .map(user => user._id);
 
                 const userIds = validUsers.map(user => user._id);
 
-                if (userIds.length > 0) {
-                    await LearningPlan.updateMany(
-                        { _id: plan._id },
-                        [
-                            { $set: { assignedLearnerIDs: { $ifNull: ["$assignedLearnerIDs", []] } } },
-                            { $set: { assignedLearnerIDs: { $concatArrays: ["$assignedLearnerIDs", userIds] } } }
-                        ]
-                    );
-                    usersToEnroll.push(...userIds);
+                if (validUsers?.length > 0) {
+
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: userIds }
+                    }, { assignedLearnerId: 1 });
+
+                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                    const newAssignments = userIds
+                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                        .map(userId => ({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: userId,
+                            isMannuallyAdded: false,
+                            createdBy: context.user.userId,
+                            updatedBy: context.user.userId,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }));
+
+                    if (newAssignments.length > 0) {
+                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                    }
+
+                    // const assignments = userIds.map(userId => ({
+                    //     learningPlanId: plan._id,
+                    //     assignedLearnerId: userId,
+                    //     isMannuallyAdded: false,
+                    //     createdBy: context.user.userId,
+                    //     updatedBy: context.user.userId
+                    // }));
+
+                    // if (assignments?.length) {
+                    //     const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                    // }
+                    // usersToEnroll.push(...userIds);
+                }
+
+                if (usersToRemove.length > 0) {
+
+                    const deleteResult = await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove }
+                    });
+
                 }
             }
-
             if (usersToEnroll.length > 0) {
                 const enrollData = {
                     trainings: plan.selectCourses,
@@ -1482,9 +1535,10 @@ module.exports = {
             vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
             currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
             email: input?.user?.email,
-            _id: existingEmployee?._id
+            _id: existingEmployee?.user?._id
         }];
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
+      
         return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
