@@ -88,7 +88,9 @@ const errorName = {
     FAILED_TO_FETCH_EMPLOYESS: "FAILED_TO_FETCH_EMPLOYESS",
     INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
     INVALID_TITLE: "INVALID_TITLE",
-    INVALID_DESCRIPTION: "INVALID_DESCRIPTION"
+    INVALID_DESCRIPTION: "INVALID_DESCRIPTION",
+    REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
+    INVALID_REG_TYPE: "INVALID_REG_TYPE",
 };
 
 const errorType = {
@@ -536,6 +538,16 @@ const errorType = {
         message: 'Description is not valid',
         statusCode: 400,
         type: "INVALID_DESCRIPTION"
+    },
+    REGTYPE_REQUIRED:{
+        message: 'Registration type is required',
+        statusCode: 400,
+        type: "REGTYPE_REQUIRED",
+    },
+    INVALID_REG_TYPE:{
+        message: 'Invalid Reg Type Provided',
+        statusCode: 400,
+        type: "INVALID_REG_TYPE",
     }
 };
 

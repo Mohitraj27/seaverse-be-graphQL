@@ -164,6 +164,14 @@ type userVessels {
             Registered
             Unregistered
         }
+        enum SortableFieldEnum {
+            FIRST_NAME
+            DESIGNATION
+            STATUS
+            USER_ROLE
+            VESSEL_TYPE
+            LAST_SEEN
+        }
         input changeRegisterInput {
             users: [ID!]!
             type: RegisterType!
@@ -236,6 +244,10 @@ type userVessels {
             vesselType: [ID]
             lastSeen: LastSeenEnum
         }
+        input SortFieldInput {
+            field : SortableFieldEnum
+            sortOrder : Int
+        }
         input deleteRequestFilterInput {
             search: String
             isDeleted: Boolean
@@ -248,7 +260,8 @@ type userVessels {
             civilIdOrPassport: String
         }
         input UserObjectIDs {
-            ids: [ID!]
+            ids: [ID!]!
+            regType: Int!
         }
         input ImportUserInput {
             firstName: String!
@@ -335,7 +348,7 @@ type FetchFileResponse {
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
-        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
+        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput, sortInput : SortFieldInput ): EmployeeList!
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
@@ -357,7 +370,7 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
         createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
     `,
 };
