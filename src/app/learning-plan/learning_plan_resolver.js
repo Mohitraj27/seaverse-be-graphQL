@@ -45,7 +45,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
@@ -60,7 +60,7 @@ module.exports.mutations = {
             });
             return result.learningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, error.message);
         }
     },
     updateLearningPlanStatus: async ({ input }, context) => {
@@ -111,7 +111,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,
                         affected: [
@@ -132,7 +132,7 @@ module.exports.mutations = {
                 updatedLearningPlans: updatedPlans,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_UPDATE_STATUS, error.message);
         }
     },
     deleteLearningPlan: async ({ id }, context) => {
@@ -195,7 +195,7 @@ module.exports.mutations = {
                 message: 'Learning Plan  deleted successfully.'
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LEARNING_PLAN, `${error.message}`);
         }
 
     },
@@ -210,11 +210,16 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            validation.learningPlan.updatedBy = userId;
-            validation.learningPlan.updatedAt = new Date();
-            validation.learningPlan.isUpdated = true;
+            const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
+            if (!updatedLearningPlan) {
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
+            }
+            updatedLearningPlan.updatedBy = userId;
+            updatedLearningPlan.updatedAt = new Date();
+            updatedLearningPlan.isUpdated = true;
 
-            await learningPlan.save();
+            // Save updated learning plan
+            await updatedLearningPlan.save();
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -237,7 +242,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
@@ -250,10 +255,9 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            const updatedLearningPlan = validation.learningPlan;
             return updatedLearningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
         }
     }
 };
@@ -466,6 +470,7 @@ module.exports.queries = {
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
+                        audienceSelection: 1,
                         numberOfAssignedLearners: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
@@ -473,6 +478,7 @@ module.exports.queries = {
                     }
                 }
             ]);
+
 
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
@@ -520,7 +526,7 @@ module.exports.queries = {
                 totalCount: learningPlans?.length,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+        throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
@@ -608,10 +614,13 @@ module.exports.queries = {
                 {
                     $lookup: {
                         from: "users",
-                        localField: "userObjectIds",
+                        localField: "assignedLearnerIDs",
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
+                            {
+                                $match: { isDeleted: { $ne: true } }
+                            },
                             {
                                 $project: {
                                     _id: 1,
@@ -668,10 +677,9 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
-
             return detailedPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getUsersForLearningPlan: async ({ input }, context) => {
