@@ -164,6 +164,14 @@ type userVessels {
             Registered
             Unregistered
         }
+        enum SortableFieldEnum {
+            FIRST_NAME
+            DESIGNATION
+            STATUS
+            USER_ROLE
+            VESSEL_TYPE
+            LAST_SEEN
+        }
         input changeRegisterInput {
             users: [ID!]!
             type: RegisterType!
@@ -235,6 +243,10 @@ type userVessels {
             vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
+        }
+        input SortFieldInput {
+            field : SortableFieldEnum
+            sortOrder : Int
         }
         input deleteRequestFilterInput {
             search: String
@@ -335,7 +347,7 @@ type FetchFileResponse {
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
-        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
+        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput, sortInput : SortFieldInput ): EmployeeList!
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]

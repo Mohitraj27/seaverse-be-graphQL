@@ -530,7 +530,7 @@ module.exports.queries = {
             },
         ]);
     },
-    getEmployees: async ({ pageInput, filterInput }, context) => {
+    getEmployees: async ({ pageInput, filterInput, sortInput }, context) => {
         const {
             role,
             userPermissions,
@@ -562,6 +562,54 @@ module.exports.queries = {
             let filterConditions = {
                 subscriber: subscriberId,
             };
+            
+            const sortingStage = [];
+            const sortOrder = sortInput?.sortOrder ?? 1;
+
+            const fieldMapping = {
+                "FIRST_NAME": "user.firstName",
+                "DESIGNATION": "empDesignation.name",
+                "STATUS": "user.vesselStatus",
+                "USER_ROLE": "user.role",
+                "LAST_SEEN": "user.lastLoginAt",
+                "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name"
+            };
+
+            const field = sortInput?.field ?? "FIRST_NAME"; // Default to "FIRST_NAME" if no field is provided
+            const fieldPath = fieldMapping[field]; //assign the key in db to the fieldPath input from request
+
+            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE") {
+                //check condition for the fields that must be converted into lowercase for comparison
+                sortingStage.push({
+                    $addFields: {
+                        [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        [`lowercase${field}`]: sortOrder
+                    }
+                });
+            } else if (fieldPath) {
+                sortingStage.push({
+                    $sort: {
+                        [fieldPath]: sortOrder
+                    }
+                });
+            } else {
+                //default to sort by name in ascending order 
+                sortingStage.push({
+                    $addFields: {
+                        lowercaseFirstname: { $toLower: "$user.firstName" }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        lowercaseFirstname: 1
+                    }
+                });
+            }
+
 
             if (filterInput?.lastSeen) {
                 const today = Moment();
@@ -834,11 +882,6 @@ module.exports.queries = {
                         latestUpdatedAt: -1,
                     },
                 },
-                {
-                    $sort : {
-                        "user.firstName": 1
-                    }
-                },
                 ...(filterInput?.vesselName?.length > 0
                     ? [
                         {
@@ -961,6 +1004,7 @@ module.exports.queries = {
                         },
                     ]
                     : []),
+                ...sortingStage,
             ]);
 
             return {
