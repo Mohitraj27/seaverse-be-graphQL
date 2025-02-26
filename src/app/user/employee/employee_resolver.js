@@ -847,7 +847,7 @@ module.exports.queries = {
             return {
                 employees: result.employees,
                 totalCount: result?.employees.length ?? 0,
-                totalEmployees : result?.totalCount ?? 0
+                totalEmployees: result?.totalCount ?? 0
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
@@ -1750,8 +1750,8 @@ module.exports.mutations = {
             const savedEmployees = [];
 
             input.user.password = input.user.password
-            ? await CryptoHelper.hash(input.user.password, 10)
-            : await CryptoHelper.hash(dummyPassword.dummy_pwd, 10);
+                ? await CryptoHelper.hash(input.user.password, 10)
+                : await CryptoHelper.hash(dummyPassword.dummy_pwd, 10);
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -1765,7 +1765,7 @@ module.exports.mutations = {
                 civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel ?? null,
-                vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                vesselStatus: input.user.vesselStatus ?? null,
                 email: input.user.email,
                 password: input.user.password,
                 role: userRole,
@@ -1794,19 +1794,16 @@ module.exports.mutations = {
             let savedUserVessel;
             let vessel;
 
-            if (input.user.currentVessel && input.user.vesselStatus) {
+            if (input.user.currentVessel || input.user.vesselStatus) {
 
-                if (input.user.vesselStatus !== 'ONSHORE') {
+                let userVesselUpdate = {
+                    user: savedUser,
+                    vessel: input.user.currentVessel ?? null,
+                    vesselStatus: input.user.vesselStatus ?? null,
+                };
 
-                    let userVesselUpdate = {
-                        user: savedUser,
-                        vessel: input.user.currentVessel ?? null,
-                        vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
-                    };
+                savedUserVessel = await UserVessel.create(userVesselUpdate);
 
-                    savedUserVessel = await UserVessel.create(userVesselUpdate);
-
-                }
                 if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
@@ -1821,7 +1818,7 @@ module.exports.mutations = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? "ONSHORE",
+                currentStatus: savedUserVessel?.vesselStatus ?? null,
                 email: savedUser.email,
                 _id: savedUser._id
             }];
@@ -1934,12 +1931,12 @@ module.exports.mutations = {
                 return changes;
             }, {});
 
-            EmployeeHelper.sendNotificationOnCRUD({
-                subscriber: subscriberId,
-                employee: savedEmployee,
-                createdBy: userInfo,
-                action: "UPDATED",
-            });
+            // EmployeeHelper.sendNotificationOnCRUD({
+            //     subscriber: subscriberId,
+            //     employee: savedEmployee,
+            //     createdBy: userInfo,
+            //     action: "UPDATED",
+            // });
 
             return savedEmployee;
 
