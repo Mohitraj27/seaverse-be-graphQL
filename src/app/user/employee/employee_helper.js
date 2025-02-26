@@ -1172,11 +1172,19 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         }
     }
 
+    if (!row["Vessel Status"]) {
+        row["Vessel Status"] = '';
+    }
+
     if (row["Vessel IMO Number"]) {
         if (!imoNumbers.includes(row["Vessel IMO Number"])) {
             errors.push(`Invalid IMO Number in row ${rowIndex + 1} as ${row["Vessel IMO Number"]}`);
             return errors;
         }
+    }
+
+    if (!row["Vessel IMO Number"]) {
+        row["Vessel IMO Number"] = '';
     }
 
     return errors;
@@ -2011,8 +2019,8 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                        vesselStatus: user?.vesselStatus ? user.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
-                                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
+                                        vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
+                                        currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
                                 },
                             },
@@ -2022,8 +2030,8 @@ module.exports = {
 
                         vesselAssociations.push({
                             email: user.email,
-                            imoNumber: user?.imoNumber,
-                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                            imoNumber: user.imoNumber && user.imoNumber.trim() !== '' ? user.imoNumber || null : null,
+                            vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -2046,8 +2054,8 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
-                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
-                                    currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
+                                    vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
+                                    currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
                             },
                         },
@@ -2058,8 +2066,8 @@ module.exports = {
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
-                        imoNumber: user?.imoNumber,
-                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                        imoNumber: user.imoNumber && user.imoNumber.trim() !== '' ? user.imoNumber || null : null,
+                        vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -2090,8 +2098,8 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email?.toLowerCase(),
-                                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
-                                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
+                                        vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
+                                        currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
                                 },
                             },
@@ -2102,8 +2110,8 @@ module.exports = {
 
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
-                            imoNumber: user?.imoNumber,
-                            vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                            imoNumber: user.imoNumber && user.imoNumber.trim() !== '' ? user.imoNumber || null : null,
+                            vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
 
@@ -2124,8 +2132,8 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
-                                    vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
-                                    currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
+                                    vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
+                                    currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
                             },
                         },
@@ -2136,8 +2144,8 @@ module.exports = {
 
                     vesselAssociations.push({
                         email: user.email,
-                        imoNumber: user?.imoNumber,
-                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
+                        imoNumber: user.imoNumber && user.imoNumber.trim() !== '' ? user.imoNumber || null : null,
+                        vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                     });
 
@@ -2169,16 +2177,16 @@ module.exports = {
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
-                        vesselStatus: user?.vesselStatus ? user?.vesselStatus?.toUpperCase() : VesselStatus.ONSHORE,
-                        currentVessel: user.vesselStatus?.toUpperCase() == VesselStatus.ONSHORE ? null : vesselMap.get(user.imoNumber)?.id,
+                        vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
+                        currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10)
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
-                            imoNumber: user.imoNumber,
-                            vesselStatus: user?.vesselStatus?.toUpperCase() || VesselStatus.ONSHORE,
+                            imoNumber: user.imoNumber && user.imoNumber.trim() !== '' ? user.imoNumber || null : null,
+                            vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                             typeOfVessel: vesselMap.get(user.imoNumber)?.typeOfVessel,
                         });
                     }
@@ -2239,9 +2247,7 @@ module.exports = {
 
         let endUsers = [];
 
-
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
-
 
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
 
@@ -2277,20 +2283,36 @@ module.exports = {
                     );
 
                     if (originalUserData.length > 0) {
+
                         originalUserData.forEach(user => {
 
-                            if (vesselData.imoNumber) {
+                            if (vesselData.imoNumber || vesselData.imoNumber === '') {
 
-                                userVesselsInsert.push({
-                                    updateMany: {
-                                        filter: { user: user._id, vessel: { $ne: vesselMap.get(vesselData?.imoNumber).id } },
-                                        update: {
-                                            $set: { isActive: false }
+                                if (vesselData.imoNumber !== '') {
+
+                                    userVesselsInsert.push({
+                                        updateMany: {
+                                            filter: { user: user._id, vessel: { $ne: vesselMap.get(vesselData?.imoNumber).id } },
+                                            update: {
+                                                $set: { isActive: false }
+                                            }
                                         }
-                                    }
-                                });
+                                    });
 
-                                if (vesselData.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
+                                } else {
+
+                                    userVesselsInsert.push({
+                                        updateMany: {
+                                            filter: { user: user._id },
+                                            update: {
+                                                $set: { isActive: false }
+                                            }
+                                        }
+                                    });
+
+                                }
+
+                                if (vesselData.vesselStatus !== '') {
 
                                     userVesselsInsert.push({
                                         updateOne: {
@@ -2299,26 +2321,26 @@ module.exports = {
                                                 $set: {
                                                     user: user._id,
                                                     vessel: vesselMap.get(vesselData.imoNumber).id,
-                                                    vesselStatus: vesselData.vesselStatus.toUpperCase() || VesselStatus.ONSHORE,
-                                                    isActive: !vesselData.vesselStatus.toUpperCase() || vesselData.vesselStatus.toUpperCase() === VesselStatus.ONSHORE ? false : true,
+                                                    vesselStatus: vesselData?.vesselStatus && vesselData?.vesselStatus.trim() !== '' ? vesselData?.vesselStatus.toUpperCase() || null : null,
+                                                    isActive: true,
                                                 }
                                             },
                                             upsert: true
                                         }
                                     });
-
                                 }
 
-
                             } else {
+
                                 userVesselsInsert.push({
                                     updateMany: {
                                         filter: { user: user._id },
                                         update: {
-                                            $set: { isActive: false, vesselStatus: VesselStatus.ONSHORE }
+                                            $set: { isActive: false, vesselStatus: vesselData?.vesselStatus && vesselData?.vesselStatus.trim() !== '' ? vesselData?.vesselStatus.toUpperCase() || null : null }
                                         }
                                     }
                                 });
+
                             }
 
                         });
@@ -2393,56 +2415,56 @@ module.exports = {
                 );
             }
 
-            const userIDs = allUpdatedUsers.map(user => user._id);
-            const employees = await Employee.find(
-                { user: { $in: userIDs } },
-                { user: 1, empDesignation: 1, _id: 0 }
-            );
+            // const userIDs = allUpdatedUsers.map(user => user._id);
+            // const employees = await Employee.find(
+            //     { user: { $in: userIDs } },
+            //     { user: 1, empDesignation: 1, _id: 0 }
+            // );
 
-            const empDesignationMap = {};
-            employees.forEach(employee => {
-                empDesignationMap[employee.user] = employee.empDesignation;
-            });
-            const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
-            const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
-            const vesselTypeMap = {};
-            vessels.forEach(vessel => {
-                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
-            });
-
-
-            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-            let conditionsList = []
-            try {
-                allUpdatedUsers.forEach(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-
-                    const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
-                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
-
-                    const conditions = {
-                        designationID: empDesignation,
-                        vesselID: user.currentVessel ?? null,
-                        vesselTypeID: typeOfVesselIds ?? null,
-                        currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
-                        email: user.email,
-                        _id: user._id
-
-                    };
-
-                    conditionsList.push(conditions);
-
-                });
-
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
+            // const empDesignationMap = {};
+            // employees.forEach(employee => {
+            //     empDesignationMap[employee.user] = employee.empDesignation;
+            // });
+            // const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
+            // const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
+            // const vesselTypeMap = {};
+            // vessels.forEach(vessel => {
+            //     vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+            // });
 
 
-                if (filteredPlans.length > 0) {
-                    console.log("filteredPlans: ", filteredPlans);
-                }
-            } catch (error) {
-                console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
-            }
+            // const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            // let conditionsList = []
+            // try {
+            //     allUpdatedUsers.forEach(user => {
+            //         const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
+            //         const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
+            //         const typeOfVesselIds = vesselTypeMap[user.currentVessel];
+
+            //         const conditions = {
+            //             designationID: empDesignation,
+            //             vesselID: user.currentVessel ?? null,
+            //             vesselTypeID: typeOfVesselIds ?? null,
+            //             currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
+            //             email: user.email,
+            //             _id: user._id
+
+            //         };
+
+            //         conditionsList.push(conditions);
+
+            //     });
+
+            //     const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
+
+
+            //     if (filteredPlans.length > 0) {
+            //         console.log("filteredPlans: ", filteredPlans);
+            //     }
+            // } catch (error) {
+            //     console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
+            // }
 
 
 
