@@ -35,16 +35,17 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
         const notifications = [];
-        const exportStartTime = new Date();
+        // const exportStartTime = new Date();
 
         try {
+            /* ticket No SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
-                title: [{ lang: "en", value: `User Export In Progress` }],
+                title: [{ lang: "en", value: `User Group Export In Progress` }],
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -53,10 +54,11 @@ module.exports.queries = {
                 employeeNotifiers: [],
                 affected:[],
                 createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS,
+                icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
-            await NotificationHelper.createNotification(notifications);
+            */
+            // await NotificationHelper.createNotification(notifications);
             let memberIds;
             let selectedGroup;
             let userDetails = [];
@@ -159,7 +161,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,

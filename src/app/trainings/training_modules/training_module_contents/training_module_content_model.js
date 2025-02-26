@@ -30,7 +30,7 @@ const trainingModuleContentSchema = new Schema(
         },
         description: {
             type: [LocalisedDataSchema],
-            required: false,
+            // required: false,
         },
         scorm: {
             courseId: String,
