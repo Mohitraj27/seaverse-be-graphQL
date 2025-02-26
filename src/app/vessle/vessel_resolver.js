@@ -181,6 +181,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
+            if (!input.companyName) throw CustomError(ErrorName.FIELD_REQUIRED, 'Company name is required.');
             if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ imoNumber: imoNumber });
@@ -257,6 +258,7 @@ module.exports.mutations = {
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
             if (!input.typeOfVessel) throw CustomError(ErrorName.FIELD_REQUIRED, 'Type of vessel is required.');
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
+            if (!input.companyName) throw CustomError(ErrorName.FIELD_REQUIRED, 'Company name is required.');
             if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
