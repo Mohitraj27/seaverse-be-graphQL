@@ -1215,8 +1215,20 @@ module.exports.queries = {
                     });
                     html = htmlContent;
                 } else {
-                    const generatePassword = generateRandomString(10);
-                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                    let generatePassword
+
+                    if (!currentUserData.dummyPassword) {
+                        generatePassword = generateRandomString(10);
+                        const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+                        currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+                        currentUserData.password = dummyPasswordHash;
+                    } else {
+                        const parts = currentUserData.dummyPassword.split('~~~');
+                        const newDummyPassword = parts[1];
+                        generatePassword = newDummyPassword;
+                        currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
+                    }
+
                     try {
                         await currentUserData.save();
                     } catch {
@@ -1988,11 +2000,12 @@ module.exports.mutations = {
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
             const savedEmployees = [];
 
-            const generatePassword = generateRandomString(10);
-
-            input.user.password = input.user.password
-                ? await CryptoHelper.hash(input.user.password, 10)
-                : await CryptoHelper.hash(generatePassword, 10);
+            let userPasswordInfo = {};
+            let generatePassword = input?.user?.password || generateRandomString(10);
+            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+            
+            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+            userPasswordInfo.password = dummyPasswordHash;            
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -2008,8 +2021,8 @@ module.exports.mutations = {
                 currentVessel: input.user.currentVessel ?? null,
                 vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
                 email: input.user.email,
-                password: input.user.password,
                 role: userRole,
+                ...userPasswordInfo,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
