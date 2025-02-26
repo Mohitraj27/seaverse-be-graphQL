@@ -277,43 +277,20 @@ module.exports.mutations = {
 
             if (updatedVessel) {
                 if (isActive === false) {
-                    const getNAVessel = await Vessel.findOne({ naVessel: { $ne: false } });
-                    console.log(getNAVessel);
-                    if (getNAVessel) {
-
-                        await UserVessel.updateMany(
-                            { vessel: vessel._id, isActive: true },
-                            { $set: { vesselStatus: "ONSHORE", vessel: getNAVessel._id } }
-                        );
-
-                        await User.updateMany(
-                            { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE", vessel: getNAVessel._id } }
-                        );
-
-                        await DeletedUser.updateMany(
-                            { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE", vessel: getNAVessel._id } }
-                        );
-
-                    } else {
-
-                        await UserVessel.updateMany(
-                            { vessel: vessel._id, isActive: true },
-                            { $set: { vesselStatus: "ONSHORE" } }
-                        );
+                    await UserVessel.updateMany(
+                        { vessel: vessel._id, isActive: true },
+                        { $set: { vessel: null, isActive: false } }
+                    );
 
                     await User.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE", currentVessel: null } }
+                        { $set: { vessel: null } }
                     );
 
-                        await DeletedUser.updateMany(
-                            { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } }
-                        );
-
-                    }
+                    await DeletedUser.updateMany(
+                        { currentVessel: vessel._id },
+                        { $set: { vessel: null } }
+                    );
 
                 }
             }
@@ -447,19 +424,19 @@ module.exports.mutations = {
                     if (!vessel.isActive) {
                         await UserVessel.updateMany(
                             { vessel: vessel._id, isActive: true },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { vessel: null, isActive: false } },
                             { session }
                         );
 
                         await User.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" , currentVessel: null} },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
 
                         await DeletedUser.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
                     }
