@@ -1541,6 +1541,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 type: input.type,
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+            /* Ticket No SEAV-91
             for (const user of users) {
                 const emailContent =
                     input.type === "Registered"
@@ -1552,6 +1553,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     htmlContent: emailContent,
                 });
             }
+            */
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -1641,7 +1643,7 @@ const manageRole = async ({ input }, context) => {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             };
-
+            /* Ticket No SEAV-91
             const userNotifications = affectedUsers.map(user => ({
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Management Update" }],
@@ -1667,6 +1669,8 @@ const manageRole = async ({ input }, context) => {
             }));
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            */
+            await NotificationHelper.sendNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
