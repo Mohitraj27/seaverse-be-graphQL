@@ -89,6 +89,10 @@ const errorName = {
     INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
     INVALID_TITLE: "INVALID_TITLE",
     INVALID_DESCRIPTION: "INVALID_DESCRIPTION",
+    LEARNING_PLAN_NOT_UPDATED: "LEARNING_PLAN_NOT_UPDATED",
+    FAILED_TO_UPDATE_STATUS: "FAILED_TO_UPDATE_STATUS",
+    FAILED_TO_DELETE_LEARNING_PLAN: "FAILED_TO_DELETE_LEARNING_PLAN",
+    FAILED_TO_FETCH_LEARNING_PLAN: "FAILED_TO_FETCH_LEARNING_PLAN",
     REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
 };
@@ -538,6 +542,26 @@ const errorType = {
         message: 'Description is not valid',
         statusCode: 400,
         type: "INVALID_DESCRIPTION"
+    },
+    LEARNING_PLAN_NOT_UPDATED: {
+        message: 'Learning Plan Not Updated',
+        statusCode: 400,
+        type: "LEARNING_PLAN_NOT_UPDATED"
+    },
+    FAILED_TO_UPDATE_STATUS: {
+        message: 'Failed to update status',
+        statusCode: 400,
+        type: "FAILED_TO_UPDATE_STATUS"
+    },
+    FAILED_TO_DELETE_LEARNING_PLAN: {
+        message: 'Failed to delete learning plan',
+        statusCode: 400,
+        type: "FAILED_TO_DELETE_LEARNING_PLAN"
+    },
+    FAILED_TO_FETCH_LEARNING_PLAN:{
+        message: 'Failed to fetch learning plan',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_LEARNING_PLAN"
     },
     REGTYPE_REQUIRED:{
         message: 'Registration type is required',
