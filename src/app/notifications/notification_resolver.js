@@ -554,4 +554,3 @@ module.exports.subscriptions = {
         ),
     },
 };
-

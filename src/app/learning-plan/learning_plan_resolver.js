@@ -459,10 +459,7 @@ module.exports.queries = {
                                 as: "learner",
                                 cond: { $eq: ["$$learner.isDeleted", false] }
                             }
-                        },
-                        numberOfAssignedLearners: { 
-                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
-                        },
+                        }
                     }
                 },
                 {
