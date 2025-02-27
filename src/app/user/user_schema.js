@@ -36,7 +36,7 @@ module.exports = {
             employee: Employee
             htmlTemplate: String
             isResetPasswordDialog: Boolean
-            vesselStatus: vesselStatusEnum
+            vesselStatus: String
         }
         type UserList {
             users: [User]
@@ -76,8 +76,8 @@ module.exports = {
             lastName: String
             civilIdOrPassport: String
             isRegistered: Boolean
-            currentVessel: ID
-            vesselStatus: vesselStatusEnum
+            currentVessel: String
+            vesselStatus: String
             companyEmail: String
             email: String
             phone: PhoneInput

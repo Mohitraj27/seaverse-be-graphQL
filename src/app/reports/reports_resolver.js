@@ -348,6 +348,8 @@ const getMainLearnersReport = async ({ input }, context) => {
             const workbook = XLSX.utils.book_new();
             let worksheet;
             if (data.length === 0) {
+/**  
+                #Ticket : SEAV-90 
                 const message = `NO DATA AVAILABLE FOR ${selectVesselOrLearner.toUpperCase()} REPORTS`;
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -372,6 +374,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                 };
     
                 worksheet['!rows'] = [{ hpt: 30 }];
+                 */
+                worksheet = XLSX.utils.aoa_to_sheet([['Name', 'EmployeeId', 'Designation', 'VesselName', 'RegistrationStatus','LastSeen','IsDeleted','vesselTypeName','CoursesCount','AverageProgressPercentage']]);
             }
             else {
                 worksheet = XLSX.utils.json_to_sheet(data);
@@ -769,10 +773,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date (Asia/Calcutta TimeZone) ': enrollmentDate,
-                        'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
-                        'Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                        'Started Date (Asia/Calcutta TimeZone)': startDate,
+                        'Enrollment Date (UTC) ': enrollmentDate,
+                        'Unenrollment Date (UTC)': unenrollmentDate,
+                        'Completion Date (UTC)': completionDate,
+                        'Started Date (UTC)': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
@@ -809,7 +813,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 let worksheet;
                 if (combinedData.length === 0) {
-                    const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
+                   /*  
+                    #TICKET - SEAV-90
+                   const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
                     worksheet = XLSX.utils.aoa_to_sheet([
                         [message]
                     ]);
@@ -831,7 +837,23 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     };
 
-                    worksheet['!rows'] = [{ hpt: 30 }];
+                    worksheet['!rows'] = [{ hpt: 30 }]; */
+                    const headers = [
+                        "learnerName",
+                        "Email",
+                        "Designation",
+                        "Course Name",
+                        "Status",
+                        "Admin Marked As Completed",
+                        "Enrollment Date (UTC)",
+                        "Unenrollment Date (UTC)",
+                        "Completion Date (UTC)",
+                        "Started Date (UTC)",
+                        "Quiz Score",
+                        "userState",
+                        "Time Spent (mins)"
+                    ]
+                    worksheet = XLSX.utils.aoa_to_sheet([headers]);
                 }
                 else {
                     worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
@@ -1463,10 +1485,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         });
@@ -1487,6 +1509,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     let worksheet;
                     if (learnersData.length === 0) {
+                        /* 
                         const message = "NO DATA AVAILABLE FOR SELECTED LEARNER REPORTS";
                         worksheet = XLSX.utils.aoa_to_sheet([
                             [message]
@@ -1510,7 +1533,27 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             }
                         };
 
-                        worksheet['!rows'] = [{ hpt: 30 }];
+                        worksheet['!rows'] = [{ hpt: 30 }]; 
+                        */
+
+                        worksheet = XLSX.utils.aoa_to_sheet([
+                            [
+                                "Name",
+                                "Email",
+                                "Designation",
+                                "Course Name",
+                                "Course Status",
+                                "Admin Marked As Completed",
+                                "Lesson Name",
+                                "Content Name",
+                                "Content Type",
+                                "Quiz Score",
+                                "Enrollment Date (UTC)",
+                                "Course Started Date (UTC)",
+                                "Course Completion Date (UTC)",
+                                "Unenrollment Date (UTC)"
+                            ]
+                        ]);
                     }
                     else {
                         worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
@@ -1817,6 +1860,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             const workbook = XLSX.utils.book_new();
             let worksheet;
             if (data.length === 0) {
+                /*
                 const message = "NO DATA AVAILABLE FOR COURSE REPORTS";
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -1840,10 +1884,23 @@ const getMainCoursesReport = async ({ input }, context) => {
                     }
                 };
     
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
+
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "title",
+                        "updatedAt",
+                        "updatedBy",
+                        "totalUsers",
+                        "NOT_STARTED",
+                        "IN_PROGRESS",
+                        "COMPLETED"
+                    ]
+                ]);
             }
             else {
-                worksheet = XLSX.utils.json_to_sheet(data);
+                worksheet = XLSX.utils.json_to_sheet(coursesData);
             }
             XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -2306,10 +2363,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'Admin Marked As Completed': adminMarkedAsCompleted,
                             TimeSpent: timeSpent,
                             QuizScore: quizScore,
-                            'Course Enrollment Date': enrollmentDate,
-                            'Course Started Date': startDate,
-                            'Course Unenrollment Date': unenrollmentDate,
-                            'Course Completion Date': completionDate,
+                            'Course Enrollment Date (UTC)': enrollmentDate,
+                            'Course Started Date (UTC)': startDate,
+                            'Course Unenrollment Date (UTC)': unenrollmentDate,
+                            'Course Completion Date (UTC)': completionDate,
                         };
 
                         return parsedItem;
@@ -2358,7 +2415,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 };
             } else if (data.length === 0 && input?.export) {
 
-                const workbook = XLSX.utils.book_new();
+                /* const workbook = XLSX.utils.book_new();
                 let worksheet;
 
                 const message = "NO DATA AVAILABLE FOR THE SELECTED COURSE";
@@ -2384,7 +2441,29 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; */
+                const workbook = XLSX.utils.book_new();
+                const headers = [
+                    "LearnerName",
+                    "Email",
+                    "EmployeeId",
+                    "Designation",
+                    "CurrentVessel",
+                    "VesselType",
+                    "CourseName",
+                    "CourseStatus",
+                    "Admin Marked As Completed",
+                    "TimeSpent",
+                    "QuizScore",
+                    "Course Enrollment Date (UTC)",
+                    "Course Started Date (UTC)",
+                    "Course Unenrollment Date (UTC)",
+                    "Course Completion Date (UTC)"
+                ]
+
+                const worksheet = XLSX.utils.aoa_to_sheet([
+                    headers
+                ]);
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -3082,10 +3161,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
                                     'Admin Marked As Completed': adminMarkedAsCompleted,
-                                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         }
@@ -3145,6 +3224,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 };
             } else if (data.length === 0 && input?.export) {
 
+                /*
                 const workbook = XLSX.utils.book_new();
                 let worksheet;
 
@@ -3171,8 +3251,26 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
 
+                const workbook = XLSX.utils.book_new();
+                const worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "Name",
+                        "Email",
+                        "Designation",
+                        "Course Name",
+                        "Lesson Name",
+                        "Quiz Score",
+                        "Course Status",
+                        "Admin Marked As Completed",
+                        "Enrollment Date (UTC)",
+                        "Course Started Date (UTC)",
+                        "Course Completion Date (UTC)",
+                        "Unenrollment Date (UTC)"
+                    ]
+                ]);
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Course Quiz Report');
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                 const excelFilePath = await UploadHelper.uploadExcel({
@@ -3651,6 +3749,7 @@ const getVesselMainReport = async ({ input }, context) => {
             let worksheet;
 
             if (dataToExport.length === 0) {
+                /* 
                 const message = "NO DATA AVAILABLE FOR VESSELS";
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -3673,7 +3772,22 @@ const getVesselMainReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
+
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "vesselName",
+                        "imoNumber",
+                        "companyName",
+                        "typeOfVessel",
+                        "ownerName",
+                        "onboardedCount",
+                        "progress",
+                        "createdAt",
+                        "quizPercentage"
+                    ]
+                ]);
             }
             else {
                 worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -4107,10 +4221,10 @@ const generateCustomReport = async ({ input }, context) => {
                     'Quiz Score': quizScore,
                     userState: userState,
                     'Time Spent (mins)': timeSpent,
-                    'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                    'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                    'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                    'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                    'Enrollment Date (UTC)': enrollmentDate,
+                    'Course Started Date (UTC)': startDate,
+                    'Course Completion Date (UTC)': completionDate,
+                    'Unenrollment Date (UTC)': unenrollmentDate,
                 });
             });
 
@@ -4689,10 +4803,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
                                 'Quiz Score': quizScore,
-                                'Enrollment Date (Asia/Calcutta TimeZone)': enrollmentDate,
-                                'Course Started Date (Asia/Calcutta TimeZone)': startDate,
-                                'Course Completion Date (Asia/Calcutta TimeZone)': completionDate,
-                                'Unenrollment Date (Asia/Calcutta TimeZone)': unenrollmentDate,
+                                'Enrollment Date (UTC)': enrollmentDate,
+                                'Course Started Date (UTC)': startDate,
+                                'Course Completion Date (UTC)': completionDate,
+                                'Unenrollment Date (UTC)': unenrollmentDate,
                             });
                         });
                     });
@@ -4718,7 +4832,7 @@ const generateCustomReport = async ({ input }, context) => {
         const workbook = XLSX.utils.book_new();
         let worksheet;
         if (dataToExport.length === 0) {
-            const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
+           /*  const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
             worksheet = XLSX.utils.aoa_to_sheet([
                 [message]
             ]);
@@ -4741,7 +4855,48 @@ const generateCustomReport = async ({ input }, context) => {
                 }
             };
 
-            worksheet['!rows'] = [{ hpt: 30 }];
+            worksheet['!rows'] = [{ hpt: 30 }]; */
+
+            
+            const enrollmentReportHeaders = [
+                "Name",
+                "Email",
+                "Designation",
+                "Course Name",
+                "Status",
+                "Admin Marked As Completed",
+                "Quiz Score",
+                "userState",
+                "Time Spent (mins)",
+                "Enrollment Date (UTC)",
+                "Course Started Date (UTC)",
+                "Course Completion Date (UTC)",
+                "Unenrollment Date (UTC)"
+            ]
+
+            const quizReportHeaders = [
+                "Name",
+                "Email",
+                "Designation",
+                "Course Name",
+                "Course Status",
+                "Admin Marked As Completed",
+                "Lesson Name",
+                "Content Name",
+                "Content Type",
+                "Quiz Score",
+                "Enrollment Date (UTC)",
+                "Course Started Date (UTC)",
+                "Course Completion Date (UTC)",
+                "Unenrollment Date (UTC)"
+            ]
+
+            const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
+            worksheet = XLSX.utils.aoa_to_sheet([
+                headers
+            ]);
+
+
         }
         else {
             worksheet = XLSX.utils.json_to_sheet(dataToExport);

@@ -10,6 +10,7 @@ const {
     UploadHelper,
     VesselStatus,
     SqliteEmailHelper,
+    dummyPassword,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -82,16 +83,29 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     return userIds;
 }
 function formatDateWithSuffix(date) {
-    const day = date.getDate();
-    const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
-        (day % 10 === 2 && day !== 12) ? 'nd' :
-            (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+    /*  
+     const day = date.getDate();
+     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
+         (day % 10 === 2 && day !== 12) ? 'nd' :
+             (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+ 
+     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+     const month = monthNames[date.getMonth()];
+     const year = date.getFullYear();
+ 
+     return `${day}${suffix} ${month} ${year}`; 
+     */
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const month = monthNames[date.getMonth()];
-    const year = date.getFullYear();
+    if (date) {
+        const formattedDate = new Date(date);
+        return formattedDate.toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+    }
 
-    return `${day}${suffix} ${month} ${year}`;
+    return null;
 }
 module.exports.queries = {
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
@@ -1010,7 +1024,7 @@ module.exports.queries = {
             return {
                 employees: result.employees,
                 totalCount: result?.employees.length ?? 0,
-                totalEmployees : result?.totalCount ?? 0
+                totalEmployees: result?.totalCount ?? 0
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
@@ -1202,8 +1216,20 @@ module.exports.queries = {
                     });
                     html = htmlContent;
                 } else {
-                    const generatePassword = generateRandomString(10);
-                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
+                    let generatePassword
+
+                    if (!currentUserData.dummyPassword) {
+                        generatePassword = generateRandomString(10);
+                        const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+                        currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+                        currentUserData.password = dummyPasswordHash;
+                    } else {
+                        const parts = currentUserData.dummyPassword.split('~~~');
+                        const newDummyPassword = parts[1];
+                        generatePassword = newDummyPassword;
+                        currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
+                    }
+
                     try {
                         await currentUserData.save();
                     } catch {
@@ -1213,7 +1239,7 @@ module.exports.queries = {
                     const htmlContent = sendEmailToLearner({
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
-                        temp_password: generatePassword,
+                        temp_password: password,
                         buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
@@ -1310,21 +1336,21 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    getDynamicData : async ({ userId }, context) => {
+    getDynamicData: async ({ userId }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
         try {
             if (!userId) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
             }
-    
+
             const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
             if (!user) {
                 throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
             }
-    
+
             const dynamicDataRecord = await DynamicData.findOne({ userId });
-    
+
             if (!dynamicDataRecord) {
                 return {
                     status: false,
@@ -1332,7 +1358,7 @@ module.exports.queries = {
                     data: null,
                 };
             }
-    
+
             return {
                 status: true,
                 message: "Data fetched successfully",
@@ -1341,7 +1367,7 @@ module.exports.queries = {
         } catch (error) {
             return {
                 status: false,
-                message: error.message ,
+                message: error.message,
                 data: null,
             };
         }
@@ -1528,6 +1554,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 type: input.type,
             }));
             await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+            /* Ticket No SEAV-91
             for (const user of users) {
                 const emailContent =
                     input.type === "Registered"
@@ -1539,6 +1566,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     htmlContent: emailContent,
                 });
             }
+            */
             return { count: updateUsers.nModified, success: true };
         } else {
             return { count: updateUsers.nModified, success: false };
@@ -1628,7 +1656,7 @@ const manageRole = async ({ input }, context) => {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             };
-
+            /* Ticket No SEAV-91
             const userNotifications = affectedUsers.map(user => ({
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Management Update" }],
@@ -1654,6 +1682,8 @@ const manageRole = async ({ input }, context) => {
             }));
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            */
+            await NotificationHelper.sendNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -1764,7 +1794,7 @@ const checkUserRegType = async (userIds, regType) => {
 
     const regTypes = new Set(employeeRecords.map(emp => emp.regType));
 
-    if (![0,1,2].includes(regType)) {
+    if (![0, 1, 2].includes(regType)) {
         throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
     }
 
@@ -1971,11 +2001,12 @@ module.exports.mutations = {
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
             const savedEmployees = [];
 
-            const generatePassword = generateRandomString(10);
+            let userPasswordInfo = {};
+            let generatePassword = input?.user?.password || generateRandomString(10);
+            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
 
-            input.user.password = input.user.password
-                ? await CryptoHelper.hash(input.user.password, 10)
-                : await CryptoHelper.hash(generatePassword, 10);
+            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+            userPasswordInfo.password = dummyPasswordHash;
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -1988,11 +2019,11 @@ module.exports.mutations = {
                 lastName: input.user.lastName ?? null,
                 civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
                 isRegistered: input.user.isRegistered ?? true,
-                currentVessel: input.user.currentVessel ?? null,
-                vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                currentVessel: input.user.currentVessel && input.user.currentVessel !== '' ? ObjectId(input.user.currentVessel) : null,
+                vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== '' ? input.user.vesselStatus : null,
                 email: input.user.email,
-                password: input.user.password,
                 role: userRole,
+                ...userPasswordInfo,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -2018,19 +2049,16 @@ module.exports.mutations = {
             let savedUserVessel;
             let vessel;
 
-            if (input.user.currentVessel && input.user.vesselStatus) {
+            if (input.user.currentVessel || input.user.vesselStatus) {
 
-                if (input.user.vesselStatus !== 'ONSHORE') {
+                let userVesselUpdate = {
+                    user: savedUser,
+                    vessel: input.user.currentVessel ?? null,
+                    vesselStatus: input.user.vesselStatus ?? null,
+                };
 
-                    let userVesselUpdate = {
-                        user: savedUser,
-                        vessel: input.user.currentVessel ?? null,
-                        vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
-                    };
+                savedUserVessel = await UserVessel.create(userVesselUpdate);
 
-                    savedUserVessel = await UserVessel.create(userVesselUpdate);
-
-                }
                 if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
@@ -2045,7 +2073,7 @@ module.exports.mutations = {
                 designationID: input.empDesignation,
                 vesselID: savedUserVessel?.vessel ?? null,
                 vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? "ONSHORE",
+                currentStatus: savedUserVessel?.vesselStatus ?? null,
                 email: savedUser.email,
                 _id: savedUser._id
             }];
@@ -2070,7 +2098,7 @@ module.exports.mutations = {
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
-                templategeneratePassword: generatePassword,
+                templategeneratePassword: dummyPassword.dummy_pwd,
             });
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
@@ -2161,12 +2189,12 @@ module.exports.mutations = {
                 return changes;
             }, {});
 
-            EmployeeHelper.sendNotificationOnCRUD({
-                subscriber: subscriberId,
-                employee: savedEmployee,
-                createdBy: userInfo,
-                action: "UPDATED",
-            });
+            // EmployeeHelper.sendNotificationOnCRUD({
+            //     subscriber: subscriberId,
+            //     employee: savedEmployee,
+            //     createdBy: userInfo,
+            //     action: "UPDATED",
+            // });
 
             return savedEmployee;
 
@@ -2560,7 +2588,7 @@ module.exports.mutations = {
         }
     },
 
-    exportUserToCsv: async ({ userObjectIds}, context) => {
+    exportUserToCsv: async ({ userObjectIds }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         if (!role || role !== Role.ADMIN) {
             throw CustomError(ErrorName.FORBIDDEN);
@@ -2577,7 +2605,8 @@ module.exports.mutations = {
             'Last Login',
             'Created At',
             'User Roles',
-            'Vessel Type'
+            'Vessel Type',
+            'User Status',
         ];
         const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
         const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
@@ -2704,6 +2733,8 @@ module.exports.mutations = {
                         createdAt: { $first: '$createdAt' },
                         role: { $first: '$role' },
                         vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                        isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
+                        isRegistered: { $first: '$isRegistered' },
                     },
                 },
             ];
@@ -2734,15 +2765,29 @@ module.exports.mutations = {
                             else: { $toDate: '$createdAt' },
                         },
                     },
+                    isResetPasswordDialog: 1,
+                    'User Status': {
+                        $cond: {
+                            if: { $eq: ['$isRegistered', true] },
+                            then: 'Active',
+                            else: 'Inactive',
+                        },
+                    },
                 },
             };
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
             const data = users.map(user => {
                 const rowData = {};
+                const isResetPassword = user?.isResetPasswordDialog ?? true;
                 hardcodedFields.forEach(field => {
+                    if (field === 'isResetPasswordDialog') {
+                        return;
+                    }
                     if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
-                        rowData[field] = formatDateWithSuffix(new Date(user['Last Login']));
+                        rowData[field] = isResetPassword ? formatDateWithSuffix(new Date(user['Last Login'])) : "";
+                    } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Created At']));
                     } else {
                         rowData[field] = user[field] || ' ';
                     }
@@ -2813,30 +2858,30 @@ module.exports.mutations = {
             throw new Error(error.message);
         }
     },
-    createOrUpdateDynamicData : async ({ input }, context) => {
-    const { role,  userInfo, userPermissions, subscriberId, isOrganizationManager } =
-        AuthUser(context);
+    createOrUpdateDynamicData: async ({ input }, context) => {
+        const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
         try {
             const { userId, jsonData } = input;
-    
+
             if (!userId) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
             }
-    
+
             if (!jsonData || typeof jsonData !== "object") {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "jsonData is required and should be an object");
             }
-    
+
             const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
-    
+
             if (!user) {
                 throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
             }
-    
+
             const existingRecord = await DynamicData.findOne({ userId });
-    
+
             let savedData;
-    
+
             if (existingRecord) {
                 existingRecord.jsonData = jsonData;
                 savedData = await existingRecord.save();
@@ -2846,13 +2891,13 @@ module.exports.mutations = {
                     jsonData,
                 });
             }
-    
+
             return {
                 status: true,
                 message: existingRecord ? "Data updated successfully!" : "Data created successfully!",
                 data: savedData,
             };
-    
+
         } catch (error) {
 
             return {
