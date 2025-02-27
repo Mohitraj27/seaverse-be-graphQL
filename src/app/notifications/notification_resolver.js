@@ -529,12 +529,12 @@ module.exports.subscriptions = {
 
                 const notification = payload.onNotification;
 
-                if (isAuthenticated && userId && subscriberId) {
+                // if (isAuthenticated && userId && subscriberId) {
                     const notificationSubscriberId = ObjectId.isValid(notification.subscriber)
                         ? notification.subscriber
                         : notification.subscriber?._id;
 
-                    if (notificationSubscriberId?.toString() === subscriberId.toString()) {
+                    // if (notificationSubscriberId?.toString() === subscriberId.toString()) {
                         if (role === Role.ADMIN && notification.notifyAdmin === true) return true;
                         if (
                             notification.notifiers
@@ -546,8 +546,8 @@ module.exports.subscriptions = {
                         ) {
                             return true;
                         }
-                    }
-                }
+                    // }
+                // }
 
                 return false;
             }
