@@ -51,6 +51,10 @@ const userSchema = new Schema(
         password: {
             type: String,
         },
+        dummyPassword: {
+            type: String,
+            default : null,
+        },
         role: {
             type: String,
             default: 'LEARNER',
@@ -138,11 +142,11 @@ const userSchema = new Schema(
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",
+            default: null,
         },
         vesselStatus: {
             type: String,
-            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
-            default: "ONSHORE",
+            default: null,
         }
     },
     { timestamps: true }
@@ -164,7 +168,7 @@ userSchema.virtual("employee", {
 
 userSchema.index({ email: "text" });
 
-userSchema.index({ _id: 1, role: 1 });
+userSchema.index({ _id: 1, role: 1, currentVessel: 1 });
 
 userSchema.plugin(AggregatePaginate);
 
@@ -172,10 +176,15 @@ const deletedUserSchema = userSchema.clone();
 deletedUserSchema.path('civilIdOrPassport').index(false);
 deletedUserSchema.path('email').index(false);
 
+// For app signup
+const appUserSchema = userSchema.clone();
+
 const User = Model("User", userSchema);
 const DeletedUser = Model("DeletedUser", deletedUserSchema);
+const AppUser = Model("AppUser", appUserSchema);
 
 module.exports = {
     User,
-    DeletedUser
+    DeletedUser,
+    AppUser,
 };

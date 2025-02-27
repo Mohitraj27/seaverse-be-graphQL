@@ -11,6 +11,7 @@ const { get } = require("lodash");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
+const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -44,7 +45,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
@@ -59,7 +60,7 @@ module.exports.mutations = {
             });
             return result.learningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, error.message);
         }
     },
     updateLearningPlanStatus: async ({ input }, context) => {
@@ -110,7 +111,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,
                         affected: [
@@ -131,7 +132,7 @@ module.exports.mutations = {
                 updatedLearningPlans: updatedPlans,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_UPDATE_STATUS, error.message);
         }
     },
     deleteLearningPlan: async ({ id }, context) => {
@@ -153,6 +154,7 @@ module.exports.mutations = {
             learningPlan.updatedBy = userId;
 
             await learningPlan.save();
+            await LearningPlanAssignment.deleteMany({ learningPlanId: id });
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -175,7 +177,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAdmin: true,
                 affected: [
@@ -193,7 +195,7 @@ module.exports.mutations = {
                 message: 'Learning Plan  deleted successfully.'
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, `${error.message}`);
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LEARNING_PLAN, `${error.message}`);
         }
 
     },
@@ -208,11 +210,16 @@ module.exports.mutations = {
             if (!validation.success) {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
-            learningPlan.updatedBy = userId;
-            learningPlan.updatedAt = new Date();
-            learningPlan.isUpdated = true;
+            const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
+            if (!updatedLearningPlan) {
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
+            }
+            updatedLearningPlan.updatedBy = userId;
+            updatedLearningPlan.updatedAt = new Date();
+            updatedLearningPlan.isUpdated = true;
 
-            await learningPlan.save();
+            // Save updated learning plan
+            await updatedLearningPlan.save();
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -221,13 +228,13 @@ module.exports.mutations = {
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: learningPlan._id,
+                        target: validation.learningPlan._id,
                     },
                 ],
                 additionalInfo: [
                     {
                         infoType: "LEARNING_PLAN_INFO",
-                        infoData: JSON.stringify(learningPlan),
+                        infoData: JSON.stringify(validation.learningPlan),
                     },
                 ],
                 createdBy: userInfo,
@@ -235,22 +242,22 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan has been successfully updated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `Learning plan has been successfully updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
-                        target: learningPlan._id,
+                        target: validation.learningPlan._id,
                     },
                 ],
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            return learningPlan;
+            return updatedLearningPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
         }
     }
 };
@@ -258,8 +265,9 @@ module.exports.queries = {
     getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-        const parsedSkip = Math.max(0, parseInt(pageInput?.skip) || 0);
-        const parsedLimit = Math.max(1, parseInt(pageInput?.limit) || 50);
+        const skip = pageInput?.skip || 0;
+        const limit = pageInput?.limit || 50;
+
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userInfo } = AuthUser(context);
@@ -286,34 +294,35 @@ module.exports.queries = {
             if (filterInput?.lastModified) {
                 delete queryConditions.lastModified
                 const today = Moment();
+                const endOfToday = today.clone().endOf("day").toDate();
                 switch (filterInput.lastModified) {
                     case "TODAY":
-                        startDate = today.startOf("day").toDate();
-                        endDate = today.endOf("day").toDate();
+                        startDate = today.clone().startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "YESTERDAY":
-                        startDate = today.subtract(1, "day").startOf("day").toDate();
-                        endDate = today.subtract(1, "day").endOf("day").toDate();
+                        startDate = today.clone().subtract(1, "day").startOf("day").toDate();
+                        endDate = today.clone().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
-                        startDate = today.subtract(7, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_30_DAYS":
-                        startDate = today.subtract(30, "days").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_3_MONTHS":
-                        startDate = today.subtract(3, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_6_MONTHS":
-                        startDate = today.subtract(6, "months").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     case "LAST_YEAR":
-                        startDate = today.subtract(1, "year").startOf("day").toDate();
-                        endDate = Moment().endOf("day").toDate();
+                        startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+                        endDate = endOfToday;
                         break;
                     default:
                         break;
@@ -325,8 +334,10 @@ module.exports.queries = {
             }
             const totalCount = await LearningPlan.countDocuments(queryConditions);
             const learningPlans = await LearningPlan.aggregate([
-
                 { $match: queryConditions },
+                { $sort: { updatedAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
                 {
                     $lookup: {
                         from: "groups",
@@ -368,85 +379,23 @@ module.exports.queries = {
                 },
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "updatedByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
-                    }
-                },
-                {
-                    $lookup: {
                         from: "trainings",
                         localField: "selectCourses",
                         foreignField: "_id",
                         as: "courseDetails",
-                        // pipeline: [
-                        //     {
-                        //         $project: {
-                        //             _id: 1,
-                        //             UID: 1,
-                        //             trainingCategories: 1,
-                        //             trainingSubCategories: 1,
-                        //             title: 1,
-                        //             description: 1,
-                        //             instructions: 1,
-                        //             overview: 1,
-                        //             feedback: 1,
-                        //             feedbackContent: 1,
-                        //             images: 1,
-                        //             price: 1,
-                        //             durationHours: 1,
-                        //             certificateValidity: 1,
-                        //             targetAudienceId: 1,
-                        //             courseType: 1,
-                        //             enableFreeFlow: 1,
-                        //             unlockOn: 1,
-                        //             status: 1,
-                        //             trainingModuleContents: 1,
-                        //             courseId: 1,
-                        //             course_validity: 1,
-                        //             courseLevel: 1,
-                        //             hideCourseProgress: 1,
-                        //             allowMultipleAttempts: 1,
-                        //             attemptFlexibility: 1,
-                        //             attemptType: 1,
-                        //             setLimitAttempt: 1,
-                        //             disableFurtherAttemptsOnPass: 1,
-                        //             lockModulesBetweenAttempts: 1,
-                        //             setTimeLimitForModule: 1,
-                        //             approvalStatus: 1,
-                        //             certifications: 1,
-                        //             bannerImage: 1,
-                        //             coverImage: 1,
-                        //             appliedAt: 1,
-                        //             approvedAt: 1,
-                        //             rejectedAt: 1,
-                        //             isActive: 1,
-                        //             createdBy: 1,
-                        //             isDeleted: 1,
-                        //             createdAt: 1,
-                        //             trainingModules: 1,
-                        //             scorm: 1,
-                        //             groupTrainingModule: 1,
-                        //             skills: 1,
-                        //             userFeedback: 1,
-                        //             managerFeedback: 1,
-                        //             setFrequency: 1,
-                        //             enableEmailNotification: 1,
-                        //             setReminder: 1,
-                        //             setFrequencyDate: 1,
-                        //             manadatoryModules: 1,
-                        //             classroomModule: 1,
-                        //             authorName: 1,
-                        //             isOrdered: 1
-                        //         },
-                        //     },
-                        // ],
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    UID: 1,
+                                    title: 1,
+                                    status: 1,
+                                    bannerImage: 1,
+                                    coverImage: 1,
+                                    isDeleted: 1,
+                                },
+                            },
+                        ],
                     }
                 },
                 {
@@ -489,6 +438,21 @@ module.exports.queries = {
                 },
                 {
                     $addFields: {
+                        numberOfAssignedLearners: {
+                            $size: { $ifNull: ["$assignedLearners", []] }
+                        },
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "assignedLearnerIDs",
+                        foreignField: "_id",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $addFields: {
                         assignedLearnerIDs: {
                             $filter: {
                                 input: "$assignedLearners",
@@ -505,44 +469,21 @@ module.exports.queries = {
                     $project: {
                         _id: 1,
                         title: 1,
-                        targetAudience: 1,
-                        groupIDs: 1,
-                        userObjectIds: 1,
                         status: 1,
-                        audienceSelection: 1,
-                        conditionType: 1,
                         isDeleted: 1,
                         createdAt: 1,
                         updatedAt: 1,
                         selectCourses: 1,
+                        audienceSelection: 1,
                         numberOfAssignedLearners: 1,
-                        assignedLearnerIDs: {
-                            $map: {
-                                input: "$assignedLearnerIDs",
-                                as: "learner",
-                                in: "$$learner._id"
-                            }
-                        },
-                        conditionalCustomFields: 1,
-                        emailNotification: 1,
-                        pushNotification: 1,
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
-                        "createdBy.email": "$createdByDetails.email",
-                        "createdBy.role": "$createdByDetails.role",
-                        "updatedBy._id": "$updatedByDetails._id",
-                        "updatedBy.firstName": "$updatedByDetails.firstName",
-                        "updatedBy.lastName": "$updatedByDetails.lastName",
-                        "updatedBy.email": "$updatedByDetails.email",
-                        "updatedBy.role": "$updatedByDetails.role"
                     }
                 }
-                ,
-                { $sort: { updatedAt: -1 } },
-                { $skip: parsedSkip },
-                { $limit: parsedLimit },
             ]);
+
+
             for (const learningPlan of learningPlans) {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
@@ -589,10 +530,10 @@ module.exports.queries = {
                 totalCount: learningPlans?.length,
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+        throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData }, context) => {
+    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -608,36 +549,10 @@ module.exports.queries = {
                 { $match: queryConditions },
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "userObjectIds",
-                        foreignField: "_id",
-                        as: "userObjectIds"
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "createdBy",
-                        foreignField: "_id",
-                        as: "createdByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "updatedByDetails"
-                    }
-                },
-                {
-                    $addFields: {
-                        updatedByDetails: { $arrayElemAt: ["$updatedByDetails", 0] }
+                        from: "learningplanassignments",
+                        localField: "_id",
+                        foreignField: "learningPlanId",
+                        as: "assignedLearners"
                     }
                 },
                 {
@@ -650,61 +565,14 @@ module.exports.queries = {
                             {
                                 $project: {
                                     _id: 1,
-                                    UID: 1,
-                                    trainingCategories: 1,
-                                    trainingSubCategories: 1,
                                     title: 1,
                                     description: 1,
-                                    instructions: 1,
-                                    overview: 1,
-                                    feedback: 1,
-                                    feedbackContent: 1,
-                                    images: 1,
-                                    price: 1,
-                                    durationHours: 1,
-                                    certificateValidity: 1,
-                                    targetAudienceId: 1,
-                                    courseType: 1,
-                                    enableFreeFlow: 1,
-                                    unlockOn: 1,
                                     status: 1,
-                                    trainingModuleContents: 1,
+                                    images: 1,
                                     courseId: 1,
-                                    course_validity: 1,
-                                    courseLevel: 1,
-                                    hideCourseProgress: 1,
-                                    allowMultipleAttempts: 1,
-                                    attemptFlexibility: 1,
-                                    attemptType: 1,
-                                    setLimitAttempt: 1,
-                                    disableFurtherAttemptsOnPass: 1,
-                                    lockModulesBetweenAttempts: 1,
-                                    setTimeLimitForModule: 1,
-                                    approvalStatus: 1,
-                                    certifications: 1,
                                     bannerImage: 1,
-                                    appliedAt: 1,
-                                    approvedAt: 1,
-                                    rejectedAt: 1,
-                                    isActive: 1,
-                                    createdBy: 1,
-                                    isDeleted: 1,
-                                    createdAt: 1,
-                                    trainingModules: 1,
-                                    scorm: 1,
-                                    groupTrainingModule: 1,
-                                    skills: 1,
-                                    userFeedback: 1,
-                                    managerFeedback: 1,
-                                    setFrequency: 1,
-                                    enableEmailNotification: 1,
-                                    setReminder: 1,
-                                    setFrequencyDate: 1,
-                                    manadatoryModules: 1,
-                                    classroomModule: 1,
-                                    authorName: 1,
-                                    isOrdered: 1,
                                     coverImage: 1,
+                                    isDeleted: 1
                                 },
                             },
                         ],
@@ -722,14 +590,6 @@ module.exports.queries = {
                     }
                 },
                 {
-                    $lookup: {
-                        from: "learningplanassignments",
-                        localField: "_id",
-                        foreignField: "learningPlanId",
-                        as: "assignedLearners"
-                    }
-                },
-                {
                     $addFields: {
                         assignedLearnerIDs: {
                             $map: {
@@ -738,9 +598,59 @@ module.exports.queries = {
                                 in: "$$assignment.assignedLearnerId"
                             }
                         },
-                        numberOfAssignedLearners: { 
-                            $size: { $ifNull: ["$assignedLearnerIDs", []] } 
+                        numberOfAssignedLearners: {
+                            $size: { $ifNull: ["$assignedLearners", []] }
                         },
+                        userObjectIds: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: "$assignedLearners",
+                                        as: "assignment",
+                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] }
+                                    }
+                                },
+                                as: "filteredAssignment",
+                                in: "$$filteredAssignment.assignedLearnerId"
+                            }
+                        }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "assignedLearnerIDs",
+                        foreignField: "_id",
+                        as: "userDetails",
+                        pipeline: [
+                            {
+                                $match: { isDeleted: { $ne: true } }
+                            },
+                            {
+                                $project: {
+                                    _id: 1,
+                                    firstName: 1,
+                                    lastName: 1,
+                                    email: 1
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    $addFields: {
+                        userObjectIds: {
+                            $map: {
+                                input: "$userDetails",
+                                as: "user",
+                                in: {
+                                    _id: "$$user._id",
+                                    firstName: "$$user.firstName",
+                                    lastName: "$$user.lastName",
+                                    email: "$$user.email"
+                                }
+                            }
+                        }
                     }
                 },
                 {
@@ -758,21 +668,10 @@ module.exports.queries = {
                         updatedAt: 1,
                         selectCourses: 1,
                         numberOfAssignedLearners: 1,
-                        assignedLearnerIDs: 1,
                         conditionalCustomFields: 1,
                         overallTrainingProgress: 1,
                         emailNotification: 1,
                         pushNotification: 1,
-                        "createdBy._id": "$createdByDetails._id",
-                        "createdBy.firstName": "$createdByDetails.firstName",
-                        "createdBy.lastName": "$createdByDetails.lastName",
-                        "createdBy.email": "$createdByDetails.email",
-                        "createdBy.role": "$createdByDetails.role",
-                        "updatedBy._id": "$updatedByDetails._id",
-                        "updatedBy.firstName": "$updatedByDetails.firstName",
-                        "updatedBy.lastName": "$updatedByDetails.lastName",
-                        "updatedBy.email": "$updatedByDetails.email",
-                        "updatedBy.role": "$updatedByDetails.role"
                     }
                 }
             ]);
@@ -782,11 +681,10 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData);
-
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
             return detailedPlan;
         } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getUsersForLearningPlan: async ({ input }, context) => {

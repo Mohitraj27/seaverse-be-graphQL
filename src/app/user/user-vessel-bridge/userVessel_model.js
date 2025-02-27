@@ -9,6 +9,7 @@ const userVesselSchema = new Schema(
         vessel: {
             type: ObjectId,
             ref: "Vessel",
+            default: null,
         },
         deletedAt: {
             type: Date,
@@ -19,12 +20,14 @@ const userVesselSchema = new Schema(
         },
         vesselStatus: {
             type: String,
-            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
-            default: "ONSHORE",
+            default: null,
         }
     },
     { timestamps: true }
 );
+
+userVesselSchema.index({ user: 1 });
+userVesselSchema.index({ vessel: 1 });
 
 const UserVessel = Model("UserVessel", userVesselSchema);
 

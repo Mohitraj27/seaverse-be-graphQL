@@ -36,7 +36,7 @@ module.exports = {
             employee: Employee
             htmlTemplate: String
             isResetPasswordDialog: Boolean
-            vesselStatus: vesselStatusEnum
+            vesselStatus: String
         }
         type UserList {
             users: [User]
@@ -76,8 +76,8 @@ module.exports = {
             lastName: String
             civilIdOrPassport: String
             isRegistered: Boolean
-            currentVessel: ID
-            vesselStatus: vesselStatusEnum
+            currentVessel: String
+            vesselStatus: String
             companyEmail: String
             email: String
             phone: PhoneInput
@@ -120,6 +120,12 @@ module.exports = {
             status: String!
             message: String!
         }
+        input AppSignUpInput {
+            firstName: String!
+            lastName: String
+            email: String!
+            password: String!
+        }
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -132,5 +138,6 @@ module.exports = {
         signIn(input: SignInInput!, role: Role): AuthUser!
         generateRefreshToken(token: String!): refreshTokenRes!
         signOut(input: SignOutInput): String!
+        appSignUp(input: AppSignUpInput!): downloadResponse!
     `,
 };

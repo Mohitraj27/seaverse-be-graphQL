@@ -1,7 +1,7 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
 const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
-const { User } = require("./user_model");
+const { User, AppUser } = require("./user_model");
 
 const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationHelper = require("../notifications/notification_helper");
@@ -185,10 +185,9 @@ module.exports = {
                 existingUser.languagePreference = input.languagePreference;
 
             if (input.isRegistered != null) existingUser.isRegistered = input.isRegistered;
-            if (input.currentVessel) existingUser.currentVessel = input.vesselStatus !== VesselStatus.ONSHORE ? input.currentVessel : null;
+            if (input.currentVessel || input.currentVessel === '') existingUser.currentVessel = input.currentVessel === '' ? null : input.currentVessel;
             if (!input.currentVessel) existingUser.currentVessel = null;
-            if (input.vesselStatus) existingUser.vesselStatus = input.vesselStatus ?? VesselStatus.ONSHORE;
-
+            if (input.vesselStatus || input.vesselStatus === '') existingUser.vesselStatus = input.vesselStatus === '' ? null : input.vesselStatus;
 
             if (input.isProfileCompleted != null)
                 existingUser.isProfileCompleted = input.isProfileCompleted;
@@ -216,6 +215,7 @@ module.exports = {
                 if (input.isActive != null) existingUser.isActive = input.isActive;
             }
 
+            console.log(existingUser);
             const savedUser = await existingUser.save();
             if (!savedUser) throw CustomError(ErrorName.FAILED);
             return savedUser;

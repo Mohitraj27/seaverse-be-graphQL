@@ -11,6 +11,7 @@ module.exports = {
             isActive: Boolean!
             createdAt: String!
             updatedAt: String!
+            naVessel: String
         }
         type VesselTypeNew {
             _id: ID
@@ -25,7 +26,7 @@ module.exports = {
             typeOfVessel: ID!
             imoNumber: String!
             isActive: Boolean!
-            companyName: String
+            companyName: String!
             ownerName: String
             address: String
         }

@@ -33,11 +33,12 @@ const getMainLearnersReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let deteledUsersStage = [];
+        /* Ticket No : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learners Report Exported In Progress`,
-                messageValue: `The learners report has been started and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The learners report has been started and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -45,7 +46,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
             const searchString = filterInput.search || '';
@@ -159,7 +160,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -347,6 +348,8 @@ const getMainLearnersReport = async ({ input }, context) => {
             const workbook = XLSX.utils.book_new();
             let worksheet;
             if (data.length === 0) {
+/**  
+                #Ticket : SEAV-90 
                 const message = `NO DATA AVAILABLE FOR ${selectVesselOrLearner.toUpperCase()} REPORTS`;
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -371,6 +374,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                 };
     
                 worksheet['!rows'] = [{ hpt: 30 }];
+                 */
+                worksheet = XLSX.utils.aoa_to_sheet([['Name', 'EmployeeId', 'Designation', 'VesselName', 'RegistrationStatus','LastSeen','IsDeleted','vesselTypeName','CoursesCount','AverageProgressPercentage']]);
             }
             else {
                 worksheet = XLSX.utils.json_to_sheet(data);
@@ -389,7 +394,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -420,7 +425,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
-                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message}.`,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${userInfo?.firstName} ${userInfo?.lastName}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAdmin: true,
                 status: 'FAILED',
@@ -439,12 +444,12 @@ const getSingleLearnerReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let learnerData = [];
-
+        /* Ticket No: SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: ` Learner's report export In Progress`,
-                messageValue: `The learner's report export has been initiated by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The learner's report export has been initiated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -452,7 +457,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
@@ -491,7 +496,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const dateFilter = {};
 
                 if (startDate) {
-                    dateFilter['$gte'] = new Date(startDate);
+                    const startDateObj = new Date(startDate);
+                    startDateObj.setHours(0, 0, 0, 0);
+                    dateFilter['$gte'] = startDateObj;
                 }
 
                 if (endDate) {
@@ -511,7 +518,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             matchStage.push({ $skip: skip }, { $limit: limit });
@@ -745,7 +752,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
 
                     const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
-                    const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+                    const completionDate = item?.completionDate ? ReportsHelper.formatDate(item.completionDate) : "Not Applicable";
                     const startDate = item?.startDate && item.startDate !== 'startDate'
                         ? ReportsHelper.formatDate(item.startDate)
                         : "Not Applicable";
@@ -766,10 +773,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         'Course Name': item.courseName ? item.courseName[0] : null,
                         Status: item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date': enrollmentDate,
-                        'Unenrollment Date': unenrollmentDate,
-                        'Completion Date': completionDate,
-                        'Started Date': startDate,
+                        'Enrollment Date (UTC) ': enrollmentDate,
+                        'Unenrollment Date (UTC)': unenrollmentDate,
+                        'Completion Date (UTC)': completionDate,
+                        'Started Date (UTC)': startDate,
                         'Quiz Score': quizScore,
                         userState: userState,
                         'Time Spent (mins)': timeSpent,
@@ -806,7 +813,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 let worksheet;
                 if (combinedData.length === 0) {
-                    const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
+                   /*  
+                    #TICKET - SEAV-90
+                   const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
                     worksheet = XLSX.utils.aoa_to_sheet([
                         [message]
                     ]);
@@ -828,7 +837,23 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     };
 
-                    worksheet['!rows'] = [{ hpt: 30 }];
+                    worksheet['!rows'] = [{ hpt: 30 }]; */
+                    const headers = [
+                        "learnerName",
+                        "Email",
+                        "Designation",
+                        "Course Name",
+                        "Status",
+                        "Admin Marked As Completed",
+                        "Enrollment Date (UTC)",
+                        "Unenrollment Date (UTC)",
+                        "Completion Date (UTC)",
+                        "Started Date (UTC)",
+                        "Quiz Score",
+                        "userState",
+                        "Time Spent (mins)"
+                    ]
+                    worksheet = XLSX.utils.aoa_to_sheet([headers]);
                 }
                 else {
                     worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
@@ -850,7 +875,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [{
@@ -1460,10 +1485,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date': enrollmentDate,
-                                    'Course Started Date': startDate,
-                                    'Course Completion Date': completionDate,
-                                    'Unenrollment Date': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         });
@@ -1484,6 +1509,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     let worksheet;
                     if (learnersData.length === 0) {
+                        /* 
                         const message = "NO DATA AVAILABLE FOR SELECTED LEARNER REPORTS";
                         worksheet = XLSX.utils.aoa_to_sheet([
                             [message]
@@ -1507,7 +1533,27 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             }
                         };
 
-                        worksheet['!rows'] = [{ hpt: 30 }];
+                        worksheet['!rows'] = [{ hpt: 30 }]; 
+                        */
+
+                        worksheet = XLSX.utils.aoa_to_sheet([
+                            [
+                                "Name",
+                                "Email",
+                                "Designation",
+                                "Course Name",
+                                "Course Status",
+                                "Admin Marked As Completed",
+                                "Lesson Name",
+                                "Content Name",
+                                "Content Type",
+                                "Quiz Score",
+                                "Enrollment Date (UTC)",
+                                "Course Started Date (UTC)",
+                                "Course Completion Date (UTC)",
+                                "Unenrollment Date (UTC)"
+                            ]
+                        ]);
                     }
                     else {
                         worksheet = XLSX.utils.json_to_sheet(combinedData, { header: [] });
@@ -1532,7 +1578,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -1586,12 +1632,12 @@ const getMainCoursesReport = async ({ input }, context) => {
         input = input || {};
 
         const matchStage = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Course Report Exported In Progress`,
-                messageValue: `The main course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The main course report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -1599,7 +1645,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
 
@@ -1618,7 +1664,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -1814,6 +1860,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             const workbook = XLSX.utils.book_new();
             let worksheet;
             if (data.length === 0) {
+                /*
                 const message = "NO DATA AVAILABLE FOR COURSE REPORTS";
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -1837,10 +1884,23 @@ const getMainCoursesReport = async ({ input }, context) => {
                     }
                 };
     
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
+
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "title",
+                        "updatedAt",
+                        "updatedBy",
+                        "totalUsers",
+                        "NOT_STARTED",
+                        "IN_PROGRESS",
+                        "COMPLETED"
+                    ]
+                ]);
             }
             else {
-                worksheet = XLSX.utils.json_to_sheet(data);
+                worksheet = XLSX.utils.json_to_sheet(coursesData);
             }
             XLSX.utils.book_append_sheet(workbook, worksheet, `Courses Report-${Date.now()}`);
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -1855,7 +1915,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Courses Report Exported Successfully`,
-                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -1908,12 +1968,12 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Selected Course Report Export In Progress`,
-                messageValue: `The single course report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The single course report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -1921,7 +1981,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
-
+        */
         if (!input?.reportType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report Type is Required");
         }
@@ -2009,7 +2069,7 @@ const getSingleCourseReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -2303,10 +2363,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'Admin Marked As Completed': adminMarkedAsCompleted,
                             TimeSpent: timeSpent,
                             QuizScore: quizScore,
-                            'Course Enrollment Date': enrollmentDate,
-                            'Course Started Date': startDate,
-                            'Course Unenrollment Date': unenrollmentDate,
-                            'Course Completion Date': completionDate,
+                            'Course Enrollment Date (UTC)': enrollmentDate,
+                            'Course Started Date (UTC)': startDate,
+                            'Course Unenrollment Date (UTC)': unenrollmentDate,
+                            'Course Completion Date (UTC)': completionDate,
                         };
 
                         return parsedItem;
@@ -2327,7 +2387,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Enrollment Report Exported Successfully`,
-                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
                             additionalInfo: [
@@ -2355,7 +2415,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 };
             } else if (data.length === 0 && input?.export) {
 
-                const workbook = XLSX.utils.book_new();
+                /* const workbook = XLSX.utils.book_new();
                 let worksheet;
 
                 const message = "NO DATA AVAILABLE FOR THE SELECTED COURSE";
@@ -2381,7 +2441,29 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; */
+                const workbook = XLSX.utils.book_new();
+                const headers = [
+                    "LearnerName",
+                    "Email",
+                    "EmployeeId",
+                    "Designation",
+                    "CurrentVessel",
+                    "VesselType",
+                    "CourseName",
+                    "CourseStatus",
+                    "Admin Marked As Completed",
+                    "TimeSpent",
+                    "QuizScore",
+                    "Course Enrollment Date (UTC)",
+                    "Course Started Date (UTC)",
+                    "Course Unenrollment Date (UTC)",
+                    "Course Completion Date (UTC)"
+                ]
+
+                const worksheet = XLSX.utils.aoa_to_sheet([
+                    headers
+                ]);
 
                 XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
@@ -2397,7 +2479,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Enrollment Report Exported Successfully`,
-                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -3079,10 +3161,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     'Quiz Score': quizScore,
                                     'Course Status': status,
                                     'Admin Marked As Completed': adminMarkedAsCompleted,
-                                    'Enrollment Date': enrollmentDate,
-                                    'Course Started Date': startDate,
-                                    'Course Completion Date': completionDate,
-                                    'Unenrollment Date': unenrollmentDate,
+                                    'Enrollment Date (UTC)': enrollmentDate,
+                                    'Course Started Date (UTC)': startDate,
+                                    'Course Completion Date (UTC)': completionDate,
+                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         }
@@ -3114,7 +3196,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Quiz Report Exported Successfully`,
-                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAdmin: true,
                             additionalInfo: [
@@ -3142,6 +3224,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 };
             } else if (data.length === 0 && input?.export) {
 
+                /*
                 const workbook = XLSX.utils.book_new();
                 let worksheet;
 
@@ -3168,8 +3251,26 @@ const getSingleCourseReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
 
+                const workbook = XLSX.utils.book_new();
+                const worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "Name",
+                        "Email",
+                        "Designation",
+                        "Course Name",
+                        "Lesson Name",
+                        "Quiz Score",
+                        "Course Status",
+                        "Admin Marked As Completed",
+                        "Enrollment Date (UTC)",
+                        "Course Started Date (UTC)",
+                        "Course Completion Date (UTC)",
+                        "Unenrollment Date (UTC)"
+                    ]
+                ]);
                 XLSX.utils.book_append_sheet(workbook, worksheet, 'Course Quiz Report');
                 const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
                 const excelFilePath = await UploadHelper.uploadExcel({
@@ -3183,7 +3284,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Quiz Report Exported Successfully`,
-                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -3236,12 +3337,12 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-
+        /* Ticket Number : SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Main Vessel Report Exported In Progress`,
-                messageValue: `The Vessel report has been started generating and exporting by ${userInfo.firstName} ${userInfo.lastName}.`,
+                messageValue: `The Vessel report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
                 notifyAdmin: true,
                 status: 'SENT',
@@ -3249,6 +3350,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 icon: notificationiconEnum.PROGRESS
             });
         }
+            */
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
@@ -3304,7 +3406,7 @@ const getVesselMainReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 50;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -3647,6 +3749,7 @@ const getVesselMainReport = async ({ input }, context) => {
             let worksheet;
 
             if (dataToExport.length === 0) {
+                /* 
                 const message = "NO DATA AVAILABLE FOR VESSELS";
                 worksheet = XLSX.utils.aoa_to_sheet([
                     [message]
@@ -3669,7 +3772,22 @@ const getVesselMainReport = async ({ input }, context) => {
                     }
                 };
 
-                worksheet['!rows'] = [{ hpt: 30 }];
+                worksheet['!rows'] = [{ hpt: 30 }]; 
+                */
+
+                worksheet = XLSX.utils.aoa_to_sheet([
+                    [
+                        "vesselName",
+                        "imoNumber",
+                        "companyName",
+                        "typeOfVessel",
+                        "ownerName",
+                        "onboardedCount",
+                        "progress",
+                        "createdAt",
+                        "quizPercentage"
+                    ]
+                ]);
             }
             else {
                 worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -3687,7 +3805,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Main Vessel Report Exported Successfully`,
-                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAdmin: true,
                     additionalInfo: [
@@ -4103,10 +4221,10 @@ const generateCustomReport = async ({ input }, context) => {
                     'Quiz Score': quizScore,
                     userState: userState,
                     'Time Spent (mins)': timeSpent,
-                    'Enrollment Date': enrollmentDate,
-                    'Course Started Date': startDate,
-                    'Course Completion Date': completionDate,
-                    'Unenrollment Date': unenrollmentDate,
+                    'Enrollment Date (UTC)': enrollmentDate,
+                    'Course Started Date (UTC)': startDate,
+                    'Course Completion Date (UTC)': completionDate,
+                    'Unenrollment Date (UTC)': unenrollmentDate,
                 });
             });
 
@@ -4685,10 +4803,10 @@ const generateCustomReport = async ({ input }, context) => {
                                 'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
                                 'Content Type': contentType,
                                 'Quiz Score': quizScore,
-                                'Enrollment Date': enrollmentDate,
-                                'Course Started Date': startDate,
-                                'Course Completion Date': completionDate,
-                                'Unenrollment Date': unenrollmentDate,
+                                'Enrollment Date (UTC)': enrollmentDate,
+                                'Course Started Date (UTC)': startDate,
+                                'Course Completion Date (UTC)': completionDate,
+                                'Unenrollment Date (UTC)': unenrollmentDate,
                             });
                         });
                     });
@@ -4714,7 +4832,7 @@ const generateCustomReport = async ({ input }, context) => {
         const workbook = XLSX.utils.book_new();
         let worksheet;
         if (dataToExport.length === 0) {
-            const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
+           /*  const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
             worksheet = XLSX.utils.aoa_to_sheet([
                 [message]
             ]);
@@ -4737,7 +4855,48 @@ const generateCustomReport = async ({ input }, context) => {
                 }
             };
 
-            worksheet['!rows'] = [{ hpt: 30 }];
+            worksheet['!rows'] = [{ hpt: 30 }]; */
+
+            
+            const enrollmentReportHeaders = [
+                "Name",
+                "Email",
+                "Designation",
+                "Course Name",
+                "Status",
+                "Admin Marked As Completed",
+                "Quiz Score",
+                "userState",
+                "Time Spent (mins)",
+                "Enrollment Date (UTC)",
+                "Course Started Date (UTC)",
+                "Course Completion Date (UTC)",
+                "Unenrollment Date (UTC)"
+            ]
+
+            const quizReportHeaders = [
+                "Name",
+                "Email",
+                "Designation",
+                "Course Name",
+                "Course Status",
+                "Admin Marked As Completed",
+                "Lesson Name",
+                "Content Name",
+                "Content Type",
+                "Quiz Score",
+                "Enrollment Date (UTC)",
+                "Course Started Date (UTC)",
+                "Course Completion Date (UTC)",
+                "Unenrollment Date (UTC)"
+            ]
+
+            const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
+            worksheet = XLSX.utils.aoa_to_sheet([
+                headers
+            ]);
+
+
         }
         else {
             worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -4755,7 +4914,7 @@ const generateCustomReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
-                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo.firstName} ${userInfo.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAdmin: true,
                 additionalInfo: [
@@ -4816,7 +4975,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
     try {
 
         const skip = pageInput?.skip ? pageInput.skip : 0;
-        const limit = pageInput?.limit ? pageInput.limit : 50;
+        const limit = pageInput?.limit ? pageInput.limit : 20;
         let matchStage = [];
         let pageLimit = [];
         if (limit > 0) {
@@ -4994,7 +5153,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5217,7 +5376,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 
@@ -5472,7 +5631,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId, feedback: { $exists: true, $ne: null } };
         let trainingData = null;
@@ -5710,7 +5869,7 @@ module.exports.queries = {
         }
 
         const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+            limit = pageInput?.limit ?? 20;
 
         let filterConditions = { subscriber: subscriberId };
 

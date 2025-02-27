@@ -223,7 +223,16 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `New Vessel Created: ${vessel.name}`,
+                messageValue: `A New Vessel: ${vessel.name} has been created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.VESSEL_CREATED,
+                notifyAdmin: true,
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Vessel created successfully.',
@@ -270,18 +279,19 @@ module.exports.mutations = {
                 if (isActive === false) {
                     await UserVessel.updateMany(
                         { vessel: vessel._id, isActive: true },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null, isActive: false } }
                     );
 
                     await User.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null } }
                     );
 
                     await DeletedUser.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null } }
                     );
+
                 }
             }
 
@@ -306,7 +316,16 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `${vessel.name} Vessel Updated`,
+                messageValue: `${vessel.name} has been Updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                notificationType: NotificationType.VESSEL_UPDATED,
+                notifyAdmin: true,
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
@@ -405,19 +424,19 @@ module.exports.mutations = {
                     if (!vessel.isActive) {
                         await UserVessel.updateMany(
                             { vessel: vessel._id, isActive: true },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { vessel: null, isActive: false } },
                             { session }
                         );
 
                         await User.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
 
                         await DeletedUser.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
                     }

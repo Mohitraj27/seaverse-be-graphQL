@@ -1,7 +1,7 @@
 module.exports = {
     types: `
         input AssignVesselToUserInput {
-            vesselId: ID
+            vesselId: String
             userId: ID
             vesselStatus: String
         }

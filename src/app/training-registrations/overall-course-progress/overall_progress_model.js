@@ -100,4 +100,8 @@ const overallProgressSchema = new Schema(
     { timestamps: true }
 )
 
+
+overallProgressSchema.index({ user: 1, training: 1 });
+overallProgressSchema.index({ status: 1 });
+
 module.exports.OverallTrainingProgress = Model("OverallTrainingProgress", overallProgressSchema);

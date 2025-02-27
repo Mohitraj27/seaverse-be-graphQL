@@ -77,6 +77,7 @@ type userVessels {
             batch: Batch
             employees: [Employee]
             totalCount: Int
+            totalEmployees : Int
             isRegistered: Boolean
         }
         type deleteReqResponse {
@@ -163,6 +164,14 @@ type userVessels {
             Registered
             Unregistered
         }
+        enum SortableFieldEnum {
+            FIRST_NAME
+            DESIGNATION
+            STATUS
+            USER_ROLE
+            VESSEL_TYPE
+            LAST_SEEN
+        }
         input changeRegisterInput {
             users: [ID!]!
             type: RegisterType!
@@ -230,10 +239,14 @@ type userVessels {
             role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
-            vesselStatus: [VesselStatusEnum] 
+            vesselStatus: [VesselStatusEnum]
             vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
+        }
+        input SortFieldInput {
+            field : SortableFieldEnum
+            sortOrder : Int
         }
         input deleteRequestFilterInput {
             search: String
@@ -247,7 +260,8 @@ type userVessels {
             civilIdOrPassport: String
         }
         input UserObjectIDs {
-            ids: [ID!]
+            ids: [ID!]!
+            regType: Int!
         }
         input ImportUserInput {
             firstName: String!
@@ -313,10 +327,28 @@ type FetchFileResponse {
     message: String
     url: String
 }
+        type DynamicData {
+            userId: ID!
+            jsonData: JSON  # Dynamic JSON data
+            createdAt: String
+            updatedAt: String
+        }
+
+        type DynamicDataResponse {
+            status: Boolean
+            message: String
+            data: DynamicData
+        }
+
+        input DynamicDataInput {
+            userId: ID!
+            jsonData: JSON!
+        }
+        
     `,
     queries: `
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
-        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
+        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput, sortInput : SortFieldInput ): EmployeeList!
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
@@ -325,6 +357,7 @@ type FetchFileResponse {
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
          fetchSampleFile: FetchFileResponse!
+        getDynamicData(userId: ID!): DynamicDataResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
@@ -337,6 +370,7 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
+        createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
     `,
 };
