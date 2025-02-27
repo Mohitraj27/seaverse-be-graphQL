@@ -51,6 +51,10 @@ const userSchema = new Schema(
         password: {
             type: String,
         },
+        dummyPassword: {
+            type: String,
+            default : null,
+        },
         role: {
             type: String,
             default: 'LEARNER',

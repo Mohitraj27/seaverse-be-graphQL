@@ -284,7 +284,7 @@ module.exports.mutations = {
 
                     await User.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vesselStatus: "ONSHORE", currentVessel: null } }
                     );
 
                     await DeletedUser.updateMany(
@@ -429,7 +429,7 @@ module.exports.mutations = {
 
                         await User.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { vesselStatus: "ONSHORE" , currentVessel: null} },
                             { session }
                         );
 
