@@ -117,15 +117,6 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
             return [];
     }
 };
-const validatePickingCourses = async (selectCourses) => {
-    const validCourses = await Training.find({
-        _id: { $in: selectCourses },
-        status: TrainingStatus.PUBLISHED,
-        isDeleted: false,
-        isActive: true
-    });
-    return validCourses.length === selectCourses.length;
-};
 
 const basicValidations = async (input, errorList) => {
     if (!input.title) { errorList.push(errorMessages.TITLE_REQUIRED); }
@@ -176,18 +167,11 @@ const audienceSelectionIsMannualValidation = async (input, errorList) => {
         }
     }
 };
-const additionalValidationConditionalCustomFields = async (input, operation, errorList) => {
+const additionalValidationConditionalCustomFields = async (input, errorList) => {
 
     if (input.conditionalCustomFields?.length > 0) {
         const conditionalFieldErrors = await validateConditionalCustomFields(input.conditionalCustomFields);
         errorList = errorList.concat(conditionalFieldErrors);
-    }
-    if (input.selectCourses?.length > 0) {
-        const isValidCourses = await validatePickingCourses(input.selectCourses);
-        if (!isValidCourses) {
-            const errorMessage = operation === 'create' ? errorMessages.INVALID_COURSE_SELECTION : errorMessages.IS_RETIRED_COURSES_SELECTION;
-            errorList.push(errorMessage);
-        }
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
@@ -216,7 +200,7 @@ const createLearningPlanHelper = async (input, context) => {
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await audienceSelectionIsMannualValidation(input, errorList);
-        await additionalValidationConditionalCustomFields(input, 'create', errorList);
+        await additionalValidationConditionalCustomFields(input,errorList);
         await validateGroupAndConditionalFields(input,errorList);
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
@@ -311,6 +295,16 @@ const clearFieldsBasedOnConditions = async (input, errorList) => {
         errorList.push("Condition Type is required for AUTOMATIC audience selection.");
     }
 }
+const validateRetiredCourses = async (input, errorList) => {
+    if(input.selectCourses?.length>0){
+        const validCourses = await Training.find({
+            _id: { $in: input.selectCourses },
+        }).select('status -_id');
+        if (validCourses.some(course => course.status === TrainingStatus.RETIRED)) {
+            errorList.push(errorMessages.IS_RETIRED_COURSES_SELECTION);
+        }
+    }
+}
 const updateLearningPlanHelper = async (id, input, context) => {
     let errorList = [];
     try {
@@ -325,9 +319,13 @@ const updateLearningPlanHelper = async (id, input, context) => {
         // }
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
-        await additionalValidationConditionalCustomFields(input, 'update', errorList);
+        await additionalValidationConditionalCustomFields(input,errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
+        await validateRetiredCourses(input, errorList);
+        if(errorList?.length > 0){
+            return { success: false, errors: errorList };
+        }
         const existingLearningPlan = await LearningPlan.findOne({
             _id: id,
             isDeleted: false
