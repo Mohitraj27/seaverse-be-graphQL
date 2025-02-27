@@ -1378,7 +1378,7 @@ module.exports = {
 
                     await UserVessel.create({
                         user: existingEmployee?.user?._id,
-                        vessel: input?.user?.currentVessel,
+                        vessel: ObjectId(input?.user?.currentVessel),
                         vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus,
                     });
 
