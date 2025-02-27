@@ -10,10 +10,10 @@ const {
     AuthUser,
 } = require("../../util");
 
-const { User, DeletedUser } = require("./user_model");
+const { User, DeletedUser, AppUser } = require("./user_model");
 const { Otp } = require("./otp_model");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
-const { Employee } = require("./employee/employee_model");
+const { Employee, AppEmployee } = require("./employee/employee_model");
 const { SubscriberProfile } = require("./subscriber-profile/subscriber_profile_model");
 
 const UserHelper = require("./user_helper");
@@ -27,6 +27,8 @@ const NotificationHelper = require("../notifications/notification_helper");
 const notificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const Export = require("../user/exportUser/exportUser_model");
+const { Designation } = require("../designations/designation_model");
+const { generateRandomString } = require("./user-profile/user_profile_helper");
 
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
@@ -282,97 +284,122 @@ module.exports.mutations = {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const expiredUser = await User.findOne({
+                const emailOrCivilIdOrPassport = input.emailOrCivilIdOrPassport;
+                const password = input.password;
+
+                // for app signup
+                const fetchAppUser = await AppUser.findOne({
                     $or: [
                         { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                     ],
-                    isDeleted: true,
-                    deleteRequest: true,
-                    isActive: false
                 }).session(session);
 
-                if (expiredUser) {
-                    expiredUser.isDeleted = false;
-                    expiredUser.isActive = true;
-                    expiredUser.deleteRequest = false;
-                    expiredUser.deleteRequestDate = null;
-                    expiredUser.reasonForDelete = null;
-                    await expiredUser.save({ session });
+                if (fetchAppUser) {
+                    const valid = await CryptoHelper.compare(input.password, fetchAppUser.password);
 
-                    await OverallTrainingProgress.updateMany(
-                        { user: expiredUser._id },  
-                        {
-                            $set: {
-                                isDeleted: false,
-                            }
-                        } 
-                    ).session(session);
-                }
+                    if (valid) {
 
-
-                const existingUser = await User.findOne({
-                    $or: [
-                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                        { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                    ],
-                    role: { $ne: Role.SAAS_ADMIN },
-                    isActive: true,
-                    isDeleted: { $ne: true },
-                }).populate({
-                    path: 'subRoles',
-                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
-                }).session(session);
-
-                if (!existingUser) {
-                    return CustomError(ErrorName.USER_NOT_FOUND);
-                }
-
-
-                const processValidUser = async () => {
-                    if (input.firebaseToken) {
-                        existingUser.firebaseTokens = [input.firebaseToken];
-                    }
-
-                    if (input.deviceId) {
-                        existingUser.deviceIds = [input.deviceId];
-                    }
-
-                    existingUser.lastLoginAt = Moment().format();
-                    await existingUser.save({ session });
-                    return await UserHelper.makeAuthUser(existingUser);
-                };
-
-
-                const valid = await CryptoHelper.compare(input.password, existingUser.password);
-
-                if (valid) {
-                    return await processValidUser();
-                } else if (existingUser.role === Role.EMPLOYEE) {
-
-                    const subscriberProfile = await SubscriberProfile.findOne({
-                        subscriber: existingUser.subscriber,
-                    }).lean().select("employeeMasterPassword").session(session);
-
-                    if (
-                        context.platform === Role.EMPLOYEE &&
-                        subscriberProfile?.employeeMasterPassword?.length
-                    ) {
-                        const valid = await CryptoHelper.compare(
-                            input.password,
-                            subscriberProfile.employeeMasterPassword
-                        );
-
-                        if (valid) {
-                            return await processValidUser();
+                        const fetchUser = await User.findOne({ email: "testuser@example.com" }).session(session);
+                        if (!fetchUser) {
+                            return CustomError(ErrorName.USER_NOT_FOUND);
                         }
+                        return await UserHelper.makeAuthUser(fetchUser);
+                    }
+                } else {
+
+                    const expiredUser = await User.findOne({
+                        $or: [
+                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                            { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                        ],
+                        isDeleted: true,
+                        deleteRequest: true,
+                        isActive: false
+                    }).session(session);
+
+                    if (expiredUser) {
+                        expiredUser.isDeleted = false;
+                        expiredUser.isActive = true;
+                        expiredUser.deleteRequest = false;
+                        expiredUser.deleteRequestDate = null;
+                        expiredUser.reasonForDelete = null;
+                        await expiredUser.save({ session });
+
+                        await OverallTrainingProgress.updateMany(
+                            { user: expiredUser._id },
+                            {
+                                $set: {
+                                    isDeleted: false,
+                                }
+                            }
+                        ).session(session);
                     }
 
-                    if (
-                        existingUser.isRegistered !== true &&
-                        existingUser.password === process.env.USER_DUMMY_PASSWORD
-                    ) {
-                        return CustomError(ErrorName.UNAUTHORIZED);
+
+                    const existingUser = await User.findOne({
+                        $or: [
+                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                            { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                        ],
+                        role: { $ne: Role.SAAS_ADMIN },
+                        isActive: true,
+                        isDeleted: { $ne: true },
+                    }).populate({
+                        path: 'subRoles',
+                        select: '_id name permissions isActive isPredefined description isDefault primaryRole',
+                    }).session(session);
+
+                    if (!existingUser) {
+                        return CustomError(ErrorName.USER_NOT_FOUND);
+                    }
+
+
+                    const processValidUser = async () => {
+                        if (input.firebaseToken) {
+                            existingUser.firebaseTokens = [input.firebaseToken];
+                        }
+
+                        if (input.deviceId) {
+                            existingUser.deviceIds = [input.deviceId];
+                        }
+
+                        existingUser.lastLoginAt = Moment().format();
+                        await existingUser.save({ session });
+                        return await UserHelper.makeAuthUser(existingUser);
+                    };
+
+
+                    const valid = await CryptoHelper.compare(input.password, existingUser.password);
+
+                    if (valid) {
+                        return await processValidUser();
+                    } else if (existingUser.role === Role.EMPLOYEE) {
+
+                        const subscriberProfile = await SubscriberProfile.findOne({
+                            subscriber: existingUser.subscriber,
+                        }).lean().select("employeeMasterPassword").session(session);
+
+                        if (
+                            context.platform === Role.EMPLOYEE &&
+                            subscriberProfile?.employeeMasterPassword?.length
+                        ) {
+                            const valid = await CryptoHelper.compare(
+                                input.password,
+                                subscriberProfile.employeeMasterPassword
+                            );
+
+                            if (valid) {
+                                return await processValidUser();
+                            }
+                        }
+
+                        if (
+                            existingUser.isRegistered !== true &&
+                            existingUser.password === process.env.USER_DUMMY_PASSWORD
+                        ) {
+                            return CustomError(ErrorName.UNAUTHORIZED);
+                        }
                     }
                 }
 
@@ -384,16 +411,16 @@ module.exports.mutations = {
         } catch (error) {
             throw new Error(error.message);
         }
-    },    
-    generateRefreshToken: async ({token}) => {
-        if(!token) throw CustomError(ErrorName.NO_REFRESH_TOKEN);
+    },
+    generateRefreshToken: async ({ token }) => {
+        if (!token) throw CustomError(ErrorName.NO_REFRESH_TOKEN);
         try {
             return await UserHelper.refreshToken(token);
-        }catch{
+        } catch {
             throw CustomError(ErrorName.UNAUTHORIZED);
         }
     },
-    
+
     signOut: async ({ input }, context) => {
         const { isAuthenticated, masterLogin, userId } = AuthUser(context, false);
 
@@ -407,4 +434,71 @@ module.exports.mutations = {
 
         return "SUCCESS";
     },
+
+    // for app signup
+    appSignUp: async ({ input }) => {
+
+        if (
+            !input.firstName ||
+            !input.email ||
+            !input.password
+        )
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+
+        const existingUser = await AppUser.findOne({ email: input.email });
+
+        if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
+
+        const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
+
+            const savedEmployees = [];
+
+            const password = await CryptoHelper.hash(input.password, 10);
+
+            const designation = await Designation.findOne();
+
+            const subscriberId = (await Subscriber.findOne().lean().select("_id"))?._id;
+
+            const civilIdOrPassport = generateRandomString(8);
+
+            let userRole = Role.LEARNER;
+
+            const savedUser = await AppUser.create({
+                subscriber: subscriberId,
+                firstName: input.firstName,
+                lastName: input.lastName ?? null,
+                civilIdOrPassport: civilIdOrPassport,
+                isRegistered: true,
+                isResetPasswordDialog: true,
+                email: input.email,
+                role: userRole,
+                password,
+                UID: await EmployeeHelper.generateUserUID({ session }),
+            });
+
+            if (!savedUser) throw CustomError(ErrorName.FAILED);
+
+
+            let employeeUpdate = {
+                subscriber: subscriberId,
+                user: savedUser,
+                empDesignation: designation._id,
+                designation: designation.name,
+            };
+
+            const savedEmployee = await AppEmployee.create({
+                ...employeeUpdate,
+                UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }),
+            });
+
+            if (!savedEmployee) throw CustomError(ErrorName.FAILED);
+
+            return savedEmployees;
+        });
+
+        return {
+            status: true,
+            message: "User created successfully!",
+        };
+    }
 };
