@@ -1,7 +1,7 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
 const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
-const { User } = require("./user_model");
+const { User, AppUser } = require("./user_model");
 
 const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationHelper = require("../notifications/notification_helper");
