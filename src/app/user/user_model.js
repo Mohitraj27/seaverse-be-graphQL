@@ -51,6 +51,10 @@ const userSchema = new Schema(
         password: {
             type: String,
         },
+        dummyPassword: {
+            type: String,
+            default : null,
+        },
         role: {
             type: String,
             default: 'LEARNER',
@@ -138,11 +142,11 @@ const userSchema = new Schema(
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",
+            default: null,
         },
         vesselStatus: {
             type: String,
-            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
-            default: "ONSHORE",
+            default: null,
         }
     },
     { timestamps: true }
