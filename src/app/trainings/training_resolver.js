@@ -38,6 +38,7 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const { populate, validate } = require("../contact-support/contact_support_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
+const { Subscriber } = require("../saas/subscriber/subscriber_model");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -571,7 +572,13 @@ module.exports.mutations = {
     },
     syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
 
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        const { role, userId, userInfo, subscriberId: subscriberID } = AuthUser(context);
+
+        let subscriberId;
+        if (!subscriberID) {
+            const subscriber = await Subscriber.findOne({ isActive: true }).select("_id");
+            subscriberId = subscriber._id;
+        }
 
         try {
 

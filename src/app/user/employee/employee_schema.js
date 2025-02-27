@@ -239,7 +239,7 @@ type userVessels {
             role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
-            vesselStatus: [VesselStatusEnum] 
+            vesselStatus: [VesselStatusEnum]
             vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
