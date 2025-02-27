@@ -2019,8 +2019,8 @@ module.exports.mutations = {
                 lastName: input.user.lastName ?? null,
                 civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
                 isRegistered: input.user.isRegistered ?? true,
-                currentVessel: input.user.currentVessel && input.user.currentVessel !== '' ? ObjectId(input.user.currentVessel) : null,
-                vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== '' ? input.user.vesselStatus : null,
+                currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
+                vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
                 email: input.user.email,
                 role: userRole,
                 ...userPasswordInfo,
@@ -2053,8 +2053,8 @@ module.exports.mutations = {
 
                 let userVesselUpdate = {
                     user: savedUser,
-                    vessel: input.user.currentVessel ?? null,
-                    vesselStatus: input.user.vesselStatus ?? null,
+                    vessel: input.user.currentVessel && input.user.currentVessel !== "" ? ObjectId(input.user.currentVessel) : null,
+                    vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== "" ? input.user.vesselStatus : null,
                 };
 
                 savedUserVessel = await UserVessel.create(userVesselUpdate);
