@@ -176,10 +176,15 @@ const deletedUserSchema = userSchema.clone();
 deletedUserSchema.path('civilIdOrPassport').index(false);
 deletedUserSchema.path('email').index(false);
 
+// For app signup
+const appUserSchema = userSchema.clone();
+
 const User = Model("User", userSchema);
 const DeletedUser = Model("DeletedUser", deletedUserSchema);
+const AppUser = Model("AppUser", appUserSchema);
 
 module.exports = {
     User,
-    DeletedUser
+    DeletedUser,
+    AppUser,
 };

@@ -131,4 +131,14 @@ employeeSchema.index({ createdAt: -1 });
 
 employeeSchema.plugin(AggregatePaginate);
 
-module.exports.Employee = Model("Employee", employeeSchema);
+// For app signup
+const appEmployeeSchema = employeeSchema.clone();
+
+const Employee = Model("Employee", employeeSchema);
+const AppEmployee = Model("AppEmployee", appEmployeeSchema);
+
+module.exports = {
+    Employee,
+    AppEmployee,
+}
+// module.exports.Employee = Model("Employee", employeeSchema);
