@@ -41,55 +41,59 @@ module.exports.mutations = {
             let updateUser;
             let newVessel;
 
-            if (input.vesselId) {
+            let vesselId = input.vesselId === "" ? null : input.vesselId;
+            let vesselStatus = input.vesselStatus === "" ? null : input.vesselStatus;
 
-                if (String(getUser?.currentVessel) === String(input.vesselId)) {
+            if (vesselId) {
 
-                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                if (String(getUser?.currentVessel) === String(vesselId)) {
+
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                         {
                             $set: {
-                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                                vesselStatus: vesselStatus,
+                                isActive: vesselId ? true : false,
+                                deletedAt: vesselId ? null : Date.now()
                             }
                         }
                     );
 
-                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
-                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    getUser.currentVessel = vesselId ?? null;
+                    getUser.vesselStatus = vesselStatus ?? null;
                     updateUser = await getUser.save();
 
                 } else {
 
-                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                         {
                             $set: {
-                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                                vesselStatus: vesselStatus,
+                                isActive: vesselId ? false : true,
+                                deletedAt: vesselId ? null : Date.now()
                             }
                         }
                     );
 
                     newVessel = await UserVessel.create({
                         user: input.userId,
-                        vessel: input.vesselId,
-                        vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                        isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                        vessel: vesselId,
+                        vesselStatus: vesselStatus,
+                        isActive: vesselId ? true : false,
                     });
 
-                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
-                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    getUser.currentVessel = vesselId;
+                    getUser.vesselStatus = vesselStatus;
                     updateUser = await getUser.save();
+
                 }
             } else {
 
-                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
+                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                     {
                         $set: {
-                            vesselStatus: input?.vesselStatus || VesselStatus.ONSHORE,
-                            isActive: input?.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                            deletedAt: input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                            vesselStatus: vesselStatus,
+                            isActive: vesselId ? true : false,
+                            deletedAt: vesselId ? null : Date.now()
                         }
                     }
                 );
@@ -97,13 +101,15 @@ module.exports.mutations = {
                 newVesselUpdate = await UserVessel.findOne({ user: input.userId })
                     .sort({ updatedAt: -1 });
 
-                newVesselUpdate.vesselStatus = input?.vesselStatus || VesselStatus.ONSHORE;
-                newVesselUpdate.isActive = input?.vesselStatus === VesselStatus.ONSHORE ? false : !input.vesselId ? false : true;
-                newVesselUpdate.deletedAt = input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : !input.vesselId ? Date.now() : null;
-                await newVesselUpdate.save();
+                if (newVesselUpdate) {
+                    newVesselUpdate.vesselStatus = vesselStatus || null;
+                    newVesselUpdate.isActive = vesselId ? true : false;
+                    newVesselUpdate.deletedAt = vesselId ? null : Date.now();
+                    await newVesselUpdate.save();
+                }
 
-                getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId ? input.vesselId : null;
-                getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                getUser.currentVessel = vesselId;
+                getUser.vesselStatus = vesselStatus;
                 updateUser = await getUser.save();
 
             }
