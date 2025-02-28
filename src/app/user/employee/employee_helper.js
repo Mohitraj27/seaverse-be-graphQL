@@ -1042,6 +1042,7 @@ const deleteUsers = async (users, errors) => {
                     }
                     return deleteUsers;
                 }
+                return deleteUsers;
 
             } else {
                 errors.push("Error while deleting users");
