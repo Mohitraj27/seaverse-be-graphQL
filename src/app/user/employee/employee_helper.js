@@ -441,7 +441,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     // if (assignments?.length) {
                     //     const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
                     // }
-                    // usersToEnroll.push(...userIds);
+                    usersToEnroll.push(...userIds);
                 }
 
                 if (usersToRemove.length > 0) {
