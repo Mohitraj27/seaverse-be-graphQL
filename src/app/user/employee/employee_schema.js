@@ -41,7 +41,7 @@ type userVessels {
     updatedAt: String!
     isActive: Boolean!
     vessel: ID!
-    vesselStatus: String!
+    vesselStatus: String
     vesselDetails: VesselDetails
 }
 
