@@ -616,7 +616,7 @@ module.exports.queries = {
                 {
                     $lookup: {
                         from: "users",
-                        localField: "assignedLearnerIDs",
+                        localField: "userObjectIds",
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
