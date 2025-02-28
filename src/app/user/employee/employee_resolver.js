@@ -749,6 +749,12 @@ module.exports.queries = {
                                             $options: "i",
                                         },
                                     },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }
                                 ],
                             },
                         },
