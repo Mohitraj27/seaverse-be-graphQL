@@ -1694,7 +1694,7 @@ const manageRole = async ({ input }, context) => {
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             */
-            await NotificationHelper.sendNotification([adminNotification]);
+            await NotificationHelper.createNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -2074,9 +2074,9 @@ module.exports.mutations = {
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
 
-            invitationList.push({
-                userData: savedUser,
-            });
+            // invitationList.push({
+            //     userData: savedUser,
+            // });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
@@ -2089,27 +2089,26 @@ module.exports.mutations = {
                 _id: savedUser._id
             }];
 
-            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
+
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
-            // const matchedLearningPlans = filteredPlans.map(plan => {
-            //     return {
-            //         learningPlanID: plan._id,
-            //         learningPlanName: plan.title,
-            //         employeeID: savedUser._id,
-            //         email: savedUser.email,
-            //         designationID: input.empDesignation,
-            //         vesselID: savedUserVessel?.vessel,
-            //         vesselTypeID: vessel?.typeOfVessel?._id,
-            //         currentStatus: savedUserVessel?.vesselStatus
-            //     };
-            // });
-            // if (filteredPlans?.length > 0) {
-            //     console.log('inside filtered Learning Plan', filteredPlans);
-            // }
+            const matchedLearningPlans = filteredPlans.map(plan => {
+                return {
+                    learningPlanID: plan._id,
+                    learningPlanName: plan.title,
+                    employeeID: savedUser._id,
+                    email: savedUser.email,
+                    designationID: input.empDesignation,
+                    vesselID: savedUserVessel?.vessel,
+                    vesselTypeID: vessel?.typeOfVessel?._id,
+                    currentStatus: savedUserVessel?.vesselStatus
+                };
+            });
+
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
-                templategeneratePassword: dummyPassword.dummy_pwd,
+                templategeneratePassword: generatePassword,
             });
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
