@@ -102,6 +102,11 @@ function formatDateWithSuffix(date) {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'UTC',
         });
     }
 
@@ -1683,7 +1688,7 @@ const manageRole = async ({ input }, context) => {
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             */
-            await NotificationHelper.sendNotification([adminNotification]);
+            await NotificationHelper.createNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -2063,9 +2068,9 @@ module.exports.mutations = {
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
 
-            invitationList.push({
-                userData: savedUser,
-            });
+            // invitationList.push({
+            //     userData: savedUser,
+            // });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
@@ -2098,7 +2103,7 @@ module.exports.mutations = {
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
-                templategeneratePassword: dummyPassword.dummy_pwd,
+                templategeneratePassword: generatePassword,
             });
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })

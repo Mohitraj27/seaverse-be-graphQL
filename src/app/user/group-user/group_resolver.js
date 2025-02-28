@@ -26,6 +26,7 @@ const path = require('path');
 const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const { pipeline } = require("stream");
+const { formatDate } = require("../../reports/reports_helper");
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
@@ -127,9 +128,9 @@ module.exports.queries = {
                 "First Name": user?.firstName,
                 "Last Name": user?.lastName,
                 "Email": user?.email,
-                "Date Added": user?.createdAt,
+                "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
-                "Last Login Date": user?.lastLoginAt,
+                "Last Login Date (UTC)":  formatDate(user?.lastLoginAt),
                 "User State": user?.isRegistered ? "Registered" : "Unregistered",
                 "Designation": user?.designation,
                 "Type Of Vessel": user?.vesselType,
