@@ -1797,25 +1797,32 @@ const respondToDeleteRequest = async ({ input }, context) => {
 };
 
 const checkUserRegType = async (userIds, regType) => {
-    const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType');
-
-    if (!employeeRecords?.length) {
+    if (!userIds || userIds.length === 0) {
+        return; 
+    }
+    const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType user');
+    if (!employeeRecords.length) {
         throw CustomError(ErrorName.NOT_FOUND, "No employees found for provided userObjectIds.");
     }
 
     const regTypes = new Set(employeeRecords.map(emp => emp.regType));
 
     if (![0, 1, 2].includes(regType)) {
-        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
+        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided must be 0, 1 , 2.");
     }
-
     if (regType === 0) {
-        if (![...regTypes].every(type => type === 1 || type === 2)) {
-            throw CustomError(ErrorName.INVALID_REG_TYPE, "regType 0 only allows users with regType 1 or 2.");
+        const invalidUser = employeeRecords.find(emp => ![1, 2].includes(emp.regType));
+        if (invalidUser) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "When regType is 0, all selected users must have regType 1 or 2.");
         }
-    } else {
-        if (regTypes.size !== 1 || !regTypes.has(regType)) {
-            throw CustomError(ErrorName.INVALID_REG_TYPE, "All selected users must have the same regType.");
+    } 
+    else {
+        const invalidUser = employeeRecords.find(emp => emp.regType !== regType);
+        if (invalidUser) {
+            throw CustomError(
+                ErrorName.INVALID_REG_TYPE, 
+                `When regType is ${regType}, all selected users must have regType ${regType}.`
+            );
         }
     }
 };
@@ -2629,15 +2636,10 @@ module.exports.mutations = {
             'Vessel Type',
             'User Status',
         ];
-        const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
-        const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
-            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
-            : defaultExportUserIds;
         try {
             if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
                 throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
-            }
-            await checkUserRegType(userObjectIds?.ids, userObjectIds?.regType);
+              }
             const notifications = [];
             // const exportStartTime = new Date();
             /* Ticket Number : SEAV-117
@@ -2660,6 +2662,25 @@ module.exports.mutations = {
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
             */
+            const regType = userObjectIds?.regType;
+            if (![0, 1, 2].includes(regType)) {
+                throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided. Must be 0, 1, or 2.");
+            }
+            let employeeQuery = {};
+            if (regType === 0) {
+                employeeQuery = { regType: { $in: [1, 2] } };
+            } else {
+                employeeQuery = { regType: regType };
+            }
+            
+            let userIds = [];
+            if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
+                await checkUserRegType(userObjectIds.ids, regType);
+                userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
+            } else {
+                const employees = await Employee.find(employeeQuery).select('user');
+                userIds = employees.map(emp => emp.user);
+            }
             const pipeline = [
                 {
                     $match: {
@@ -2676,6 +2697,12 @@ module.exports.mutations = {
                     },
                 },
                 { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                 // Filter again on employee regType if needed
+                {
+                    $match: {
+                        'employeeDetails.regType': regType === 0 ? { $in: [1, 2] } : regType
+                    }
+                },
                 {
                     $lookup: {
                         from: 'vessels',
@@ -2798,6 +2825,9 @@ module.exports.mutations = {
             };
             pipeline.push(projectStage);
             const users = await User.aggregate(pipeline);
+            if (users.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
+            }
             const data = users.map(user => {
                 const rowData = {};
                 const isResetPassword = user?.isResetPasswordDialog ?? true;
