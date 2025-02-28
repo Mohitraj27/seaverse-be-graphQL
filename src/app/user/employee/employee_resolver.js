@@ -1923,6 +1923,17 @@ module.exports.mutations = {
                 };
                 await NotificationHelper.createNotification([failedNotification]);
 
+                const createImportLog = await ImportLog.create({
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: { url: saveCSV },
+                    importStatus: "FAILED",
+                    description: `${nonEmptyArray}`,
+                })
+    
+                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 

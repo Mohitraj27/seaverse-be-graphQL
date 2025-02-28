@@ -2612,17 +2612,7 @@ module.exports = {
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
-
-                        const createImportLog = await ImportLog.create({
-                            subscriber: subscriberId,
-                            uploadedBy: userId,
-                            fileName: newFileName,
-                            filePath: { url: saveCSV },
-                            importStatus: "FAILED",
-                            description: `${validationErrors[0]}`
-                        })
-
-                        if (!createImportLog) throw CustomError(ErrorName.FAILED);
+                        
                         return validationErrors;
 
                     } else {
