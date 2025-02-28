@@ -2078,23 +2078,22 @@ module.exports.mutations = {
                 _id: savedUser._id
             }];
 
-            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
+
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
-            // const matchedLearningPlans = filteredPlans.map(plan => {
-            //     return {
-            //         learningPlanID: plan._id,
-            //         learningPlanName: plan.title,
-            //         employeeID: savedUser._id,
-            //         email: savedUser.email,
-            //         designationID: input.empDesignation,
-            //         vesselID: savedUserVessel?.vessel,
-            //         vesselTypeID: vessel?.typeOfVessel?._id,
-            //         currentStatus: savedUserVessel?.vesselStatus
-            //     };
-            // });
-            // if (filteredPlans?.length > 0) {
-            //     console.log('inside filtered Learning Plan', filteredPlans);
-            // }
+            const matchedLearningPlans = filteredPlans.map(plan => {
+                return {
+                    learningPlanID: plan._id,
+                    learningPlanName: plan.title,
+                    employeeID: savedUser._id,
+                    email: savedUser.email,
+                    designationID: input.empDesignation,
+                    vesselID: savedUserVessel?.vessel,
+                    vesselTypeID: vessel?.typeOfVessel?._id,
+                    currentStatus: savedUserVessel?.vesselStatus
+                };
+            });
+
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
