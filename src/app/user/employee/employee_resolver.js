@@ -2697,7 +2697,6 @@ module.exports.mutations = {
                     },
                 },
                 { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
-                 // Filter again on employee regType if needed
                 {
                     $match: {
                         'employeeDetails.regType': regType === 0 ? { $in: [1, 2] } : regType
