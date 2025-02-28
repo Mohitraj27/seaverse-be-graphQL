@@ -89,13 +89,13 @@ const isPromise = data => data !== undefined && data instanceof Promise;
 
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
     if (isPromise(fileData)) {
-        const { filename, mimetype, createReadStream } = await fileData;
+        const { filename: fileNameCurrent, mimetype, createReadStream } = await fileData;
         if (
             acceptedTypes === fileType.all ||
             mimetype?.startsWith(acceptedTypes) ||
             acceptedTypes?.includes(mimetype)
         ) {
-            let extension = PathHelper.extname(filename);
+            let extension = PathHelper.extname(fileName) || PathHelper.extname(fileNameCurrent);
             if (!extension) {
                 const ext = MimeHelper.extension(mimetype);
                 if (ext) extension = `.${ext}`;
@@ -106,7 +106,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
             const filePath = getPathFromType({
                 type: uploadType,
                 folder: folderName,
-                filename: fileName,
+                filename: fileNameCurrent,
             });
 
             if (filePath) {
@@ -114,7 +114,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 const s3Path = await AwsHelper.uploadFile({
                     fileData: stream,
                     filePath: filePath,
-                    originalFileName: filename,
+                    originalFileName: fileName || fileNameCurrent,
                     mimeType: mimetype,
                 });
 
