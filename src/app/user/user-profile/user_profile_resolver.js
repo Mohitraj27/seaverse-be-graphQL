@@ -388,7 +388,7 @@ module.exports.mutations = {
             if (isResetPasswordDialog) {
                 const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
                 if (!isPasswordValid) {
-                    throw CustomError(ErrorName.INVALID_PASSWORD, "Current password is incorrect");
+                    throw CustomError(ErrorName.INVALID_PASSWORD, "Old password is incorrect");
                 }
             }
             existingUser.password = await CryptoHelper.hash(newPassword, 10);
