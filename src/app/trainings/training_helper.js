@@ -520,12 +520,13 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     firstName: item.user.firstName,
                     trainingTitle: trainingName,
                     durationHours: item?.training?.durationHours,
-                    courseId: item.training,
+                    courseId: item.training._id,
                     courseImage: courseImages
                 });
 
                 emails.push({
                     email: item.user.email,
+                    trainingTitle: trainingName,
                     emailContent
                 })
 
@@ -537,7 +538,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 for (const item of emails) {
                     await sendEmail({
                         receiverEmail: item.email,
-                        subject: `Congratulations on Completing the ${item?.emailContent?.trainingTitle} Course!`,
+                        subject: `Congratulations on Completing the ${item?.trainingTitle} Course!`,
                         htmlContent: item.emailContent,
                     });
                 }

@@ -539,7 +539,7 @@ module.exports.queries = {
                 totalCount = totalMembers;
 
             } else {
-                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
+                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput?.groupId, groupType: autosyncInput?.groupType });
                 members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
                     .select('_id firstName lastName email isRegistered')
                     .lean();

@@ -65,6 +65,7 @@ const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
+const { last } = require("lodash");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -906,6 +907,11 @@ module.exports.queries = {
                     $sort: {
                         latestUpdatedAt: -1,
                     },
+                },
+                {
+                    $sort: {
+                        "user.firstName": 1
+                    }
                 },
                 ...(filterInput?.vesselName?.length > 0
                     ? [
@@ -1808,7 +1814,7 @@ const checkUserRegType = async (userIds, regType) => {
     const regTypes = new Set(employeeRecords.map(emp => emp.regType));
 
     if (![0, 1, 2].includes(regType)) {
-        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided must be 0, 1 , 2.");
+        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
     }
     if (regType === 0) {
         const invalidUser = employeeRecords.find(emp => ![1, 2].includes(emp.regType));
@@ -2784,6 +2790,9 @@ module.exports.mutations = {
                         isRegistered: { $first: '$isRegistered' },
                     },
                 },
+                {
+                    $sort: { 'firstName': 1, 'lastName': 1 }
+                }
             ];
 
             const projectStage = {
@@ -2823,6 +2832,8 @@ module.exports.mutations = {
                 },
             };
             pipeline.push(projectStage);
+            
+
             const users = await User.aggregate(pipeline);
             if (users.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
