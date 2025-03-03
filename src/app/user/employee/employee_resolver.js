@@ -2790,7 +2790,9 @@ module.exports.mutations = {
                         isRegistered: { $first: '$isRegistered' },
                     },
                 },
-                { sort: { firstName: 1, lastName: 1 } }
+                {
+                    $sort: { 'firstName': 1, 'lastName': 1 }
+                }
             ];
 
             const projectStage = {
@@ -2830,6 +2832,8 @@ module.exports.mutations = {
                 },
             };
             pipeline.push(projectStage);
+            
+
             const users = await User.aggregate(pipeline);
             if (users.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
