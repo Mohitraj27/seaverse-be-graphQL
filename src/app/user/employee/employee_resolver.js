@@ -1336,7 +1336,7 @@ module.exports.queries = {
             } else if (input.civilIdOrPassport) {
                 const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
-                    messages.push("Another user already exists with this employee Id");
+                    messages.push("Employee Id already exists");
                 }
             }
             if (messages.length > 0) {
