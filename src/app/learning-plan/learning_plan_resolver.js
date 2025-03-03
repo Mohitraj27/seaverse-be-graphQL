@@ -336,8 +336,8 @@ module.exports.queries = {
             const learningPlans = await LearningPlan.aggregate([
                 { $match: queryConditions },
                 { $sort: { updatedAt: -1 } },
-                { $skip: skip },
-                { $limit: limit },
+                // { $skip: skip },
+                // { $limit: limit },
                 {
                     $lookup: {
                         from: "groups",

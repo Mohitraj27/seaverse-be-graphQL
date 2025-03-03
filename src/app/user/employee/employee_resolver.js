@@ -582,7 +582,7 @@ module.exports.queries = {
             let filterConditions = {
                 subscriber: subscriberId,
             };
-            
+
             const sortingStage = [];
             const sortOrder = sortInput?.sortOrder ?? 1;
 
@@ -1804,7 +1804,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
 const checkUserRegType = async (userIds, regType) => {
     if (!userIds || userIds.length === 0) {
-        return; 
+        return;
     }
     const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType user');
     if (!employeeRecords.length) {
@@ -1821,12 +1821,12 @@ const checkUserRegType = async (userIds, regType) => {
         if (invalidUser) {
             throw CustomError(ErrorName.INVALID_REG_TYPE, "When regType is 0, all selected users must have regType 1 or 2.");
         }
-    } 
+    }
     else {
         const invalidUser = employeeRecords.find(emp => emp.regType !== regType);
         if (invalidUser) {
             throw CustomError(
-                ErrorName.INVALID_REG_TYPE, 
+                ErrorName.INVALID_REG_TYPE,
                 `When regType is ${regType}, all selected users must have regType ${regType}.`
             );
         }
@@ -1944,7 +1944,7 @@ module.exports.mutations = {
                     importStatus: "FAILED",
                     description: `${nonEmptyArray}`,
                 })
-    
+
                 if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
@@ -2645,7 +2645,7 @@ module.exports.mutations = {
         try {
             if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
                 throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
-              }
+            }
             const notifications = [];
             // const exportStartTime = new Date();
             /* Ticket Number : SEAV-117
@@ -2678,7 +2678,7 @@ module.exports.mutations = {
             } else {
                 employeeQuery = { regType: regType };
             }
-            
+
             let userIds = [];
             if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
                 await checkUserRegType(userObjectIds.ids, regType);
