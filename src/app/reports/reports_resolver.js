@@ -159,11 +159,52 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         }
 
+        const sortingStage = [];
+        const sortOrder = input?.sortInput?.sortOrder ?? 1;
+
+        const fieldMapping = {
+            "FIRST_NAME": "name",
+            "LAST_SEEN": "lastSeen",
+        };
+
+        const field = input?.sortInput?.field ?? "FIRST_NAME";
+        const fieldPath = fieldMapping[field];
+        //keeping this "FIRST_NAME" if-condition only for future reference (there is a chance that designations and vesselnames will come as sortable fields)
+        if (field === "FIRST_NAME") {  
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else if (fieldPath) {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $addFields: {
+                    lowercaseFirstname: { $toLower: "$name" }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    lowercaseFirstname: 1
+                }
+            });
+        }
+
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
-
+        const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         const employeesData = await Employee.aggregate([
@@ -325,7 +366,9 @@ const getMainLearnersReport = async ({ input }, context) => {
                 '$sort': {
                     'latestUpdatedAt': -1
                 }
-            }
+            },
+            ...sortingStage,
+            ...pageLimit,
         ]);
 
 
@@ -421,6 +464,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             employeesData
         };
     } catch (err) {
+        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
