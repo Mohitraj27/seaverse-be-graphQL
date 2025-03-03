@@ -1483,6 +1483,18 @@ module.exports = {
             savedEmployee = await Employee.findOne({ user: updatedUser._id }).populate('user');
         }
 
+        if (input.empDesignation) {
+            const existingDesignation = await Designation.findById(input.empDesignation);
+
+            if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
+
+            if (savedEmployee?.empDesignation.toString() != input.empDesignation.toString()) {
+                savedEmployee.empDesignation = existingDesignation._id;
+                savedEmployee.designation = existingDesignation.name;
+                await savedEmployee.save();
+            }
+        }
+
         return savedEmployee;
 
         // if (
@@ -1509,12 +1521,7 @@ module.exports = {
 
 
         // let employeeUpdateData = {};
-        // if (input.empDesignation) {
-        //     const existingDesignation = await Designation.findById(input.empDesignation);
-        //     if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
-        //     employeeUpdateData.empDesignation = existingDesignation._id
-        //     employeeUpdateData.designation = existingDesignation.name
-        // }
+     
 
         // if (input.nationality) employeeUpdateData.nationality = input.nationality;
         // if (input.department) employeeUpdateData.department = input.department;
