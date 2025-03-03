@@ -200,7 +200,7 @@ module.exports.queries = {
         if (!groupType) groupType = "all";
 
         const { subscriberId } = AuthUser(context);
-
+    try {
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
@@ -223,7 +223,6 @@ module.exports.queries = {
         switch (groupType) {
             case "Autosyncedgroups":
                 const allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
-
                 let filteredAutosyncedGroups = allAutosyncedGroups;
                 if (groupFilter?.search) {
                     filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
@@ -276,7 +275,11 @@ module.exports.queries = {
             status: "Success",
             totalCount,
             groups,
-        };
+         };
+        }
+        catch(error) {
+            throw Error(error.message);
+        }
     },
     getSingleAutoSyncGroupUsers: async ({ input }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -452,7 +455,6 @@ module.exports.queries = {
                 group.groupName && regex.test(group.groupName)
             );
         }
-
         return {
             users: users,
             autoSyncedGroups: filteredAutoSyncedGroups,
@@ -539,11 +541,10 @@ module.exports.queries = {
                 totalCount = totalMembers;
 
             } else {
-                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
-                members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
+                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput?.groupId, groupType: autosyncInput?.groupType });
+                 members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
                     .select('_id firstName lastName email isRegistered')
                     .lean();
-
                 totalCount = members.length;
             }
 

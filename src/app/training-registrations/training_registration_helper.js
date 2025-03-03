@@ -51,6 +51,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const vesselIds = [];
         const vesselStatusIds = [];
         const vesselTypeIds = [];
+        const ownernameIds = [];
 
         for (let group of groups) {
             const { groupType, groupId } = group;
@@ -81,6 +82,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     break;
                 case groupTypes.vesselType:
                     vesselTypeIds.push(groupId);
+                    break;
+                case groupTypes.owner:
+                    ownernameIds.push(groupId);
                     break;
                 default:
                     break;
@@ -128,7 +132,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const vesselQuery = vesselIds.length > 0 ? User.find({ currentVessel: { $in: vesselIds }, isDeleted: { $ne: true } }) : Promise.resolve([]);
 
         const vesselStatusQuery = vesselStatusIds.length > 0 ? User.find({ vesselStatus: { $in: vesselStatusIds }, isDeleted: { $ne: true } }) : Promise.resolve([]);
-
         let vesselTypeQuery;
         if (vesselTypeIds.length > 0) {
             const vessels = await Vessel.find({ typeOfVessel: { $in: vesselTypeIds } });
@@ -140,6 +143,23 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         } else {
             vesselTypeQuery = Promise.resolve([]);
         }
+        let ownernameQuery;
+        if(ownernameIds?.length > 0){
+        
+         ownernameQuery = ownernameIds?.length > 0 ? Vessel.find({ ownerName: { $in: ownernameIds } }, { _id: 1 }) // Fetch vessel IDs
+            .then(vessels => {
+                const vesselIds = vessels.map(v => v._id);
+                return Vessel.find({ 
+                    $or: [
+                        { ownerName: { $in: ownernameIds } }, // Match by ownerName
+                        { vesselId: { $in: vesselIds } } // Match by vesselId
+                    ],
+                    isDeleted: { $ne: true } 
+                });
+            }) : Promise.resolve([]);
+        } else{
+             ownernameQuery = Promise.resolve([]);
+        }    
 
         const [
             designationUsersIds,
@@ -148,7 +168,8 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             regStatusUsers,
             vesselUsersIds,
             vesselStatusUserIds,
-            vesselTypeUserIds
+            vesselTypeUserIds,
+            ownernameUsersIds
         ] = await Promise.all([
             designationQuery,
             roleQuery,
@@ -156,7 +177,8 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             regStatusQuery,
             vesselQuery,
             vesselStatusQuery,
-            vesselTypeQuery
+            vesselTypeQuery,
+            ownernameQuery
         ]);
 
         let vesselStatusUsers = [];
@@ -178,6 +200,14 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         if (designationUsersIds.length) {
             designationUsers = await User.find({ _id: { $in: designationUsersIds }, isDeleted: { $ne: true } });
         }
+        let ownernameUsers = [];
+        const ownerIds = ownernameUsersIds.map(user => user._id);
+
+
+        if (ownerIds.length > 0){
+            ownernameUsers = await User.find({ currentVessel: { $in: ownerIds }, isDeleted: { $ne: true } });
+        }
+
         if (fromGetGroups) {
 
             let result = [];
@@ -207,11 +237,13 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     case groupTypes.vesselType:
                         result.push({ groupId, groupType, member: vesselTypeUsers });
                         break;
+                    case groupTypes.owner:
+                        result.push({ groupId, groupType, member: ownernameUsers });
+                        break;
                     default:
                         break;
                 }
             }
-
             return result;
 
         }
@@ -223,7 +255,8 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             ...regStatusUsers,
             ...vesselUsers,
             ...vesselStatusUsers,
-            ...vesselTypeUsers
+            ...vesselTypeUsers,
+            ...ownernameUsers
         ];
 
     } catch (error) {
