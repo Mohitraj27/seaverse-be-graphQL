@@ -4296,6 +4296,9 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         '$project': {
                             'firstName': '$userInfo.firstName',
+                            lowercaseFirstName: { 
+                                $toLower: "$userInfo.firstName"
+                            },
                             'lastName': '$userInfo.lastName',
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
@@ -4328,7 +4331,7 @@ const generateCustomReport = async ({ input }, context) => {
                     },
                     {
                         '$sort': {
-                            'firstName': -1
+                            'lowercaseFirstName': 1
                         }
                     }
                 ]
@@ -4868,6 +4871,9 @@ const generateCustomReport = async ({ input }, context) => {
                             courseId: "$_id.trainingId",
                             user: "$_id.userId",
                             firstName: 1,
+                            lowercaseFirstName: { 
+                                $toLower: "$firstName"
+                            },
                             lastName: 1,
                             email: 1,
                             designation: 1,
@@ -4893,6 +4899,11 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         $sort: {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort: {
+                            lowercaseFirstName: 1
                         }
                     },
                 ]
