@@ -1519,6 +1519,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             unenrollmentDate: 1,
                             empId: 1,
                             trainingTitle: 1,
+                            lowercaseTitle: { 
+                                $toLower: { $arrayElemAt: ["$trainingTitle.value", 0] }
+                            },
                             modules: {
                                 $sortArray: {
                                     input: "$modules",
@@ -1533,6 +1536,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     {
                         $sort: {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort: {
+                            lowercaseTitle: 1
                         }
                     },
                 ]
