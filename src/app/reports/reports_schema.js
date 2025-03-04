@@ -141,6 +141,7 @@ module.exports = {
             reportType : reportTypeEnum!
             selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
+            sortInput : SortInput
             filter : singleLearnerReportFilter
             export : Boolean
         }

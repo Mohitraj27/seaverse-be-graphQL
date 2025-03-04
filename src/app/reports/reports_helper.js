@@ -67,9 +67,57 @@ const formatDate = (date) => {
     }
     return null;
 };
+
+const generateSortingStage = async(fieldMapping, lowercaseFields = [], defaultField = "FIRST_NAME",sortInput) => {
+    const sortingStage = [];
+    const sortOrder = sortInput?.sortOrder ?? 1;
+    
+    const field = sortInput?.field ?? defaultField;
+    const fieldPath = fieldMapping[field];
+
+    if (fieldPath) {
+        // if the field is a text value, we need to sort by lowercase value for consistency
+        const isLowercaseRequired = lowercaseFields.includes(field);
+        
+        if (isLowercaseRequired) {
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        }
+    } else {
+        // If the fieldPath doesn't exist in fieldMapping, apply default sorting (by defaultField)
+        sortingStage.push({
+            $addFields: {
+                [`lowercase${defaultField}`]: { $toLower: `$${fieldMapping[defaultField]}` }
+            }
+        });
+        sortingStage.push({
+            $sort: {
+                [`lowercase${defaultField}`]: sortOrder
+            }
+        });
+    }
+
+    return sortingStage;
+}
+
 module.exports ={
     generateFileNameTimestamp,
     getAppliedFilters,
     convertUnderscoreSeperatedStringToCamelCase,
     formatDate,
+    generateSortingStage,
 }

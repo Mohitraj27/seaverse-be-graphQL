@@ -464,7 +464,6 @@ const getMainLearnersReport = async ({ input }, context) => {
             employeesData
         };
     } catch (err) {
-        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -561,11 +560,62 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
         }
 
+
+        //NOT USING THE HELPER FUNCTION SINCE COURSE NAME IS AN ARRAY
+        const fieldMapping = {
+            "COURSE_NAME": {                // since courseName is an array at the end of aggregation
+                $arrayElemAt: [
+                    '$courseName', 0
+                ]
+            },
+            "COURSE_STATUS": "$status",
+            "LAST_SEEN": "updatedAt",
+        };
+        const sortingStage = [];
+        const sortOrder = input?.sortInput?.sortOrder ?? 1;
+        const field = input?.sortInput?.field ?? "COURSE_NAME";
+        const fieldPath = fieldMapping[field];
+
+        
+        if (field === "COURSE_STATUS"|| field === "COURSE_NAME") { 
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: fieldPath }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else if (fieldPath) {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $addFields: {
+                    lowercaseCourseName: {
+                        $toLower: {
+                            $arrayElemAt: ["$courseName", 0]
+                        }
+                    }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    lowercaseCourseName: 1
+                }
+            });
+        }
+
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
-
+        const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
 
@@ -783,7 +833,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         '$sort': {
                             'createdAt': -1
                         }
-                    }
+                    },
+                    ...sortingStage,
+                    ...pageLimit,
                 ]
             );
 
@@ -1654,6 +1706,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
+
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
