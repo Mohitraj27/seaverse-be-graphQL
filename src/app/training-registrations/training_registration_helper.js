@@ -1123,7 +1123,7 @@ module.exports = {
                         }]
                     }))
                 );
-                await NotificationHelper.createNotificationhelper(notifications);
+                await NotificationHelper.createNotificationhelper(...notifications);
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
 

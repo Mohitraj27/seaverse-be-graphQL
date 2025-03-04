@@ -336,8 +336,8 @@ module.exports.queries = {
             const learningPlans = await LearningPlan.aggregate([
                 { $match: queryConditions },
                 { $sort: { updatedAt: -1 } },
-                { $skip: skip },
-                { $limit: limit },
+                // { $skip: skip },
+                // { $limit: limit },
                 {
                     $lookup: {
                         from: "groups",
@@ -616,7 +616,7 @@ module.exports.queries = {
                 {
                     $lookup: {
                         from: "users",
-                        localField: "assignedLearnerIDs",
+                        localField: "userObjectIds",
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
