@@ -1776,6 +1776,12 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
 
+        const fieldMapping = {
+            "COURSE_NAME": "lowercaseTitle",
+            "LAST_MODIFIED": "updatedAt",
+            "TOTAL_ENROLLMENTS": "totalUsers",
+        };
+        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,[],"COURSE_NAME",input?.sortInput); 
         const data = await Training.aggregate([
             {
                 $sort: {
@@ -1901,6 +1907,9 @@ const getMainCoursesReport = async ({ input }, context) => {
                 $project: {
                     _id: 1,
                     title: 1,
+                    lowercaseTitle: { 
+                        $toLower: { $arrayElemAt: ["$title.value", 0] }
+                    },
                     updatedAt: 1,
                     updatedBy: {
                         $concat: [
@@ -1946,6 +1955,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                     updatedAt: -1,
                 }
             },
+            ...sortStage,
             ...pageLimit,
         ]);
         const coursesData = data.map(item => ({
@@ -2048,6 +2058,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         };
 
     } catch (err) {
+        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,

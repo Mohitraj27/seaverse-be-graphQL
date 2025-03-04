@@ -10,7 +10,7 @@ module.exports = {
             FIRST_NAME
             LAST_SEEN
             COURSE_STATUS
-            """COURSE_NAME"""
+            COURSE_NAME
             LAST_MODIFIED
             TOTAL_ENROLLMENTS
             VESSEL_NAME
@@ -173,7 +173,8 @@ module.exports = {
             learnerData : [singleLearnersReport]
         }
         input MainCoursesReportInput {
-            filterInput: CourseFilterInput   
+            filterInput: CourseFilterInput  
+            sortInput: SortInput 
             pageInput: PageInput       
             export: Boolean                  
         }
