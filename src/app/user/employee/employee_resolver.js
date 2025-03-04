@@ -1256,7 +1256,7 @@ module.exports.queries = {
                     const htmlContent = sendEmailToLearner({
                         firstName: currentUserData.firstName,
                         email: currentUserData.email,
-                        temp_password: password,
+                        temp_password: generatePassword,
                         buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
