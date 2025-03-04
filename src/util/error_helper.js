@@ -75,16 +75,16 @@ const errorName = {
     LEARNING_PLAN_NOT_CREATED: "Learning Plan Not Created",
     EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
     INVALID_EMAIL: "INVALID_EMAIL",
-    INVALID_LEARNING_PLAN_STATUS_UPDATE:"INVALID_LEARNING_PLAN_STATUS_UPDATE",
-    INVALID_LEARNING_PLAN:"INVALID_LEARNING_PLAN",
-    LEARNING_PLAN_NOT_FOUND:"LEARNING_PLAN_NOT_FOUND",
-    MIGRATION_COURSES_NOT_FOUND:"MIGRATION_COURSES_NOT_FOUND",
-    OVERALLTRAININGPROGRESSES_NOT_REGISTERED:"OVERALLTRAININGPROGRESSES_NOT_REGISTERED",
-    CREATE_OR_UPDATE_TRAINING_MODULE:"CREATE_OR_UPDATE_TRAINING_MODULE",
-    COURSE_TITLE_ALREADY_EXIST:"COURSE_TITLE_ALREADY_EXIST",
-    NOTIFICATION_FAILED_TO_MARK_AS_READ:"NOTIFICATION_FAILED_TO_MARK_AS_READ",
-    GET_NOTIFICATION_FAILED:"GET_NOTIFICATION_FAILED",
-    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:"MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
+    INVALID_LEARNING_PLAN_STATUS_UPDATE: "INVALID_LEARNING_PLAN_STATUS_UPDATE",
+    INVALID_LEARNING_PLAN: "INVALID_LEARNING_PLAN",
+    LEARNING_PLAN_NOT_FOUND: "LEARNING_PLAN_NOT_FOUND",
+    MIGRATION_COURSES_NOT_FOUND: "MIGRATION_COURSES_NOT_FOUND",
+    OVERALLTRAININGPROGRESSES_NOT_REGISTERED: "OVERALLTRAININGPROGRESSES_NOT_REGISTERED",
+    CREATE_OR_UPDATE_TRAINING_MODULE: "CREATE_OR_UPDATE_TRAINING_MODULE",
+    COURSE_TITLE_ALREADY_EXIST: "COURSE_TITLE_ALREADY_EXIST",
+    NOTIFICATION_FAILED_TO_MARK_AS_READ: "NOTIFICATION_FAILED_TO_MARK_AS_READ",
+    GET_NOTIFICATION_FAILED: "GET_NOTIFICATION_FAILED",
+    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS: "MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
     FAILED_TO_FETCH_EMPLOYESS: "FAILED_TO_FETCH_EMPLOYESS",
     INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
     INVALID_TITLE: "INVALID_TITLE",
@@ -95,6 +95,7 @@ const errorName = {
     FAILED_TO_FETCH_LEARNING_PLAN: "FAILED_TO_FETCH_LEARNING_PLAN",
     REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
+    EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
 };
 
 const errorType = {
@@ -169,9 +170,14 @@ const errorType = {
         Type: "OTP_ERROR",
     },
     WRONG_PASSWORD: {
-        message: "Wrong Password",
+        message: "Invalid E-mail or Password",
         statusCode: 400,
         Type: "WRONG_PASSWORD",
+    },
+    EMAIL_NOT_FOUND: {
+        message: "Email ID not found in our system",
+        statusCode: 400,
+        Type: "EMAIL_NOT_FOUND",
     },
     UPLOAD_FAILED: {
         message: "Upload Failed",
@@ -458,9 +464,9 @@ const errorType = {
         status: 400,
         type: "LEARNING_PLAN_ALREADY_EXISTS"
     },
-    LEARNING_PLAN_NOT_CREATED:{
+    LEARNING_PLAN_NOT_CREATED: {
         message: 'Learning Plan Not Created',
-        status: 400,    
+        status: 400,
         type: "LEARNING_PLAN_NOT_CREATED"
     },
     EMPLOYEE_NOT_REGISTERED: {
@@ -488,15 +494,15 @@ const errorType = {
         statusCode: 400,
         type: "LEARNING_PLAN_NOT_FOUND"
     },
-    MIGRATION_COURSES_NOT_FOUND:{
-        message:"Migration Courses Not found",
-        statusCode:400,
-        type:"MIGRATION_COURSES_NOT_FOUND"
+    MIGRATION_COURSES_NOT_FOUND: {
+        message: "Migration Courses Not found",
+        statusCode: 400,
+        type: "MIGRATION_COURSES_NOT_FOUND"
     },
-    OVERALLTRAININGPROGRESSES_NOT_REGISTERED:{
-        message:"Overalltrainingprogresses Not Registered",
-        statusCode:400,
-        type:"OVERALLTRAININGPROGRESSES_NOT_REGISTERED"
+    OVERALLTRAININGPROGRESSES_NOT_REGISTERED: {
+        message: "Overalltrainingprogresses Not Registered",
+        statusCode: 400,
+        type: "OVERALLTRAININGPROGRESSES_NOT_REGISTERED"
     },
     CREATE_OR_UPDATE_TRAINING_MODULE: {
         message: 'Error in Creating or Updating Training Module',
@@ -508,17 +514,17 @@ const errorType = {
         statusCode: 400,
         type: "COURSE_TITLE_ALREADY_EXIST"
     },
-    NOTIFICATION_FAILED_TO_MARK_AS_READ:{
+    NOTIFICATION_FAILED_TO_MARK_AS_READ: {
         message: 'Failed to mark notifications as read.',
         statusCode: 400,
         type: "NOTIFICATION_FAILED_TO_MARK_AS_READ"
     },
-    GET_NOTIFICATION_FAILED:{
+    GET_NOTIFICATION_FAILED: {
         message: 'Get Notification Failed',
         statusCode: 400,
         type: "GET_NOTIFICATION_FAILED"
     },
-    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:{
+    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS: {
         message: 'Missing mandatory fields for export',
         statusCode: 400,
         type: "MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
@@ -558,17 +564,17 @@ const errorType = {
         statusCode: 400,
         type: "FAILED_TO_DELETE_LEARNING_PLAN"
     },
-    FAILED_TO_FETCH_LEARNING_PLAN:{
+    FAILED_TO_FETCH_LEARNING_PLAN: {
         message: 'Failed to fetch learning plan',
         statusCode: 400,
         type: "FAILED_TO_FETCH_LEARNING_PLAN"
     },
-    REGTYPE_REQUIRED:{
+    REGTYPE_REQUIRED: {
         message: 'Registration type is required',
         statusCode: 400,
         type: "REGTYPE_REQUIRED",
     },
-    INVALID_REG_TYPE:{
+    INVALID_REG_TYPE: {
         message: 'Invalid Reg Type Provided',
         statusCode: 400,
         type: "INVALID_REG_TYPE",
@@ -576,7 +582,7 @@ const errorType = {
 };
 
 const formatError = error => {
- 
+
     let errorObject;
     try {
         errorObject = JSON.parse(error.message);

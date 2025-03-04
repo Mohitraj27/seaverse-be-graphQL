@@ -49,6 +49,7 @@
 		"mongoose": "^5.13.23",
 		"mongoose-aggregate-paginate-v2": "1.0.6",
 		"nanoid": "3.1.23",
+		"node-cache": "^5.1.2",
 		"node-cron": "3.0.2",
 		"nodemailer": "^6.9.15",
 		"pdf-parse": "^1.1.1",
