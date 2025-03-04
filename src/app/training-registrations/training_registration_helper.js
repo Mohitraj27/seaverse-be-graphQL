@@ -84,7 +84,11 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     vesselTypeIds.push(groupId);
                     break;
                 case groupTypes.owner:
-                    ownernameIds.push(groupId);
+                    if(Array.isArray(groupId)){
+                        ownernameIds.push(...groupId);
+                    }else {
+                        ownernameIds.push(groupId);
+                    }
                     break;
                 default:
                     break;
