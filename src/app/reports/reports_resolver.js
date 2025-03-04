@@ -2383,6 +2383,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                     {
                         $project: {
                             firstName: "$userInfo.firstName",
+                            lowercaseFirstName: { 
+                                $toLower: "$userInfo.firstName"
+                            },
                             lastName: "$userInfo.lastName",
                             email: '$userInfo.email',
                             designation: "$designationInfo.name",
@@ -2416,6 +2419,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                         $sort:
                         {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort:
+                        {
+                            lowercaseFirstName: 1
                         }
                     },
                     ...pageLimit
@@ -3193,6 +3202,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'user': '$_id.userId',
 
                             'firstName': 1,
+                            lowercaseFirstName: { 
+                                $toLower: "$firstName"
+                            },
                             'lastName': 1,
                             'email': 1,
                             'designation': 1,
@@ -3222,6 +3234,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     { $sort: { createdAt: -1 } },
+                    { $sort: { lowercaseFirstName : 1 } },
                     ...pageLimit
                 ]
             );
