@@ -3534,6 +3534,12 @@ const getVesselMainReport = async ({ input }, context) => {
             }
         }
 
+        const fieldMapping = {
+            "VESSEL_NAME": "vesselName",
+            "OWNER_NAME": "ownerName",
+        };
+        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,["VESSEL_NAME","OWNER_NAME"],"VESSEL_NAME",input?.sortInput); 
+        
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
@@ -3852,6 +3858,7 @@ const getVesselMainReport = async ({ input }, context) => {
                         createdAt: -1
                     }
                 },
+                ...sortStage,
                 ...pageLimit,
             ]
         );

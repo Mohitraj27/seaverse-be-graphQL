@@ -285,7 +285,8 @@ module.exports = {
         }
 
         input mainVesselReportInput {
-            filterInput: vesselReportFilter   
+            filterInput: vesselReportFilter 
+            sortInput: SortInput  
             pageInput: PageInput       
             export: Boolean 
         }
