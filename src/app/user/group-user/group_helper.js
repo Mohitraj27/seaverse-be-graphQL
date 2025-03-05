@@ -861,14 +861,97 @@ module.exports = {
                 },
             },
         ]);
-
+        const ownerGroups = await UserVessel.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "vessels",
+                    localField: "vessel",
+                    foreignField: "_id",
+                    as: "vesselDetails",
+                },
+            },
+            {
+                $unwind: "$vesselDetails",
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $unwind: "$userDetails",
+            },
+            {
+                $group: {
+                    _id: "$vesselDetails.ownerName",
+                    groupName: { $first: "$vesselDetails.ownerName" },
+                    members: {
+                        $push: {
+                            _id: "$userDetails._id",
+                            firstName: "$userDetails.firstName",
+                            lastName: "$userDetails.lastName",
+                            email: "$userDetails.email",
+                        },
+                    },
+                },
+            },
+              // Exclude groups where _id or groupName is null
+            {
+                $match: {
+                    _id: { $ne: null },
+                    groupName: { $ne: null },
+                },
+            },
+            {
+                $addFields: {
+                    memberCount: { $size: "$members" },
+                    groupType: "owner",
+                    description: {
+                        $concat: ["All the members in =", "$groupName", "= group which is based on owner name."],
+                    },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    groupName: 1,
+                    memberCount: 1,
+                    groupType: 1,
+                    description: 1,
+                },
+            },
+            {
+                $match: {
+                    memberCount: { $gt: 0 },
+                },
+            },
+        ]);
+        
         let allGroups = [];
         if (
             empDesignationGroups ||
             roleGroups ||
             vesselGroups ||
             vesselTypeGroups ||
-            vesselStatusGroups
+            vesselStatusGroups ||
+            ownerGroups
         ) {
             allGroups = [
                 ...empDesignationGroups,
@@ -876,9 +959,9 @@ module.exports = {
                 ...vesselGroups,
                 ...vesselTypeGroups,
                 ...vesselStatusGroups,
+                ...ownerGroups,
             ];
         }
-
         return allGroups;
     },
     getAutoSyncedGroups: async subscriberId => {
@@ -1351,29 +1434,102 @@ module.exports = {
                 },
             },
         ]);
-
-
+        const ownerGroups = await UserVessel.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "vessels",
+                    localField: "vessel",
+                    foreignField: "_id",
+                    as: "vesselDetails",
+                },
+            },
+            {
+                $unwind: "$vesselDetails",
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userDetails",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $unwind: "$userDetails",
+            },
+            {
+                $group: {
+                    _id: "$vesselDetails.ownerName",
+                    groupName: { $first: "$vesselDetails.ownerName" },
+                    members: {
+                        $push: {
+                            _id: "$userDetails._id",
+                            firstName: "$userDetails.firstName",
+                            lastName: "$userDetails.lastName",
+                            email: "$userDetails.email",
+                        },
+                    },
+                },
+            },
+            {
+                $addFields: {
+                    memberCount: { $size: "$members" },
+                    groupType: "owner",
+                    description: {
+                        $concat: ["All members under owner = ", "$groupName"],
+                    },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    groupName: 1,
+                    memberCount: 1,
+                    groupType: 1,
+                    description: 1,
+                },
+            },
+            {
+                $match: {
+                    memberCount: { $gt: 0 },
+                },
+            },
+        ]);
         let allGroups = [];
         if (
             empDesignationGroups ||
             roleGroups ||
             vesselGroups ||
-            vesselTypeGroups
+            vesselTypeGroups ||
+            ownerGroups
         ) {
             allGroups = [
                 ...empDesignationGroups,
                 ...roleGroups,
                 ...vesselGroups,
                 ...vesselTypeGroups,
+                ...ownerGroups,
             ];
         }
-
+        
         return allGroups;
     },
     getAutoSyncUsersOfSingleGroup: async (group) => {
-
-        const groupArray = [{ groupType: group.groupType, groupId: group.groupId }];
-
+        const groupArray = [{ groupType: group?.groupType, groupId: group?.groupId }];
         const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
         if (autoSyncedUsers && autoSyncedUsers.length > 0) {
             return autoSyncedUsers;

@@ -7,5 +7,6 @@
     "unRegStatus": "unRegStatus",
     "vesselType": "vesselType",
     "vesselStatus": "vesselStatus",
-    "custom": "custom"
+    "custom": "custom",
+    "owner":"owner"
 }
