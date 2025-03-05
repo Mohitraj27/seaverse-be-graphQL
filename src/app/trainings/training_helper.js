@@ -301,7 +301,14 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: { $set: { status: "IN_PROGRESS", contentData, startDate: new Date(), totalTrainingModules: contentData?.length, isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate } },
+                        update: {
+                            $set: {
+                                status: "IN_PROGRESS",
+                                contentData, startDate: new Date(),
+                                totalTrainingModules: contentData?.length,
+                                isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate
+                            }
+                        },
                     },
                 });
             }
@@ -375,7 +382,7 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
             isTrainingCompleted,
         };
     });
-    
+
 };
 
 function mergeTrainingData(data) {
