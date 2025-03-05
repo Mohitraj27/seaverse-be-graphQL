@@ -130,16 +130,20 @@ module.exports.mutations = {
                     vesselName: getVessel?.name || 'N/A',
                     userName: getUser.firstName,
                 })
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `New Vessel Assigned: ${getVessel?.name}`,
-                    messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                    notificationType: NotificationType.VESSEL_CREATED,
-                    notifyAdmin: true,
-                    status: "SENT",
-                    icon: notificationEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
+                if (getVessel) {
+
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `New Vessel Assigned: ${getVessel?.name}`,
+                        messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        notificationType: NotificationType.VESSEL_CREATED,
+                        notifyAdmin: true,
+                        status: "SENT",
+                        icon: notificationEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+
+                }
                 await SendEmail({
                     receiverEmail: userInfo.email,
                     subject: `User Vessel Assignment Notification`,
