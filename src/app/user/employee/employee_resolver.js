@@ -761,24 +761,6 @@ module.exports.queries = {
                         },
                     ]
                     : []),
-                ...(filterInput?.role?.length > 0
-                    ? [
-                        {
-                            $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
-                                    ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
-                        },
-                    ]
-                    : []),
                 ...(filterInput?.isRegistered !== undefined
                     ? [
                         {
