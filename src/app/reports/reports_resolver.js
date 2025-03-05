@@ -159,11 +159,52 @@ const getMainLearnersReport = async ({ input }, context) => {
 
         }
 
+        const sortingStage = [];
+        const sortOrder = input?.sortInput?.sortOrder ?? 1;
+
+        const fieldMapping = {
+            "FIRST_NAME": "name",
+            "LAST_SEEN": "lastSeen",
+        };
+
+        const field = input?.sortInput?.field ?? "FIRST_NAME";
+        const fieldPath = fieldMapping[field];
+        //keeping this "FIRST_NAME" if-condition only for future reference (there is a chance that designations and vesselnames will come as sortable fields)
+        if (field === "FIRST_NAME") {  
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else if (fieldPath) {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $addFields: {
+                    lowercaseFirstname: { $toLower: "$name" }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    lowercaseFirstname: 1
+                }
+            });
+        }
+
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
-
+        const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
 
         const employeesData = await Employee.aggregate([
@@ -325,7 +366,9 @@ const getMainLearnersReport = async ({ input }, context) => {
                 '$sort': {
                     'latestUpdatedAt': -1
                 }
-            }
+            },
+            ...sortingStage,
+            ...pageLimit,
         ]);
 
 
@@ -517,11 +560,62 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
         }
 
+
+        //NOT USING THE HELPER FUNCTION SINCE COURSE NAME IS AN ARRAY
+        const fieldMapping = {
+            "COURSE_NAME": {                // since courseName is an array at the end of aggregation
+                $arrayElemAt: [
+                    '$courseName', 0
+                ]
+            },
+            "COURSE_STATUS": "$status",
+            "LAST_SEEN": "updatedAt",
+        };
+        const sortingStage = [];
+        const sortOrder = input?.sortInput?.sortOrder ?? 1;
+        const field = input?.sortInput?.field ?? "COURSE_NAME";
+        const fieldPath = fieldMapping[field];
+
+        
+        if (field === "COURSE_STATUS"|| field === "COURSE_NAME") { 
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: fieldPath }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else if (fieldPath) {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $addFields: {
+                    lowercaseCourseName: {
+                        $toLower: {
+                            $arrayElemAt: ["$courseName", 0]
+                        }
+                    }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    lowercaseCourseName: 1
+                }
+            });
+        }
+
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
-
+        const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
-            matchStage.push({ $skip: skip }, { $limit: limit });
+            pageLimit.push({ $skip: skip }, { $limit: limit });
         }
         const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
 
@@ -739,7 +833,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         '$sort': {
                             'createdAt': -1
                         }
-                    }
+                    },
+                    ...sortingStage,
+                    ...pageLimit,
                 ]
             );
 
@@ -1423,6 +1519,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             unenrollmentDate: 1,
                             empId: 1,
                             trainingTitle: 1,
+                            lowercaseTitle: { 
+                                $toLower: { $arrayElemAt: ["$trainingTitle.value", 0] }
+                            },
                             modules: {
                                 $sortArray: {
                                     input: "$modules",
@@ -1437,6 +1536,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     {
                         $sort: {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort: {
+                            lowercaseTitle: 1
                         }
                     },
                 ]
@@ -1610,6 +1714,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
     } catch (err) {
+
         await NotificationHelper.createNotificationhelper({
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
@@ -1671,6 +1776,12 @@ const getMainCoursesReport = async ({ input }, context) => {
         }
 
 
+        const fieldMapping = {
+            "COURSE_NAME": "lowercaseTitle",
+            "LAST_MODIFIED": "updatedAt",
+            "TOTAL_ENROLLMENTS": "totalUsers",
+        };
+        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,[],"COURSE_NAME",input?.sortInput); 
         const data = await Training.aggregate([
             {
                 $sort: {
@@ -1796,6 +1907,9 @@ const getMainCoursesReport = async ({ input }, context) => {
                 $project: {
                     _id: 1,
                     title: 1,
+                    lowercaseTitle: { 
+                        $toLower: { $arrayElemAt: ["$title.value", 0] }
+                    },
                     updatedAt: 1,
                     updatedBy: {
                         $concat: [
@@ -1841,6 +1955,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                     updatedAt: -1,
                 }
             },
+            ...sortStage,
             ...pageLimit,
         ]);
         const coursesData = data.map(item => ({
@@ -1943,6 +2058,7 @@ const getMainCoursesReport = async ({ input }, context) => {
         };
 
     } catch (err) {
+        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
@@ -2267,6 +2383,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                     {
                         $project: {
                             firstName: "$userInfo.firstName",
+                            lowercaseFirstName: { 
+                                $toLower: "$userInfo.firstName"
+                            },
                             lastName: "$userInfo.lastName",
                             email: '$userInfo.email',
                             designation: "$designationInfo.name",
@@ -2300,6 +2419,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                         $sort:
                         {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort:
+                        {
+                            lowercaseFirstName: 1
                         }
                     },
                     ...pageLimit
@@ -3077,6 +3202,9 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'user': '$_id.userId',
 
                             'firstName': 1,
+                            lowercaseFirstName: { 
+                                $toLower: "$firstName"
+                            },
                             'lastName': 1,
                             'email': 1,
                             'designation': 1,
@@ -3106,6 +3234,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     { $sort: { createdAt: -1 } },
+                    { $sort: { lowercaseFirstName : 1 } },
                     ...pageLimit
                 ]
             );
@@ -3405,6 +3534,12 @@ const getVesselMainReport = async ({ input }, context) => {
             }
         }
 
+        const fieldMapping = {
+            "VESSEL_NAME": "vesselName",
+            "OWNER_NAME": "ownerName",
+        };
+        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,["VESSEL_NAME","OWNER_NAME"],"VESSEL_NAME",input?.sortInput); 
+        
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
@@ -3723,6 +3858,7 @@ const getVesselMainReport = async ({ input }, context) => {
                         createdAt: -1
                     }
                 },
+                ...sortStage,
                 ...pageLimit,
             ]
         );
@@ -4160,6 +4296,9 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         '$project': {
                             'firstName': '$userInfo.firstName',
+                            lowercaseFirstName: { 
+                                $toLower: "$userInfo.firstName"
+                            },
                             'lastName': '$userInfo.lastName',
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
@@ -4192,7 +4331,7 @@ const generateCustomReport = async ({ input }, context) => {
                     },
                     {
                         '$sort': {
-                            'firstName': -1
+                            'lowercaseFirstName': 1
                         }
                     }
                 ]
@@ -4732,6 +4871,9 @@ const generateCustomReport = async ({ input }, context) => {
                             courseId: "$_id.trainingId",
                             user: "$_id.userId",
                             firstName: 1,
+                            lowercaseFirstName: { 
+                                $toLower: "$firstName"
+                            },
                             lastName: 1,
                             email: 1,
                             designation: 1,
@@ -4757,6 +4899,11 @@ const generateCustomReport = async ({ input }, context) => {
                     {
                         $sort: {
                             createdAt: -1
+                        }
+                    },
+                    {
+                        $sort: {
+                            lowercaseFirstName: 1
                         }
                     },
                 ]
