@@ -416,7 +416,7 @@ module.exports.mutations = {
 
             const existingUser = await User.findOne({ email });
             if (!existingUser) {
-                throw CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
 
             const token = generateRandomString(10);
