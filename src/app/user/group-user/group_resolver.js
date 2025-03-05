@@ -130,7 +130,7 @@ module.exports.queries = {
                 "Email": user?.email,
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
-                "Last Login Date (UTC)":  formatDate(user?.lastLoginAt),
+                "Last Login Date (UTC)": formatDate(user?.lastLoginAt),
                 "User State": user?.isRegistered ? "Registered" : "Unregistered",
                 "Designation": user?.designation,
                 "Type Of Vessel": user?.vesselType,
@@ -354,7 +354,12 @@ module.exports.queries = {
             throw CustomError(ErrorName.USER_ID_REQUIRED);
         }
 
-        const existingUser = await User.findById(userId);
+        const existingUser = await User.findById(userId).populate({
+            path: 'currentVessel',
+            populate: {
+                path: 'typeOfVessel',
+            },
+        });
 
         if (!existingUser) {
             throw CustomError(ErrorName.USER_NOT_FOUND);
@@ -389,23 +394,16 @@ module.exports.queries = {
         const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
         const subRoleNames = subRoles.map(subRole => subRole.name);
 
-        let vesseldetail, vesselName, vesselStatus, vesselTypeName;
-        const vessel = await UserVessel.findOne({ user: userId, isActive: true });
-
-        if (vessel !== null) {
-            vesseldetail = await Vessel.findById(vessel.vessel);
-            vesselName = vesseldetail.name;
-            vesselStatus = vessel.vesselStatus;
-            const vesselType = await VesselType.findById(vesseldetail.typeOfVessel);
-            vesselTypeName = vesselType.name;
-        }
+        const vesselName = existingUser?.currentVessel?.name;
+        const vesselStatus = existingUser?.vesselStatus;
+        const vesselType = existingUser?.currentVessel?.typeOfVessel?.name;
 
         let customGroupNames = null;
-        const  customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
+        const customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
         const groupIds = customGroups.map(item => item.group);
-        if(groupIds && groupIds.length > 0){
+        if (groupIds && groupIds.length > 0) {
             const customGroup = await Group.find({ _id: { $in: groupIds } });
-            if(customGroup && customGroup.length > 0){
+            if (customGroup && customGroup.length > 0) {
                 customGroupNames = customGroup.map(group => group.groupName);
             }
         }
@@ -415,7 +413,7 @@ module.exports.queries = {
                 role: roleName ?? null,
                 vessel: vesselName ?? null,
                 vesselStatus: vesselStatus ?? null,
-                vesselType: vesselTypeName ?? null,
+                vesselType: vesselType ?? null,
                 subRole: subRoleNames ?? null,
                 regStatus: regStatusGroup ?? null,
                 customGroups: customGroupNames ?? null,
