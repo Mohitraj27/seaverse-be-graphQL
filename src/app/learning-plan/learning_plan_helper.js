@@ -58,6 +58,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'subRole':
                 case 'vessel':
                 case 'vesselType':
+                case 'owner':
                     group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     break;
                 case 'role':
@@ -593,6 +594,11 @@ const getUsersAndCount = async (input) => {
                                         ids = vesselSttatusUsers.map(user => user._id);
                                         groupIDs = [...groupIDs, ...ids];
                                         break;
+                                    case 'owner':
+                                        const ownerUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        ids = ownerUsers.map(user => user._id);
+                                        groupIDs = [...groupIDs, ...ids];
+                                        break;
                                     default:
                                         errorList.push(errorMessages.INVALID_GROUP_TYPE);
                                         continue;
@@ -660,6 +666,10 @@ const getUsersAndCount = async (input) => {
                             const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
                             groupIDs = vesselSttatusUsers.map(user => user._id);
                             break;
+                        case 'owner':
+                            const ownerUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                            groupIDs = ownerUsers.map(user => user._id);
+                            break;
 
                         default:
                             errorList.push(errorMessages.INVALID_GROUP_TYPE);
@@ -720,6 +730,11 @@ const getUsersAndCount = async (input) => {
                             case 'vesselStatus':
                                 const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
                                 ids = vesselSttatusUsers.map(user => user._id);
+                                groupIDs = [...groupIDs, ...ids];
+                                break;
+                            case 'owner':
+                                const ownerUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupIDs }]);
+                                ids = ownerUsers.map(user => user._id);
                                 groupIDs = [...groupIDs, ...ids];
                                 break;
                             default:
@@ -858,7 +873,10 @@ const getUsersAndCount = async (input) => {
                                         const vesselSttatusUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
                                         groupIDs = vesselSttatusUsers.map(user => user._id);
                                         break;
-
+                                    case 'owner':
+                                        const ownerUsers = await getAutoSyncUsers([{ groupType: item.groupType, groupId: item.groupId }]);
+                                        groupIDs = ownerUsers.map(user => user._id);
+                                        break;
                                     default:
                                         errorList.push(errorMessages.INVALID_GROUP_TYPE);
                                         continue;
