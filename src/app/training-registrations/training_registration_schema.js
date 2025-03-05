@@ -82,6 +82,7 @@ module.exports = {
             isFromMigration:Boolean
             createdAt: String
             attemptCount: Int
+            isCertificatePresent: Boolean
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
