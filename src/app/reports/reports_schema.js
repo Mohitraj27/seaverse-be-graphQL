@@ -6,6 +6,17 @@ module.exports = {
             QUIZ
             MODULE
         } 
+        enum ReportsSortEnum {
+            FIRST_NAME
+            LAST_SEEN
+            COURSE_STATUS
+            COURSE_NAME
+            LAST_MODIFIED
+            TOTAL_ENROLLMENTS
+            VESSEL_NAME
+            """VESSEL_TYPE"""
+            OWNER_NAME
+        } 
         enum selectVesselOrLearnerEnum {
             VESSEL
             LEARNER
@@ -105,10 +116,15 @@ module.exports = {
             fileName : String
             employeesData : [learnerMainReportData]
         }
+        input SortInput {
+            field : ReportsSortEnum
+            sortOrder : Int
+        }
         input learnerMainReportInput {
             pageInput: PageInput
             export : Boolean
             filterInput : learnerMainReportFilter
+            sortInput : SortInput
             selectVesselOrLearner : selectVesselOrLearnerEnum
         }
         input learnerMainReportFilter {
@@ -125,6 +141,7 @@ module.exports = {
             reportType : reportTypeEnum!
             selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
+            sortInput : SortInput
             filter : singleLearnerReportFilter
             export : Boolean
         }
@@ -156,7 +173,8 @@ module.exports = {
             learnerData : [singleLearnersReport]
         }
         input MainCoursesReportInput {
-            filterInput: CourseFilterInput   
+            filterInput: CourseFilterInput  
+            sortInput: SortInput 
             pageInput: PageInput       
             export: Boolean                  
         }
@@ -267,7 +285,8 @@ module.exports = {
         }
 
         input mainVesselReportInput {
-            filterInput: vesselReportFilter   
+            filterInput: vesselReportFilter 
+            sortInput: SortInput  
             pageInput: PageInput       
             export: Boolean 
         }
