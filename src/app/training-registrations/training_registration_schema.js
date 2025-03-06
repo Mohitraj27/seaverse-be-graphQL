@@ -110,6 +110,7 @@ module.exports = {
             custom
             GROUP
             MEMBER
+            owner
         }
         input GroupInputForEnroll {
             groupType: groupTypeEnums!
