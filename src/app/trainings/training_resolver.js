@@ -39,7 +39,8 @@ const { populate, validate } = require("../contact-support/contact_support_model
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
-
+const { LearningPlan } = require("../learning-plan/learning_plan_model");
+const { LearningPlanAssignment } = require('../learning-plan/assignedLearner/assignedLearnerModel');
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -412,7 +413,44 @@ module.exports.mutations = {
                     { training: id },
                     { isDeleted: true }
                 )
-
+                const learningPlans = await LearningPlan.find({ selectCourses: id });
+            
+                if (learningPlans.length > 0) {
+                    const allCourseIds = [...new Set(learningPlans.flatMap(lp => lp.selectCourses))];
+                    console.log('all Course Ids',allCourseIds);
+                    // Fetch remaining courses in a single query
+                    const remainingCourses = await Training.find({ _id: { $in: allCourseIds } }).distinct("_id");
+                    console.log('remaining Courses',remainingCourses);
+                    const remainingCourseSet = new Set(remainingCourses);
+                    console.log('Remaining Course Set',remainingCourseSet);
+    
+                    // Filter Learning Plans where all courses are deleted
+                    const learningPlanIdsToDelete = learningPlans
+                        .filter(lp => lp.selectCourses.every(courseId => !remainingCourseSet.has(courseId)))
+                        .map(lp => lp._id);
+                    console.log('learning plan ids to Delete',learningPlanIdsToDelete);
+                    if (learningPlanIdsToDelete.length > 0) {
+                        console.log(`Deleting LearningPlans: ${learningPlanIdsToDelete}`);
+    
+                        // Delete all Learning Plans in a single query
+                        const LearningPlanDeleted = await LearningPlan.deleteMany({ _id: { $in: learningPlanIdsToDelete } });
+                        // Find LearningPlanAssignments that exist with the IDs in learningPlanIdsToDelete
+                       if(LearningPlanDeleted?.deletedCount > 0){
+                           
+                       
+                        const existingAssignments = await LearningPlanAssignment.find({
+                            learningPlanId: { $in: learningPlanIdsToDelete },
+                        });
+                        if (existingAssignments?.length > 0) {
+                            console.log(`Deleting LearningPlanAssignments: ${existingAssignments.length}`);
+                        // Delete associated LearningPlanAssignments if they exist
+                        const deletedAssignments = await LearningPlanAssignment.deleteMany({
+                            learningPlanId: { $in: learningPlanIdsToDelete },
+                        });
+                        }}
+                        console.log(`Deleted LearningPlanAssignments: ${deletedAssignments.deletedCount}`);
+                    }
+                }
             }
 
         } catch (error) {
