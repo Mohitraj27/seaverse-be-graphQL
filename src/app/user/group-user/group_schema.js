@@ -110,6 +110,7 @@ module.exports = {
             vesselType: String
             subRole: [String]
             regStatus: String
+            owner: String
             customGroups: [String]
         }
         type singleMemberDetails {

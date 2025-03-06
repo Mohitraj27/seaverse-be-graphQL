@@ -349,7 +349,7 @@ module.exports.queries = {
     },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
-
+    try {
         if (!userId) {
             throw CustomError(ErrorName.USER_ID_REQUIRED);
         }
@@ -381,6 +381,8 @@ module.exports.queries = {
 
         const roleName = existingUser.role;
 
+        const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
+        const owner = ownerName[0]?.ownerName;
         let regStatusGroup;
 
         if (existingUser.isRegistered) {
@@ -417,7 +419,11 @@ module.exports.queries = {
                 subRole: subRoleNames ?? null,
                 regStatus: regStatusGroup ?? null,
                 customGroups: customGroupNames ?? null,
+                owner: owner ?? null
             };
+        }}
+        catch(error){
+            throw new Error(error.message);
         }
     },
     getUsersAndAutoSyncedGroups: async ({ search }, context) => {

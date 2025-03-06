@@ -1486,6 +1486,11 @@ module.exports = {
                 },
             },
             {
+                $match: {
+                    _id: { $ne: null, $ne: "" },
+                },
+            },
+            {
                 $addFields: {
                     memberCount: { $size: "$members" },
                     groupType: "owner",
@@ -1501,6 +1506,7 @@ module.exports = {
                     memberCount: 1,
                     groupType: 1,
                     description: 1,
+                    members: 1,
                 },
             },
             {
