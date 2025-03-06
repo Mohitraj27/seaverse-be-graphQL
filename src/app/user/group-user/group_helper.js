@@ -1469,7 +1469,7 @@ module.exports = {
                 },
             },
             {
-                $unwind: "$userDetails",
+                $unwind: "$userDetails", preserveNullAndEmptyArrays: false
             },
             {
                 $group: {
