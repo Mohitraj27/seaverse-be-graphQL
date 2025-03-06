@@ -1183,7 +1183,7 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         return errors;
     }
 
-    let normalizedId = row["User ID*"].toLowerCase();
+    let normalizedId = row["User ID*"].toUpperCase();
     if (empIds.has(normalizedId)) {
         errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID*"]}`);
         return errors;
@@ -1262,7 +1262,7 @@ function mapCSVRowToUser(row) {
     const result = {
         firstName: row["First Name*"],
         lastName: row["Last Name"] ?? "",
-        civilIdOrPassport: row["User ID*"]?.toLowerCase(),
+        civilIdOrPassport: row["User ID*"]?.toUpperCase(),
         email: row["Email*"]?.toLowerCase(),
         designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
@@ -2004,7 +2004,7 @@ module.exports = {
 
         existingUsers.forEach(user => {
             if (user.civilIdOrPassport && user.email) {
-                const employeeId = user.civilIdOrPassport.toLowerCase();
+                const employeeId = user.civilIdOrPassport?.toUpperCase();
                 const email = user.email.toLowerCase();
 
                 existingEmailsInDB.set(employeeId, email);
@@ -2025,7 +2025,7 @@ module.exports = {
 
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
-        const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport.toLowerCase());
+        const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport?.toUpperCase());
         let errors = [];
         const updates = [];
         const inserts = [];
@@ -2064,10 +2064,10 @@ module.exports = {
 
                     const empId = existingEmailIdsMap[user.email?.toLowerCase()];
 
-                    if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
+                    if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
 
-                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toUpperCase())}`));
                         break;
 
                     } else {
@@ -2079,7 +2079,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -2141,7 +2141,7 @@ module.exports = {
 
                 if (existingEmpIdsMap) {
 
-                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
+                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toUpperCase()];
 
                     if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
 
@@ -2178,7 +2178,7 @@ module.exports = {
 
                     }
 
-                } else if (empId !== user.civilIdOrPassport?.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toLowerCase())) {
+                } else if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
                     break;
@@ -2192,7 +2192,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                    civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -2225,7 +2225,7 @@ module.exports = {
                 } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
 
 
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toUpperCase())}`));
                     break;
 
                 } else {
