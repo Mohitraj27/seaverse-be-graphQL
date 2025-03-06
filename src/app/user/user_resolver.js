@@ -11,7 +11,6 @@ const {
 } = require("../../util");
 
 const { User, DeletedUser, AppUser } = require("./user_model");
-const { Otp } = require("./otp_model");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { Employee, AppEmployee } = require("./employee/employee_model");
 const { SubscriberProfile } = require("./subscriber-profile/subscriber_profile_model");
@@ -29,6 +28,7 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const Export = require("../user/exportUser/exportUser_model");
 const { Designation } = require("../designations/designation_model");
 const { generateRandomString } = require("./user-profile/user_profile_helper");
+const  SignUpOtp  = require('./SignUpOtp');
 
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
@@ -500,5 +500,42 @@ module.exports.mutations = {
             status: true,
             message: "User created successfully!",
         };
-    }
+    },
+    signUpVerifyEmail: async ({ input }) => {
+        try {
+            const { email } = input;
+            if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
+            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
+            if (!emailRegex.test(email))
+                throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
+            const otp = Math.floor(100000 + Math.random() * 900000);
+            const html = `<div style="text-align: center;">
+            <h2>Otp for Email Verification</h2>
+            <p>Your OTP for email verification is <b>${otp}</b></p>
+            </div>`;
+
+            const sendEmailResponse = await AwsHelper.sendEmail({
+                receiverEmail: email,
+                subject: "OTP Email Verification",
+                htmlContent: html,
+            });
+
+            const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
+            if (sendEmailResponse) {
+                await SignUpOtp.create({
+                    email : email,
+                    otp: encryptedOtp,
+                });
+                setTimeout(async () => {
+                    await SignUpOtp.findOneAndDelete({ email });
+                }, 10 * 60 * 1000);
+            }
+            return {
+                status: true,
+                message: "OTP sent successfully!",
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
+        }
+    },
 };

@@ -126,6 +126,13 @@ module.exports = {
             email: String!
             password: String!
         }
+        input emailVertificationInput{
+            email: String!
+        }
+        type emailVerification{
+            status: String!
+            message: String!
+        }
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -139,5 +146,6 @@ module.exports = {
         generateRefreshToken(token: String!): refreshTokenRes!
         signOut(input: SignOutInput): String!
         appSignUp(input: AppSignUpInput!): downloadResponse!
+        signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
     `,
 };
