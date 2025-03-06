@@ -385,7 +385,7 @@ module.exports.queries = {
         const roleName = existingUser.role;
 
         const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
-        const owner = ownerName[0]?.ownerName;
+        const owner = ownerName[0]?.ownerName || null;
         let regStatusGroup;
 
         if (existingUser.isRegistered) {
