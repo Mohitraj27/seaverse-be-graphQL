@@ -1766,6 +1766,14 @@ const getMainCoursesReport = async ({ input }, context) => {
                 matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
             }
 
+            if (filterInput?.ids?.length > 0) {
+                matchStage.push({
+                    $match: {
+                        _id: { $in: filterInput.ids },
+                    },
+                });
+            }
+
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -2084,6 +2092,7 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
+        const matchIdsToBeExported = [];
         /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -2182,6 +2191,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+            if (filterInput.idsToExport && Array.isArray(filterInput.idsToExport) && filterInput.idsToExport.length > 0) {
+                matchIdsToBeExported.push({
+                    $match: {
+                        _id: { $in: filterInput?.idsToExport },
+                    },
+                });
+            }
+            
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -2382,6 +2399,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     ...matchStage,
                     {
                         $project: {
+                            _id: 1,
                             firstName: "$userInfo.firstName",
                             lowercaseFirstName: { 
                                 $toLower: "$userInfo.firstName"
@@ -2427,6 +2445,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             lowercaseFirstName: 1
                         }
                     },
+                    ...matchIdsToBeExported,
                     ...pageLimit
                 ]
 
@@ -3197,7 +3216,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     }, {
                         '$project': {
-                            '_id': 0,
+                            '_id': '$_id.userId',
                             'courseId': '$_id.trainingId',
                             'user': '$_id.userId',
 
@@ -3235,6 +3254,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     { $sort: { createdAt: -1 } },
                     { $sort: { lowercaseFirstName : 1 } },
+                    ...matchIdsToBeExported,
                     ...pageLimit
                 ]
             );
