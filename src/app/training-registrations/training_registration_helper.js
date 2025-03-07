@@ -746,9 +746,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
 
         // Return summary ( in case you have to verify success and errors, console the results)
         const { successCount, errorCount, errors } = summarizeResults(results);
-        console.log('this is the success count',successCount);
-        console.log('this is the error count',errorCount);
-        console.log('this is the errors',errors);
+
         return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
 
     } catch (error) {
@@ -1019,7 +1017,6 @@ module.exports = {
                             courses: coursesDataMap,
                             isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
-                        console.log('emailData');
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
