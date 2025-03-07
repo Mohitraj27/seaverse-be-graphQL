@@ -1985,7 +1985,7 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
-
+         
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
         let userCount = 0;
@@ -2180,7 +2180,7 @@ module.exports = {
 
                 } else if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toUpperCase())}`));
                     break;
 
                 } else {
@@ -2599,8 +2599,7 @@ module.exports = {
 
             const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
             const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
-            const fetchAdminDesignation = fetchAdminEmployee.empDesignation.name;
-
+            const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
