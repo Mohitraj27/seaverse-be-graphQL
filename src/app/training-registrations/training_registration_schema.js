@@ -255,5 +255,6 @@ module.exports = {
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
         markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
         resetModules(input: ResetModulesInput!): ResetModulesRes!
+        courseCompletionForFirstTime(input: ID!): MarkAsCompletedRes!
     `,
 };

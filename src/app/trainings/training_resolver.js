@@ -667,6 +667,7 @@ module.exports.mutations = {
             fetchOverallTraining.progressPercentage = 0.00;
             fetchOverallTraining.lastConsumedContent = {};
             fetchOverallTraining.startDate = null;
+            fetchOverallTraining.finishedCourseFirstTime = false;
             fetchOverallTraining.endDate = null;
             fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
