@@ -1469,7 +1469,7 @@ module.exports = {
                 },
             },
             {
-                $unwind: "$userDetails",
+                $unwind: "$userDetails", preserveNullAndEmptyArrays: false
             },
             {
                 $group: {
@@ -1483,6 +1483,11 @@ module.exports = {
                             email: "$userDetails.email",
                         },
                     },
+                },
+            },
+            {
+                $match: {
+                    _id: { $ne: null, $ne: "" },
                 },
             },
             {
@@ -1501,6 +1506,7 @@ module.exports = {
                     memberCount: 1,
                     groupType: 1,
                     description: 1,
+                    members: 1,
                 },
             },
             {

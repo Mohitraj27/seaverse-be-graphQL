@@ -112,6 +112,7 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
 
         case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
             return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
+            
         case typeOfConditionalCustomFieldEnum.CURRENT_STATUS:
             return valueOfField.map(value => ({ currentStatus: value }));
         default:
