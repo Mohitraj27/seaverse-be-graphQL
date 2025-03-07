@@ -683,7 +683,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
         const emailPromises = emailBatch.map(async (email) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
-                return await AWS_HELPER.sendEmail({ to, subject, html });
+                return await AWS_HELPER.sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
             } else {
                 return Promise.reject(new Error("Invalid email address"));
             }
@@ -695,7 +695,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
             retryCount < 5
         ) {
             await delay(2 ** retryCount * 1000);
-            return sendWithRetry(emailBatch, retryCount + 1);
+            return sendCourseMailsWithRetry(emailBatch, retryCount + 1);
         }
         throw error;
     }
@@ -746,7 +746,9 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
 
         // Return summary ( in case you have to verify success and errors, console the results)
         const { successCount, errorCount, errors } = summarizeResults(results);
-
+        console.log('this is the success count',successCount);
+        console.log('this is the error count',errorCount);
+        console.log('this is the errors',errors);
         return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
 
     } catch (error) {
@@ -1017,7 +1019,7 @@ module.exports = {
                             courses: coursesDataMap,
                             isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
-
+                        console.log('emailData');
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
