@@ -497,10 +497,8 @@ module.exports.mutations = {
                 await SignUpOtp.create({
                     email : email,
                     otp: encryptedOtp,
+                    generatedtoken: generatedtoken,
                 });
-                setTimeout(async () => {
-                    await SignUpOtp.findOneAndDelete({ email });
-                }, 10 * 60 * 1000);
             }
             return {
                 status: true,
@@ -508,6 +506,27 @@ module.exports.mutations = {
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
+        }
+    },
+
+    verifyOTPSignup: async ({ input }) => {
+        try {
+            const { email, generatedtoken, otp } = input;
+            if (!email || !otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email or otp is missing!");
+            const savedOtp = await SignUpOtp.findOne({ generatedtoken });
+            if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
+            
+            const isOtpValid = await CryptoHelper.compare(otp.toString(), savedOtp.otp);
+            if (!isOtpValid) throw CustomError(ErrorName.INVALID_OTP,'Invalid OTP');
+            
+            await SignUpOtp.deleteMany({ email });
+            return {
+                status: true,
+                message: "OTP verified successfully!",
+            };
+          
+        } catch (error) {
+            throw CustomError(ErrorName.OTP_VERIFICATION_FAILED, error.message);
         }
     },
 };

@@ -9,6 +9,9 @@ const signUpOtpSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true
+    },
+    generatedtoken: {
+        type: String
     }
 }, { timestamps: true });
 

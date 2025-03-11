@@ -97,7 +97,10 @@ const errorName = {
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
     EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
     SIGNUP_FAILED: "SIGNUP_FAILED",
-    EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED"
+    EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED",
+    OTP_VERIFICATION_FAILED: "OTP_VERIFICATION_FAILED",
+    INVALID_OTP: "INVALID_OTP",
+    OTP_EXPIRED: "OTP_EXPIRED"
 };
 
 const errorType = {
@@ -591,6 +594,21 @@ const errorType = {
         statusCode: 400,
         type: "SIGNUP_FAILED",
     },
+    OTP_VERIFICATION_FAILED: {
+        message: 'OTP Verification Failed',
+        statusCode: 400,
+        type: "OTP_VERIFICATION_FAILED",
+    },
+    INVALID_OTP: {
+        message: 'Invalid OTP',
+        statusCode: 400,
+        type: "INVALID_OTP",
+    },
+    OTP_EXPIRED : {
+        message: 'OTP Expired',
+        statusCode: 400,
+        type: "OTP_EXPIRED",
+    }
 };
 
 const formatError = error => {

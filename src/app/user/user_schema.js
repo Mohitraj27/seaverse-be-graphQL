@@ -134,6 +134,15 @@ module.exports = {
             status: String!
             message: String!
         }
+        input OTPVerificationInput{
+            email: String!
+            generatedtoken: String!
+            otp: String!
+        }
+        type verifyOTP{
+            status: String!
+            message: String!
+        }
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -148,5 +157,6 @@ module.exports = {
         signOut(input: SignOutInput): String!
         appSignUp(input: AppSignUpInput!): downloadResponse!
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
+        verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
     `,
 };
