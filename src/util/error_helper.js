@@ -96,6 +96,7 @@ const errorName = {
     REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
     EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
+    SIGNUP_FAILED: "SIGNUP_FAILED",
     EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED"
 };
 
@@ -584,7 +585,12 @@ const errorType = {
         message: 'Email Verification Failed',
         statusCode: 400,
         type: "EMAIL_VERIFICATION_FAILED",
-    }
+    },
+    SIGNUP_FAILED: {
+        message: 'Failed to signup',
+        statusCode: 400,
+        type: "SIGNUP_FAILED",
+    },
 };
 
 const formatError = error => {
