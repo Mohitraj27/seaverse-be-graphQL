@@ -110,6 +110,7 @@ module.exports = {
             custom
             GROUP
             MEMBER
+            owner
         }
         input GroupInputForEnroll {
             groupType: groupTypeEnums!
@@ -255,5 +256,6 @@ module.exports = {
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
         markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
         resetModules(input: ResetModulesInput!): ResetModulesRes!
+        courseCompletionForFirstTime(input: ID!): MarkAsCompletedRes!
     `,
 };
