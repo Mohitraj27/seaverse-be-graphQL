@@ -128,6 +128,7 @@ module.exports = {
             message: String!
         }
         input emailVertificationInput{
+            country: String
             email: String!
         }
         type emailVerification{
@@ -142,6 +143,8 @@ module.exports = {
         type verifyOTP{
             status: String!
             message: String!
+            email: String!
+            country: String!
         }
     `,
     queries: `

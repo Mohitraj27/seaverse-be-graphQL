@@ -12,6 +12,9 @@ const signUpOtpSchema = new mongoose.Schema({
     },
     generatedtoken: {
         type: String
+    },
+    country: {
+        type: String
     }
 }, { timestamps: true });
 

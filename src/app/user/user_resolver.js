@@ -470,7 +470,7 @@ module.exports.mutations = {
     },
     signUpVerifyEmail: async ({ input }) => {
         try {
-            const { email } = input;
+            const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
             if (!emailRegex.test(email))
@@ -498,6 +498,7 @@ module.exports.mutations = {
                     email : email,
                     otp: encryptedOtp,
                     generatedtoken: generatedtoken,
+                    country: country
                 });
             }
             return {
@@ -523,6 +524,8 @@ module.exports.mutations = {
             return {
                 status: true,
                 message: "OTP verified successfully!",
+                email: savedOtp.email,
+                country: savedOtp.country
             };
           
         } catch (error) {
