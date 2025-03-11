@@ -1386,6 +1386,29 @@ module.exports.mutations = {
         // const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
     },
+    courseCompletionForFirstTime: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+
+            if (!input) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
+            }
+
+            const fetchOverallTrainingProgressAndUpdate = await OverallTrainingProgress.findOneAndUpdate(
+                { _id: input }, { finishedCourseFirstTime: true }
+            );
+
+            if (!fetchOverallTrainingProgressAndUpdate) throw CustomError(ErrorName.FAILED);
+
+            return {
+                message: "Success!"
+            }
+
+        } catch (error) {
+            throw Error(error);
+        }
+    },
     verifyRegistrationEmails: async ({ input }, context) => {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
