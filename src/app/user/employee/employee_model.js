@@ -116,6 +116,9 @@ const employeeSchema = new Schema(
 
             }
         ],
+        country: {
+            type: String
+        }
     },
     { timestamps: true }
 );

@@ -173,112 +173,79 @@ module.exports.mutations = {
     subscriberSignUp: async ({ input }) => {
         throw CustomError(ErrorName.FORBIDDEN);
     },
-    signUp: async ({ input, token }) => {
-        if (token) {
-            const user = await JwtHelper.verify(token, process.env.APP_SECRET, {
-                ignoreExpiration: true,
-            });
-
-            if (user?.id) {
-                if (
-                    input.emailOrCivilIdOrPassport !== user.email &&
-                    input.emailOrCivilIdOrPassport !== user.civilIdOrPassport
-                ) {
-                    throw CustomError(ErrorName.NOT_FOUND);
+    signUp: async ({ input }) => {
+        try {
+             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
+    
+                const { firstName, lastName, password, confirmPassword, email, country  } = input;
+    
+                if (!password || !confirmPassword || !email ) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
                 }
-
-                const existingUser = await User.findById(user.id)
-                    .lean()
-                    .select("firstName lastName isRegistered password");
-
-                if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
-
-                if (
-                    existingUser.isRegistered &&
-                    existingUser.password !== process.env.USER_DUMMY_PASSWORD
-                ) {
-                    throw CustomError(ErrorName.USER_ALREADY_EXIST);
+    
+                if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
+    
+                const passwordRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
+                if (!passwordRegex.test(password)) {
+                    throw CustomError(
+                        ErrorName.INVALID_PASSWORD,
+                        "Password must have at least one uppercase letter, one lowercase letter, one number and minimum 8 characters"
+                    );
                 }
-
-                if (user.role === Role.EMPLOYEE) {
-                    input.isProfileCompleted = false;
-                }
-
-                input.email = user.email;
-                input.civilIdOrPassport = user.civilIdOrPassport;
-
-                const savedUser = await UserHelper.updateUser(
+    
+                const existingUser = await User.findOne({ email }).session(session);
+    
+                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST,"User with this email already exists");
+            
+    
+                const encryptedPassword = await CryptoHelper.hash(password, 10);
+    
+                const generateDummyPassword = generateRandomString(10);
+                const dummyPasswordHash = await CryptoHelper.hash(generateDummyPassword, 10);
+                const dummyPassword = `${dummyPasswordHash}~~~${generateDummyPassword}`;
+    
+                const subscriber = await Subscriber.findOne().session(session);
+                let subscriberId = subscriber ? subscriber._id : null;
+    
+                const createUser = await User.create([
                     {
-                        id: user.id,
-                        input: { ...input, isRegistered: true },
-                    },
-                    { currentRole: user.role }
-                );
-
-                if (savedUser) {
-                    UserHelper.sendSignUpNotification({
-                        subscriber: savedUser.subscriber,
-                        user: savedUser,
-                        createdBy: savedUser._id,
-                    });
-
-                    return await UserHelper.makeAuthUser(savedUser);
-                }
-            }
-        } else {
-            if (!Validator.isEmail(input.emailOrCivilIdOrPassport) || !input.password)
-                throw CustomError(ErrorName.BAD_REQUEST);
-
-            const existingUser = await User.findOne({
-                email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") },
-            })
-                .lean()
-                .select("_id");
-
-            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
-
-            const subscriberId = (await Subscriber.findOne().lean().select("_id"))?._id;
-            if (!subscriberId) throw CustomError(ErrorName.FAILED);
-
-            const savedUser = await DbTransactionHelper.performDbTransaction(async session => {
-                const savedUser = await new User({
-                    UID: await EmployeeHelper.generateUserUID({ session }),
+                        subscriber: subscriberId,
+                        firstName: firstName,
+                        lastName: lastName ?? null,
+                        password: encryptedPassword,
+                        email: email,
+                        dummyPassword: dummyPassword,
+                        isRegistered: false,
+                        UID: await EmployeeHelper.generateUserUID({ session }),
+                    }
+                ], { session });
+                if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
+    
+                let employeeUpdate = {
                     subscriber: subscriberId,
-                    email: input.emailOrCivilIdOrPassport,
-                    password: await CryptoHelper.hash(input.password, 10),
-                    role: Role.EMPLOYEE,
-                    isRegistered: true,
-                }).save({ session });
+                    user: createUser[0],
+                    regType: 1,
+                    country: country,
+                    designation: 'null' 
 
-                if (!savedUser) throw CustomError(ErrorName.FAILED);
-
-                const savedEmployee = await new Employee({
-                    UID: await EmployeeHelper.generateEmployeeUID({
-                        subscriberId,
-                        session,
-                    }),
-                    subscriber: subscriberId,
-                    user: savedUser._id,
-                }).save({ session });
-
-                if (!savedEmployee) throw CustomError(ErrorName.FAILED);
-
-                return savedUser;
-            });
-
-            UserHelper.sendSignUpNotification(
-                {
-                    subscriber: savedUser.subscriber,
-                    user: savedUser,
-                    createdBy: savedUser._id,
-                },
-                false
-            );
-
-            return await UserHelper.makeAuthUser(savedUser);
+                };
+                
+                const savedEmployee = await Employee.create({
+                    ...employeeUpdate,
+                    UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
+                });
+                if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+    
+                return {
+                    message: "You have successfully signed up! Please wait for admin approval",
+                };
+    
+             });
+            return signUp;
+    
+        } catch (error) {
+            throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
         }
-
-        throw CustomError(ErrorName.BAD_REQUEST);
     },
     signIn: async ({ input }, context) => {
         try {

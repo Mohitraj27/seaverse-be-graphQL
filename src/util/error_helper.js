@@ -96,6 +96,7 @@ const errorName = {
     REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
     EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
+    SIGNUP_FAILED: "SIGNUP_FAILED",
 };
 
 const errorType = {
@@ -578,7 +579,12 @@ const errorType = {
         message: 'Invalid Reg Type Provided',
         statusCode: 400,
         type: "INVALID_REG_TYPE",
-    }
+    },
+    SIGNUP_FAILED: {
+        message: 'Failed to signup',
+        statusCode: 400,
+        type: "SIGNUP_FAILED",
+    },
 };
 
 const formatError = error => {
