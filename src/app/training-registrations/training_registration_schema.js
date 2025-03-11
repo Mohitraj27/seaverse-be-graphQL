@@ -83,6 +83,7 @@ module.exports = {
             createdAt: String
             attemptCount: Int
             isCertificatePresent: Boolean
+            finishedCourseFirstTime: Boolean
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
