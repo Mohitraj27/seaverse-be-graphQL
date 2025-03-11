@@ -1,4 +1,4 @@
-const { Validator, CryptoHelper, Moment, JwtHelper } = require("../../tools");
+const { Validator, CryptoHelper, Moment, JwtHelper,Crypto } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -475,10 +475,15 @@ module.exports.mutations = {
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
             if (!emailRegex.test(email))
                 throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
+
+            const generatedtoken = Crypto.randomBytes(16).toString("hex");
+            
             const otp = Math.floor(100000 + Math.random() * 900000);
             const html = `<div style="text-align: center;">
             <h2>Otp for Email Verification</h2>
             <p>Your OTP for email verification is <b>${otp}</b></p>
+            <p></p>
+            <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
             </div>`;
 
             const sendEmailResponse = await AwsHelper.sendEmail({
