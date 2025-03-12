@@ -2489,7 +2489,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                                 ? `${Math.round(item.quizPercentage)}%`
                                 : 'Not Applicable';
-                        const courseStatus = item.status || 'Not Started';
+                        const courseStatus = item.status || 'NOT_STARTED';
 
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
@@ -4029,25 +4029,25 @@ const generateCustomReport = async ({ input }, context) => {
                     });
                 }
 
+                //filter with vessel names(vesselId accepted from FE)
                 if (input.vesselName && Array.isArray(input.vesselName) && input.vesselName.length > 0) {
-                    const users = await User.find({ currentVessel: { $in: input.vesselName } }).select('_id');
                     matchStage.push({
                         $match: {
-                            user: { $in: users.map(user => user._id) },
+                            'userInfo.currentVessel': { $in: input?.vesselName },
                         },
                     });
                 }
 
+                //filter with vessel types (vesselTypeId accepted from FE)
                 if (input.vesselType && Array.isArray(input.vesselType) && input.vesselType.length > 0) {
-                    const vessels = await Vessel.find({ typeOfVessel: { $in: input.vesselType } }).select('_id');
-                    const users = await User.find({ currentVessel: { $in: vessels.map(vessel => vessel._id) } }).select('_id');
                     matchStage.push({
                         $match: {
-                            user: { $in: users.map(user => user._id) },
+                            'vesselTypeInfo._id': { $in: input?.vesselType },
                         },
                     });
                 }
 
+                //filter with course status (status accepted from FE as array of strings)
                 if (input.courseStatus && Array.isArray(input.courseStatus) && input.courseStatus.length > 0) {
                     matchStage.push({
                         $match: {
@@ -4055,17 +4055,20 @@ const generateCustomReport = async ({ input }, context) => {
                         },
                     });
                 }
-                if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0) {
+
+                //filter with learner status (status accepted from FE as array of strings)
+                if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0 && input.learnerStatus.length < 2) {
                     matchStage.push({
                         $match: {
                             'userInfo.vesselStatus': { $in: input.learnerStatus },
                         },
                     });
                 }
+                //filter with designation (designationId accepted from FE)
                 if (input.designation && Array.isArray(input.designation) && input.designation.length > 0) {
                     matchStage.push( {
                         "$match": {
-                            "employeeData.empDesignation": { "$in": input.designation }
+                            "employeeInfo.empDesignation": { "$in": input.designation }
                         }
                     });
                 }
@@ -4435,7 +4438,7 @@ const generateCustomReport = async ({ input }, context) => {
                             from: "employees",
                             localField: "user",
                             foreignField: "user",
-                            as: "employeeData",
+                            as: "employeeInfo",
                             pipeline: [
                                 {
                                     $match: {
@@ -4447,14 +4450,14 @@ const generateCustomReport = async ({ input }, context) => {
                     },
                     {
                         $unwind: {
-                            path: "$employeeData",
+                            path: "$employeeInfo",
                             preserveNullAndEmptyArrays: true
                         }
                     },
                     {
                         $lookup: {
                             from: "designations",
-                            localField: "employeeData.empDesignation",
+                            localField: "employeeInfo.empDesignation",
                             foreignField: "_id",
                             as: "designationInfo"
                         }
@@ -4470,19 +4473,19 @@ const generateCustomReport = async ({ input }, context) => {
                             from: "vessels",
                             localField: "userInfo.currentVessel",
                             foreignField: "_id",
-                            as: "vesselInfo"
+                            as: "vesselDetails"
                         }
                     },
                     {
                         $unwind: {
-                            path: "$vesselInfo",
+                            path: "$vesselDetails",
                             preserveNullAndEmptyArrays: true
                         }
                     },
                     {
                         $lookup: {
                             from: "vesseltypes",
-                            localField: "vesselInfo.typeOfVessel",
+                            localField: "vesselDetails.typeOfVessel",
                             foreignField: "_id",
                             as: "vesselTypeInfo"
                         }
@@ -4740,7 +4743,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
-                                $first: "$vesselInfo.name"
+                                $first: "$vesselDetails.name"
                             },
                             vesselType: {
                                 $first: "$vesselTypeInfo.name"
