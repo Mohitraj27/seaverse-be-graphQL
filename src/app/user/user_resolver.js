@@ -530,6 +530,9 @@ module.exports.mutations = {
             return {
                 status: true,
                 message: "OTP sent successfully!",
+                generatedtoken:generatedtoken,
+                email:email,
+                country: country
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
