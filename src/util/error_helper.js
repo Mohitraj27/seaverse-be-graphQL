@@ -96,6 +96,11 @@ const errorName = {
     REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
     INVALID_REG_TYPE: "INVALID_REG_TYPE",
     EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
+    SIGNUP_FAILED: "SIGNUP_FAILED",
+    EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED",
+    OTP_VERIFICATION_FAILED: "OTP_VERIFICATION_FAILED",
+    INVALID_OTP: "INVALID_OTP",
+    OTP_EXPIRED: "OTP_EXPIRED"
 };
 
 const errorType = {
@@ -578,6 +583,31 @@ const errorType = {
         message: 'Invalid Reg Type Provided',
         statusCode: 400,
         type: "INVALID_REG_TYPE",
+    },
+    EMAIL_VERIFICATION_FAILED: {
+        message: 'Email Verification Failed',
+        statusCode: 400,
+        type: "EMAIL_VERIFICATION_FAILED",
+    },
+    SIGNUP_FAILED: {
+        message: 'Failed to signup',
+        statusCode: 400,
+        type: "SIGNUP_FAILED",
+    },
+    OTP_VERIFICATION_FAILED: {
+        message: 'OTP Verification Failed',
+        statusCode: 400,
+        type: "OTP_VERIFICATION_FAILED",
+    },
+    INVALID_OTP: {
+        message: 'Invalid OTP',
+        statusCode: 400,
+        type: "INVALID_OTP",
+    },
+    OTP_EXPIRED : {
+        message: 'OTP Expired',
+        statusCode: 400,
+        type: "OTP_EXPIRED",
     }
 };
 

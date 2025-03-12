@@ -1,4 +1,4 @@
-const { Validator, CryptoHelper, Moment, JwtHelper } = require("../../tools");
+const { Validator, CryptoHelper, Moment, JwtHelper,Crypto } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -11,7 +11,6 @@ const {
 } = require("../../util");
 
 const { User, DeletedUser, AppUser } = require("./user_model");
-const { Otp } = require("./otp_model");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { Employee, AppEmployee } = require("./employee/employee_model");
 const { SubscriberProfile } = require("./subscriber-profile/subscriber_profile_model");
@@ -29,6 +28,8 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const Export = require("../user/exportUser/exportUser_model");
 const { Designation } = require("../designations/designation_model");
 const { generateRandomString } = require("./user-profile/user_profile_helper");
+const  SignUpOtp  = require('./SignUpOtp');
+const nodemailer = require("nodemailer");
 
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
@@ -173,112 +174,79 @@ module.exports.mutations = {
     subscriberSignUp: async ({ input }) => {
         throw CustomError(ErrorName.FORBIDDEN);
     },
-    signUp: async ({ input, token }) => {
-        if (token) {
-            const user = await JwtHelper.verify(token, process.env.APP_SECRET, {
-                ignoreExpiration: true,
-            });
-
-            if (user?.id) {
-                if (
-                    input.emailOrCivilIdOrPassport !== user.email &&
-                    input.emailOrCivilIdOrPassport !== user.civilIdOrPassport
-                ) {
-                    throw CustomError(ErrorName.NOT_FOUND);
+    signUp: async ({ input }) => {
+        try {
+             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
+    
+                const { firstName, lastName, password, confirmPassword, email, country  } = input;
+    
+                if (!password || !confirmPassword || !email ) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
                 }
-
-                const existingUser = await User.findById(user.id)
-                    .lean()
-                    .select("firstName lastName isRegistered password");
-
-                if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
-
-                if (
-                    existingUser.isRegistered &&
-                    existingUser.password !== process.env.USER_DUMMY_PASSWORD
-                ) {
-                    throw CustomError(ErrorName.USER_ALREADY_EXIST);
+    
+                if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
+    
+                const passwordRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
+                if (!passwordRegex.test(password)) {
+                    throw CustomError(
+                        ErrorName.INVALID_PASSWORD,
+                        "Password must have at least one uppercase letter, one lowercase letter, one number and minimum 8 characters"
+                    );
                 }
-
-                if (user.role === Role.EMPLOYEE) {
-                    input.isProfileCompleted = false;
-                }
-
-                input.email = user.email;
-                input.civilIdOrPassport = user.civilIdOrPassport;
-
-                const savedUser = await UserHelper.updateUser(
+    
+                const existingUser = await User.findOne({ email }).session(session);
+    
+                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST,"User with this email already exists");
+            
+    
+                const encryptedPassword = await CryptoHelper.hash(password, 10);
+    
+                const generateDummyPassword = generateRandomString(10);
+                const dummyPasswordHash = await CryptoHelper.hash(generateDummyPassword, 10);
+                const dummyPassword = `${dummyPasswordHash}~~~${generateDummyPassword}`;
+    
+                const subscriber = await Subscriber.findOne().session(session);
+                let subscriberId = subscriber ? subscriber._id : null;
+    
+                const createUser = await User.create([
                     {
-                        id: user.id,
-                        input: { ...input, isRegistered: true },
-                    },
-                    { currentRole: user.role }
-                );
-
-                if (savedUser) {
-                    UserHelper.sendSignUpNotification({
-                        subscriber: savedUser.subscriber,
-                        user: savedUser,
-                        createdBy: savedUser._id,
-                    });
-
-                    return await UserHelper.makeAuthUser(savedUser);
-                }
-            }
-        } else {
-            if (!Validator.isEmail(input.emailOrCivilIdOrPassport) || !input.password)
-                throw CustomError(ErrorName.BAD_REQUEST);
-
-            const existingUser = await User.findOne({
-                email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") },
-            })
-                .lean()
-                .select("_id");
-
-            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
-
-            const subscriberId = (await Subscriber.findOne().lean().select("_id"))?._id;
-            if (!subscriberId) throw CustomError(ErrorName.FAILED);
-
-            const savedUser = await DbTransactionHelper.performDbTransaction(async session => {
-                const savedUser = await new User({
-                    UID: await EmployeeHelper.generateUserUID({ session }),
+                        subscriber: subscriberId,
+                        firstName: firstName,
+                        lastName: lastName ?? null,
+                        password: encryptedPassword,
+                        email: email,
+                        dummyPassword: dummyPassword,
+                        isRegistered: false,
+                        UID: await EmployeeHelper.generateUserUID({ session }),
+                    }
+                ], { session });
+                if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
+    
+                let employeeUpdate = {
                     subscriber: subscriberId,
-                    email: input.emailOrCivilIdOrPassport,
-                    password: await CryptoHelper.hash(input.password, 10),
-                    role: Role.EMPLOYEE,
-                    isRegistered: true,
-                }).save({ session });
+                    user: createUser[0],
+                    regType: 1,
+                    country: country,
+                    designation: 'null' 
 
-                if (!savedUser) throw CustomError(ErrorName.FAILED);
-
-                const savedEmployee = await new Employee({
-                    UID: await EmployeeHelper.generateEmployeeUID({
-                        subscriberId,
-                        session,
-                    }),
-                    subscriber: subscriberId,
-                    user: savedUser._id,
-                }).save({ session });
-
-                if (!savedEmployee) throw CustomError(ErrorName.FAILED);
-
-                return savedUser;
-            });
-
-            UserHelper.sendSignUpNotification(
-                {
-                    subscriber: savedUser.subscriber,
-                    user: savedUser,
-                    createdBy: savedUser._id,
-                },
-                false
-            );
-
-            return await UserHelper.makeAuthUser(savedUser);
+                };
+                
+                const savedEmployee = await Employee.create({
+                    ...employeeUpdate,
+                    UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
+                });
+                if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+    
+                return {
+                    message: "You have successfully signed up! Please wait for admin approval",
+                };
+    
+             });
+            return signUp;
+    
+        } catch (error) {
+            throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
         }
-
-        throw CustomError(ErrorName.BAD_REQUEST);
     },
     signIn: async ({ input }, context) => {
         try {
@@ -500,5 +468,97 @@ module.exports.mutations = {
             status: true,
             message: "User created successfully!",
         };
-    }
+    },
+    signUpVerifyEmail: async ({ input }) => {
+        try {
+            const { country, email } = input;
+            if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
+            const existingUser = await User.findOne({ email, isDeleted: false });
+            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email already exists in the system!");
+
+            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
+            if (!emailRegex.test(email))
+                throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
+
+            const generatedtoken = Crypto.randomBytes(16).toString("hex");
+            
+            const otp = Math.floor(100000 + Math.random() * 900000);
+            const html = `<div style="text-align: center;">
+            <h2>Otp for Email Verification</h2>
+            <p>Your OTP for email verification is <b>${otp}</b></p>
+            <p></p>
+            <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
+            </div>`;
+
+            // const sendEmailResponse = await AwsHelper.sendEmail({
+            //     receiverEmail: email,
+            //     subject: "OTP Email Verification",
+            //     htmlContent: html,
+            // });
+
+
+
+
+            const transporter = nodemailer.createTransport({
+                host: 'smtp.gmail.com',
+                port: '587',
+                secure: false, // For TLS (use true if using port 465)
+                auth: {
+                    user: 'squadramedia.in@gmail.com',
+                    pass: 'qsla srjn keet zsxk',
+                },
+            });
+
+            const mailOptions = {
+                from: process.env.EMAIL_VERIFIED_SENDER,
+                to: email,
+                subject: "OTP Email Verification",
+                html: html,
+            };
+
+            const sendEmailResponse = await transporter.sendMail(mailOptions);
+
+            const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
+            if (sendEmailResponse) {
+                await SignUpOtp.create({
+                    email : email,
+                    otp: encryptedOtp,
+                    generatedtoken: generatedtoken,
+                    country: country
+                });
+            }
+            return {
+                status: true,
+                message: "OTP sent successfully!",
+                generatedtoken:generatedtoken,
+                email:email,
+                country: country
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
+        }
+    },
+
+    verifyOTPSignup: async ({ input }) => {
+        try {
+            const { email, generatedtoken, otp } = input;
+            if (!email || !otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email or otp is missing!");
+            const savedOtp = await SignUpOtp.findOne({ generatedtoken });
+            if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
+            
+            const isOtpValid = await CryptoHelper.compare(otp.toString(), savedOtp.otp);
+            if (!isOtpValid) throw CustomError(ErrorName.INVALID_OTP,'Invalid OTP');
+            
+            await SignUpOtp.deleteMany({ email });
+            return {
+                status: true,
+                message: "OTP verified successfully!",
+                email: savedOtp.email,
+                country: savedOtp.country
+            };
+          
+        } catch (error) {
+            throw CustomError(ErrorName.OTP_VERIFICATION_FAILED, error.message);
+        }
+    },
 };
