@@ -367,6 +367,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
+        
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
