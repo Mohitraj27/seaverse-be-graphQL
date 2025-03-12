@@ -169,7 +169,13 @@ userSchema.virtual("employee", {
 userSchema.index({ email: "text" });
 
 userSchema.index({ _id: 1, role: 1, currentVessel: 1 });
-
+userSchema.index({ isDeleted: 1, role: 1, vesselStatus: 1, lastLoginAt: 1 });
+userSchema.index({
+    "firstName": "text",
+    "lastName": "text",
+    "email": "text",
+    "civilIdOrPassport": "text"
+});
 userSchema.plugin(AggregatePaginate);
 
 const deletedUserSchema = userSchema.clone();
