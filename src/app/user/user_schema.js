@@ -59,12 +59,10 @@ module.exports = {
         input SignUpInput {
             firstName: String
             lastName: String
-            emailOrCivilIdOrPassport: String!
-            phone: PhoneInput
+            email: String!
+            country: String
             password: String!
-            avatar: Upload
-            firebaseToken: String
-            deviceId: String
+            confirmPassword: String!
         }
         enum vesselStatusEnum {
             ASSIGNED
@@ -126,6 +124,28 @@ module.exports = {
             email: String!
             password: String!
         }
+        type SignUpRes {
+            message: String!
+        }
+        input emailVertificationInput{
+            country: String
+            email: String!
+        }
+        type emailVerification{
+            status: String!
+            message: String!
+        }
+        input OTPVerificationInput{
+            email: String!
+            generatedtoken: String!
+            otp: String!
+        }
+        type verifyOTP{
+            status: String!
+            message: String!
+            email: String!
+            country: String!
+        }
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -134,10 +154,12 @@ module.exports = {
         createSaasAdmin(input: SignUpInput!): AuthUser!
         saasAdminSignIn(input: SignInInput!): AuthUser!
         subscriberSignUp(input: SignUpInput!): AuthUser!
-        signUp(input: SignUpInput!, token: String): AuthUser!
+        signUp(input: SignUpInput!): SignUpRes!
         signIn(input: SignInInput!, role: Role): AuthUser!
         generateRefreshToken(token: String!): refreshTokenRes!
         signOut(input: SignOutInput): String!
         appSignUp(input: AppSignUpInput!): downloadResponse!
+        signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
+        verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
     `,
 };

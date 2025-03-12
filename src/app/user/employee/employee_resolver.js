@@ -761,24 +761,6 @@ module.exports.queries = {
                         },
                     ]
                     : []),
-                ...(filterInput?.role?.length > 0
-                    ? [
-                        {
-                            $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
-                                    ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
-                        },
-                    ]
-                    : []),
                 ...(filterInput?.isRegistered !== undefined
                     ? [
                         {
@@ -2052,7 +2034,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
+                civilIdOrPassport: input.user.civilIdOrPassport,
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,

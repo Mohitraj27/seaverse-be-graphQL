@@ -222,7 +222,9 @@ module.exports.queries = {
 
         switch (groupType) {
             case "Autosyncedgroups":
-                const allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                allAutosyncedGroups = allAutosyncedGroups.filter(group => group._id && group.groupName);
+
                 let filteredAutosyncedGroups = allAutosyncedGroups;
                 if (groupFilter?.search) {
                     filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
@@ -254,10 +256,11 @@ module.exports.queries = {
                 break;
 
             default:
-                const allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
-                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
+                let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
+                let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
 
-                const allGroups = [...allAutosynced, ...allCustom];
+                let allGroups = [...allAutosynced, ...allCustom];
+                allGroups = allGroups.filter(group => group._id && group.groupName);
 
                 let filteredGroups = allGroups;
                 if (groupFilter?.search) {
@@ -349,7 +352,7 @@ module.exports.queries = {
     },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
-
+    try {
         if (!userId) {
             throw CustomError(ErrorName.USER_ID_REQUIRED);
         }
@@ -381,6 +384,8 @@ module.exports.queries = {
 
         const roleName = existingUser.role;
 
+        const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
+        const owner = ownerName[0]?.ownerName || null;
         let regStatusGroup;
 
         if (existingUser.isRegistered) {
@@ -417,7 +422,11 @@ module.exports.queries = {
                 subRole: subRoleNames ?? null,
                 regStatus: regStatusGroup ?? null,
                 customGroups: customGroupNames ?? null,
+                owner: owner ?? null
             };
+        }}
+        catch(error){
+            throw new Error(error.message);
         }
     },
     getUsersAndAutoSyncedGroups: async ({ search }, context) => {

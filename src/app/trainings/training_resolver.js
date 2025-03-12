@@ -39,7 +39,6 @@ const { populate, validate } = require("../contact-support/contact_support_model
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
-
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -412,7 +411,6 @@ module.exports.mutations = {
                     { training: id },
                     { isDeleted: true }
                 )
-
             }
 
         } catch (error) {
