@@ -4941,6 +4941,8 @@ const generateCustomReport = async ({ input }, context) => {
                             lowercaseFirstName: { 
                                 $toLower: "$firstName"
                             },
+                            currentVessel: 1,
+                            vesselType: 1,
                             lastName: 1,
                             email: 1,
                             designation: 1,
@@ -4979,12 +4981,14 @@ const generateCustomReport = async ({ input }, context) => {
             const flattenDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
-
                     const email = learner?.email || '';
                     const designation = learner?.designation || '';
                     const firstName = learner?.firstName || '';
                     const lastName = learner?.lastName || '';
-                    const status = learner?.status || 'NOT APPLICABLE';
+                    const empId = learner?.empId || '';
+                    const currentVessel = learner?.currentVessel || 'Not Applicable';
+                    const vesselType = learner?.vesselType || 'Not Applicable';
+                    const status = learner?.status || 'Not Applicable';
                     const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
                     const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                     const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
@@ -5002,26 +5006,29 @@ const generateCustomReport = async ({ input }, context) => {
 
                         module?.moduleContents.forEach((content, contentIndex) => {
                             const contentName = content?.contentName[0]?.value || 'Unnamed Content';
-                            const contentType = content?.contentType || 'NOT APPLICABLE';
-                            const quizScore = content?.percentage || 'NOT APPLICABLE';
-
-
-                            flattenedData.push({
-                                Name: `${firstName} ${lastName}`,
-                                Email: email,
-                                Designation: designation,
-                                'Course Name': courseName,
-                                'Course Status': status,
-                                'Admin Marked As Completed': adminMarkedAsCompleted,
-                                'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
-                                'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
-                                'Content Type': contentType,
-                                'Quiz Score': quizScore,
-                                'Enrollment Date (UTC)': enrollmentDate,
-                                'Course Started Date (UTC)': startDate,
-                                'Course Completion Date (UTC)': completionDate,
-                                'Unenrollment Date (UTC)': unenrollmentDate,
-                            });
+                            const contentType = content?.contentType || 'Not Applicable';
+                            const quizScore = content?.percentage || 'Not Applicable';
+                            if (learner.contentType === 'QUIZ') {
+                                flattenedData.push({
+                                    Name: `${firstName} ${lastName}`,
+                                    Email: email,
+                                    'User Id': empId,
+                                    Designation: designation,
+                                    'Current Vessel': currentVessel,
+                                    'Vessel Type': vesselType,
+                                    'Course Name': courseName,
+                                    'Course Status': status,
+                                    'Admin Marked As Completed': adminMarkedAsCompleted,
+                                    'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                                    'Course Started Date & Time (UTC)': startDate,
+                                    'Course Completion Date & Time (UTC)': completionDate,
+                                    'Lesson Name': `${moduleName}`,
+                                    'Content Name': `${contentName}`,
+                                    // 'Content Type': contentType,
+                                    'Quiz Score': quizScore,
+                                });
+                            }
                         });
                     });
                 }
@@ -5033,8 +5040,10 @@ const generateCustomReport = async ({ input }, context) => {
                 const allFlattenedData = [];
                 learners.forEach(learner => {
                     const learnerData = flattenDataForSingleSheet(learner);
-                    allFlattenedData.push(...learnerData);
-                    allFlattenedData.push([]);
+                    if (learnerData.length > 0) {
+                        allFlattenedData.push(...learnerData);
+                        allFlattenedData.push([]);
+                    }   
                 });
                 return allFlattenedData;
             };
