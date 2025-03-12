@@ -762,6 +762,31 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     },
                     {
                         "$lookup": {
+                            "from": "vessels",
+                            "localField": "userInfo.currentVessel",
+                            "foreignField": "_id",
+                            "as": "vesselInfo"
+                        }
+                    },
+                    {
+                        "$unwind": {
+                            "path": "$vesselInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
+                        "$lookup": {
+                            "from": "vesseltypes",
+                            "localField": "vesselInfo.typeOfVessel",
+                            "foreignField": "_id",
+                            "as": "vesselTypeInfo"
+                        }
+                    },
+                    {
+                        "$unwind": { "path": "$vesselTypeInfo", "preserveNullAndEmptyArrays": true }
+                    },
+                    {
+                        "$lookup": {
                             "from": "trainingprogress",
                             "localField": "training",
                             "foreignField": "training",
@@ -804,6 +829,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
                             "isRegistered": "$userInfo.isRegistered",
+                            'vesselName': '$vesselInfo.name',
+                            'vesselTypeName': '$vesselTypeInfo.name',
                             'courseName': {
                                 '$arrayElemAt': [
                                     '$trainingInfo.title.value', 0
@@ -860,22 +887,25 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             ? item.quizPercentage.toFixed(2)
                             : null;
                     const userState = item.isRegistered ? "Registered" : "Unregistered";
-                    const timeSpent = item.totalTimeSpent ? Math.round(item.totalTimeSpent) : 0;
+                    const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item.totalTimeSpent) : '00:00:00';
 
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
                         Email: item.email || null,
+                        EmployeeId: item.employeeId || null,
                         Designation: item.designation || null,
+                        'Current Vessel': item.vesselName || 'Not Applicable',
+                        'Vessel Type': item.vesselTypeName || 'Not Applicable',
                         'Course Name': item.courseName ? item.courseName[0] : null,
-                        Status: item.status || null,
+                        'Course Status': item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date (UTC) ': enrollmentDate,
-                        'Unenrollment Date (UTC)': unenrollmentDate,
-                        'Completion Date (UTC)': completionDate,
-                        'Started Date (UTC)': startDate,
+                        'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                        'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                        'Course Started Date & Time (UTC)': startDate,
+                        'Course Completion Date & Time (UTC)': completionDate,
                         'Quiz Score': quizScore,
-                        userState: userState,
-                        'Time Spent (mins)': timeSpent,
+                        'User State': userState,
+                        'Time Spent': timeSpent,
                     });
                 });
             } else {
