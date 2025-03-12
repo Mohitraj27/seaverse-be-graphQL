@@ -1,4 +1,4 @@
-const { Validator, CryptoHelper, Moment, JwtHelper } = require("../../tools");
+const { Validator, CryptoHelper, Moment, JwtHelper,Crypto } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -470,15 +470,20 @@ module.exports.mutations = {
     },
     signUpVerifyEmail: async ({ input }) => {
         try {
-            const { email } = input;
+            const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
             if (!emailRegex.test(email))
                 throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
+
+            const generatedtoken = Crypto.randomBytes(16).toString("hex");
+            
             const otp = Math.floor(100000 + Math.random() * 900000);
             const html = `<div style="text-align: center;">
             <h2>Otp for Email Verification</h2>
             <p>Your OTP for email verification is <b>${otp}</b></p>
+            <p></p>
+            <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
             </div>`;
 
             const sendEmailResponse = await AwsHelper.sendEmail({
@@ -492,10 +497,9 @@ module.exports.mutations = {
                 await SignUpOtp.create({
                     email : email,
                     otp: encryptedOtp,
+                    generatedtoken: generatedtoken,
+                    country: country
                 });
-                setTimeout(async () => {
-                    await SignUpOtp.findOneAndDelete({ email });
-                }, 10 * 60 * 1000);
             }
             return {
                 status: true,
@@ -503,6 +507,29 @@ module.exports.mutations = {
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
+        }
+    },
+
+    verifyOTPSignup: async ({ input }) => {
+        try {
+            const { email, generatedtoken, otp } = input;
+            if (!email || !otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email or otp is missing!");
+            const savedOtp = await SignUpOtp.findOne({ generatedtoken });
+            if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
+            
+            const isOtpValid = await CryptoHelper.compare(otp.toString(), savedOtp.otp);
+            if (!isOtpValid) throw CustomError(ErrorName.INVALID_OTP,'Invalid OTP');
+            
+            await SignUpOtp.deleteMany({ email });
+            return {
+                status: true,
+                message: "OTP verified successfully!",
+                email: savedOtp.email,
+                country: savedOtp.country
+            };
+          
+        } catch (error) {
+            throw CustomError(ErrorName.OTP_VERIFICATION_FAILED, error.message);
         }
     },
 };
