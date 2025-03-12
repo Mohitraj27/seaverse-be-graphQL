@@ -885,7 +885,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         ? item.quizPercentage
                         : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                             ? item.quizPercentage.toFixed(2)
-                            : null;
+                            : 'Not Applicable';
                     const userState = item.isRegistered ? "Registered" : "Unregistered";
                     const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item.totalTimeSpent) : '00:00:00';
 
@@ -1539,6 +1539,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             user: "$_id.userId",
                             firstName: 1,
                             lastName: 1,
+                            currentVessel: 1,
+                            vesselType: 1,
                             email: 1,
                             designation: 1,
                             status: 1,
@@ -1586,7 +1588,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const designation = learner?.designation || '';
                         const firstName = learner?.firstName || '';
                         const lastName = learner?.lastName || '';
-                        const status = learner?.status || 'NOT APPLICABLE';
+                        const currentVessel = learner?.currentVessel || 'Not Applicable';
+                        const vesselType = learner?.vesselType || 'Not Applicable';
+                        const status = learner?.status || 'Not Applicable';
                         const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
                         const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
@@ -1612,17 +1616,20 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
                                     Designation: designation,
+                                    'User Id': learner?.empId || 'Not Applicable',
                                     'Course Name': courseName,
+                                    'Current Vessel': currentVessel,
+                                    'Vessel Type': vesselType,
                                     'Course Status': status,
                                     'Admin Marked As Completed': isAdminMarkedAsCompleted,
-                                    'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
-                                    'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
+                                    'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                                    'Course Started Date & Time (UTC)': startDate,
+                                    'Course Completion Date & Time (UTC)': completionDate,
+                                    'Lesson Name': `${moduleName}`,
+                                    'Content Name': `${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date (UTC)': enrollmentDate,
-                                    'Course Started Date (UTC)': startDate,
-                                    'Course Completion Date (UTC)': completionDate,
-                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         });
