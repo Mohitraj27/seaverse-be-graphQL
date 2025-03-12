@@ -472,6 +472,9 @@ module.exports.mutations = {
         try {
             const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
+            const existingUser = await User.findOne({ email, isDeleted: false });
+            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email already exists in the system!");
+
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
             if (!emailRegex.test(email))
                 throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
