@@ -128,11 +128,23 @@ module.exports = {
             message: String!
         }
         input emailVertificationInput{
+            country: String
             email: String!
         }
         type emailVerification{
             status: String!
             message: String!
+        }
+        input OTPVerificationInput{
+            email: String!
+            generatedtoken: String!
+            otp: String!
+        }
+        type verifyOTP{
+            status: String!
+            message: String!
+            email: String!
+            country: String!
         }
     `,
     queries: `
@@ -148,5 +160,6 @@ module.exports = {
         signOut(input: SignOutInput): String!
         appSignUp(input: AppSignUpInput!): downloadResponse!
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
+        verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
     `,
 };

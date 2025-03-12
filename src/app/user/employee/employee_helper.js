@@ -37,6 +37,7 @@ const LogType = require("../../logs/log_type.json");
 const { v4: uuidv4 } = require('uuid')
 const UserHelper = require("../user_helper");
 const { Vessel } = require("../../vessle/vessel_model");
+const { Subscriber } = require("../../saas/subscriber/subscriber_model");
 const { parse } = require("json2csv");
 const { parse: csvParse } = require("csv-parse");
 const { ImportLog } = require("../import-log/import_log_model");
@@ -2049,6 +2050,9 @@ module.exports = {
         const vesselAssociations = [];
         let passwordEmailList = [];
 
+        const subscriber = await Subscriber.findOne();
+        let subscriber_Id;
+        if (subscriber) subscriber_Id = subscriber._id;
 
         for (const user of users) {
 
@@ -2240,7 +2244,8 @@ module.exports = {
                         email: user.email?.toLowerCase(),
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                        password: await CryptoHelper.hash(password, 10)
+                        password: await CryptoHelper.hash(password, 10),
+                        subscriber: subscriber_Id ?? null
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
