@@ -4360,6 +4360,8 @@ const generateCustomReport = async ({ input }, context) => {
                                 $toLower: "$userInfo.firstName"
                             },
                             'lastName': '$userInfo.lastName',
+                            'currentVessel': '$vesselDetails.name',
+                            'vesselType': '$vesselTypeInfo.name',
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'isRegistered': '$userInfo.isRegistered',
@@ -4404,26 +4406,31 @@ const generateCustomReport = async ({ input }, context) => {
                 const startDate = item?.startDate && item.startDate !== 'startDate'
                     ? ReportsHelper.formatDate(item.startDate)
                     : "Not Applicable";
+                const vesselType = item?.vesselType || "Not Applicable";
+                const currentVessel = item?.currentVessel || "Not Applicable";
                 const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
-                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "N/A";
+                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "Not Applicable";
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? parseInt(item.totalTimeSpent)+" mins" : 0+" mins";
+                const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
                 const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
                 dataToExport.push({
                     Name: learnerName ?? "-",
                     Email: item.email || null,
+                    employeeId: item.employeeId || null,
                     Designation: item.designation || null,
+                    'Current Vessel': currentVessel,
+                    'Vessel Type': vesselType,
                     'Course Name': item.courseName ? item.courseName[0] : null,
-                    Status: item.status || null,
+                    'Course Status': item.status || null,
                     'Admin Marked As Completed': adminMarkedAsCompleted,
+                    'Course Enrollment Date & Time (UTC)': enrollmentDate,
+                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                    'Course Started Date & Time (UTC)': startDate,
+                    'Course Completion Date & Time (UTC)': completionDate,
                     'Quiz Score': quizScore,
-                    userState: userState,
-                    'Time Spent (mins)': timeSpent,
-                    'Enrollment Date (UTC)': enrollmentDate,
-                    'Course Started Date (UTC)': startDate,
-                    'Course Completion Date (UTC)': completionDate,
-                    'Unenrollment Date (UTC)': unenrollmentDate,
+                    'User State': userState,
+                    'Time Spent': timeSpent,
                 });
             });
 
