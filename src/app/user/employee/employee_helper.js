@@ -2071,7 +2071,8 @@ module.exports = {
                     if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
 
-                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toUpperCase())}`));
+                        // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user.`));
                         break;
 
                     } else {
@@ -2105,7 +2106,8 @@ module.exports = {
                 } else if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
 
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
+                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
 
@@ -2150,7 +2152,8 @@ module.exports = {
                     if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
 
 
-                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
+                        // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
+                        errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                         break;
 
                     } else {
@@ -2184,7 +2187,8 @@ module.exports = {
 
                 } else if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toUpperCase())}`));
+                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
                 } else {
@@ -2222,14 +2226,15 @@ module.exports = {
                 if (getAllDBEmails.includes(user.email)) {
 
 
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
+                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
 
                 } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
 
-
-                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toUpperCase())}`));
+                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
+                    errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
                 } else {

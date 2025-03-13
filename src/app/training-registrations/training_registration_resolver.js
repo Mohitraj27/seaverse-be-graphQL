@@ -152,7 +152,8 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
-                    directEnrollment: '$directEnrollment'
+                    directEnrollment: '$directEnrollment',
+                    adminMarkedAsCompleted: '$adminMarkedAsCompleted'
                 }
             }
         ]);
@@ -161,7 +162,8 @@ module.exports.queries = {
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
-            directEnrollment: user.directEnrollment
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
         return {
             countOfUsers: formattedResults.length || 0,
@@ -365,6 +367,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
+        
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
