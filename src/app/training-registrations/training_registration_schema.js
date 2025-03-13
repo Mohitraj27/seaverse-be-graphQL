@@ -84,6 +84,7 @@ module.exports = {
             attemptCount: Int
             isCertificatePresent: Boolean
             finishedCourseFirstTime: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -192,6 +193,7 @@ module.exports = {
             lastName: String
             status: Status!
             directEnrollment: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         input getTrainingRegsInput {
             training: ID!
