@@ -30,7 +30,8 @@ const { Designation } = require("../designations/designation_model");
 const { generateRandomString } = require("./user-profile/user_profile_helper");
 const  SignUpOtp  = require('./SignUpOtp');
 const nodemailer = require("nodemailer");
-
+const SignupRequest = require('../signup-request/signup-request-model');
+const signupstatus = require('../signup-request/signup-status.json');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -236,7 +237,15 @@ module.exports.mutations = {
                     UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
                 });
                 if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
-    
+                const result = await SignupRequest.create([{
+                    firstName: firstName,
+                    lastName: lastName,
+                    email: email,
+                    country: country,
+                    signupStatus: signupstatus.PENDING,
+                    userId: createUser[0]._id,
+                }], { session });
+                console.log('result', result);                
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
                     status: 'true'
@@ -475,7 +484,7 @@ module.exports.mutations = {
             const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const existingUser = await User.findOne({ email, isDeleted: false });
-            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email already exists in the system!");
+            if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email entered already exists!");
 
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
             if (!emailRegex.test(email))

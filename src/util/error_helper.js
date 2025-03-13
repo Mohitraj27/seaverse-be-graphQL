@@ -100,7 +100,10 @@ const errorName = {
     EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED",
     OTP_VERIFICATION_FAILED: "OTP_VERIFICATION_FAILED",
     INVALID_OTP: "INVALID_OTP",
-    OTP_EXPIRED: "OTP_EXPIRED"
+    OTP_EXPIRED: "OTP_EXPIRED",
+    FAILED_TO_FETCH_SIGNUP_REQUEST: "FAILED_TO_FETCH_SIGNUP_REQUEST",
+    SIGNUP_REQUEST_DATA_NOT_FOUND: "SIGNUP_REQUEST_DATA_NOT_FOUND",
+    INVALID_SIGNUP_REQUEST_ID: "INVALID_SIGNUP_REQUEST_ID",
 };
 
 const errorType = {
@@ -608,6 +611,21 @@ const errorType = {
         message: 'OTP Expired',
         statusCode: 400,
         type: "OTP_EXPIRED",
+    },
+    FAILED_TO_FETCH_SIGNUP_REQUEST: {
+        message: 'Failed to fetch signup request',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_SIGNUP_REQUEST",
+    },
+    SIGNUP_REQUEST_DATA_NOT_FOUND: {
+        message: 'Signup request data not found',
+        statusCode: 400,
+        type: "SIGNUP_REQUEST_DATA_NOT_FOUND",
+    },
+    INVALID_SIGNUP_REQUEST_ID: {
+        message: 'Please pass the correct signup request id',
+        statusCode: 400,
+        type: "INVALID_SIGNUP_REQUEST_ID",
     }
 };
 
