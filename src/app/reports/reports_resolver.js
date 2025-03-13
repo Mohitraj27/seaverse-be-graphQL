@@ -992,7 +992,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
-                    fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                    fileName: `${(input.selectVesselOrLearner).toLowerCase()} enrollment report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
                 if (excelFilePath) {
@@ -1000,8 +1000,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Learner Enrollment Report Exported Successfully`,
+                        messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [{
@@ -1681,18 +1681,21 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             [
                                 "Name",
                                 "Email",
+                                "User Id",
                                 "Designation",
+                                "Current Vessel",
+                                "Vessel Type",
                                 "Course Name",
                                 "Course Status",
                                 "Admin Marked As Completed",
+                                "Course Enrollment Date & Time (UTC)",
+                                "Course Unenrollment Date & Time (UTC)",
+                                "Course Started Date & Time (UTC)",
+                                "Course Completion Date & Time (UTC)",
                                 "Lesson Name",
                                 "Content Name",
                                 "Content Type",
                                 "Quiz Score",
-                                "Enrollment Date (UTC)",
-                                "Course Started Date (UTC)",
-                                "Course Completion Date (UTC)",
-                                "Unenrollment Date (UTC)"
                             ]
                         ]);
                     }
@@ -1705,7 +1708,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Multiple_Learners_Report_exports",
-                        fileName: `${(input.selectVesselOrLearner).toLowerCase()}_report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                        fileName: `${(input.selectVesselOrLearner).toLowerCase()} module level report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
 
@@ -1718,8 +1721,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Learner Module Level Report Exported Successfully`,
+                        messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -5084,34 +5087,40 @@ const generateCustomReport = async ({ input }, context) => {
             const enrollmentReportHeaders = [
                 "Name",
                 "Email",
+                "User Id",
                 "Designation",
+                "Current Vessel",
+                "Vessel Type",
                 "Course Name",
                 "Status",
                 "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
                 "Quiz Score",
                 "userState",
-                "Time Spent (mins)",
-                "Enrollment Date (UTC)",
-                "Course Started Date (UTC)",
-                "Course Completion Date (UTC)",
-                "Unenrollment Date (UTC)"
+                "Time Spent",
             ]
 
             const quizReportHeaders = [
                 "Name",
                 "Email",
+                "User Id",
                 "Designation",
+                "Current Vessel",
+                "Vessel Type",
                 "Course Name",
                 "Course Status",
                 "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
                 "Lesson Name",
                 "Content Name",
                 "Content Type",
                 "Quiz Score",
-                "Enrollment Date (UTC)",
-                "Course Started Date (UTC)",
-                "Course Completion Date (UTC)",
-                "Unenrollment Date (UTC)"
             ]
 
             const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
@@ -5129,14 +5138,14 @@ const generateCustomReport = async ({ input }, context) => {
         const excelFilePath = await UploadHelper.uploadExcel({
             data: excelBuffer,
             folderName: "Custom-Quiz-Reports",
-            fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+            fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
             uploadType: UploadHelper.uploadType.exportCustomQuizReport,
         });
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
+                titleValue: ` Custom Report Exported Successfully`,
                 messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAdmin: true,
