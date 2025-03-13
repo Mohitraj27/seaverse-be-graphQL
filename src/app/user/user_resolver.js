@@ -239,6 +239,7 @@ module.exports.mutations = {
     
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
+                    status: 'true'
                 };
     
              });

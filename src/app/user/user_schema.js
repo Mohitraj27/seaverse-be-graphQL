@@ -126,6 +126,7 @@ module.exports = {
         }
         type SignUpRes {
             message: String!
+            status: String!
         }
         input emailVertificationInput{
             country: String
