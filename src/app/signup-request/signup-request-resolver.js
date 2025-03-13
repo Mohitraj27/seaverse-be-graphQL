@@ -59,4 +59,16 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED_TO_FETCH_SIGNUP_REQUEST, error.message);
         }
     },
+    getUserSignupDetails: async ({ id }, context) => {
+        const { subscriberId, userInfo } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+        try {
+            const user = await SignupRequest.findOne({ userId: id, isDeleted: false });
+            if (!user) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND,'Signup request data not found');
+            return user;
+
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_SIGNUP_REQUEST, error.message);
+        }
+    }
 };

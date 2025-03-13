@@ -25,9 +25,16 @@ module.exports = {
             items: [SignupRequest]
             pendingStatusCount: Int
         }          
+        type SignupRequestdetails {
+            userId: ID
+            firstName: String
+            lastName: String
+            email: String
+        }
     `,
     queries: `
         getSignupRequest(id:ID, search: String,pageInput: SignupRequestPageInput): SignupRequestList!
+        getUserSignupDetails(id:ID!): SignupRequestdetails!
     `,
     mutations: `
       `
