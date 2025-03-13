@@ -179,7 +179,8 @@ module.exports = {
             export: Boolean                  
         }
         input CourseFilterInput {
-            name: String            
+            name: String
+            ids : [ID]            
             isDeleted: Boolean      
             status: String          
         }
@@ -207,6 +208,7 @@ module.exports = {
         }
         input singleCourseReportFilter {
             search :String
+            idsToExport : [ID]
             vesselName : [ID]
             vesselType : [ID]
             designation : [ID]
