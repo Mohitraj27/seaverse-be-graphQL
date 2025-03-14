@@ -147,6 +147,13 @@ const userSchema = new Schema(
         vesselStatus: {
             type: String,
             default: null,
+        },
+        directSignup: {
+            type: Boolean,
+            default: false
+        },
+        isSignupAdminAprroved: {
+            type: Boolean
         }
     },
     { timestamps: true }

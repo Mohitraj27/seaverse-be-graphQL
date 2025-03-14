@@ -2007,12 +2007,12 @@ module.exports = {
         })
 
         const existingEmpIdEmailMap = existingUsers.map(user => ({
-            [user.civilIdOrPassport]: user.email?.toLowerCase()
+            [user.civilIdOrPassport.toLowerCase()]: user.email?.toLowerCase()
         }));
 
 
         const existingEmailEmpIdMap = existingUsers.map(user => ({
-            [user.email?.toLowerCase()]: user.civilIdOrPassport
+            [user.email?.toLowerCase()]: user.civilIdOrPassport.toLowerCase()
         }))
 
 
@@ -2049,13 +2049,13 @@ module.exports = {
 
         for (const user of users) {
 
-            const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport]);
+            const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
 
 
             if (existingEmpIdsMap) {
 
-                const email = existingEmpIdsMap[user.civilIdOrPassport];
+                const email = existingEmpIdsMap[user.civilIdOrPassport.toLowerCase()];
 
                 if (existingEmailIdsMap) {
 
@@ -2077,7 +2077,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -2108,7 +2108,7 @@ module.exports = {
 
                     updates.push({
                         updateMany: {
-                            filter: { civilIdOrPassport: user.civilIdOrPassport },
+                            filter: { civilIdOrPassport: { $regex: `^${user.civilIdOrPassport}$`, $options: 'i' } },
                             update: {
                                 $set: {
                                     firstName: user.firstName,
@@ -2122,7 +2122,7 @@ module.exports = {
                     });
 
 
-                    updatedEmpIds.push(user.civilIdOrPassport);
+                    updatedEmpIds.push(user.civilIdOrPassport.toUpperCase());
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
@@ -2153,7 +2153,8 @@ module.exports = {
 
                         updates.push({
                             updateMany: {
-                                filter: { email: user.civilIdOrPassport },
+                                // filter: { email: user.civilIdOrPassport },
+                                filter: { civilIdOrPassport: { $regex: `^${user.civilIdOrPassport}$`, $options: 'i' } },
                                 update: {
                                     $set: {
                                         firstName: user.firstName,
@@ -2167,7 +2168,7 @@ module.exports = {
                         });
 
 
-                        updatedEmpIds.push(user.civilIdOrPassport);
+                        updatedEmpIds.push(user.civilIdOrPassport.toUpperCase());
 
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
@@ -2193,7 +2194,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                    civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -2224,7 +2225,7 @@ module.exports = {
                     break;
 
 
-                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
 
                     // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
@@ -2236,7 +2237,7 @@ module.exports = {
                     let password = dummyPassword.dummy_pwd;
 
                     inserts.push({
-                        civilIdOrPassport: user.civilIdOrPassport,
+                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
@@ -2304,9 +2305,9 @@ module.exports = {
         let bulkUpdateUsers;
 
 
-        let insertedUsers;
-        let updatedUsersById;
-        let updatedUsersByEmail;
+        let insertedUsers = [];
+        let updatedUsersById = [];
+        let updatedUsersByEmail = [];
 
 
         let endUsers = [];
@@ -2320,7 +2321,17 @@ module.exports = {
 
 
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
-            updatedUsersById = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
+
+
+            if (updatedEmpIds.length > 0) {
+
+                updatedUsersById = await User.find({
+                    $or: updatedEmpIds.map(id => ({
+                        civilIdOrPassport: { $regex: `^${id}$`, $options: 'i' }
+                    }))
+                }).session(session);
+
+            }
             updatedUsersByEmail = await User.find({ email: { $in: updatedEmailIds } }).session(session);
 
 
@@ -2343,7 +2354,7 @@ module.exports = {
                 const userVesselsInsert = [];
                 for (const vesselData of vesselAssociations) {
                     const originalUserData = allUpdatedUsers.filter(
-                        user => user.civilIdOrPassport === vesselData.civilIdOrPassport || user.email === vesselData.email
+                        user => user.civilIdOrPassport?.toLowerCase() === vesselData.civilIdOrPassport?.toLowerCase() || user.email?.toLowerCase() === vesselData.email?.toLowerCase()
                     );
 
                     if (originalUserData.length > 0) {
@@ -2416,7 +2427,7 @@ module.exports = {
                 }
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                    const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
 
 
                     return {
@@ -2542,14 +2553,14 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0) {
+        if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `${insertedUsers.length} User(s) data created`,
+                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
@@ -2562,34 +2573,9 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `${insertedUsers.length} User(s) data created`
+                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
-
-        if (updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-            })
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: userCount,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `${updatedUsersById.length + updatedUsersByEmail.length} User(s) data updated`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
         }
 
     },
@@ -2622,7 +2608,7 @@ module.exports = {
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
-                        
+
                         return validationErrors;
 
                     } else {

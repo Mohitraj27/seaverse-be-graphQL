@@ -37,6 +37,7 @@ module.exports = {
             htmlTemplate: String
             isResetPasswordDialog: Boolean
             vesselStatus: String
+            isSignupAdminAprroved: Boolean
         }
         type UserList {
             users: [User]
@@ -126,6 +127,10 @@ module.exports = {
         }
         type SignUpRes {
             message: String!
+            status: String!
+            user: User!
+            token: String!
+            refreshToken: String!
         }
         input emailVertificationInput{
             country: String
