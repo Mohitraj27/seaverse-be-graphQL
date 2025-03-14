@@ -1221,7 +1221,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                     return {
                         questionId: question._id,
                         question: question.question,
-                        givenAnswer: userAnswer.answer,
+                        givenAnswer: isCorrectAnswer ? question.answerKey : userAnswer.answer,
                         correctAnswer: question.answerKey,
                         isCorrectAnswer,
                         points: question.points,
