@@ -245,7 +245,7 @@ module.exports.mutations = {
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
                 }], { session });
-                console.log('result', result);                
+                if (!result) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");             
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
                     status: 'true'
