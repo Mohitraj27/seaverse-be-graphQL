@@ -59,6 +59,7 @@ const { CompanySchema } = require("../app/vessle/company");
 const { OwnerSchema } = require("../app/vessle/owner");
 const {migrationcoursesSchema} = require("../app/trainings/migrationcourses");
 const { SignupRequestSchema } = require("../app/signup-request");
+const { SignupRequestHistorySchema } = require("../app/signup-request-history");
 const schemas = [
     AppDataSchema,
     AppSettingsSchema,
@@ -110,7 +111,8 @@ const schemas = [
     CompanySchema,
     OwnerSchema,
     migrationcoursesSchema,
-    SignupRequestSchema
+    SignupRequestSchema,
+    SignupRequestHistorySchema
 ];
 
 const types = [];
