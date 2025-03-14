@@ -58,6 +58,7 @@ const { CompanyResolver } = require("../app/vessle/company");
 const { OwnerResolver } = require("../app/vessle/owner");
 const { convertMinutesToHHMMSS } = require("../util/string_helper");
 const {migrationcoursesResolver} = require("../app/trainings/migrationcourses")
+const { SignupRequestResolver } = require('../app/signup-request');
 
 module.exports = {
     ID: new GraphQLScalarType({
@@ -153,6 +154,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(OwnerResolver.queries),
         ...AuthHelper.requiresAdmin(UserResolver.queries),
         ...AuthHelper.simplify(migrationcoursesResolver.queries),
+        ...AuthHelper.requiresAdmin(SignupRequestResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -197,7 +199,8 @@ module.exports = {
         ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
         ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
         
-        ...AuthHelper.requiresEmployee(NotificationResolver.mutations)
+        ...AuthHelper.requiresEmployee(NotificationResolver.mutations),
+        ...AuthHelper.requiresAdmin(SignupRequestResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
