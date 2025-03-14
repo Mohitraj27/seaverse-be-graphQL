@@ -59,7 +59,7 @@ const { OwnerResolver } = require("../app/vessle/owner");
 const { convertMinutesToHHMMSS } = require("../util/string_helper");
 const {migrationcoursesResolver} = require("../app/trainings/migrationcourses")
 const { SignupRequestResolver } = require('../app/signup-request');
-
+const { SignupRequestHistoryResolver } = require('../app/signup-request-history');
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -155,6 +155,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(UserResolver.queries),
         ...AuthHelper.simplify(migrationcoursesResolver.queries),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.queries),
+        ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.queries)
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
