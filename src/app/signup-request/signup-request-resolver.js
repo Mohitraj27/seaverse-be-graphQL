@@ -150,7 +150,6 @@ module.exports.mutations = {
             return processSignupRequestApproval;
 
         } catch (error) {
-            // Handle failure and return a failure response
             throw CustomError(ErrorName.FAILED_TO_PROCESS_SIGNUP_REQUEST, error.message);
         }
     }
