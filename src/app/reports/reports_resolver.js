@@ -1000,8 +1000,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Learner Enrollment Report Exported Successfully`,
-                        messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Enrollment report is ready to download`,
+                        // messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [{
@@ -1721,8 +1721,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Learner Module Level Report Exported Successfully`,
-                        messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Module level report is ready to downlaod`,
+                        // messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -5143,10 +5143,11 @@ const generateCustomReport = async ({ input }, context) => {
         });
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to downlaod`:`Quiz report is ready to download`
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: ` Custom Report Exported Successfully`,
-                messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                titleValue: notificationMessage,
+                // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAdmin: true,
                 additionalInfo: [
