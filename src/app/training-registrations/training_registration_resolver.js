@@ -152,7 +152,8 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
-                    directEnrollment: '$directEnrollment'
+                    directEnrollment: '$directEnrollment',
+                    adminMarkedAsCompleted: '$adminMarkedAsCompleted'
                 }
             }
         ]);
@@ -161,7 +162,8 @@ module.exports.queries = {
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
-            directEnrollment: user.directEnrollment
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
         return {
             countOfUsers: formattedResults.length || 0,
@@ -365,6 +367,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
+        
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
@@ -1385,6 +1388,29 @@ module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
         // const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
+    },
+    courseCompletionForFirstTime: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+
+            if (!input) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
+            }
+
+            const fetchOverallTrainingProgressAndUpdate = await OverallTrainingProgress.findOneAndUpdate(
+                { _id: input }, { finishedCourseFirstTime: true }
+            );
+
+            if (!fetchOverallTrainingProgressAndUpdate) throw CustomError(ErrorName.FAILED);
+
+            return {
+                message: "Success!"
+            }
+
+        } catch (error) {
+            throw Error(error);
+        }
     },
     verifyRegistrationEmails: async ({ input }, context) => {
 

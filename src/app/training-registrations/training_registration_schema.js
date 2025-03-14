@@ -83,6 +83,8 @@ module.exports = {
             createdAt: String
             attemptCount: Int
             isCertificatePresent: Boolean
+            finishedCourseFirstTime: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -191,6 +193,7 @@ module.exports = {
             lastName: String
             status: Status!
             directEnrollment: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         input getTrainingRegsInput {
             training: ID!
@@ -256,5 +259,6 @@ module.exports = {
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
         markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
         resetModules(input: ResetModulesInput!): ResetModulesRes!
+        courseCompletionForFirstTime(input: ID!): MarkAsCompletedRes!
     `,
 };

@@ -289,18 +289,18 @@ module.exports.queries = {
 
         let errors = [];
         const resetPasswordHtml = resetPasswordRequest(user, token);
-        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
+        // const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
             receiverEmail: user.email,
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
         });
-        await AwsHelper.sendEmail({
-            receiverEmail: userInfo.email,
-            subject: "Reset Password Request",
-            htmlContent: resetPasswordHtmlforAdmin,
-        })
+        // await AwsHelper.sendEmail({
+        //     receiverEmail: userInfo.email,
+        //     subject: "Reset Password Request",
+        //     htmlContent: resetPasswordHtmlforAdmin,
+        // })
         if (errors.length > 0) {
             throw new CustomError(ErrorName.FAILED);
         }

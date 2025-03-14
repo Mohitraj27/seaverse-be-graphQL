@@ -762,6 +762,31 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     },
                     {
                         "$lookup": {
+                            "from": "vessels",
+                            "localField": "userInfo.currentVessel",
+                            "foreignField": "_id",
+                            "as": "vesselInfo"
+                        }
+                    },
+                    {
+                        "$unwind": {
+                            "path": "$vesselInfo",
+                            "preserveNullAndEmptyArrays": true
+                        }
+                    },
+                    {
+                        "$lookup": {
+                            "from": "vesseltypes",
+                            "localField": "vesselInfo.typeOfVessel",
+                            "foreignField": "_id",
+                            "as": "vesselTypeInfo"
+                        }
+                    },
+                    {
+                        "$unwind": { "path": "$vesselTypeInfo", "preserveNullAndEmptyArrays": true }
+                    },
+                    {
+                        "$lookup": {
                             "from": "trainingprogress",
                             "localField": "training",
                             "foreignField": "training",
@@ -804,6 +829,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
                             "isRegistered": "$userInfo.isRegistered",
+                            'vesselName': '$vesselInfo.name',
+                            'vesselTypeName': '$vesselTypeInfo.name',
                             'courseName': {
                                 '$arrayElemAt': [
                                     '$trainingInfo.title.value', 0
@@ -858,24 +885,27 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         ? item.quizPercentage
                         : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                             ? item.quizPercentage.toFixed(2)
-                            : null;
+                            : 'Not Applicable';
                     const userState = item.isRegistered ? "Registered" : "Unregistered";
-                    const timeSpent = item.totalTimeSpent ? Math.round(item.totalTimeSpent) : 0;
+                    const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item.totalTimeSpent) : '00:00:00';
 
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
                         Email: item.email || null,
+                        EmployeeId: item.employeeId || null,
                         Designation: item.designation || null,
+                        'Current Vessel': item.vesselName || 'Not Applicable',
+                        'Vessel Type': item.vesselTypeName || 'Not Applicable',
                         'Course Name': item.courseName ? item.courseName[0] : null,
-                        Status: item.status || null,
+                        'Course Status': item.status || null,
                         'Admin Marked As Completed': item.adminMarkedAsCompleted ? 'Yes' : 'No',
-                        'Enrollment Date (UTC) ': enrollmentDate,
-                        'Unenrollment Date (UTC)': unenrollmentDate,
-                        'Completion Date (UTC)': completionDate,
-                        'Started Date (UTC)': startDate,
+                        'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                        'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                        'Course Started Date & Time (UTC)': startDate,
+                        'Course Completion Date & Time (UTC)': completionDate,
                         'Quiz Score': quizScore,
-                        userState: userState,
-                        'Time Spent (mins)': timeSpent,
+                        'User State': userState,
+                        'Time Spent': timeSpent,
                     });
                 });
             } else {
@@ -962,7 +992,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 const excelFilePath = await UploadHelper.uploadExcel({
                     data: excelBuffer,
                     folderName: `Multiple_Learners_Report_exports`,
-                    fileName: `${(input.selectVesselOrLearner).toLowerCase()}-Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                    fileName: `${(input.selectVesselOrLearner).toLowerCase()} enrollment report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                     uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                 });
                 if (excelFilePath) {
@@ -970,8 +1000,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Learner Enrollment Report Exported Successfully`,
+                        messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [{
@@ -1509,6 +1539,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             user: "$_id.userId",
                             firstName: 1,
                             lastName: 1,
+                            currentVessel: 1,
+                            vesselType: 1,
                             email: 1,
                             designation: 1,
                             status: 1,
@@ -1556,7 +1588,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const designation = learner?.designation || '';
                         const firstName = learner?.firstName || '';
                         const lastName = learner?.lastName || '';
-                        const status = learner?.status || 'NOT APPLICABLE';
+                        const currentVessel = learner?.currentVessel || 'Not Applicable';
+                        const vesselType = learner?.vesselType || 'Not Applicable';
+                        const status = learner?.status || 'Not Applicable';
                         const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
                         const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
@@ -1582,17 +1616,20 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
                                     Designation: designation,
+                                    'User Id': learner?.empId || 'Not Applicable',
                                     'Course Name': courseName,
+                                    'Current Vessel': currentVessel,
+                                    'Vessel Type': vesselType,
                                     'Course Status': status,
                                     'Admin Marked As Completed': isAdminMarkedAsCompleted,
-                                    'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
-                                    'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
+                                    'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                                    'Course Started Date & Time (UTC)': startDate,
+                                    'Course Completion Date & Time (UTC)': completionDate,
+                                    'Lesson Name': `${moduleName}`,
+                                    'Content Name': `${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
-                                    'Enrollment Date (UTC)': enrollmentDate,
-                                    'Course Started Date (UTC)': startDate,
-                                    'Course Completion Date (UTC)': completionDate,
-                                    'Unenrollment Date (UTC)': unenrollmentDate,
                                 });
                             });
                         });
@@ -1644,18 +1681,21 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             [
                                 "Name",
                                 "Email",
+                                "User Id",
                                 "Designation",
+                                "Current Vessel",
+                                "Vessel Type",
                                 "Course Name",
                                 "Course Status",
                                 "Admin Marked As Completed",
+                                "Course Enrollment Date & Time (UTC)",
+                                "Course Unenrollment Date & Time (UTC)",
+                                "Course Started Date & Time (UTC)",
+                                "Course Completion Date & Time (UTC)",
                                 "Lesson Name",
                                 "Content Name",
                                 "Content Type",
                                 "Quiz Score",
-                                "Enrollment Date (UTC)",
-                                "Course Started Date (UTC)",
-                                "Course Completion Date (UTC)",
-                                "Unenrollment Date (UTC)"
                             ]
                         ]);
                     }
@@ -1668,7 +1708,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const excelFilePath = await UploadHelper.uploadExcel({
                         data: excelBuffer,
                         folderName: "Multiple_Learners_Report_exports",
-                        fileName: `${(input.selectVesselOrLearner).toLowerCase()}_report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+                        fileName: `${(input.selectVesselOrLearner).toLowerCase()} module level report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                         uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                     });
 
@@ -1681,8 +1721,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Single Learner Report Exported Successfully`,
-                        messageValue: `The single learner report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Learner Module Level Report Exported Successfully`,
+                        messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAdmin: true,
                         additionalInfo: [
@@ -1764,6 +1804,14 @@ const getMainCoursesReport = async ({ input }, context) => {
 
             if (filterInput.isDeleted !== undefined) {
                 matchStage.push({ $match: { 'trainingInfo.isDeleted': filterInput.isDeleted } });
+            }
+
+            if (filterInput?.ids?.length > 0) {
+                matchStage.push({
+                    $match: {
+                        _id: { $in: filterInput.ids },
+                    },
+                });
             }
 
         }
@@ -2084,6 +2132,7 @@ const getSingleCourseReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
+        const matchIdsToBeExported = [];
         /* Ticket No SEAV-117
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
@@ -2182,6 +2231,14 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
+            if (filterInput.idsToExport && Array.isArray(filterInput.idsToExport) && filterInput.idsToExport.length > 0) {
+                matchIdsToBeExported.push({
+                    $match: {
+                        _id: { $in: filterInput?.idsToExport },
+                    },
+                });
+            }
+            
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -2382,6 +2439,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     ...matchStage,
                     {
                         $project: {
+                            _id: 1,
                             firstName: "$userInfo.firstName",
                             lowercaseFirstName: { 
                                 $toLower: "$userInfo.firstName"
@@ -2427,6 +2485,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             lowercaseFirstName: 1
                         }
                     },
+                    ...matchIdsToBeExported,
                     ...pageLimit
                 ]
 
@@ -2470,7 +2529,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
                                 ? `${Math.round(item.quizPercentage)}%`
                                 : 'Not Applicable';
-                        const courseStatus = item.status || 'Not Started';
+                        const courseStatus = item.status || 'NOT_STARTED';
 
                         const currentVessel = item.vesselName || '';
                         const vesselType = item.vesselType || '';
@@ -3197,7 +3256,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     }, {
                         '$project': {
-                            '_id': 0,
+                            '_id': '$_id.userId',
                             'courseId': '$_id.trainingId',
                             'user': '$_id.userId',
 
@@ -3235,6 +3294,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     { $sort: { createdAt: -1 } },
                     { $sort: { lowercaseFirstName : 1 } },
+                    ...matchIdsToBeExported,
                     ...pageLimit
                 ]
             );
@@ -4009,25 +4069,25 @@ const generateCustomReport = async ({ input }, context) => {
                     });
                 }
 
+                //filter with vessel names(vesselId accepted from FE)
                 if (input.vesselName && Array.isArray(input.vesselName) && input.vesselName.length > 0) {
-                    const users = await User.find({ currentVessel: { $in: input.vesselName } }).select('_id');
                     matchStage.push({
                         $match: {
-                            user: { $in: users.map(user => user._id) },
+                            'userInfo.currentVessel': { $in: input?.vesselName },
                         },
                     });
                 }
 
+                //filter with vessel types (vesselTypeId accepted from FE)
                 if (input.vesselType && Array.isArray(input.vesselType) && input.vesselType.length > 0) {
-                    const vessels = await Vessel.find({ typeOfVessel: { $in: input.vesselType } }).select('_id');
-                    const users = await User.find({ currentVessel: { $in: vessels.map(vessel => vessel._id) } }).select('_id');
                     matchStage.push({
                         $match: {
-                            user: { $in: users.map(user => user._id) },
+                            'vesselTypeInfo._id': { $in: input?.vesselType },
                         },
                     });
                 }
 
+                //filter with course status (status accepted from FE as array of strings)
                 if (input.courseStatus && Array.isArray(input.courseStatus) && input.courseStatus.length > 0) {
                     matchStage.push({
                         $match: {
@@ -4035,17 +4095,20 @@ const generateCustomReport = async ({ input }, context) => {
                         },
                     });
                 }
-                if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0) {
+
+                //filter with learner status (status accepted from FE as array of strings)
+                if (input.learnerStatus && Array.isArray(input.learnerStatus) && input.learnerStatus.length > 0 && input.learnerStatus.length < 2) {
                     matchStage.push({
                         $match: {
                             'userInfo.vesselStatus': { $in: input.learnerStatus },
                         },
                     });
                 }
+                //filter with designation (designationId accepted from FE)
                 if (input.designation && Array.isArray(input.designation) && input.designation.length > 0) {
                     matchStage.push( {
                         "$match": {
-                            "employeeData.empDesignation": { "$in": input.designation }
+                            "employeeInfo.empDesignation": { "$in": input.designation }
                         }
                     });
                 }
@@ -4300,6 +4363,8 @@ const generateCustomReport = async ({ input }, context) => {
                                 $toLower: "$userInfo.firstName"
                             },
                             'lastName': '$userInfo.lastName',
+                            'currentVessel': '$vesselDetails.name',
+                            'vesselType': '$vesselTypeInfo.name',
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'isRegistered': '$userInfo.isRegistered',
@@ -4344,26 +4409,31 @@ const generateCustomReport = async ({ input }, context) => {
                 const startDate = item?.startDate && item.startDate !== 'startDate'
                     ? ReportsHelper.formatDate(item.startDate)
                     : "Not Applicable";
+                const vesselType = item?.vesselType || "Not Applicable";
+                const currentVessel = item?.currentVessel || "Not Applicable";
                 const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
-                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "N/A";
+                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "Not Applicable";
                 const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? parseInt(item.totalTimeSpent)+" mins" : 0+" mins";
+                const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
                 const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
                 dataToExport.push({
                     Name: learnerName ?? "-",
                     Email: item.email || null,
+                    employeeId: item.employeeId || null,
                     Designation: item.designation || null,
+                    'Current Vessel': currentVessel,
+                    'Vessel Type': vesselType,
                     'Course Name': item.courseName ? item.courseName[0] : null,
-                    Status: item.status || null,
+                    'Course Status': item.status || null,
                     'Admin Marked As Completed': adminMarkedAsCompleted,
+                    'Course Enrollment Date & Time (UTC)': enrollmentDate,
+                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                    'Course Started Date & Time (UTC)': startDate,
+                    'Course Completion Date & Time (UTC)': completionDate,
                     'Quiz Score': quizScore,
-                    userState: userState,
-                    'Time Spent (mins)': timeSpent,
-                    'Enrollment Date (UTC)': enrollmentDate,
-                    'Course Started Date (UTC)': startDate,
-                    'Course Completion Date (UTC)': completionDate,
-                    'Unenrollment Date (UTC)': unenrollmentDate,
+                    'User State': userState,
+                    'Time Spent': timeSpent,
                 });
             });
 
@@ -4415,7 +4485,7 @@ const generateCustomReport = async ({ input }, context) => {
                             from: "employees",
                             localField: "user",
                             foreignField: "user",
-                            as: "employeeData",
+                            as: "employeeInfo",
                             pipeline: [
                                 {
                                     $match: {
@@ -4427,14 +4497,14 @@ const generateCustomReport = async ({ input }, context) => {
                     },
                     {
                         $unwind: {
-                            path: "$employeeData",
+                            path: "$employeeInfo",
                             preserveNullAndEmptyArrays: true
                         }
                     },
                     {
                         $lookup: {
                             from: "designations",
-                            localField: "employeeData.empDesignation",
+                            localField: "employeeInfo.empDesignation",
                             foreignField: "_id",
                             as: "designationInfo"
                         }
@@ -4450,19 +4520,19 @@ const generateCustomReport = async ({ input }, context) => {
                             from: "vessels",
                             localField: "userInfo.currentVessel",
                             foreignField: "_id",
-                            as: "vesselInfo"
+                            as: "vesselDetails"
                         }
                     },
                     {
                         $unwind: {
-                            path: "$vesselInfo",
+                            path: "$vesselDetails",
                             preserveNullAndEmptyArrays: true
                         }
                     },
                     {
                         $lookup: {
                             from: "vesseltypes",
-                            localField: "vesselInfo.typeOfVessel",
+                            localField: "vesselDetails.typeOfVessel",
                             foreignField: "_id",
                             as: "vesselTypeInfo"
                         }
@@ -4720,7 +4790,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 $first: "$adminMarkedAsCompleted"
                             },
                             currentVessel: {
-                                $first: "$vesselInfo.name"
+                                $first: "$vesselDetails.name"
                             },
                             vesselType: {
                                 $first: "$vesselTypeInfo.name"
@@ -4874,6 +4944,8 @@ const generateCustomReport = async ({ input }, context) => {
                             lowercaseFirstName: { 
                                 $toLower: "$firstName"
                             },
+                            currentVessel: 1,
+                            vesselType: 1,
                             lastName: 1,
                             email: 1,
                             designation: 1,
@@ -4912,12 +4984,14 @@ const generateCustomReport = async ({ input }, context) => {
             const flattenDataForSingleSheet = (learner) => {
                 const flattenedData = [];
                 if (learner) {
-
                     const email = learner?.email || '';
                     const designation = learner?.designation || '';
                     const firstName = learner?.firstName || '';
                     const lastName = learner?.lastName || '';
-                    const status = learner?.status || 'NOT APPLICABLE';
+                    const empId = learner?.empId || '';
+                    const currentVessel = learner?.currentVessel || 'Not Applicable';
+                    const vesselType = learner?.vesselType || 'Not Applicable';
+                    const status = learner?.status || 'Not Applicable';
                     const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
                     const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                     const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
@@ -4935,26 +5009,29 @@ const generateCustomReport = async ({ input }, context) => {
 
                         module?.moduleContents.forEach((content, contentIndex) => {
                             const contentName = content?.contentName[0]?.value || 'Unnamed Content';
-                            const contentType = content?.contentType || 'NOT APPLICABLE';
-                            const quizScore = content?.percentage || 'NOT APPLICABLE';
-
-
-                            flattenedData.push({
-                                Name: `${firstName} ${lastName}`,
-                                Email: email,
-                                Designation: designation,
-                                'Course Name': courseName,
-                                'Course Status': status,
-                                'Admin Marked As Completed': adminMarkedAsCompleted,
-                                'Lesson Name': `(Lesson ${moduleIndex + 1})  ${moduleName}`,
-                                'Content Name': `(Content ${contentIndex + 1})  ${contentName}`,
-                                'Content Type': contentType,
-                                'Quiz Score': quizScore,
-                                'Enrollment Date (UTC)': enrollmentDate,
-                                'Course Started Date (UTC)': startDate,
-                                'Course Completion Date (UTC)': completionDate,
-                                'Unenrollment Date (UTC)': unenrollmentDate,
-                            });
+                            const contentType = content?.contentType || 'Not Applicable';
+                            const quizScore = content?.percentage || 'Not Applicable';
+                            if (learner.contentType === 'QUIZ') {
+                                flattenedData.push({
+                                    Name: `${firstName} ${lastName}`,
+                                    Email: email,
+                                    'User Id': empId,
+                                    Designation: designation,
+                                    'Current Vessel': currentVessel,
+                                    'Vessel Type': vesselType,
+                                    'Course Name': courseName,
+                                    'Course Status': status,
+                                    'Admin Marked As Completed': adminMarkedAsCompleted,
+                                    'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+                                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+                                    'Course Started Date & Time (UTC)': startDate,
+                                    'Course Completion Date & Time (UTC)': completionDate,
+                                    'Lesson Name': `${moduleName}`,
+                                    'Content Name': `${contentName}`,
+                                    // 'Content Type': contentType,
+                                    'Quiz Score': quizScore,
+                                });
+                            }
                         });
                     });
                 }
@@ -4966,8 +5043,10 @@ const generateCustomReport = async ({ input }, context) => {
                 const allFlattenedData = [];
                 learners.forEach(learner => {
                     const learnerData = flattenDataForSingleSheet(learner);
-                    allFlattenedData.push(...learnerData);
-                    allFlattenedData.push([]);
+                    if (learnerData.length > 0) {
+                        allFlattenedData.push(...learnerData);
+                        allFlattenedData.push([]);
+                    }   
                 });
                 return allFlattenedData;
             };
@@ -5008,34 +5087,40 @@ const generateCustomReport = async ({ input }, context) => {
             const enrollmentReportHeaders = [
                 "Name",
                 "Email",
+                "User Id",
                 "Designation",
+                "Current Vessel",
+                "Vessel Type",
                 "Course Name",
                 "Status",
                 "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
                 "Quiz Score",
                 "userState",
-                "Time Spent (mins)",
-                "Enrollment Date (UTC)",
-                "Course Started Date (UTC)",
-                "Course Completion Date (UTC)",
-                "Unenrollment Date (UTC)"
+                "Time Spent",
             ]
 
             const quizReportHeaders = [
                 "Name",
                 "Email",
+                "User Id",
                 "Designation",
+                "Current Vessel",
+                "Vessel Type",
                 "Course Name",
                 "Course Status",
                 "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
                 "Lesson Name",
                 "Content Name",
                 "Content Type",
                 "Quiz Score",
-                "Enrollment Date (UTC)",
-                "Course Started Date (UTC)",
-                "Course Completion Date (UTC)",
-                "Unenrollment Date (UTC)"
             ]
 
             const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
@@ -5053,14 +5138,14 @@ const generateCustomReport = async ({ input }, context) => {
         const excelFilePath = await UploadHelper.uploadExcel({
             data: excelBuffer,
             folderName: "Custom-Quiz-Reports",
-            fileName: `CUSTOM-REPORT_${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+            fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
             uploadType: UploadHelper.uploadType.exportCustomQuizReport,
         });
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
-                titleValue: ` Custom ${input?.reportType.toLowerCase()} Report Exported Successfully`,
+                titleValue: ` Custom Report Exported Successfully`,
                 messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAdmin: true,

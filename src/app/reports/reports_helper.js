@@ -114,10 +114,20 @@ const generateSortingStage = async(fieldMapping, lowercaseFields = [], defaultFi
     return sortingStage;
 }
 
+
+const convertMinutesToHMS = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = Math.floor(minutes % 60); // remaining minutes
+    const remainingSeconds = Math.round((minutes % 1) * 60); // remaining seconds
+
+    return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+};
+
 module.exports ={
     generateFileNameTimestamp,
     getAppliedFilters,
     convertUnderscoreSeperatedStringToCamelCase,
     formatDate,
     generateSortingStage,
+    convertMinutesToHMS,
 }
