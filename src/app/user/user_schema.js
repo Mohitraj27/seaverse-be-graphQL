@@ -126,6 +126,7 @@ module.exports = {
         }
         type SignUpRes {
             message: String!
+            status: String!
         }
         input emailVertificationInput{
             country: String
@@ -134,6 +135,9 @@ module.exports = {
         type emailVerification{
             status: String!
             message: String!
+            generatedtoken: String!
+            email:String!
+            country: String!
         }
         input OTPVerificationInput{
             email: String!

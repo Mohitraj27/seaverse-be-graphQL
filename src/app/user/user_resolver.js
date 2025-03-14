@@ -29,6 +29,7 @@ const Export = require("../user/exportUser/exportUser_model");
 const { Designation } = require("../designations/designation_model");
 const { generateRandomString } = require("./user-profile/user_profile_helper");
 const  SignUpOtp  = require('./SignUpOtp');
+const nodemailer = require("nodemailer");
 
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
@@ -238,6 +239,7 @@ module.exports.mutations = {
     
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
+                    status: 'true'
                 };
     
              });
@@ -489,11 +491,33 @@ module.exports.mutations = {
             <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
             </div>`;
 
-            const sendEmailResponse = await AwsHelper.sendEmail({
-                receiverEmail: email,
-                subject: "OTP Email Verification",
-                htmlContent: html,
+            // const sendEmailResponse = await AwsHelper.sendEmail({
+            //     receiverEmail: email,
+            //     subject: "OTP Email Verification",
+            //     htmlContent: html,
+            // });
+
+
+
+
+            const transporter = nodemailer.createTransport({
+                host: 'smtp.gmail.com',
+                port: '587',
+                secure: false, // For TLS (use true if using port 465)
+                auth: {
+                    user: 'squadramedia.in@gmail.com',
+                    pass: 'qsla srjn keet zsxk',
+                },
             });
+
+            const mailOptions = {
+                from: process.env.EMAIL_VERIFIED_SENDER,
+                to: email,
+                subject: "OTP Email Verification",
+                html: html,
+            };
+
+            const sendEmailResponse = await transporter.sendMail(mailOptions);
 
             const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
             if (sendEmailResponse) {
@@ -507,6 +531,9 @@ module.exports.mutations = {
             return {
                 status: true,
                 message: "OTP sent successfully!",
+                generatedtoken:generatedtoken,
+                email:email,
+                country: country
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
