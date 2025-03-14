@@ -50,6 +50,7 @@ module.exports = {
         user:ID
         isFromMigration:Boolean
         disabled: Boolean
+        listOfLayouts:[String]
     }
         type CertificateLayoutData {
         success:Boolean
@@ -57,7 +58,7 @@ module.exports = {
     }
 `,
     queries:`
-    getCertificateLayoutByTrainingId(trainingId:ID!):CertificateLayout
+    getCertificateLayoutByTrainingId(trainingId:ID!,layout:String):CertificateLayout
     getMigrationcoursesToCertificateLayout:CertificateLayoutData
 `,
     mutations: `
