@@ -1,13 +1,18 @@
 const signupStatus = require("../signup-request/signup-status.json");
+const sortingFieldData = require('../signup-request/sortingField.json');
 module.exports = {
     types: `
         enum historysignupStatusEnum {
              ${Object.keys(signupStatus).join(" ")}
         }
-        
+        enum SortingFieldHistorySignupRequest {
+            ${Object.keys(sortingFieldData).join(" ")}
+        }
         input HistorySignupRequestPageInput {
             limit: Int
             skip: Int
+            sortingField: SortingFieldHistorySignupRequest
+            sortingOrder: Int
         }
         type HistorySignupRequest {
             _id: ID

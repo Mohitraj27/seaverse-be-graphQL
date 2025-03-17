@@ -1,6 +1,7 @@
 const signupStatus = require("./signup-status.json");
 const operationtype = require('./signup-request-operation.json');
 const vesselstatus = require('../../util/vessel_status.json');
+const sortingFieldJSONData = require('./sortingField.json');
 module.exports = {
     types: `
         enum signupStatus {
@@ -12,9 +13,14 @@ module.exports = {
         enum vesselStatus {
             ${Object.keys(vesselstatus).join(" ")}
         }
+        enum sortingField {
+            ${Object.keys(sortingFieldJSONData).join(" ")}
+        }
         input SignupRequestPageInput {
             limit: Int
             skip: Int
+            sortingField: sortingField
+            sortingOrder: Int
         }
         input SignupRequestApprovalInput {
             userId: ID!
