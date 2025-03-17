@@ -189,6 +189,10 @@ module.exports.queries = {
                     { notifyAdmin: true },
                 ];
 
+                if (checkIfAdmin?.roleAssignmentDate) {
+                    filterConditions.$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                }
+
                 const pipeline = [{ $match: filterConditions }];
                 let result = await fetchResult(pipeline);
                 return result
@@ -198,6 +202,10 @@ module.exports.queries = {
                 filterConditions.$and = [
                     { notifyAdmin: true },
                 ];
+
+                if (checkIfAdmin?.roleAssignmentDate) {
+                    filterConditions.$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                }
 
                 const pipeline = [{ $match: filterConditions }];
 
@@ -221,7 +229,6 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
-            console.log(error);
             throw CustomError(GET_NOTIFICATION_FAILED, error.message);
         }
     },

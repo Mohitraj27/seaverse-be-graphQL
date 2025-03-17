@@ -1,5 +1,6 @@
 const signupStatus = require("./signup-status.json");
 const operationtype = require('./signup-request-operation.json');
+const vesselstatus = require('../../util/vessel_status.json');
 module.exports = {
     types: `
         enum signupStatus {
@@ -7,6 +8,9 @@ module.exports = {
         }
         enum OperationType {
             ${Object.keys(operationtype).join(" ")}
+        }
+        enum vesselStatus {
+            ${Object.keys(vesselstatus).join(" ")}
         }
         input SignupRequestPageInput {
             limit: Int
@@ -16,10 +20,9 @@ module.exports = {
             userId: ID!
             operationType: OperationType!
             employeeId: String
-            designation: String
-            vesselName: String
-            vesselType: ID
-            vesselStatus: String
+            designation: ID
+            vesselName: ID
+            vesselStatus: vesselStatus
             isRegistered: Boolean
         }
         type SignupRequest {
