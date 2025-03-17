@@ -221,11 +221,8 @@ module.exports.mutations = {
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
-<<<<<<< HEAD
-=======
                         isSignupAdminAprroved: false,
                         isResetPasswordDialog: true,
->>>>>>> origin
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
                 ], { session });
