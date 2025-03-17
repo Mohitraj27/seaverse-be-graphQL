@@ -218,6 +218,7 @@ module.exports.mutations = {
                         email: email,
                         dummyPassword: dummyPassword,
                         isRegistered: false,
+                        directSignup: true,
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
                 ], { session });

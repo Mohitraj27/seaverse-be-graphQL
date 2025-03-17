@@ -7,6 +7,10 @@ const  HistorySignupRequest = require('../signup-request-history/signup-request-
 const operationTypeEnum = require('./signup-request-operation.json')
 const DbTransactionHelper = require('../../util/db_transaction_helper'); 
 const signupStatus = require('./signup-status.json');
+const { User } = require("../user/user_model");
+const { Designation } = require('../designations/designation_model');
+const {Employee} = require('../user/employee/employee_model');
+const {UserVessel} = require('../user/user-vessel-bridge/userVessel_model');
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -82,7 +86,7 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
-            const { userId, operationType, employeeId, designation, vesselName, vesselType, vesselStatus, isRegistered } = input;
+            const { userId, operationType, employeeId, designation, vesselName, vesselStatus, isRegistered } = input;
 
             const processSignupRequestApproval = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -95,9 +99,48 @@ module.exports.mutations = {
                     throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'Signup request not found');
                 }
 
-                if (operationType === operationTypeEnum.APPROVED) {
-                    signupRequest.signupStatus = signupStatus.APPROVED;
+                if (operationType === operationTypeEnum?.APPROVED) {
+                    signupRequest.signupStatus = signupStatus?.APPROVED;
 
+                    const updateUser = {
+                        civilIdOrPassport: employeeId,
+                        isRegistered,
+                        vesselStatus: vesselStatus || null,
+                        currentVessel: vesselName || null
+                    }
+                    const existingUser = await User.findOne({ civilIdOrPassport: employeeId });
+                    if (existingUser) {
+                        throw CustomError(ErrorName.USER_ALREADY_EXIST, 'Employee with this EmployeeID already exists.');
+                    }
+                    if(designation) {
+                        const designationRecord = await Designation.findOne({ _id: designation, isDeleted: false });
+                        if (!designationRecord) {
+                            throw CustomError(ErrorName.INVALID_DESIGNATION, 'Designation not found');
+                        }
+                        await Employee.findOneAndUpdate(
+                            { user: signupRequest?.userId },
+                            { 
+                                $set: { 
+                                    designation: designationRecord?.name,
+                                    empDesignation: designation 
+                                }
+                            },
+                            { session, upsert: true }
+                        );
+                    }
+                    await User.updateOne(
+                        {_id: signupRequest?.userId},
+                        { $set: updateUser },
+                        { session }
+                    )
+                    if (vesselName || vesselStatus) {
+                        await UserVessel.create([{
+                            vessel: vesselName,
+                            vesselStatus,
+                            user: signupRequest?.userId,
+                            isActive: true
+                        }], { session });
+                    }
                     await HistorySignupRequest.create([{
                         firstName: signupRequest?.firstName,
                         lastName: signupRequest?.lastName,
@@ -109,23 +152,33 @@ module.exports.mutations = {
                         country: signupRequest?.country,
                         decisionDate: new Date(),
                         vesselName,
-                        vesselType,
                         vesselStatus,
                         isRegistered
                     }], { session });
 
                     await SignupRequest.deleteOne({ userId });
 
+                    const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
                     return {
                         status: true,
-                        message: `Signup request for userId ${userId} has been APPROVED successfully.`
+                        message: `Signup request for ${userName} has been APPROVED successfully.`
                     };
 
-                } else if (operationType === operationTypeEnum.REJECTED) {
+                } else if (operationType === operationTypeEnum?.REJECTED) {
                     
-                    signupRequest.signupStatus = signupStatus.REJECTED;
-
-                   const historySignupRequest = await HistorySignupRequest.create([{
+                    signupRequest.signupStatus = signupStatus?.REJECTED;
+                    await User.updateOne(
+                        { _id: signupRequest?.userId },
+                        { $set: { isDeleted: true } },
+                        { session }
+                    );
+                    
+                    await Employee.updateOne(
+                        { user: signupRequest?.userId },
+                        { $set: { isDeleted: true } },
+                        { session }
+                    );
+                    const historySignupRequest = await HistorySignupRequest.create([{
                         firstName: signupRequest?.firstName,
                         lastName: signupRequest?.lastName,
                         email: signupRequest?.email,
@@ -136,10 +189,10 @@ module.exports.mutations = {
                         decisionDate: new Date()
                     }],{session});
                     await SignupRequest.deleteOne({ userId });
-
+                    const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
                     return {
                         status: true,
-                        message: `Signup request for userId ${userId} has been REJECTED successfully.`
+                        message: `Signup request for ${userName} has been REJECTED successfully.`
                     };
 
                 } else {
