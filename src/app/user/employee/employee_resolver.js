@@ -1318,7 +1318,7 @@ module.exports.queries = {
             } else if (input.civilIdOrPassport) {
                 const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
-                    messages.push("Another user already exists with this employee Id");
+                    messages.push("Employee Id already exists");
                 }
             }
             if (messages.length > 0) {
@@ -2034,7 +2034,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport,
+                civilIdOrPassport: input.user.civilIdOrPassport?.toUpperCase(),
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,

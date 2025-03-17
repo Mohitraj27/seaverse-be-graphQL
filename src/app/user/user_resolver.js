@@ -1,4 +1,4 @@
-const { Validator, CryptoHelper, Moment, JwtHelper,Crypto } = require("../../tools");
+const { Validator, CryptoHelper, Moment, JwtHelper, Crypto } = require("../../tools");
 const {
     CustomError,
     ErrorName,
@@ -32,6 +32,8 @@ const  SignUpOtp  = require('./SignUpOtp');
 const nodemailer = require("nodemailer");
 const SignupRequest = require('../signup-request/signup-request-model');
 const signupstatus = require('../signup-request/signup-status.json');
+const subscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
+
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -177,16 +179,16 @@ module.exports.mutations = {
     },
     signUp: async ({ input }) => {
         try {
-             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
-    
-                const { firstName, lastName, password, confirmPassword, email, country  } = input;
-    
-                if (!password || !confirmPassword || !email ) {
+            const signUp = await DbTransactionHelper.performDbTransaction(async session => {
+
+                const { firstName, lastName, password, confirmPassword, email, country } = input;
+
+                if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
                 }
-    
+
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
-    
+
                 const passwordRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
                 if (!passwordRegex.test(password)) {
                     throw CustomError(
@@ -194,21 +196,21 @@ module.exports.mutations = {
                         "Password must have at least one uppercase letter, one lowercase letter, one number and minimum 8 characters"
                     );
                 }
-    
+
                 const existingUser = await User.findOne({ email }).session(session);
-    
-                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST,"User with this email already exists");
-            
-    
+
+                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "User with this email already exists");
+
+
                 const encryptedPassword = await CryptoHelper.hash(password, 10);
-    
+
                 const generateDummyPassword = generateRandomString(10);
                 const dummyPasswordHash = await CryptoHelper.hash(generateDummyPassword, 10);
                 const dummyPassword = `${dummyPasswordHash}~~~${generateDummyPassword}`;
-    
+
                 const subscriber = await Subscriber.findOne().session(session);
                 let subscriberId = subscriber ? subscriber._id : null;
-    
+
                 const createUser = await User.create([
                     {
                         subscriber: subscriberId,
@@ -219,20 +221,25 @@ module.exports.mutations = {
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
+<<<<<<< HEAD
+=======
+                        isSignupAdminAprroved: false,
+                        isResetPasswordDialog: true,
+>>>>>>> origin
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
                 ], { session });
                 if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
-    
+
                 let employeeUpdate = {
                     subscriber: subscriberId,
                     user: createUser[0],
                     regType: 1,
                     country: country,
-                    designation: 'null' 
+                    designation: 'null'
 
                 };
-                
+
                 const savedEmployee = await Employee.create({
                     ...employeeUpdate,
                     UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
@@ -246,15 +253,45 @@ module.exports.mutations = {
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
                 }], { session });
-                if (!result) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");             
+                if (!result) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");
+
+                let tokenPayload = {
+                    role: savedEmployee?.user?.role,
+                    userId: savedEmployee?.user?._id,
+                    permissions: [...new Set(savedEmployee?.user?.subRoles?.map(x => x.permissions).flat(1))],
+                    subscriberId: savedEmployee?.user?.subscriber?._id ?? savedEmployee?.user?.subscriber,
+                    employeeId: savedEmployee?._id,
+                };
+
+                if (tokenPayload.subscriberId) {
+                    const activeSubscriptionInfo = await subscriptionHelper.getActiveSubscriptionInfo(
+                        tokenPayload.subscriberId
+                    );
+
+                    tokenPayload = {
+                        ...tokenPayload,
+                        ...activeSubscriptionInfo,
+                    };
+
+                    savedEmployee.user.subscriptionInfo = activeSubscriptionInfo;
+                }
+
+                if (!tokenPayload) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");
+
+                const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "8h" });
+                const refreshToken = JwtHelper.sign({ userId: savedEmployee?.user?._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
+
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
-                    status: 'true'
+                    status: 'true',
+                    user: employeeUpdate?.user,
+                    token: accessToken,
+                    refreshToken: refreshToken,
                 };
-    
-             });
+
+            });
             return signUp;
-    
+
         } catch (error) {
             throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
         }

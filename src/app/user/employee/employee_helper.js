@@ -1184,7 +1184,7 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         return errors;
     }
 
-    let normalizedId = row["User ID*"].toLowerCase();
+    let normalizedId = row["User ID*"].toUpperCase();
     if (empIds.has(normalizedId)) {
         errors.push(`Duplicate User ID found in row ${rowIndex + 1} as ${row["User ID*"]}`);
         return errors;
@@ -1263,7 +1263,7 @@ function mapCSVRowToUser(row) {
     const result = {
         firstName: row["First Name*"],
         lastName: row["Last Name"] ?? "",
-        civilIdOrPassport: row["User ID*"]?.toLowerCase(),
+        civilIdOrPassport: row["User ID*"]?.toUpperCase(),
         email: row["Email*"]?.toLowerCase(),
         designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
@@ -1484,6 +1484,18 @@ module.exports = {
             savedEmployee = await Employee.findOne({ user: updatedUser._id }).populate('user');
         }
 
+        if (input.empDesignation) {
+            const existingDesignation = await Designation.findById(input.empDesignation);
+
+            if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
+
+            if (savedEmployee?.empDesignation.toString() != input.empDesignation.toString()) {
+                savedEmployee.empDesignation = existingDesignation._id;
+                savedEmployee.designation = existingDesignation.name;
+                await savedEmployee.save();
+            }
+        }
+
         return savedEmployee;
 
         // if (
@@ -1510,12 +1522,7 @@ module.exports = {
 
 
         // let employeeUpdateData = {};
-        // if (input.empDesignation) {
-        //     const existingDesignation = await Designation.findById(input.empDesignation);
-        //     if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
-        //     employeeUpdateData.empDesignation = existingDesignation._id
-        //     employeeUpdateData.designation = existingDesignation.name
-        // }
+     
 
         // if (input.nationality) employeeUpdateData.nationality = input.nationality;
         // if (input.department) employeeUpdateData.department = input.department;
@@ -1979,7 +1986,7 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
-
+         
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
         let userCount = 0;
@@ -1998,7 +2005,7 @@ module.exports = {
 
         existingUsers.forEach(user => {
             if (user.civilIdOrPassport && user.email) {
-                const employeeId = user.civilIdOrPassport.toLowerCase();
+                const employeeId = user.civilIdOrPassport?.toUpperCase();
                 const email = user.email.toLowerCase();
 
                 existingEmailsInDB.set(employeeId, email);
@@ -2007,19 +2014,19 @@ module.exports = {
         })
 
         const existingEmpIdEmailMap = existingUsers.map(user => ({
-            [user.civilIdOrPassport]: user.email?.toLowerCase()
+            [user.civilIdOrPassport.toLowerCase()]: user.email?.toLowerCase()
         }));
 
 
         const existingEmailEmpIdMap = existingUsers.map(user => ({
-            [user.email?.toLowerCase()]: user.civilIdOrPassport
+            [user.email?.toLowerCase()]: user.civilIdOrPassport.toLowerCase()
         }))
 
 
 
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
-        const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport.toLowerCase());
+        const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport?.toUpperCase());
         let errors = [];
         const updates = [];
         const inserts = [];
@@ -2049,19 +2056,19 @@ module.exports = {
 
         for (const user of users) {
 
-            const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport]);
+            const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
 
 
             if (existingEmpIdsMap) {
 
-                const email = existingEmpIdsMap[user.civilIdOrPassport];
+                const email = existingEmpIdsMap[user.civilIdOrPassport.toLowerCase()];
 
                 if (existingEmailIdsMap) {
 
                     const empId = existingEmailIdsMap[user.email?.toLowerCase()];
 
-                    if (empId !== user.civilIdOrPassport.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport.toLowerCase())) {
+                    if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
 
                         // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
@@ -2077,7 +2084,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -2108,7 +2115,7 @@ module.exports = {
 
                     updates.push({
                         updateMany: {
-                            filter: { civilIdOrPassport: user.civilIdOrPassport },
+                            filter: { civilIdOrPassport: { $regex: `^${user.civilIdOrPassport}$`, $options: 'i' } },
                             update: {
                                 $set: {
                                     firstName: user.firstName,
@@ -2122,7 +2129,7 @@ module.exports = {
                     });
 
 
-                    updatedEmpIds.push(user.civilIdOrPassport);
+                    updatedEmpIds.push(user.civilIdOrPassport.toUpperCase());
 
                     vesselAssociations.push({
                         civilIdOrPassport: user.civilIdOrPassport,
@@ -2140,7 +2147,7 @@ module.exports = {
 
                 if (existingEmpIdsMap) {
 
-                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
+                    const email = existingEmpIdsMap[user.civilIdOrPassport?.toUpperCase()];
 
                     if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
 
@@ -2153,7 +2160,8 @@ module.exports = {
 
                         updates.push({
                             updateMany: {
-                                filter: { email: user.civilIdOrPassport },
+                                // filter: { email: user.civilIdOrPassport },
+                                filter: { civilIdOrPassport: { $regex: `^${user.civilIdOrPassport}$`, $options: 'i' } },
                                 update: {
                                     $set: {
                                         firstName: user.firstName,
@@ -2167,7 +2175,7 @@ module.exports = {
                         });
 
 
-                        updatedEmpIds.push(user.civilIdOrPassport);
+                        updatedEmpIds.push(user.civilIdOrPassport.toUpperCase());
 
                         vesselAssociations.push({
                             civilIdOrPassport: user.civilIdOrPassport,
@@ -2178,7 +2186,7 @@ module.exports = {
 
                     }
 
-                } else if (empId !== user.civilIdOrPassport?.toLowerCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toLowerCase())) {
+                } else if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
                     // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
@@ -2193,7 +2201,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    civilIdOrPassport: user.civilIdOrPassport?.toLowerCase(),
+                                    civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -2224,7 +2232,7 @@ module.exports = {
                     break;
 
 
-                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport)) {
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
 
                     // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
@@ -2236,7 +2244,7 @@ module.exports = {
                     let password = dummyPassword.dummy_pwd;
 
                     inserts.push({
-                        civilIdOrPassport: user.civilIdOrPassport,
+                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
@@ -2304,9 +2312,9 @@ module.exports = {
         let bulkUpdateUsers;
 
 
-        let insertedUsers;
-        let updatedUsersById;
-        let updatedUsersByEmail;
+        let insertedUsers = [];
+        let updatedUsersById = [];
+        let updatedUsersByEmail = [];
 
 
         let endUsers = [];
@@ -2320,7 +2328,17 @@ module.exports = {
 
 
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
-            updatedUsersById = await User.find({ civilIdOrPassport: { $in: updatedEmpIds } }).session(session);
+
+
+            if (updatedEmpIds.length > 0) {
+
+                updatedUsersById = await User.find({
+                    $or: updatedEmpIds.map(id => ({
+                        civilIdOrPassport: { $regex: `^${id}$`, $options: 'i' }
+                    }))
+                }).session(session);
+
+            }
             updatedUsersByEmail = await User.find({ email: { $in: updatedEmailIds } }).session(session);
 
 
@@ -2343,7 +2361,7 @@ module.exports = {
                 const userVesselsInsert = [];
                 for (const vesselData of vesselAssociations) {
                     const originalUserData = allUpdatedUsers.filter(
-                        user => user.civilIdOrPassport === vesselData.civilIdOrPassport || user.email === vesselData.email
+                        user => user.civilIdOrPassport?.toLowerCase() === vesselData.civilIdOrPassport?.toLowerCase() || user.email?.toLowerCase() === vesselData.email?.toLowerCase()
                     );
 
                     if (originalUserData.length > 0) {
@@ -2416,7 +2434,7 @@ module.exports = {
                 }
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+                    const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
 
 
                     return {
@@ -2542,14 +2560,14 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0) {
+        if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `${insertedUsers.length} User(s) data created`,
+                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
@@ -2562,34 +2580,9 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `${insertedUsers.length} User(s) data created`
+                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
-
-        if (updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${updatedUsersByEmail.length + updatedUsersById.length} User(s) data updated`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-            })
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: userCount,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `${updatedUsersById.length + updatedUsersByEmail.length} User(s) data updated`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
         }
 
     },
@@ -2602,8 +2595,7 @@ module.exports = {
 
             const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
             const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
-            const fetchAdminDesignation = fetchAdminEmployee.empDesignation.name;
-
+            const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
@@ -2622,7 +2614,7 @@ module.exports = {
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
-                        
+
                         return validationErrors;
 
                     } else {
