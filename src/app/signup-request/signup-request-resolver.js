@@ -12,6 +12,9 @@ const { Designation } = require('../designations/designation_model');
 const {Employee} = require('../user/employee/employee_model');
 const {UserVessel} = require('../user/user-vessel-bridge/userVessel_model');
 const sortingFieldJSONData = require('./sortingField.json')
+const {rejectionEmailTemplate} = require('../email-template/SignupRequestRejected');
+const {approvalEmailTemplate} = require('../email-template/SignupRequestApproved');
+const aws_helper = require("../../util/aws_helper");
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -158,8 +161,19 @@ module.exports.mutations = {
                         isRegistered
                     }], { session });
 
-                    await SignupRequest.deleteOne({ userId });
+                    await SignupRequest.deleteOne({ userId }, { session });
 
+                    const sendmailforApproval =  await aws_helper.sendEmail({
+                        receiverEmail: signupRequest?.email,
+                        subject: 'Signup request APPROVED',
+                        htmlContent: approvalEmailTemplate({
+                            firstName: signupRequest?.firstName,
+                            loginLink: `${process.env.APP_URL}/login`
+                          })
+                    });
+                    if(!sendmailforApproval){
+                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                    }
                     const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
                     return {
                         status: true,
@@ -190,8 +204,18 @@ module.exports.mutations = {
                         country: signupRequest?.country,
                         decisionDate: new Date()
                     }],{session});
-                    await SignupRequest.deleteOne({ userId });
+                    await SignupRequest.deleteOne({ userId }, { session });
                     const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
+                    const sendmailforRejection =  await aws_helper.sendEmail({
+                        receiverEmail: signupRequest?.email,
+                        subject: 'Signup request REJECTED',
+                        htmlContent: rejectionEmailTemplate({
+                            firstName: signupRequest?.firstName,
+                        })
+                    });
+                    if(!sendmailforRejection){
+                        throw CustomError(ErrorName.FAILED_TO_SEND_REJECTION_EMAIL, 'Failed to send rejection email');
+                    }
                     return {
                         status: true,
                         message: `Signup request for ${userName} has been REJECTED successfully.`
