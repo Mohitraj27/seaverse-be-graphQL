@@ -11,15 +11,16 @@ const { User } = require("../user/user_model");
 const { Designation } = require('../designations/designation_model');
 const {Employee} = require('../user/employee/employee_model');
 const {UserVessel} = require('../user/user-vessel-bridge/userVessel_model');
+const sortingFieldJSONData = require('./sortingField.json')
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
-        const skip = pageInput?.skip || 0;
-        const limit = pageInput?.limit || 50;
-        
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-        
         try {
+            const skip = pageInput?.skip || 0;
+            const limit = pageInput?.limit || 100;
+            const sortingFieldValue = pageInput?.sortingFieldValue || sortingFieldJSONData?.requestDate;
+            const sortingOrder = pageInput?.sortingOrder || -1;
             const pendingStatusCount = await SignupRequest.countDocuments({ 
                 signupStatus: signupStatus.PENDING, 
                 isDeleted: false 
@@ -51,10 +52,11 @@ module.exports.queries = {
                     ]
                 };
             }
-            
+            const sortObj = {};
+            sortObj[sortingFieldValue] = sortingOrder;
             
             const items = await SignupRequest.find(query)
-                .sort({ createdAt: -1 })
+                .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
                 
