@@ -236,7 +236,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
-        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate').session(session).lean();
+        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate currentCertificateLayout').session(session).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -306,7 +306,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 status: "IN_PROGRESS",
                                 contentData, startDate: new Date(),
                                 totalTrainingModules: contentData?.length,
-                                isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate
+                                isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
+                                currentCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
                             }
                         },
                     },
@@ -560,6 +561,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         }).session(session);
 
         if (overallDocs.length > 0) {
+            //certificate generation
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
             const sendCertificateNotification = [];
             for (const doc of overallDocs) {
@@ -620,39 +622,57 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         }))
     };
 
-    const trainingProgresses = await TrainingProgress.find(query).populate('trainingModuleContent').session(session);
+    const trainingProgresses = await TrainingProgress.find(query)
+        .populate('trainingModuleContent trainingModule')
+        .session(session);
 
     if (trainingProgresses.length === 0) return;
 
-    let overallIdContentPercentagesMap = new Map();
+    let overallIdModuleProgressMap = new Map();
+
     overallIds.forEach(overallId => {
         const trainingProgress = trainingProgresses.filter(prog =>
             prog.overallTrainingProgress.toString() === overallId.toString()
         );
 
         if (trainingProgress.length > 0) {
+            let moduleProgressMap = new Map();
 
-            const progressPercentages = trainingProgress.map(prog => prog.progressPercentage);
-            const durations = trainingProgress.map(prog => prog.trainingModuleContent?.duration || 0);
-            overallIdContentPercentagesMap.set(overallId.toString(), { progressPercentages, durations });
+            trainingProgress.forEach(prog => {
+                const moduleId = prog.trainingModule.toString();
+                if (!moduleProgressMap.has(moduleId)) {
+                    moduleProgressMap.set(moduleId, { progressSum: 0, count: 0, durationSum: 0 });
+                }
 
+                let moduleData = moduleProgressMap.get(moduleId);
+                moduleData.progressSum += prog.progressPercentage;
+                moduleData.count += 1;
+                moduleData.durationSum += prog.trainingModuleContent?.duration || 0;
+                moduleProgressMap.set(moduleId, moduleData);
+            });
+
+            const modulePercentages = [];
+            const moduleDurations = [];
+
+            moduleProgressMap.forEach(({ progressSum, count, durationSum }) => {
+                modulePercentages.push(progressSum / count);
+                moduleDurations.push(durationSum);
+            });
+
+            overallIdModuleProgressMap.set(overallId.toString(), {
+                progressPercentages: modulePercentages,
+                durations: moduleDurations
+            });
         }
-
     });
 
     let bulkOperations = [];
 
-
-
-    overallIdContentPercentagesMap.forEach(({ progressPercentages, durations }, overallId) => {
-
+    overallIdModuleProgressMap.forEach(({ progressPercentages, durations }, overallId) => {
         const totalDuration = durations.reduce((sum, val) => sum + val, 0);
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
-        const average = progressPercentages.length > 0 ? (total / progressPercentages.length).toFixed(2) : 0.00;
-
-
+        const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
-
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
 
         const updateFields = {
@@ -682,8 +702,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     if (bulkOperations.length > 0) {
         await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
     }
-
-}
+};
 
 const calculateTimeSpend = async (overallIds, session) => {
     try {
@@ -915,7 +934,6 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     });
 
-    // Update/add all the contents to the trainingprogresses collection
     let updateTrainingProgress;
     if (bulkOps.length > 0) {
         updateTrainingProgress = await TrainingProgress.bulkWrite(bulkOps, { session });
@@ -1205,7 +1223,7 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                     return {
                         questionId: question._id,
                         question: question.question,
-                        givenAnswer: userAnswer.answer,
+                        givenAnswer: isCorrectAnswer ? question.answerKey : userAnswer.answer,
                         correctAnswer: question.answerKey,
                         isCorrectAnswer,
                         points: question.points,

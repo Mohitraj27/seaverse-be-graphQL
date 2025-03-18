@@ -105,6 +105,7 @@ const errorName = {
     SIGNUP_REQUEST_DATA_NOT_FOUND: "SIGNUP_REQUEST_DATA_NOT_FOUND",
     INVALID_SIGNUP_REQUEST_ID: "INVALID_SIGNUP_REQUEST_ID",
     FAILED_TO_PROCESS_SIGNUP_REQUEST: "FAILED_TO_PROCESS_SIGNUP_REQUEST",
+    FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
 };
 
 const errorType = {
@@ -632,6 +633,11 @@ const errorType = {
         message: 'Failed to process signup request',
         statusCode: 400,
         type: "FAILED_TO_PROCESS_SIGNUP_REQUEST",
+    },
+    FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: {
+        message: 'Failed to fetch history signup request',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
     }
 };
 

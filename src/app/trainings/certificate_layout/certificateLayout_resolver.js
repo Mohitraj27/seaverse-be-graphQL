@@ -8,20 +8,41 @@ const { ObjectId } = require("../../../tools");
 const { createOrupdateCertificateLayout } = require("./certificatelayout_helper");
 
 module.exports.queries = {
-    getCertificateLayoutByTrainingId: async ({ trainingId }, context) => {
+    getCertificateLayoutByTrainingId: async ({ trainingId , layout }, context) => {
         const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         if (!subscriberId) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
         try {
-            const certificate = await certificateLayout.findOne({ training: trainingId, disabled: false }).exec();
-            if (!certificate) {
-                throw new Error("Certificate layout not found for this training ID");
+
+            if (!trainingId) {
+                throw new Error("Course ID is required");
             }
-            return certificate;
+
+            const trainingExists = await Training.findById(trainingId)
+                .select('isCertificate currentCertificateLayout')
+                .exec();
+
+            if (!trainingExists) {
+                throw new Error("Course not found for the provided ID");
+            }
+
+
+            const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
+            const certificate = await certificateLayout.findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false }).exec();
+            const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
+
+            if (!certificate) {
+                throw Error(`Certificate layout ${layout??""} not found for this training ID`);
+            }
+            return {
+                ...certificate,
+                listOfLayouts
+            };
         } catch (error) {
-            throw new Error("Error fetching certificate layout");
+            console.log(error);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
     },
     getMigrationcoursesToCertificateLayout: async ({ }, context) => {
@@ -84,7 +105,7 @@ module.exports.mutations = {
             let existingLayout;
             if (id) {
                 if (typeof disabled === "boolean") {
-
+                    //checking if training exists
                     const trainingExists = await Training.findById(training);
                     if (!trainingExists) {
                         throw CustomError(
@@ -115,6 +136,8 @@ module.exports.mutations = {
                 logosInput = existingLayout.logos || [];
             }
 
+            const selectedTraining = await Training.findById(training).select("currentCertificateLayout").exec();
+
             if (logoImage1) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage1,
@@ -143,7 +166,6 @@ module.exports.mutations = {
                 }
                 logoKeys.push(logo);
             }
-
             if (logoImage3) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage3,
@@ -188,6 +210,11 @@ module.exports.mutations = {
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
 
+                if(layout){
+                    selectedTraining.currentCertificateLayout = layout;
+                    await selectedTraining.save();
+                }
+                
                 await existingLayout.save();
                 return {
                     success: true,
@@ -197,10 +224,11 @@ module.exports.mutations = {
             } else {
                 const oldCertificateLayout = await certificateLayout.findOne({
                     training: ObjectId(training),
+                    layout: layout,
                 });
-                if (oldCertificateLayout)
+                if (oldCertificateLayout){
                     throw new Error("A layout already exists for this training");
-
+                }
                 const newCertificateLayout = new certificateLayout({
                     layout,
                     training,
@@ -214,7 +242,12 @@ module.exports.mutations = {
                 await newCertificateLayout.save();
                 await Training.findByIdAndUpdate(
                     { _id: training },
-                    { $set: { isCertificate: true } }
+                    { 
+                        $set: { 
+                            isCertificate: true,
+                            currentCertificateLayout: layout  
+                        } 
+                    }
                 );
                 return {
                     success: true,
@@ -223,6 +256,7 @@ module.exports.mutations = {
                 };
             }
         } catch (error) {
+            console.log(error);
             return {
                 success: false,
                 message: error.message || "An unexpected error occurred. Please try again later.",
