@@ -514,13 +514,17 @@ module.exports.mutations = {
 
     },
     selfDeleteRequest: async ({ input }, context) => {
+        
         const { subscriberId, userId, userInfo } = AuthUser(context);
 
         try {
-            const { reasonForDelete } = input;
+
             if (!userId) {
                 throw new CustomError(ErrorName.UNAUTHORIZED);
             }
+
+            const { reasonForDelete } = input;
+
             if (!reasonForDelete || !reasonForDelete.trim().length) {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
@@ -528,21 +532,10 @@ module.exports.mutations = {
             const updateUser = await User.findByIdAndUpdate(userId, {
                 $set: {
                     deleteRequest: true,
-                    isDeleted: true,
-                    isActive: false,
                     deleteRequestDate: Date.now(),
                     reasonForDelete: reasonForDelete
                 }
             });
-
-            await OverallTrainingProgress.updateMany(
-                { user: userId },
-                {
-                    $set: {
-                        isDeleted: true,
-                    }
-                }
-            );
 
             if (updateUser) {
 
@@ -580,11 +573,14 @@ module.exports.mutations = {
                     throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
                 }
 
-                return "Delete request processed and user deleted successfully!";
+                return "Delete request processed successfully!";
+
             } else {
-                console.error(error);
+
                 throw new CustomError(ErrorName.FAILED);
+
             }
+
         } catch (error) {
             console.error(error);
         }
