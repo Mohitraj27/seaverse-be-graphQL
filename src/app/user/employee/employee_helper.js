@@ -170,7 +170,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
     return false;
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
     isComplete: false,
     isCertificateGenerated: false,
     learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
@@ -183,6 +183,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
     isCertificatePresent: isCertificatePresent ?? false,
+    currentCertificateLayout: currentCertificateLayout ?? null
 });
 
 async function enrollUsers(enrollDataArray) {
@@ -226,7 +227,7 @@ async function enrollUsers(enrollDataArray) {
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').lean();
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate currentCertificateLayout').lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -258,7 +259,8 @@ async function enrollUsers(enrollDataArray) {
                             enrollData,
                             trainingRegistrationIds,
                             trainingModuleCounts,
-                            trainingDataById[trainingId.toString()].isCertificate ?? false
+                            trainingDataById[trainingId?.toString()]?.isCertificate ?? false,
+                            trainingDataById[trainingId?.toString()]?.currentCertificateLayout,
                         );
                         insertedEnrollments.push(newEnrollment);
                     }
@@ -2553,7 +2555,7 @@ module.exports = {
             if (passwordEmailList.length > 0) {
 
 
-                await sendBulkEmails(passwordEmailList);
+                // await sendBulkEmails(passwordEmailList);
 
 
             }
