@@ -236,7 +236,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
-        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate').session(session).lean();
+        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate currentCertificateLayout').session(session).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -306,7 +306,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 status: "IN_PROGRESS",
                                 contentData, startDate: new Date(),
                                 totalTrainingModules: contentData?.length,
-                                isCertificatePresent: trainingDataById[doc.training.toString()].isCertificate
+                                isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
+                                currentCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
                             }
                         },
                     },
@@ -560,6 +561,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         }).session(session);
 
         if (overallDocs.length > 0) {
+            //certificate generation
             await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
             const sendCertificateNotification = [];
             for (const doc of overallDocs) {
