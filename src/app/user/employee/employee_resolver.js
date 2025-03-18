@@ -1098,13 +1098,12 @@ module.exports.queries = {
                 ...(filterInput?.search ? [
                     {
                         $match: {
-                            $expr: {
-                                $regexMatch: {
-                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                    regex: ".*" + sanitizedSearch + ".*",
-                                    options: "i"
-                                }
-                            }
+                            $or: [
+                                { "user.firstName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
+                                { "user.lastName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
+                                { "user.email": { $regex: `^${sanitizedSearch}`, $options: "i" } },
+                                { "user.civilIdOrPassport": { $regex: `^${sanitizedSearch}`, $options: "i" } },
+                            ]
                         }
                     }
                 ] : []),

@@ -33,7 +33,7 @@ const nodemailer = require("nodemailer");
 const SignupRequest = require('../signup-request/signup-request-model');
 const signupstatus = require('../signup-request/signup-status.json');
 const subscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
-
+const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -197,7 +197,7 @@ module.exports.mutations = {
                     );
                 }
 
-                const existingUser = await User.findOne({ email }).session(session);
+                const existingUser = await User.findOne({ email, isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
 
@@ -547,7 +547,7 @@ module.exports.mutations = {
             const transporter = nodemailer.createTransport({
                 host: 'smtp.gmail.com',
                 port: '587',
-                secure: false, // For TLS (use true if using port 465)
+                secure: false, 
                 auth: {
                     user: 'squadramedia.in@gmail.com',
                     pass: 'qsla srjn keet zsxk',
@@ -558,7 +558,10 @@ module.exports.mutations = {
                 from: process.env.EMAIL_VERIFIED_SENDER,
                 to: email,
                 subject: "OTP Email Verification",
-                html: html,
+                html: signUpVerifyEmailTemplate({
+                    otp: otp,
+                    verificationLink: `${process.env.APP_URL}/verification-code?token=${generatedtoken}`
+                }),
             };
 
             const sendEmailResponse = await transporter.sendMail(mailOptions);
