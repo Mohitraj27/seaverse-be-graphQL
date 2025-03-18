@@ -27,7 +27,9 @@ const userVesselSchema = new Schema(
 );
 
 userVesselSchema.index({ user: 1 });
-userVesselSchema.index({ vessel: 1 });
+userVesselSchema.index({ vessel: 1 })
+userVesselSchema.index({  isActive: 1 });
+
 
 const UserVessel = Model("UserVessel", userVesselSchema);
 
