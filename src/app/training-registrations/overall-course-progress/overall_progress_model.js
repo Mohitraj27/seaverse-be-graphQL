@@ -94,10 +94,7 @@ const overallProgressSchema = new Schema(
         },
         isEnrolled: Boolean,
         isCertificatePresent: Boolean,
-        assignedCertificateLayout : {
-            type: ObjectId,
-            ref: "certificateLayout"
-        },
+        assignedCertificateLayout : String,
         totalDuration: Number,
         timeSpend: Number,
         finishedCourseFirstTime: {

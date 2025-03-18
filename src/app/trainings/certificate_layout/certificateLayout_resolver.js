@@ -27,22 +27,21 @@ module.exports.queries = {
             if (!trainingExists) {
                 throw new Error("Course not found for the provided ID");
             }
-            if(!trainingExists?.isCertificate){
-                throw new Error("Certificate has not been enabled for this course, please enable certificate and assign a certificate layout to this course");
-            }
+
 
             const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
             const certificate = await certificateLayout.findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false }).exec();
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
 
             if (!certificate) {
-                throw Error(`Certificate layout ${layout} not found for this training ID`);
+                throw Error(`Certificate layout ${layout??""} not found for this training ID`);
             }
             return {
                 ...certificate,
                 listOfLayouts
             };
         } catch (error) {
+            console.log(error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },

@@ -241,119 +241,95 @@ module.exports = {
 
             const nonExistingRegistrations = trainingRegistrations.filter(regId => !existingCertRegIds.includes(regId.toString()));
 
-            if (nonExistingRegistrations.length > 0) {
-
-                const nonExistingOverallDocs = overallDocs.filter(doc => !nonExistingRegistrations.includes(doc.trainingRegistration.toString()));
-
-                const registrationOverallMap = new Map(
-                    overallDocs.map(doc => [doc.trainingRegistration.toString(), doc])
-                );
-
-                const trainingIds = [...new Set(nonExistingOverallDocs.map(doc => doc.training._id.toString()))];
-
-                const certificateLayouts = await certificateLayout.find({
-                    training: { $in: trainingIds },
-                    disabled: false
-                }).session(session).lean();
-
-                const filteredNonExistingOverallDocs = nonExistingOverallDocs.filter(doc => {
-                    const layout = certificateLayouts.find(layout => layout.training.toString() === doc.training._id.toString());
-                    return layout;
-                });
-
-                const certificateLayoutMap = new Map();
-                certificateLayouts.forEach(layout => {
-                    certificateLayoutMap.set(layout.training.toString(), layout);
-                });
-
-                const overallIdCertificateLayoutMap = new Map();
-                filteredNonExistingOverallDocs.forEach(doc => {
-                    const trainingId = doc.training.toString();
-                    if (certificateLayoutMap.has(trainingId)) {
-                        overallIdCertificateLayoutMap.set(doc._id.toString(), certificateLayoutMap.get(trainingId));
-                    }
-                });
-
-                const filteredNonExistingTrainingIds = filteredNonExistingOverallDocs.map(doc => doc.training.toString());
-                const trainingData = await Training.find({
-                    _id: { $in: filteredNonExistingTrainingIds }
-                }).session(session).lean();
-
-                const trainingDataMap = new Map();
-                trainingData.forEach(training => {
-                    trainingDataMap.set(training._id.toString(), training);
-                });
-                const overallIdTrainingDataMap = new Map();
-                filteredNonExistingOverallDocs.forEach(doc => {
-                    const trainingId = doc.training.toString();
-                    if (trainingDataMap.has(trainingId)) {
-                        overallIdTrainingDataMap.set(doc._id.toString(), trainingDataMap.get(trainingId));
-                    }
-                });
-
-                const trainingProgresses = await TrainingProgress.find({
-                    overallTrainingProgress: { $in: filteredNonExistingOverallDocs.map(doc => doc._id) }
-                }).session(session);
-
-                if (trainingProgresses.length === 0) {
-                    errors.push("No training progress found");
-                    return errors;
-                }
-
-
-                let overallCreatedAtMap;
-                if (trainingProgresses.length > 0) {
-                    overallCreatedAtMap = new Map(
-                        trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
-                    );
-                }
-
-                const certificatesToCreate = [];
-
-                for (const overallDoc of filteredNonExistingOverallDocs) {
-
-                    const startDate = overallCreatedAtMap.get(overallDoc._id.toString());
-
-                    const trainingData = overallIdTrainingDataMap.get(overallDoc._id.toString());
-                    const certificateValidity = trainingData?.certificateValidity;
-
-                    const completedAt = CurrentDateTime()?.utcDateTime;
-                    const expiresAt = certificateValidity
-                        ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
-                        : undefined;
-
-                    const certificateNumber = await generateSVCertificateId();
-
-                    const layout = overallIdCertificateLayoutMap.get(overallDoc._id.toString());
-
-                    certificatesToCreate.push({
-                        subscriber: trainingData.subscriber,
-                        trainingRegistration: overallDoc.trainingRegistration,
-                        training: trainingData._id,
-                        certificateLayout: layout._id,
-                        user: userId,
-                        trainingCertificateValidity: certificateValidity,
-                        status: 'COMPLETED',
-                        certificateNumber,
-                        startDate,
-                        completedAt,
-                        generatedAt: completedAt,
-                        expiresAt,
-                        additionalData: [],
-                    });
-
-                }
-
-                if (certificatesToCreate.length > 0) {
-                    await TrainingCertificate.insertMany(certificatesToCreate, { session });
-                }
-
-            } else {
+            if (nonExistingRegistrations.length === 0) {
                 errors.push("No registrations to generate certificates for");
                 return errors;
             }
 
+            const nonExistingOverallDocs = overallDocs.filter(doc =>
+                !existingCertRegIds.includes(doc.trainingRegistration.toString())
+            );
+
+            const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
+            const certificateLayouts = await certificateLayout.find({
+                key: { $in: assignedLayoutKeys },
+                disabled: false
+            }).session(session).lean();
+
+            const certificateLayoutMap = new Map(
+                certificateLayouts.map(layout => [layout.key, layout])
+            );
+
+            const validOverallDocs = nonExistingOverallDocs.filter(doc =>
+                certificateLayoutMap.has(doc.assignedCertificateLayout)
+            );
+
+            if (validOverallDocs.length === 0) {
+                errors.push("No valid certificate layouts found for the registrations");
+                return errors;
+            }
+
+            const validTrainingIds = [...new Set(validOverallDocs.map(doc => doc.training.toString()))];
+            const trainingData = await Training.find({
+                _id: { $in: validTrainingIds }
+            }).session(session).lean();
+
+            const trainingDataMap = new Map(
+                trainingData.map(training => [training._id.toString(), training])
+            );
+
+            const trainingProgresses = await TrainingProgress.find({
+                overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
+            }).session(session);
+
+            if (trainingProgresses.length === 0) {
+                errors.push("No training progress found");
+                return errors;
+            }
+
+            const overallCreatedAtMap = new Map(
+                trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
+            );
+
+            const certificatesToCreate = [];
+
+            for (const overallDoc of validOverallDocs) {
+                const trainingId = overallDoc.training.toString();
+                const training = trainingDataMap.get(trainingId);
+
+                if (!training) continue;
+
+                const certificateLayout = certificateLayoutMap.get(overallDoc.assignedCertificateLayout);
+                const startDate = overallCreatedAtMap.get(overallDoc._id.toString());
+                const completedAt = CurrentDateTime().utcDateTime;
+                const expiresAt = training.certificateValidity
+                    ? ParseDateTime(completedAt).utcDateTimeObj.add({ days: training.certificateValidity }).format()
+                    : undefined;
+
+                certificatesToCreate.push({
+                    subscriber: training.subscriber,
+                    trainingRegistration: overallDoc.trainingRegistration,
+                    training: training._id,
+                    certificateLayout: certificateLayout._id,
+                    user: userId,
+                    trainingCertificateValidity: training.certificateValidity,
+                    status: 'COMPLETED',
+                    certificateNumber: await generateSVCertificateId(),
+                    startDate,
+                    completedAt,
+                    generatedAt: completedAt,
+                    expiresAt,
+                    additionalData: [],
+                });
+            }
+
+            if (certificatesToCreate.length > 0) {
+                await TrainingCertificate.insertMany(certificatesToCreate, { session });
+            }
+
+            return errors;
         } catch (error) {
+            console.log("Error in generateCertificateBulk", error);
             throw Error(error);
         }
     }
