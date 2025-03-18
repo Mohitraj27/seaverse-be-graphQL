@@ -1318,7 +1318,7 @@ module.exports.queries = {
             } else if (input.civilIdOrPassport) {
                 const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
-                    messages.push("Another user already exists with this employee Id");
+                    messages.push("Employee Id already exists");
                 }
             }
             if (messages.length > 0) {
@@ -1617,7 +1617,7 @@ const manageRole = async ({ input }, context) => {
         if (input.removeType === "REMOVE_AS_ADMIN") {
             updateUserRole = await User.updateMany(
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
-                { $set: { subRoles: [] } }
+                { $set: { subRoles: [], roleAssignmentDate: null } }
             );
             operationType = "Removed Roles for LEARNER";
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
@@ -2034,7 +2034,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport,
+                civilIdOrPassport: input.user.civilIdOrPassport?.toUpperCase(),
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
@@ -2490,48 +2490,46 @@ module.exports.mutations = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
+
             const { users, subrole } = input;
             if (role !== "ADMIN" && primaryRole[0] !== "ADMIN") {
                 throw new Error("Unauthorized: Only admins can assign subroles");
             }
+
             const validSubRole = await SubRole.findById(subrole);
             if (!validSubRole) {
                 throw new Error("Invalid subrole");
             }
+
+            await User.updateMany(
+                { _id: { $in: users } },
+                { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+            );
+
             const usersToUpdate = await User.find({ _id: { $in: users } });
-            if (!usersToUpdate || usersToUpdate.length === 0) {
+
+            if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-            await Promise.all(
-                usersToUpdate.map(async user => {
-                    if (!user.subRoles) {
-                        user.subRoles = [];
-                    }
-                    if (!user.subRoles.includes(subrole)) {
-                        user.subRoles.push(subrole);
-                    }
-                    await user.save();
-                })
-            );
+
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-            await Promise.all(
-                usersToUpdate.map(async user => {
-                    const emailContentforAdmin = roleUpdateNotifyAdmin({
-                        firstName: userInfo?.firstName,
-                        usersUpdated: [{ user: user.firstName }],
-                    });
-                    await SendEmail({
-                        receiverEmail: userInfo?.email,
-                        subject: `User Role Updated`,
-                        htmlContent: emailContentforAdmin,
-                    })
-                })
-            );
+
+            const emailContentForAdmin = roleUpdateNotifyAdmin({
+                firstName: userInfo?.firstName,
+                usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
+            });
+
+            await SendEmail({
+                receiverEmail: userInfo?.email,
+                subject: "User Role Updated",
+                htmlContent: emailContentForAdmin,
+            });
+
             const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
             const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
