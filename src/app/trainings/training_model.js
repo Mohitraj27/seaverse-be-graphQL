@@ -113,6 +113,9 @@ const trainingSchema = new Schema(
             type: Boolean,
             default: false,
         },
+        currentCertificateLayout: {    
+            type: String,
+        },
         price: Number,
         durationHours: { type: Number },
         certifications: [
