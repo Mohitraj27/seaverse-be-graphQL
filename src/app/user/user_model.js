@@ -154,6 +154,9 @@ const userSchema = new Schema(
         },
         isSignupAdminAprroved: {
             type: Boolean
+        },
+        roleAssignmentDate: {
+            type: Date
         }
     },
     { timestamps: true }
