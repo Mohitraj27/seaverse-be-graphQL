@@ -131,7 +131,7 @@ employeeSchema.virtual("trainingCertificates", {
 
 employeeSchema.index({ _id: 1, user: 1, empDesignation: 1 });
 employeeSchema.index({ createdAt: -1 });
-
+employeeSchema.index({ subscriber: 1 });
 employeeSchema.plugin(AggregatePaginate);
 
 // For app signup
