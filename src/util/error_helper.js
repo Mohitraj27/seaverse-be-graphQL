@@ -106,6 +106,8 @@ const errorName = {
     INVALID_SIGNUP_REQUEST_ID: "INVALID_SIGNUP_REQUEST_ID",
     FAILED_TO_PROCESS_SIGNUP_REQUEST: "FAILED_TO_PROCESS_SIGNUP_REQUEST",
     FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
+    FAILED_TO_SEND_APPROVAL_EMAIL: "FAILED_TO_SEND_APPROVAL_EMAIL",
+    FAILED_TO_SEND_REJECTION_EMAIL: "FAILED_TO_SEND_REJECTION_EMAIL",
 };
 
 const errorType = {
@@ -638,6 +640,16 @@ const errorType = {
         message: 'Failed to fetch history signup request',
         statusCode: 400,    
         type: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
+    },
+    FAILED_TO_SEND_APPROVAL_EMAIL: {
+        message: 'Failed to send approval email to the Learner',
+        statusCode: 400,
+        type: "FAILED_TO_SEND_APPROVAL_EMAIL"
+    },
+    FAILED_TO_SEND_REJECTION_EMAIL: {
+        message: 'Failed to send rejection email to the Learner',
+        statusCode: 400,
+        type: "FAILED_TO_SEND_REJECTION_EMAIL"
     }
 };
 
