@@ -9,7 +9,7 @@ module.exports.queries = {
         try {
             const skip = pageInput?.skip || 0;
             const limit = pageInput?.limit || 100;
-            const sortingFieldValue = pageInput?.sortingFieldValue || sortingFieldJSONData?.requestDate;
+            const sortingField = pageInput?.sortingField || sortingFieldJSONData?.requestDate;
             const sortingOrder = pageInput?.sortingOrder || -1;
             if (id) {
                 const item = await HistorySignupRequest.findById(id);
@@ -29,7 +29,11 @@ module.exports.queries = {
             }
 
             const sortObj = {};
-            sortObj[sortingFieldValue] = sortingOrder;
+            if (sortingField === sortingFieldJSONData?.signupStatus) {
+                sortObj[sortingField] = sortingOrder;
+            } else {
+                sortObj[sortingField] = sortingOrder;
+            }
             
             const items = await HistorySignupRequest.find(query)
                 .sort(sortObj)
