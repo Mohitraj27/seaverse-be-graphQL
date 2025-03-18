@@ -2555,7 +2555,7 @@ module.exports = {
             if (passwordEmailList.length > 0) {
 
 
-                await sendBulkEmails(passwordEmailList);
+                // await sendBulkEmails(passwordEmailList);
 
 
             }
