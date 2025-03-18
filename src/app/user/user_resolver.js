@@ -199,7 +199,7 @@ module.exports.mutations = {
 
                 const existingUser = await User.findOne({ email }).session(session);
 
-                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "User with this email already exists");
+                if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
 
 
                 const encryptedPassword = await CryptoHelper.hash(password, 10);
