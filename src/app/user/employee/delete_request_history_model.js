@@ -13,16 +13,13 @@ const deleteRequestHistorySchema = new Schema(
         civilIdOrPassport: {
             type: String,
             trim: true,
-            index: { unique: true, sparse: true },
         },
         email: {
             type: String,
             trim: true,
-            index: { unique: true, sparse: true },
         },
         lastLoginAt: {
             type: Date,
-            default: Date.now,
         },
         isDeleted: {
             type: Boolean,
