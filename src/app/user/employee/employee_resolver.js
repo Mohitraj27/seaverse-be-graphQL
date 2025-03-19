@@ -1247,7 +1247,8 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
-    getDeleteRequests: async ({ input }, context) => {
+    getDeleteRequests: async ({ pageInput, filterInput, sortField, sortOrder }, context) => {
+
         const { role, userPermissions } = AuthUser(context);
 
         if (
@@ -1268,23 +1269,41 @@ module.exports.queries = {
 
         try {
 
-            const skip = input?.pageInput?.skip ?? 0,
-                limit = input?.pageInput?.limit ?? 50;
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
 
-            const sortField = input?.sortField || "deleteRequestDate";
-            const sortOrder = input?.sortOrder !== undefined ? input?.sortOrder : -1;
+            const sortFieldValue = sortField || "deleteRequestDate";
+            const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
 
-            const searchCriteria = input?.filterInput?.search
-                ? {
+            const searchInput = filterInput?.search?.trim();
+            const searchRegex = new RegExp(searchInput, "i");
+            let searchCriteria = { deleteRequest: true };
+
+            if (searchInput) {
+                const nameParts = searchInput.split(" ").filter(Boolean);
+
+                const fullNameSearch =
+                    nameParts.length > 1
+                        ? {
+                            $and: [
+                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                            ]
+                        }
+                        : {};
+
+                searchCriteria = {
+                    deleteRequest: true,
                     $or: [
-                        { firstName: { $regex: input?.filterInput.search, $options: "i" } },
-                        { lastName: { $regex: input?.filterInput.search, $options: "i" } },
-                        { email: { $regex: input?.filterInput.search, $options: "i" } },
-                    ],
-                }
-                : {};
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        ...(nameParts.length > 1 ? [fullNameSearch] : [])
+                    ]
+                };
+            }
 
-            const sortOptions = { [sortField]: sortOrder };
+            const sortOptions = { [sortFieldValue]: sortOrderValue };
 
             const result = await User.find({ deleteRequest: true, ...searchCriteria })
                 .skip(skip)
@@ -1303,6 +1322,7 @@ module.exports.queries = {
             };
 
         } catch (error) {
+            console.log(error)
             throw Error(error);
         }
 
@@ -1599,6 +1619,74 @@ module.exports.queries = {
                 message: error.message,
                 data: null,
             };
+        }
+    },
+    getDeleteHistory: async ({ pageInput, sortField, sortOrder, filterInput }, context) => {
+
+        const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        try {
+
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
+
+            const sortField = sortField || "createdAt";
+            const sortOrder = sortOrder !== undefined ? sortOrder : -1;
+
+            const searchRegex = new RegExp(filterInput?.search, "i");
+
+            const searchCriteria = filterInput?.search
+                ? {
+                    $or: [
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        {
+                            $expr: {
+                                $regexMatch: {
+                                    input: { $concat: ["$firstName", " ", "$lastName"] },
+                                    regex: searchRegex
+                                }
+                            }
+                        }
+                    ],
+                }
+                : {};
+
+
+            const sortOptions = { [sortField]: sortOrder };
+
+            const result = await DeleteRequestHistory.find({ ...searchCriteria })
+                .skip(skip)
+                .limit(limit)
+                .sort(sortOptions);
+
+            if (!result) {
+                return { totalCount: 0 };
+            }
+
+            const totalCount = await DeleteRequestHistory.countDocuments();
+
+            return {
+                data: result,
+                totalCount,
+            };
+
+        } catch (error) {
+            throw Error(error);
         }
     }
 

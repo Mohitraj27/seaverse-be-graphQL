@@ -41,6 +41,7 @@ module.exports = {
             reasonForDelete: String
             deleteRequestDate: String
             deleteRequest: Boolean
+            isDeleted: Boolean
         }
         type UserList {
             users: [User]
