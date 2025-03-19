@@ -42,6 +42,7 @@ module.exports = {
             deleteRequestDate: String
             deleteRequest: Boolean
             isDeleted: Boolean
+            designation: String
         }
         type UserList {
             users: [User]

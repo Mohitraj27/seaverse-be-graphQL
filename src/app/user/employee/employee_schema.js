@@ -348,12 +348,6 @@ type FetchFileResponse {
             deleteRequestDate
             isDeleted
         }
-        input getDeleteRequestInput {
-            pageInput: PageInput
-            filterInput: ManagerFilterInput
-            sortField: sortFieldEnum
-            sortOrder: String
-        }
         
     `,
     queries: `
