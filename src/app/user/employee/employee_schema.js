@@ -82,7 +82,7 @@ type userVessels {
         }
         type deleteReqResponse {
             totalCount: Int
-            users: [User]
+            data: [User]
         }
         type BulkUserResponse {
             users: [Employee]
@@ -344,6 +344,15 @@ type FetchFileResponse {
             userId: ID!
             jsonData: JSON!
         }
+        enum sortFieldEnum {
+            deleteRequestDate
+        }
+        input getDeleteRequestInput {
+            pageInput: PageInput
+            filterInput: ManagerFilterInput
+            sortField: sortFieldEnum
+            sortOrder: String
+        }
         
     `,
     queries: `
@@ -352,7 +361,7 @@ type FetchFileResponse {
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
-        getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
+        getDeleteRequests(input: getDeleteRequestInput): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
