@@ -1030,7 +1030,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
-    getDeleteRequests: async ({ pageInput, filterInput, sortField, sortOrder }, context) => {
+    getDeleteRequests: async ({ pageInput, search, sortField, sortOrder }, context) => {
 
         const { role, userPermissions } = AuthUser(context);
 
@@ -1058,7 +1058,7 @@ module.exports.queries = {
             const sortFieldValue = sortField || "deleteRequestDate";
             const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
 
-            const searchInput = filterInput?.search?.trim();
+            const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");
             let searchCriteria = { deleteRequest: true };
 
@@ -1427,7 +1427,7 @@ module.exports.queries = {
             };
         }
     },
-    getDeleteHistory: async ({ pageInput, sortField, sortOrder, filterInput }, context) => {
+    getDeleteHistory: async ({ pageInput, sortField, sortOrder, search }, context) => {
 
         const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
 
@@ -1453,7 +1453,6 @@ module.exports.queries = {
             const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
 
             // const searchRegex = new RegExp(filterInput?.search, "i");
-
             // const searchCriteria = filterInput?.search
             //     ? {
             //         $or: [
@@ -1472,9 +1471,9 @@ module.exports.queries = {
             //     }
             //     : {};
 
-            const searchInput = filterInput?.search?.trim();
+            const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");
-            let searchCriteria = {};
+            let searchCriteria;
 
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
@@ -1497,7 +1496,6 @@ module.exports.queries = {
                     ]
                 };
             }
-
 
             const sortOptions = { [sortFieldValue]: sortOrderValue };
 
