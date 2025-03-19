@@ -1452,25 +1452,6 @@ module.exports.queries = {
             const sortFieldValue = sortField || "createdAt";
             const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
 
-            // const searchRegex = new RegExp(filterInput?.search, "i");
-            // const searchCriteria = filterInput?.search
-            //     ? {
-            //         $or: [
-            //             { firstName: { $regex: searchRegex } },
-            //             { lastName: { $regex: searchRegex } },
-            //             { email: { $regex: searchRegex } },
-            //             {
-            //                 $expr: {
-            //                     $regexMatch: {
-            //                         input: { $concat: ["$firstName", " ", "$lastName"] },
-            //                         regex: searchRegex
-            //                     }
-            //                 }
-            //             }
-            //         ],
-            //     }
-            //     : {};
-
             const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");
             let searchCriteria;
