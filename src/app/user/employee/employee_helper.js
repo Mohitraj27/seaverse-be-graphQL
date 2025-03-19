@@ -1042,7 +1042,7 @@ const deleteUsers = async (users, errors) => {
                         { session }
                     );
 
-                    await GroupMember.updateMany(
+                    const updateGroupMember = await GroupMember.updateMany(
                         { member: { $in: users } },
                         { $set: { isDeleted: true } },
                         { session }
