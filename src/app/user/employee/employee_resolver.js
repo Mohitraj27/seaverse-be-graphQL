@@ -1047,6 +1047,38 @@ module.exports.queries = {
                     }
                 },
                 { $unwind: "$user" },
+                
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
 
                 // Apply user-related filters
                 // Check if filterInput exists and has vesselStatus
@@ -1058,25 +1090,7 @@ module.exports.queries = {
                 ...(filterInput?.isRegistered !== undefined ? [
                     { $match: { "user.isRegistered": filterInput.isRegistered } }
                 ] : []),
-                        ...(filterInput?.role?.length > 0
-                            ? [
-                                {
-                                    $match:
-                                        filterInput.role.includes("LEARNER") &&
-                                            filterInput.role.includes("ADMIN")
-                                            ? {}
-                                            : filterInput.role.includes("LEARNER")
-                                                ? {
-                                                    "user.role": "LEARNER",
-                                                    "user.subRoles.name": { $ne: "ADMIN" },
-                                                }
-                                                : filterInput.role.includes("ADMIN")
-                                                    ? { "user.subRoles.name": "ADMIN" }
-                                                    : { "user.role": { $in: filterInput.role } },
-                                },
-                            ]
-                            : []),
-
+                       
                 // Check if filterInput exists and has lastSeen
                 ...(filterInput?.lastSeen ? [
                     { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate }, "user.isResetPasswordDialog": { $ne: false } } }
@@ -1095,18 +1109,7 @@ module.exports.queries = {
                 { $unwind: "$empDesignation" },
 
                 // Handle search with text index
-                ...(filterInput?.search ? [
-                    {
-                        $match: {
-                            $or: [
-                                { "user.firstName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.lastName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.email": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.civilIdOrPassport": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                            ]
-                        }
-                    }
-                ] : []),
+                     
 
                 // Lookup subroles
                 {
@@ -1117,6 +1120,25 @@ module.exports.queries = {
                         as: "user.subRoles"
                     }
                 },
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+
 
                 // Lookup user vessels
                 {
