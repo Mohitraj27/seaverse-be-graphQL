@@ -1048,7 +1048,7 @@ module.exports.queries = {
                     }
                 },
                 { $unwind: "$user" },
-                
+
                 ...(filterInput?.search
                     ? [
                         {
@@ -1091,7 +1091,7 @@ module.exports.queries = {
                 ...(filterInput?.isRegistered !== undefined ? [
                     { $match: { "user.isRegistered": filterInput.isRegistered } }
                 ] : []),
-                       
+
                 // Check if filterInput exists and has lastSeen
                 ...(filterInput?.lastSeen ? [
                     { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate }, "user.isResetPasswordDialog": { $ne: false } } }
@@ -1104,13 +1104,13 @@ module.exports.queries = {
                         localField: "empDesignation",
                         foreignField: "_id",
                         as: "empDesignation",
-                        pipeline: [{ $project: { name: 1 ,_id:1} }]
+                        pipeline: [{ $project: { name: 1, _id: 1 } }]
                     }
                 },
                 { $unwind: "$empDesignation" },
 
                 // Handle search with text index
-                     
+
 
                 // Lookup subroles
                 {
@@ -1158,7 +1158,7 @@ module.exports.queries = {
                                     as: "vesselDetails",
                                     pipeline: [
                                         { $match: { name: { $exists: true } } },
-                                        { $project: { _id: 1, name: 1, vesselStatus:1, typeOfVessel: 1,isActive:1 } },
+                                        { $project: { _id: 1, name: 1, vesselStatus: 1, typeOfVessel: 1, isActive: 1 } },
                                         {
                                             $lookup: {
                                                 from: "vesseltypes",
@@ -1323,10 +1323,6 @@ module.exports.queries = {
                     select: "name"
                 })
                 .lean();
-
-            if (employees.length === 0) {
-                throw CustomError(ErrorName.FAILED);
-            }
 
             const employeeMap = new Map(
                 employees.map(emp => [emp.user.toString(), emp.empDesignation?.name || null])
@@ -2060,97 +2056,109 @@ const respondToDeleteRequest = async ({ input }, context) => {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    const getUsers = await User.find({ _id: { $in: input.users } });
+    try {
 
 
-    if (input.type === "REJECT") {
+        const getUsers = await User.find({ _id: { $in: input.users } });
 
-        const userHistoryData = getUsers.map(user => ({
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            isDeleted: false,
-            civilIdOrPassport: user.civilIdOrPassport,
-            lastLoginAt: user.lastLoginAt,
-            reasonForDelete: user.reasonForDelete,
-            directSignup: user.directSignup,
-            deleteRequestDate: user.deleteRequestDate,
-            decisionDate: new Date()
-        }));
+        if (!getUsers) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
 
-        const rejectDeleteRequest = await User.updateMany(
-            { _id: { $in: input.users } },
-            {
-                $set: {
-                    deleteRequest: false,
-                    deleteRequestDate: null,
-                    reasonForDelete: null,
-                },
-            }
-        );
 
-        if (rejectDeleteRequest.nModified > 0) {
+        if (input.type === "REJECT") {
 
-            await DeleteRequestHistory.insertMany(userHistoryData);
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                isDeleted: false,
+                civilIdOrPassport: user.civilIdOrPassport,
+                lastLoginAt: user.lastLoginAt,
+                reasonForDelete: user.reasonForDelete,
+                directSignup: user.directSignup,
+                deleteRequestDate: user.deleteRequestDate,
+                decisionDate: new Date()
+            }));
 
-            for (let userId of input.users) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await sendNotificationOn({
-                        subscriber: subscriberId,
-                        user: {
-                            _id: userId,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email,
-                        },
-                        action: "rejected",
-                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
-                        createdBy: userInfo,
-                    });
-                } else {
-                    console.error(`User with ID ${userId} not found`);
+            const rejectDeleteRequest = await User.updateMany(
+                { _id: { $in: input.users } },
+                {
+                    $set: {
+                        deleteRequest: false,
+                        deleteRequestDate: null,
+                        reasonForDelete: null,
+                    },
                 }
+            );
+
+            if (rejectDeleteRequest.nModified > 0) {
+
+                const history = await DeleteRequestHistory.find();
+
+                const deleteHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+
+                for (let userId of input.users) {
+                    const user = await User.findById(userId);
+                    if (user) {
+                        await sendNotificationOn({
+                            subscriber: subscriberId,
+                            user: {
+                                _id: userId,
+                                firstName: user.firstName,
+                                lastName: user.lastName,
+                                civilIdOrPassport: user.civilIdOrPassport,
+                                email: user.email,
+                            },
+                            action: "rejected",
+                            message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                            createdBy: userInfo,
+                        });
+                    } else {
+                        console.error(`User with ID ${userId} not found`);
+                    }
+                }
+
+                return "Successfully rejected";
+            } else {
+                throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
             }
-            return "Successfully rejected";
-        } else {
-            throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
-        }
-    }
-
-    if (input.type === "APPROVE") {
-
-        const userHistoryData = getUsers.map(user => ({
-            firstName: user?.firstName,
-            lastName: user?.lastName,
-            email: user?.email,
-            isDeleted: true,
-            civilIdOrPassport: user?.civilIdOrPassport,
-            lastLoginAt: user?.lastLoginAt,
-            reasonForDelete: user?.reasonForDelete,
-            directSignup: user?.directSignup,
-            deleteRequestDate: user?.deleteRequestDate,
-            decisionDate: new Date()
-        }));
-
-        let errors = [];
-        const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
-
-        if (errors.length > 0) {
-            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
         }
 
-        if (deleteUsers.deletedCount > 0) {
+        if (input.type === "APPROVE") {
 
-            console.log(userHistoryData);
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user?.firstName,
+                lastName: user?.lastName,
+                email: user?.email,
+                isDeleted: true,
+                civilIdOrPassport: user?.civilIdOrPassport,
+                lastLoginAt: user?.lastLoginAt,
+                reasonForDelete: user?.reasonForDelete,
+                directSignup: user?.directSignup,
+                deleteRequestDate: user?.deleteRequestDate,
+                decisionDate: new Date()
+            }));
 
-            await DeleteRequestHistory.insertMany(userHistoryData);
+            let errors = [];
+            const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
 
-            return "Successfully deleted";
-        } else {
-            throw CustomError(ErrorName.ERROR_DELETING_USER);
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+            }
+
+            if (deleteUsers.deletedCount > 0) {
+
+                await DeleteRequestHistory.insertMany(userHistoryData);
+
+                return "Successfully deleted";
+            } else {
+                throw CustomError(ErrorName.ERROR_DELETING_USER);
+            }
         }
+
+    } catch (error) {
+        throw Error(error);
     }
 };
 
