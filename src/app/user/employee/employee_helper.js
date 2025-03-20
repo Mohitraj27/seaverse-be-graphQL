@@ -59,6 +59,7 @@ const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
+const { fetchDeletionBatch,deleteDeletionBatch } = require("../../../util/sqlite_email_helper");
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1049,14 +1050,18 @@ const deleteUsers = async (users, errors) => {
                     );
 
                     if (updateGroupMember) {
-                        for (const user of getUsers) {
-                            const htmlContent = sendDeleteEmailToLearner(user.firstName);
-                            await SendEmail({
-                                receiverEmail: user.email,
-                                subject: "Your account has been deleted",
-                                htmlContent: htmlContent,
-                            });
-                        }
+                        // for (const user of getUsers) {
+                        //     const htmlContent = sendDeleteEmailToLearner(user.firstName);
+                        //     await SendEmail({
+                        //         receiverEmail: user.email,
+                        //         subject: "Your account has been deleted",
+                        //         htmlContent: htmlContent,
+                        //     });
+                        // }
+                        const usersToDelete = getUsers; // Your logic to get users
+                        await insertDeletionRequests(usersToDelete);
+                        insertedDocs = await fetchDeletionBatch();
+                        console.log("insertedDocs", insertedDocs);
                         return deleteUsers;
                     }
 
@@ -1346,6 +1351,80 @@ const moveExpiredDeletedUsers = async () => {
             console.error("Error occurred while processing expired users:", error);
         }
     });
+};
+
+
+const sendDeletionEmailBulk = async () => {
+    try {
+        let results = [];
+        while (true) {
+
+            const deletionBatch = await fetchDeletionBatch();
+            if (deletionBatch.length === 0) {
+                break;
+            }
+
+            const batchResults = await sendDeletionWithRetry(deletionBatch);
+
+            results = results.concat(batchResults);
+
+            await delay(200);
+
+            const deletionIds = deletionBatch.map(email => email.id);
+            
+            // Filter successful emails to delete
+            const successfulIds = [];
+            batchResults.forEach((result, index) => {
+                if (result.status === "fulfilled") {
+                    successfulIds.push(deletionIds[index]);
+                }
+            });
+
+            if (successfulIds.length > 0) {
+                await deleteDeletionBatch(successfulIds);
+            }
+        }
+
+        const success = results.filter(res => res.status === "fulfilled");
+        const errors = results.filter(res => res.status === "rejected");
+
+        return {
+            status: "success",
+            successCount: success.length,
+            errorCount: errors.length,
+            errors: errors.map(err => err.reason.message),
+            message: `${success.length} deletion emails sent successfully, ${errors.length} failed.`,
+        };
+    } catch (error) {
+        return {
+            status: "error",
+            message: error.message,
+        };
+    }
+};
+
+const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
+    try {
+        const emailPromises = deletionBatch.map(async (user) => {
+            if (user.email?.trim()?.length) {
+                return await AwsHelper.sendEmail({
+                    receiverEmail: user.email,
+                    subject: "Your account has been deleted",
+                    htmlContent: sendDeleteEmailToLearner(user.firstName)
+                });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+        });
+
+        return await Promise.allSettled(emailPromises);
+    } catch (error) {
+        if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {
+            await delay(2 ** retryCount * 1000);
+            return sendDeletionWithRetry(deletionBatch, retryCount + 1);
+        }
+        throw error;
+    }
 };
 
 module.exports = {

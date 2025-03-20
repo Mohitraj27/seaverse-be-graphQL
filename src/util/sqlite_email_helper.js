@@ -27,9 +27,21 @@ db.serialize(() => {
           subject TEXT NOT NULL DEFAULT 'Course Enrollment',
           firstName TEXT NOT NULL,
           courses TEXT NOT NULL ,
-          isAdmin INTEGER NOT NULL default 0, 
+          isAdmin INTEGER NOT NULL default 0,
           action TEXT NOT NULL DEFAULT 'ENROLL',
           status TEXT DEFAULT 'PENDING'
+        )
+    `);
+
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS deletion_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            firstName TEXT NOT NULL,
+            subject TEXT NOT NULL DEFAULT 'Your account has been deleted',
+            status TEXT DEFAULT 'PENDING',
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 });
@@ -82,7 +94,7 @@ const insertCourseEmails = (emailBatch) => {
   };
 
 const fetchCourseEmailBatch = (action = null) => {
-    console.log(action);
+
     switch (action) {
         case 'ENROLL':
             console.log('fetching enroll');
@@ -112,11 +124,42 @@ const fetchCourseEmailBatch = (action = null) => {
   };
 
 
+ // Deletion emails CRUD to SQLite
+const insertDeletionRequests = (usersBatch) => {
+    const stmt = db.prepare("INSERT INTO deletion_requests (email, firstName) VALUES (?, ?)");
+    usersBatch.forEach(({ email, firstName }) => {
+        stmt.run(email, firstName);
+    });
+    stmt.finalize();
+};
+
+const fetchDeletionBatch = () => {
+    return new Promise((resolve, reject) => {
+        db.all(`SELECT * FROM deletion_requests WHERE status = 'PENDING' LIMIT 50`, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
+
+const deleteDeletionBatch = (ids) => {
+    return new Promise((resolve, reject) => {
+        const placeholders = ids.map(() => '?').join(',');
+        db.run(`DELETE FROM deletion_requests WHERE id IN (${placeholders})`, ids, (err) => {
+            if (err) reject(err);
+            else resolve(true);
+        });
+    });
+};
+
 module.exports = {
     insertEmails,
     fetchEmailBatch,
     deleteEmailBatch,
     insertCourseEmails,
     fetchCourseEmailBatch,
-    deleteCourseEmailBatch
+    deleteCourseEmailBatch,
+    insertDeletionRequests,
+    fetchDeletionBatch,
+    deleteDeletionBatch,
 };
