@@ -12,6 +12,9 @@ const ownerSchema = new Schema(
             type: String,
             required: true
         },
+        address: {
+            type: String
+        },
         isActive: {
             type: Boolean,
             default: true,

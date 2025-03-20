@@ -12,6 +12,7 @@ module.exports = {
             createdAt: String!
             updatedAt: String!
             naVessel: String
+            owner: Owner
         }
         type VesselTypeNew {
             _id: ID
@@ -27,7 +28,7 @@ module.exports = {
             imoNumber: String!
             isActive: Boolean!
             companyName: String!
-            ownerName: String
+            ownerId: ID
             address: String
         }
         input VesselFilterInput {
