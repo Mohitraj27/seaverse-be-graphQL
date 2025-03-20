@@ -1247,7 +1247,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
-    getDeleteRequests: async ({ pageInput, search, sortField, sortOrder }, context) => {
+    getDeleteRequests: async ({ pageInput, search }, context) => {
 
         const { role, userPermissions } = AuthUser(context);
 
@@ -1272,8 +1272,8 @@ module.exports.queries = {
             const skip = pageInput?.skip ?? 0,
                 limit = pageInput?.limit ?? 50;
 
-            const sortFieldValue = sortField || "deleteRequestDate";
-            const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
+            const sortFieldValue = pageInput?.sortField || "deleteRequestDate";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
 
             const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");
@@ -1640,7 +1640,7 @@ module.exports.queries = {
             };
         }
     },
-    getDeleteHistory: async ({ pageInput, sortField, sortOrder, search }, context) => {
+    getDeleteHistory: async ({ pageInput, search }, context) => {
 
         const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
 
@@ -1648,9 +1648,6 @@ module.exports.queries = {
             !SubRoleHelper.hasPermission({
                 currentRole: role,
                 currentPermissions: userPermissions,
-                requiredPermission: [
-                    Permission.GET_EMPLOYEES,
-                ],
                 requiredAll: false,
             })
         ) {
@@ -1662,8 +1659,8 @@ module.exports.queries = {
             const skip = pageInput?.skip ?? 0,
                 limit = pageInput?.limit ?? 50;
 
-            const sortFieldValue = sortField || "createdAt";
-            const sortOrderValue = sortOrder !== undefined ? sortOrder : -1;
+            const sortFieldValue = pageInput?.sortField || "createdAt";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
 
             const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");

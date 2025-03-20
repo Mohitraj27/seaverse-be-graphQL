@@ -348,6 +348,12 @@ type FetchFileResponse {
             deleteRequestDate
             isDeleted
         }
+        input deleteRequestPageInput {
+            skip: Int
+            limit: Int
+            sortField: sortFieldEnum
+            sortOrder: String
+        }
         
     `,
     queries: `
@@ -356,13 +362,13 @@ type FetchFileResponse {
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
-        getDeleteRequests(pageInput: PageInput, search: String, sortField: sortFieldEnum, sortOrder: String): deleteReqResponse!
+        getDeleteRequests(pageInput: deleteRequestPageInput, search: String): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
         fetchSampleFile: FetchFileResponse!
         getDynamicData(userId: ID!): DynamicDataResponse!
-        getDeleteHistory(pageInput: PageInput, search: String, sortField: sortFieldEnum, sortOrder: String): deleteReqResponse!
+        getDeleteHistory(pageInput: deleteRequestPageInput, search: String): deleteReqResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
