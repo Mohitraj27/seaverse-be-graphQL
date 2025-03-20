@@ -354,9 +354,13 @@ type FetchFileResponse {
             sortField: sortFieldEnum
             sortOrder: String
         }
-        
+        type deleteAndSignUpRequestCountResponse {
+            deleteRequestCount: Int
+            signUpRequestCount: Int
+        }
     `,
     queries: `
+        getDeleteAndSignUpRequestCounts: deleteAndSignUpRequestCountResponse!
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
         getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput, sortInput : SortFieldInput ): EmployeeList!
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
