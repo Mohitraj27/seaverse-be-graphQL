@@ -38,6 +38,11 @@ module.exports = {
             isResetPasswordDialog: Boolean
             vesselStatus: String
             isSignupAdminAprroved: Boolean
+            reasonForDelete: String
+            deleteRequestDate: String
+            deleteRequest: Boolean
+            isDeleted: Boolean
+            designation: String
         }
         type UserList {
             users: [User]

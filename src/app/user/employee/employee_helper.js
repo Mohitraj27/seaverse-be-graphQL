@@ -58,6 +58,7 @@ const { TrainingModule } = require('../../trainings/training_modules/training_mo
 const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
+const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -963,99 +964,117 @@ const deleteUsers = async (users, errors) => {
             return;
         }
 
-        const deletedUsers = getUsers.map(user => {
-            const userObject = user.toObject();
-            userObject.isDeleted = true;
-            return new DeletedUser(userObject);
-        });
+        const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
 
-        const updateDeletedList = await DeletedUser.insertMany(deletedUsers);
 
-        if (updateDeletedList) {
+            const deletedUsers = getUsers.map(user => {
+                return {
+                    ...user.toObject(),
+                    isDeleted: true
+                };
+            });
 
-            let deleteUsers = await User.deleteMany({ _id: { $in: users } });
+            const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
 
-            await Employee.updateMany(
-                { user: { $in: users } },
-                { $set: { isDeleted: true } }
-            );
+            if (updateDeletedList) {
 
-            await OverallTrainingProgress.updateMany(
-                { user: { $in: users } },
-                {
-                    $set: {
-                        isDeleted: true,
+
+                let deleteUsers = await User.deleteMany({ _id: { $in: users } }, { session });
+
+                await Employee.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                await LearningPlanAssignment.deleteMany({ assignedLearnerId: { $in: users } }, { session });
+
+                const getOverallDocs = await OverallTrainingProgress.find({ user: { $in: users } }).session(session);
+
+                if (getOverallDocs.length > 0) {
+
+                    const getOverallDocIds = getOverallDocs.map(doc => doc._id);
+                    await TrainingProgress.deleteMany({ OverallTrainingProgress: { $in: getOverallDocIds } }, { session });
+
+                }
+
+                await OverallTrainingProgress.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                if (deleteUsers) {
+
+                    const getAdminGroups = await Group.find({ groupAdmin: { $in: users } }).session(session);
+
+                    if (getAdminGroups.length > 0) {
+                        const deletedGroups = getAdminGroups.map(group => ({
+                            ...group.toObject(),
+                            isDeleted: true
+                        }));
+
+                        await DeletedGroup.insertMany(deletedGroups, { session });
                     }
-                }
-            );
 
-            if (deleteUsers) {
+                    let updateGroup;
 
-                const getAdminGroups = await Group.find({ groupAdmin: { $in: users }, isManagerDefault: true });
-
-                if (getAdminGroups.length > 0) {
-
-                    const deletedGroups = getAdminGroups.map(group => {
-                        const groupObject = group.toObject();
-                        groupObject.isDeleted = true;
-                        return new DeletedGroup(groupObject);
-                    });
-
-                    await DeletedGroup.insertMany(deletedGroups);
-
-                }
-
-                let updateGroup;
-
-                updateGroup = await Group.updateMany(
-                    { members: { $in: users } },
-                    [
-                        {
-                            $set: {
-                                members: {
-                                    $filter: {
-                                        input: "$members",
-                                        as: "member",
-                                        cond: { $not: { $in: ["$$member", users] } }
+                    updateGroup = await Group.updateMany(
+                        { members: { $in: users } },
+                        [
+                            {
+                                $set: {
+                                    members: {
+                                        $filter: {
+                                            input: "$members",
+                                            as: "member",
+                                            cond: { $not: { $in: ["$$member", users] } }
+                                        }
                                     }
                                 }
+                            },
+                            {
+                                $set: {
+                                    memberCount: { $size: "$members" }
+                                }
                             }
-                        },
-                        {
-                            $set: {
-                                memberCount: { $size: "$members" }
-                            }
+                        ],
+                        { session }
+                    );
+
+                    const updateGroupMember = await GroupMember.updateMany(
+                        { member: { $in: users } },
+                        { $set: { isDeleted: true } },
+                        { session }
+                    );
+
+                    if (updateGroupMember) {
+                        for (const user of getUsers) {
+                            const htmlContent = sendDeleteEmailToLearner(user.firstName);
+                            await SendEmail({
+                                receiverEmail: user.email,
+                                subject: "Your account has been deleted",
+                                htmlContent: htmlContent,
+                            });
                         }
-                    ]
-                );
-
-                const updateGroupMember = await GroupMember.updateMany(
-                    { member: { $in: users } },
-                    { $set: { isDeleted: true } }
-                );
-
-                if (updateGroupMember) {
-                    for (const user of getUsers) {
-                        const htmlContent = sendDeleteEmailToLearner(user.firstName);
-                        await SendEmail({
-                            receiverEmail: user.email,
-                            subject: "Your account has been deleted",
-                            htmlContent: htmlContent,
-                        });
+                        return deleteUsers;
                     }
+
                     return deleteUsers;
+
+                } else {
+                    errors.push("Error while deleting users");
+                    return;
                 }
-                return deleteUsers;
 
             } else {
                 errors.push("Error while deleting users");
                 return;
             }
 
-        } else {
-            errors.push("Error while deleting users");
-            return;
-        }
+        });
+
+        return deleteUsers;
 
     } catch (error) {
         throw Error(error.message);

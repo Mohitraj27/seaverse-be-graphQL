@@ -66,6 +66,7 @@ const createNewEmployeeEmailTemplate = require("../../email-template/createEmplo
 const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
 const { last } = require("lodash");
+const { DeleteRequestHistory } = require("./delete_request_history_model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1048,6 +1049,38 @@ module.exports.queries = {
                 },
                 { $unwind: "$user" },
 
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
+
                 // Apply user-related filters
                 // Check if filterInput exists and has vesselStatus
                 ...(filterInput?.vesselStatus?.length > 0 ? [
@@ -1058,24 +1091,6 @@ module.exports.queries = {
                 ...(filterInput?.isRegistered !== undefined ? [
                     { $match: { "user.isRegistered": filterInput.isRegistered } }
                 ] : []),
-                        ...(filterInput?.role?.length > 0
-                            ? [
-                                {
-                                    $match:
-                                        filterInput.role.includes("LEARNER") &&
-                                            filterInput.role.includes("ADMIN")
-                                            ? {}
-                                            : filterInput.role.includes("LEARNER")
-                                                ? {
-                                                    "user.role": "LEARNER",
-                                                    "user.subRoles.name": { $ne: "ADMIN" },
-                                                }
-                                                : filterInput.role.includes("ADMIN")
-                                                    ? { "user.subRoles.name": "ADMIN" }
-                                                    : { "user.role": { $in: filterInput.role } },
-                                },
-                            ]
-                            : []),
 
                 // Check if filterInput exists and has lastSeen
                 ...(filterInput?.lastSeen ? [
@@ -1089,24 +1104,13 @@ module.exports.queries = {
                         localField: "empDesignation",
                         foreignField: "_id",
                         as: "empDesignation",
-                        pipeline: [{ $project: { name: 1 ,_id:1} }]
+                        pipeline: [{ $project: { name: 1, _id: 1 } }]
                     }
                 },
                 { $unwind: "$empDesignation" },
 
                 // Handle search with text index
-                ...(filterInput?.search ? [
-                    {
-                        $match: {
-                            $or: [
-                                { "user.firstName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.lastName": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.email": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                                { "user.civilIdOrPassport": { $regex: `^${sanitizedSearch}`, $options: "i" } },
-                            ]
-                        }
-                    }
-                ] : []),
+
 
                 // Lookup subroles
                 {
@@ -1117,6 +1121,25 @@ module.exports.queries = {
                         as: "user.subRoles"
                     }
                 },
+                ...(filterInput?.role?.length > 0
+                    ? [
+                        {
+                            $match:
+                                filterInput.role.includes("LEARNER") &&
+                                    filterInput.role.includes("ADMIN")
+                                    ? {}
+                                    : filterInput.role.includes("LEARNER")
+                                        ? {
+                                            "user.role": "LEARNER",
+                                            "user.subRoles.name": { $ne: "ADMIN" },
+                                        }
+                                        : filterInput.role.includes("ADMIN")
+                                            ? { "user.subRoles.name": "ADMIN" }
+                                            : { "user.role": { $in: filterInput.role } },
+                        },
+                    ]
+                    : []),
+
 
                 // Lookup user vessels
                 {
@@ -1135,7 +1158,7 @@ module.exports.queries = {
                                     as: "vesselDetails",
                                     pipeline: [
                                         { $match: { name: { $exists: true } } },
-                                        { $project: { _id: 1, name: 1, vesselStatus:1, typeOfVessel: 1,isActive:1 } },
+                                        { $project: { _id: 1, name: 1, vesselStatus: 1, typeOfVessel: 1, isActive: 1 } },
                                         {
                                             $lookup: {
                                                 from: "vesseltypes",
@@ -1224,7 +1247,8 @@ module.exports.queries = {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
-    getDeleteRequests: async ({ pageInput, filterInput }, context) => {
+    getDeleteRequests: async ({ pageInput, search }, context) => {
+
         const { role, userPermissions } = AuthUser(context);
 
         if (
@@ -1243,34 +1267,84 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+        try {
 
-        const searchCriteria = filterInput?.search
-            ? {
-                $or: [
-                    { firstName: { $regex: filterInput.search, $options: "i" } },
-                    { lastName: { $regex: filterInput.search, $options: "i" } },
-                    { email: { $regex: filterInput.search, $options: "i" } },
-                ],
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
+
+            const sortFieldValue = pageInput?.sortField || "deleteRequestDate";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
+
+            const searchInput = search?.trim();
+            const searchRegex = new RegExp(searchInput, "i");
+            let searchCriteria = { deleteRequest: true };
+
+            if (searchInput) {
+                const nameParts = searchInput.split(" ").filter(Boolean);
+
+                const fullNameSearch =
+                    nameParts.length > 1
+                        ? {
+                            $and: [
+                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                            ]
+                        }
+                        : {};
+
+                searchCriteria = {
+                    deleteRequest: true,
+                    $or: [
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        ...(nameParts.length > 1 ? [fullNameSearch] : [])
+                    ]
+                };
             }
-            : {};
 
-        const result = await User.find({ deleteRequest: true, ...searchCriteria })
-            .skip(skip)
-            .limit(limit)
-            .sort({ deleteRequestDate: -1 });
+            const sortOptions = { [sortFieldValue]: sortOrderValue };
 
-        if (!result) {
-            return { totalCount: 0 };
+            const result = await User.find({ deleteRequest: true, ...searchCriteria })
+                .skip(skip)
+                .limit(limit)
+                .sort(sortOptions)
+                .lean();
+
+            if (!result) {
+                return { totalCount: 0 };
+            }
+
+            const userIds = result.map(user => user._id);
+
+            const employees = await Employee.find({ user: { $in: userIds } })
+                .populate({
+                    path: "empDesignation",
+                    select: "name"
+                })
+                .lean();
+
+            const employeeMap = new Map(
+                employees.map(emp => [emp.user.toString(), emp.empDesignation?.name || null])
+            );
+
+            const finalUsers = result.map(user => ({
+                ...user,
+                designation: employeeMap.get(user._id.toString()) || null
+            }));
+
+            const totalCount = await User.countDocuments({ deleteRequest: true });
+
+            return {
+                data: finalUsers,
+                totalCount,
+            };
+
+        } catch (error) {
+            console.log(error)
+            throw Error(error);
         }
 
-        const totalCount = await User.countDocuments({ deleteRequest: true });
-
-        return {
-            users: result,
-            totalCount,
-        };
     },
     getImportLogs: async () => {
         const combinedLogs = await Log.aggregate([
@@ -1564,6 +1638,77 @@ module.exports.queries = {
                 message: error.message,
                 data: null,
             };
+        }
+    },
+    getDeleteHistory: async ({ pageInput, search }, context) => {
+
+        const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        try {
+
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
+
+            const sortFieldValue = pageInput?.sortField || "createdAt";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
+
+            const searchInput = search?.trim();
+            const searchRegex = new RegExp(searchInput, "i");
+            let searchCriteria;
+
+            if (searchInput) {
+                const nameParts = searchInput.split(" ").filter(Boolean);
+                const fullNameSearch =
+                    nameParts.length > 1
+                        ? {
+                            $and: [
+                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                            ]
+                        }
+                        : {};
+
+                searchCriteria = {
+                    $or: [
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        ...(nameParts.length > 1 ? [fullNameSearch] : [])
+                    ]
+                };
+            }
+
+            const sortOptions = { [sortFieldValue]: sortOrderValue };
+
+            const result = await DeleteRequestHistory.find({ ...searchCriteria })
+                .skip(skip)
+                .limit(limit)
+                .sort(sortOptions);
+
+            if (!result) {
+                return { totalCount: 0 };
+            }
+
+            const totalCount = await DeleteRequestHistory.countDocuments();
+
+            return {
+                data: result,
+                totalCount,
+            };
+
+        } catch (error) {
+            console.log(error);
+            throw Error(error);
         }
     }
 
@@ -1908,74 +2053,109 @@ const respondToDeleteRequest = async ({ input }, context) => {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.type === "REJECT") {
-        const rejectDeleteRequest = await User.updateMany(
-            { _id: { $in: input.users } },
-            {
-                $set: {
-                    deleteRequest: false,
-                    deleteRequestDate: null,
-                },
-            }
-        );
+    try {
 
-        if (rejectDeleteRequest.nModified > 0) {
-            for (let userId of input.users) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await sendNotificationOn({
-                        subscriber: subscriberId,
-                        user: {
-                            _id: userId,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email,
-                        },
-                        action: "rejected",
-                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
-                        createdBy: userInfo,
-                    });
-                } else {
-                    console.error(`User with ID ${userId} not found`);
+
+        const getUsers = await User.find({ _id: { $in: input.users } });
+
+        if (!getUsers) {
+            throw CustomError(ErrorName.USER_NOT_FOUND);
+        }
+
+
+        if (input.type === "REJECT") {
+
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                isDeleted: false,
+                civilIdOrPassport: user.civilIdOrPassport,
+                lastLoginAt: user.lastLoginAt,
+                reasonForDelete: user.reasonForDelete,
+                directSignup: user.directSignup,
+                deleteRequestDate: user.deleteRequestDate,
+                decisionDate: new Date()
+            }));
+
+            const rejectDeleteRequest = await User.updateMany(
+                { _id: { $in: input.users } },
+                {
+                    $set: {
+                        deleteRequest: false,
+                        deleteRequestDate: null,
+                        reasonForDelete: null,
+                    },
                 }
-            }
-            return "Successfully rejected";
-        } else {
-            throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
-        }
-    }
-    if (input.type === "APPROVE") {
-        let errors = [];
-        const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
-        if (errors.length > 0) {
-            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
-        }
-        if (deleteUsers) {
-            for (let userId of input.users) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await sendNotificationOn({
-                        subscriber: subscriberId,
-                        user: {
-                            _id: userId,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email,
-                        },
-                        action: "approved",
-                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has approved your delete request.`,
-                        createdBy: userInfo,
-                    });
-                } else {
-                    console.error(`User with ID ${userId} not found`);
+            );
+
+            if (rejectDeleteRequest.nModified > 0) {
+
+                const history = await DeleteRequestHistory.find();
+
+                const deleteHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+
+                for (let userId of input.users) {
+                    const user = await User.findById(userId);
+                    if (user) {
+                        await sendNotificationOn({
+                            subscriber: subscriberId,
+                            user: {
+                                _id: userId,
+                                firstName: user.firstName,
+                                lastName: user.lastName,
+                                civilIdOrPassport: user.civilIdOrPassport,
+                                email: user.email,
+                            },
+                            action: "rejected",
+                            message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                            createdBy: userInfo,
+                        });
+                    } else {
+                        console.error(`User with ID ${userId} not found`);
+                    }
                 }
+
+                return "Successfully rejected";
+            } else {
+                throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
             }
-            return "Successfully deleted";
-        } else {
-            throw CustomError(ErrorName.ERROR_DELETING_USER);
         }
+
+        if (input.type === "APPROVE") {
+
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user?.firstName,
+                lastName: user?.lastName,
+                email: user?.email,
+                isDeleted: true,
+                civilIdOrPassport: user?.civilIdOrPassport,
+                lastLoginAt: user?.lastLoginAt,
+                reasonForDelete: user?.reasonForDelete,
+                directSignup: user?.directSignup,
+                deleteRequestDate: user?.deleteRequestDate,
+                decisionDate: new Date()
+            }));
+
+            let errors = [];
+            const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+            }
+
+            if (deleteUsers.deletedCount > 0) {
+
+                await DeleteRequestHistory.insertMany(userHistoryData);
+
+                return "Successfully deleted";
+            } else {
+                throw CustomError(ErrorName.ERROR_DELETING_USER);
+            }
+        }
+
+    } catch (error) {
+        throw Error(error);
     }
 };
 
