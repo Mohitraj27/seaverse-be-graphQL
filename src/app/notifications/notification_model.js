@@ -89,6 +89,10 @@ const notificationSchema = new Schema(
             type: String,
             default: "STABLE",
             enum: Object.values(notificationiconEnum),
+        },
+        isUserRequest: {
+            type: Boolean,
+            default: false
         }
     },
     { timestamps: true }
