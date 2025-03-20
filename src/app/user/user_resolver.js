@@ -33,6 +33,7 @@ const nodemailer = require("nodemailer");
 const SignupRequest = require('../signup-request/signup-request-model');
 const signupstatus = require('../signup-request/signup-status.json');
 const subscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
+const NotificationType = require('../notifications/notification_type.json');
 const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
@@ -277,7 +278,33 @@ module.exports.mutations = {
 
                 const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "8h" });
                 const refreshToken = JwtHelper.sign({ userId: savedEmployee?.user?._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
-
+                const viewRequestPath = `${process.env.APP_URL}/admin/signup-request`;
+                const signupRequestNotifcation = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `Sign Up Request` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Signup request received. Please take necessary action.`,
+                        },
+                    ],
+                    notificationType: NotificationType.SIGNUP_USER_REQUEST,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType: "VIEW_REQUEST",
+                            infoData: {
+                                filePath: viewRequestPath
+                            }
+                        }
+                    ],
+                    status: 'SENT',
+                    employeeNotifiers: [],
+                    isUserRequest: true,
+                    icon: notificationiconEnum.SUCCESS,
+                };
+                await NotificationHelper.createNotification([signupRequestNotifcation], { session });
                 return {
                     message: "You have successfully signed up! Please wait for admin approval",
                     status: 'true',
