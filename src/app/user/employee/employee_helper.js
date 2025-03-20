@@ -2272,7 +2272,8 @@ module.exports = {
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),
-                        subscriber: subscriber_Id ?? null
+                        subscriber: subscriber_Id ?? null,
+                        isSignupAdminAprroved: true
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {

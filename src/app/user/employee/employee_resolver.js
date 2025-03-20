@@ -1041,8 +1041,8 @@ module.exports.queries = {
                         from: "users",
                         let: { userId: "$user" },
                         pipeline: [
-                            { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, role: { $in: ["LEARNER", "ADMIN"] } } },
-                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1 } }
+                            { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false,isSignupAdminAprroved: true, role: { $in: ["LEARNER", "ADMIN"] } } },
+                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1 } }
                         ],
                         as: "user"
                     }
@@ -2416,6 +2416,7 @@ module.exports.mutations = {
                 email: input.user.email,
                 role: userRole,
                 ...userPasswordInfo,
+                isSignupAdminAprroved : true,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 

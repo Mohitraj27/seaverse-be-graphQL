@@ -37,6 +37,7 @@ module.exports = {
             htmlTemplate: String
             isResetPasswordDialog: Boolean
             vesselStatus: String
+            directSignup: Boolean
             isSignupAdminAprroved: Boolean
             reasonForDelete: String
             deleteRequestDate: String
