@@ -36,10 +36,8 @@ module.exports.queries = {
             if (!certificate) {
                 throw Error(`Certificate layout ${layout??""} not found for this training ID`);
             }
-            return {
-                ...certificate,
-                listOfLayouts
-            };
+            certificate.listOfLayouts = listOfLayouts;
+            return certificate;
         } catch (error) {
             console.log(error);
             throw CustomError(ErrorName.FAILED, error.message);
