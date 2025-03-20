@@ -67,6 +67,7 @@ const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
 const { last } = require("lodash");
 const { DeleteRequestHistory } = require("./delete_request_history_model");
+const signupRequestModel = require("../../signup-request/signup-request-model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -115,6 +116,27 @@ function formatDateWithSuffix(date) {
     return null;
 }
 module.exports.queries = {
+    getDeleteAndSignUpRequestCounts: async(_,context) => { 
+        const { role, userPermissions, subscriberId } = AuthUser(context);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const deleteRequestCount = await User.countDocuments({ deleteRequest: true });
+        const signUpRequestCount = await signupRequestModel.countDocuments();
+        return {
+            deleteRequestCount,
+            signUpRequestCount,
+        };
+    },
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
