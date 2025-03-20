@@ -3,6 +3,7 @@ module.exports = {
         type Owner {
             _id: ID
             name: String!
+            address: String
             isActive: Boolean
             createdAt: String
             updatedAt: String

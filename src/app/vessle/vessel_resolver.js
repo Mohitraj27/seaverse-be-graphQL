@@ -19,6 +19,8 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../email-template/vesselStatusUpdate");
 const { sendNotifications } = require("../../util/firebase_helper");
 
+const { Owner } = require("../vessle/owner/owner_model");
+
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -89,6 +91,18 @@ module.exports.queries = {
                     },
                 },
                 { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: "owners",
+                        localField: "ownerId",
+                        foreignField: "_id",
+                        as: "owner",
+                        pipeline: [
+                            { $project: { _id: 1, name: 1, address: 1 } },
+                        ],
+                    },
+                },
+                { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
             ];
 
             if (filterInput?.vesselType?.length > 0) {
@@ -173,9 +187,11 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createVessel: async ({ input }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
         try {
-            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerId, address } = input;
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
@@ -188,6 +204,26 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
+            let ownerName;
+
+            if (ownerId) {
+
+                const existingOwner = await Owner.findById(ownerId);
+                if (!existingOwner) throw CustomError(ErrorName.FAILED);
+
+                if (address) {
+                    existingOwner.address = address;
+                    await existingOwner.save();
+                }
+
+                ownerName = existingOwner?.name;
+
+            }
+
+            if (!ownerName) {
+                throw CustomError(ErrorName.FAILED);
+            }
+
             const vessel = new Vessel({
                 subscriber: subscriberId,
                 name: name,
@@ -195,8 +231,9 @@ module.exports.mutations = {
                 imoNumber: imoNumber,
                 isActive: isActive,
                 companyName: companyName,
-                ownerName: ownerName,
-                address: address,
+                ownerId: ownerId ?? null,
+                ownerName: ownerName ?? null,
+                address: address ?? null,
                 createdBy: userId,
                 updatedBy: userId,
             });
@@ -246,7 +283,7 @@ module.exports.mutations = {
     updateVessel: async ({ id, input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerId, address } = input;
 
             const vessel = await Vessel.findOne({ _id: id });
             if (!vessel) {
@@ -264,13 +301,27 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
+            let ownerName;
+            if (ownerId) {
+                const existingOwner = await Owner.findOne({ _id: ownerId });
+
+                if (!existingOwner) throw CustomError(ErrorName.FAILED);
+
+                if (address) {
+                    existingOwner.address = address;
+                    await existingOwner.save();
+                }
+
+                ownerName = existingOwner?.name;
+            }
+
             vessel.name = name;
             vessel.typeOfVessel = typeOfVessel;
             vessel.imoNumber = imoNumber;
             vessel.isActive = isActive;
             vessel.companyName = companyName;
-            vessel.ownerName = ownerName;
-            vessel.address = address;
+            vessel.ownerId = ownerId ?? vessel.ownerId;
+            vessel.ownerName = ownerName ?? vessel.ownerName;
             vessel.subscriber = subscriberId;
 
             const updatedVessel = await vessel.save();
