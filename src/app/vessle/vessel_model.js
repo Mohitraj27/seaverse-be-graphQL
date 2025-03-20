@@ -24,6 +24,10 @@ const vesselSchema = new Schema(
         companyName: {
             type: String,
         },
+        ownerId: {
+            type: ObjectId,
+            ref: "Owner",
+        },
         ownerName: {
             type: String,
         },
