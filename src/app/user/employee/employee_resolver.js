@@ -1988,7 +1988,8 @@ const manageRole = async ({ input }, context) => {
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
-        updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
         notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
@@ -2100,7 +2101,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user.reasonForDelete,
                 directSignup: user.directSignup,
                 deleteRequestDate: user.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             const rejectDeleteRequest = await User.updateMany(
@@ -2135,6 +2137,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             action: "rejected",
                             message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
                             createdBy: userInfo,
+                            icon:  notificationiconEnum.DELETE_REQUEST
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);
@@ -2172,7 +2175,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user?.reasonForDelete,
                 directSignup: user?.directSignup,
                 deleteRequestDate: user?.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             let errors = [];
@@ -2434,6 +2438,22 @@ module.exports.mutations = {
         const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
+
+        const existingDeletedUser = await DeletedUser.find({ email: input.user.email, civilIdOrPassport: input.user.civilIdOrPassport });
+
+        if (existingDeletedUser) {
+
+            const existingDeletedUserIds = existingDeletedUser.map(user => user._id);
+
+            let errors = [];
+            const restoreUser = await EmployeeHelper.restoreUsers(existingDeletedUserIds, errors);
+
+            return {
+                status: true,
+                message: "User restored successfully!",
+            };
+
+        }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
