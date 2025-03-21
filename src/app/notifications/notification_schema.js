@@ -32,6 +32,7 @@ module.exports = {
             updatedAt: String
             icon: String
             isRead: Boolean
+            isUserRequest: Boolean
         }
         type NotificationList {
             notifications: [Notification]
