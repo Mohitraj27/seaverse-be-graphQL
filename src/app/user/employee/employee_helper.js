@@ -451,6 +451,15 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 if (usersToRemove.length > 0) {
 
+                    await OverallTrainingProgress.updateMany(
+                        {
+                            learningPlan: plan._id,
+                            user: { $in: usersToRemove }
+                        },
+                        {
+                            $pull: { learningPlan: plan._id }
+                        }
+                    );
                     const deleteResult = await LearningPlanAssignment.deleteMany({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: usersToRemove }
@@ -1596,81 +1605,22 @@ module.exports = {
             }
         }
 
+    
+
+        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
+        const conditions = [{
+            designationID: input?.empDesignation || existingEmployee.empDesignation,
+            vesselID: ((input?.user?.currentVessel !== '') ? input?.user?.currentVessel : existingEmployee.currentVessel?._id) || "",
+            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel._id : "",
+            currentStatus: ((input?.user?.vesselStatus !== '') ? input?.user?.vesselStatus : existingEmployee.vesselStatus) || "",
+            email: input?.user?.email,
+            _id: existingEmployee?.user?._id
+        }];
+
+        const result = await filterLearningPlans(learningPlans, conditions, context, session);
         return savedEmployee;
 
-        // if (
-        //     (input?.empDesignation.toString() != existingEmployee?.empDesignation.toString()) ||
-        //     (input.user.currentVessel && (input?.user?.currentVessel.toString() != existingEmployee?.user?.currentVessel?._id.toString())) ||
-        //     (input.user.vesselStatus && (input?.user?.vesselStatus != existingEmployee?.user?.vesselStatus))
-        // ) {
-
-        //     if (existingEmployee?.user?._id) {
-
-        //         const learningPlans = await LearningPlan.find({
-        //             assignedLearnerIDs: existingEmployee?.user?._id,
-        //             userObjectIds: { $nin: [existingEmployee?.user?._id] }
-        //         }).select('_id');
-
-        //         const removeUserFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-        //             { user: existingEmployee?.user?._id },
-        //             { $pull: { learningPlan: { $in: learningPlans.map(lp => lp._id) } } }
-        //         );
-
-        //     }
-
-        // }
-
-
-        // let employeeUpdateData = {};
-     
-
-        // if (input.nationality) employeeUpdateData.nationality = input.nationality;
-        // if (input.department) employeeUpdateData.department = input.department;
-        // if (input.managerName) employeeUpdateData.managerName = input.managerName;
-        // if (input.customField) employeeUpdateData.customField = input.customField;
-        // if (input.employeeNo) employeeUpdateData.employeeNo = input.employeeNo;
-        // if (input.rigNumber) employeeUpdateData.rigNumber = input.rigNumber;
-        // if (input.dob) employeeUpdateData.dob = input.dob;
-        // if (input.gender) employeeUpdateData.gender = input.gender;
-
-        // if (input.managerObjectId) employeeUpdateData.managerObjectId = input.managerObjectId;
-
-        // if (input.managerObjectId) {
-        //     if (existingEmployee.managerObjectId != input.managerObjectId) {
-        //         const oldgroupID = await generateDefaultGroup({ user: existingEmployee.managerObjectId, subscriberId: subscriberId })
-        //         await removeGroupMember({ group: oldgroupID, subscriberId: subscriberId, memberIDs: id })
-        //     }
-
-        //     const existingMember = await User.findOne({
-        //         _id: input.managerObjectId,
-        //     }).lean();
-
-        //     if (existingMember) {
-        //         const groupID = await generateDefaultGroup({ user: existingMember, subscriberId: subscriberId })
-        //         inserted = insertGroupMember({ group: groupID, subscriberId: subscriberId, memberIDs: [id] })
-        //     }
-        // }
-
-        // const savedEmployee = await Employee.findOneAndUpdate(
-        //     employeeFilterConditions,
-        //     {
-        //         ...employeeUpdateData,
-        //         updatedBy: userId,
-        //     },
-        //     { new: true, lean: true }
-        // ).populate("user empDesignation managerObjectId");
-        // const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-        // const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
-        // const conditions = [{
-        //     designationID: input.empDesignation || existingEmployee.empDesignation,
-        //     vesselID: input?.user?.currentVessel || existingEmployee.currentVessel?._id,
-        //     vesselTypeID: input?.typeOfVessel?._id || existingVesselType?.typeOfVessel,
-        //     currentStatus: input?.user?.vesselStatus || existingEmployee.vesselStatus,
-        //     email: input?.user?.email,
-        //     _id: existingEmployee?._id
-        // }];
-        // const result = await filterLearningPlans(learningPlans, conditions, context, session);
-        // return savedEmployee;
     },
     createBulkEmployee: async ({ userList, emailsLists, civilIds }, context) => {
         const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
