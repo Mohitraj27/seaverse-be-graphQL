@@ -179,9 +179,9 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
 const validateGroupAndConditionalFields = async (input, errorList) => {
     if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
         const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
-        
+
         for (const field of input.conditionalCustomFields || []) {
-            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) { 
+            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) {
                 errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
             }
         }
@@ -202,8 +202,8 @@ const createLearningPlanHelper = async (input, context) => {
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await audienceSelectionIsMannualValidation(input, errorList);
-        await additionalValidationConditionalCustomFields(input,errorList);
-        await validateGroupAndConditionalFields(input,errorList);
+        await additionalValidationConditionalCustomFields(input, errorList);
+        await validateGroupAndConditionalFields(input, errorList);
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -231,16 +231,16 @@ const createLearningPlanHelper = async (input, context) => {
         // If audience selection is MANUAL
         if (input.audienceSelection === audienceSelection.MANUAL) {
             newLearningPlan = await createNewLearningPlan(input);
-            if(input.userObjectIds?.length>0){
-            const assigments = input.userObjectIds.map(userId => ({
-                learningPlanId: newLearningPlan._id,
-                assignedLearnerId: userId,
-                isManuallyAdded: true,
-                createdBy: input.createdBy,
-                updatedBy: input.updatedBy,
-            }));
+            if (input.userObjectIds?.length > 0) {
+                const assigments = input.userObjectIds.map(userId => ({
+                    learningPlanId: newLearningPlan._id,
+                    assignedLearnerId: userId,
+                    isManuallyAdded: true,
+                    createdBy: input.createdBy,
+                    updatedBy: input.updatedBy,
+                }));
 
-            await LearningPlanAssignment.insertMany(assigments);
+                await LearningPlanAssignment.insertMany(assigments);
             }
         }
         else {
@@ -253,23 +253,23 @@ const createLearningPlanHelper = async (input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            if(userIds?.length>0){
-            const assignments = userIds.map(userId => ({
-                learningPlanId: newLearningPlan._id,
-                assignedLearnerId: userId,
-                isManuallyAdded: false,
-                createdBy: input.createdBy,
-                updatedBy: input.updatedBy,
-            }));
+            if (userIds?.length > 0) {
+                const assignments = userIds.map(userId => ({
+                    learningPlanId: newLearningPlan._id,
+                    assignedLearnerId: userId,
+                    isManuallyAdded: false,
+                    createdBy: input.createdBy,
+                    updatedBy: input.updatedBy,
+                }));
 
-            await LearningPlanAssignment.insertMany(assignments);
+                await LearningPlanAssignment.insertMany(assignments);
             }
         }
         await newLearningPlan.save();
         if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
-        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id }).select('assignedLearnerId');
+        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
         if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
             const enrollData = {
                 trainings: newLearningPlan.selectCourses,
@@ -298,7 +298,7 @@ const clearFieldsBasedOnConditions = async (input, errorList) => {
     }
 }
 const validateRetiredCourses = async (input, errorList) => {
-    if(input.selectCourses?.length>0){
+    if (input.selectCourses?.length > 0) {
         const validCourses = await Training.find({
             _id: { $in: input.selectCourses },
         }).select('status -_id');
@@ -321,11 +321,11 @@ const updateLearningPlanHelper = async (id, input, context) => {
         // }
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
-        await additionalValidationConditionalCustomFields(input,errorList);
+        await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
         await validateRetiredCourses(input, errorList);
-        if(errorList?.length > 0){
+        if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
         const existingLearningPlan = await LearningPlan.findOne({
@@ -357,7 +357,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = []; // Clear group IDs if not needed
         }
         await existingLearningPlan.save();
-        const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id }).select('assignedLearnerId -_id');
+        const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         await LearningPlanAssignment.deleteMany({
             learningPlanId: existingLearningPlan._id
