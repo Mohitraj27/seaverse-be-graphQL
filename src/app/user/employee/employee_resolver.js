@@ -2100,7 +2100,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user.reasonForDelete,
                 directSignup: user.directSignup,
                 deleteRequestDate: user.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             const rejectDeleteRequest = await User.updateMany(
@@ -2172,7 +2173,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user?.reasonForDelete,
                 directSignup: user?.directSignup,
                 deleteRequestDate: user?.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             let errors = [];
