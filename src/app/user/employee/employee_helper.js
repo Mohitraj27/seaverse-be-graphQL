@@ -59,7 +59,11 @@ const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
-const { fetchDeletionBatch,deleteDeletionBatch } = require("../../../util/sqlite_email_helper");
+const { fetchDeletionBatch,deleteDeletionBatch,insertDeletionRequests } = require("../../../util/sqlite_email_helper");
+
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1059,18 +1063,12 @@ const deleteUsers = async (users, errors) => {
                     );
 
                     if (updateGroupMember) {
-                        // for (const user of getUsers) {
-                        //     const htmlContent = sendDeleteEmailToLearner(user.firstName);
-                        //     await SendEmail({
-                        //         receiverEmail: user.email,
-                        //         subject: "Your account has been deleted",
-                        //         htmlContent: htmlContent,
-                        //     });
-                        // }
-                        const usersToDelete = getUsers; // Your logic to get users
-                        await insertDeletionRequests(usersToDelete);
-                        insertedDocs = await fetchDeletionBatch();
-                        console.log("insertedDocs", insertedDocs);
+
+                        const usersToDelete = getUsers; 
+                        insertDeletionRequests(usersToDelete);
+
+                        const result = await sendDeletionEmailBulk();
+
                         return deleteUsers;
                     }
 
@@ -1376,7 +1374,6 @@ const sendDeletionEmailBulk = async () => {
             const batchResults = await sendDeletionWithRetry(deletionBatch);
 
             results = results.concat(batchResults);
-
             await delay(200);
 
             const deletionIds = deletionBatch.map(email => email.id);
@@ -1416,7 +1413,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
     try {
         const emailPromises = deletionBatch.map(async (user) => {
             if (user.email?.trim()?.length) {
-                return await AwsHelper.sendEmail({
+                return await SendEmail({
                     receiverEmail: user.email,
                     subject: "Your account has been deleted",
                     htmlContent: sendDeleteEmailToLearner(user.firstName)
