@@ -36,6 +36,9 @@ const deleteRequestHistorySchema = new Schema(
         },
         decisionDate: {
             type: Date
+        },
+        isRegistered:{
+            type: Boolean,
         }
     },
     { timestamps: true }

@@ -2100,7 +2100,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user.reasonForDelete,
                 directSignup: user.directSignup,
                 deleteRequestDate: user.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             const rejectDeleteRequest = await User.updateMany(
@@ -2135,6 +2136,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             action: "rejected",
                             message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
                             createdBy: userInfo,
+                            icon:  notificationiconEnum.DELETE_REQUEST
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);
@@ -2172,7 +2174,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user?.reasonForDelete,
                 directSignup: user?.directSignup,
                 deleteRequestDate: user?.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             let errors = [];
