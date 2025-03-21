@@ -69,6 +69,7 @@ const { last } = require("lodash");
 const { DeleteRequestHistory } = require("./delete_request_history_model");
 const aws_helper = require("../../../util/aws_helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
 const signupRequestModel = require("../../signup-request/signup-request-model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
@@ -118,7 +119,7 @@ function formatDateWithSuffix(date) {
     return null;
 }
 module.exports.queries = {
-    getDeleteAndSignUpRequestCounts: async(_,context) => { 
+    getDeleteAndSignUpRequestCounts: async (_, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
         if (
             !SubRoleHelper.hasPermission({
@@ -2117,7 +2118,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
                 const history = await DeleteRequestHistory.find();
 
-                const deleteHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
                 for (let userId of input.users) {
                     const user = await User.findById(userId);
@@ -2137,6 +2138,19 @@ const respondToDeleteRequest = async ({ input }, context) => {
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);
+                    }
+
+                    if (updateDeleteRequestHistory) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: 'Delete request APPROVED',
+                            htmlContent: DeleteRequestRejected({
+                                firstName: userHistoryData[0]?.firstName,
+                            })
+                        });
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
                 }
 
@@ -2183,9 +2197,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
-                    
+
                 }
-                
+
                 return "Successfully deleted";
             } else {
                 throw CustomError(ErrorName.ERROR_DELETING_USER);
