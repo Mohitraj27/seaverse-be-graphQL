@@ -443,7 +443,10 @@ module.exports.mutations = {
                     }
                 }
 
-
+                const deleteRequest = await User.find({email: input.emailOrCivilIdOrPassport,deleteRequest: true }).session(session);
+                if(deleteRequest?.length > 0){
+                    return CustomError(ErrorName.DELETE_REQUEST_PENDING,'Your account delete request is pending. Please contact your admin');
+                }
                 return CustomError(ErrorName.WRONG_PASSWORD);
             });
             return signIn;
