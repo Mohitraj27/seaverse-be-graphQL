@@ -2136,6 +2136,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             action: "rejected",
                             message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
                             createdBy: userInfo,
+                            icon:  notificationiconEnum.DELETE_REQUEST
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);

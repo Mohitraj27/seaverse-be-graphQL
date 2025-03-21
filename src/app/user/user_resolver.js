@@ -302,7 +302,7 @@ module.exports.mutations = {
                     status: 'SENT',
                     employeeNotifiers: [],
                     isUserRequest: true,
-                    icon: notificationiconEnum.SUCCESS,
+                    icon: notificationiconEnum.SIGNUP_REQUEST,
                 };
                 await NotificationHelper.createNotification([signupRequestNotifcation], { session });
                 return {
