@@ -1,4 +1,4 @@
-function DeleteRequestApproved(data) {
+function DeleteRequestRejected(data) {
     return `<!DOCTYPE html>
   <html lang="en">
   <head>
@@ -97,12 +97,16 @@ function DeleteRequestApproved(data) {
       <div class="container">
           
           <div class="content">
-              <h1 class="header">Account registration approved!</h1>
+              <h1 class="header">Account Deletion Request Rejected!</h1>
               
               <p class="greeting">Hello ${data?.firstName},</p>
               
               <p class="message">
-                  We have received and approved your request to delete your account. Your account has been permanently deleted.
+                  We have reviewed your request to delete your account and, unfortunately, it has not been approved.
+              </p>
+              
+              <p class="message">
+                  If you wish to proceed with account deletion, you may submit a new request or contact us for more details.
               </p>
               
               <p class="message">
@@ -124,4 +128,4 @@ function DeleteRequestApproved(data) {
   </body>
   </html>`;
   }
-module.exports = { DeleteRequestApproved } ; 
+module.exports = { DeleteRequestRejected } ; 
