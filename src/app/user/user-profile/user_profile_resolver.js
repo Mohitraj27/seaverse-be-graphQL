@@ -28,6 +28,10 @@ const { resetPasswordRequest, resetPasswordRequestforAdmin } = require("../../em
 const { forgetPassword } = require('../../email-template/forgetPassword');
 const EmployeeHelper = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+const { Subscriber } = require("../../saas/subscriber/subscriber_model");
+const NotificationType = require("../../notifications/notification_type.json");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
+const notificationHelper = require("../../notifications/notification_helper");
 
 
 
@@ -514,8 +518,8 @@ module.exports.mutations = {
 
     },
     selfDeleteRequest: async ({ input }, context) => {
-        
-        const { subscriberId, userId, userInfo } = AuthUser(context);
+
+        const { userId, userInfo } = AuthUser(context);
 
         try {
 
@@ -539,19 +543,42 @@ module.exports.mutations = {
 
             if (updateUser) {
 
-                await sendNotificationOnDELETEREQUEST({
+                const subscriber = await Subscriber.findOne();
+
+                let subscriberId;
+
+                if (subscriber) {
+                    subscriberId = subscriber._id;
+                }
+
+                const viewRequestPath = `${process.env.APP_URL}/admin/delete-request?tab=new`;
+
+                const signupRequestNotifcation = {
                     subscriber: subscriberId,
-                    user: {
-                        _id: userId,
-                        firstName: updateUser.firstName,
-                        lastName: updateUser.lastName,
-                        civilIdOrPassport: updateUser.civilIdOrPassport,
-                        email: updateUser.email
-                    },
-                    action: "requested",
-                    reasonForDelete,
-                    createdBy: userInfo
-                });
+                    title: [{ lang: "en", value: `Delete Request` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Delete request received. Please take necessary action.`,
+                        },
+                    ],
+                    notificationType: NotificationType.USER_DELETE_REQUEST,
+                    notifyAdmin: true,
+                    notifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType: "VIEW_REQUEST",
+                            infoData: {
+                                filePath: viewRequestPath
+                            }
+                        }
+                    ],
+                    status: 'SENT',
+                    employeeNotifiers: [],
+                    isUserRequest: true,
+                    icon: notificationiconEnum.SUCCESS,
+                };
+                await notificationHelper.createNotification(signupRequestNotifcation);
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -567,11 +594,6 @@ module.exports.mutations = {
                         }
                     ]
                 });
-                const errors = [];
-
-                if (errors.length > 0) {
-                    throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
-                }
 
                 return "Delete request processed successfully!";
 
