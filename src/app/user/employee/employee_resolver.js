@@ -67,6 +67,9 @@ const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
 const { last } = require("lodash");
 const { DeleteRequestHistory } = require("./delete_request_history_model");
+const aws_helper = require("../../../util/aws_helper");
+const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const signupRequestModel = require("../../signup-request/signup-request-model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -115,6 +118,27 @@ function formatDateWithSuffix(date) {
     return null;
 }
 module.exports.queries = {
+    getDeleteAndSignUpRequestCounts: async(_,context) => { 
+        const { role, userPermissions, subscriberId } = AuthUser(context);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const deleteRequestCount = await User.countDocuments({ deleteRequest: true });
+        const signUpRequestCount = await signupRequestModel.countDocuments();
+        return {
+            deleteRequestCount,
+            signUpRequestCount,
+        };
+    },
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
@@ -2146,8 +2170,22 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
             if (deleteUsers.deletedCount > 0) {
 
-                await DeleteRequestHistory.insertMany(userHistoryData);
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
+                if (updateDeleteRequestHistory) {
+                    const sendmailforApproval = await aws_helper.sendEmail({
+                        receiverEmail: userHistoryData[0]?.email,
+                        subject: 'Delete request APPROVED',
+                        htmlContent: DeleteRequestApproved({
+                            firstName: userHistoryData[0]?.firstName,
+                        })
+                    });
+                    if (!sendmailforApproval) {
+                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                    }
+                    
+                }
+                
                 return "Successfully deleted";
             } else {
                 throw CustomError(ErrorName.ERROR_DELETING_USER);
