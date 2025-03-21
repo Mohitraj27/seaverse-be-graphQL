@@ -12,6 +12,9 @@ const { vesselAssignmentEmail, vesselAssignmentEmailforAdmin } = require("../../
 const NotificationHelper = require("../../notifications/notification_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationEnum = require("../../notifications/notification_icon.json")
+const {filterLearningPlans} = require('../employee/employee_helper');
+const {LearningPlan} = require('../../learning-plan/learning_plan_model');
+const {Employee} = require('../employee/employee_model');
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -144,6 +147,22 @@ module.exports.mutations = {
                     });
 
                 }
+                const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+                const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
+                let typeOfVessel;
+                if(input?.vesselId){
+                    typeOfVessel = await Vessel.find({_id: input?.vesselId}).select('typeOfVessel -_id');
+                }
+                const emailData = await User.find({_id: input?.userId}).select('email -_id');
+                const conditions = [{
+                    designationID: designation?.[0]?.empDesignation ?? null,
+                    vesselID: input?.vesselId ?? null, 
+                    vesselTypeID: typeOfVessel?.[0]?.typeOfVessel ?? null,
+                    currentStatus: input?.vesselStatus ?? null,
+                    email: emailData,
+                    _id: input?.userId ,
+                }];
+                const result = await filterLearningPlans(learningPlans, conditions, context);
                 await SendEmail({
                     receiverEmail: userInfo.email,
                     subject: `User Vessel Assignment Notification`,

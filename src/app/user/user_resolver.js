@@ -351,34 +351,32 @@ module.exports.mutations = {
                     }
                 } else {
 
-                    const expiredUser = await User.findOne({
-                        $or: [
-                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                            { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                        ],
-                        isDeleted: true,
-                        deleteRequest: true,
-                        isActive: false
-                    }).session(session);
+                    // const expiredUser = await User.findOne({
+                    //     $or: [
+                    //         { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                    //         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
+                    //     ],
+                    //     isDeleted: true,
+                    //     deleteRequest: true,
+                    //     isActive: false
+                    // }).session(session);
+                    // if (expiredUser) {
+                    //     expiredUser.isDeleted = false;
+                    //     expiredUser.isActive = true;
+                    //     expiredUser.deleteRequest = false;
+                    //     expiredUser.deleteRequestDate = null;
+                    //     expiredUser.reasonForDelete = null;
+                    //     await expiredUser.save({ session });
 
-                    if (expiredUser) {
-                        expiredUser.isDeleted = false;
-                        expiredUser.isActive = true;
-                        expiredUser.deleteRequest = false;
-                        expiredUser.deleteRequestDate = null;
-                        expiredUser.reasonForDelete = null;
-                        await expiredUser.save({ session });
-
-                        await OverallTrainingProgress.updateMany(
-                            { user: expiredUser._id },
-                            {
-                                $set: {
-                                    isDeleted: false,
-                                }
-                            }
-                        ).session(session);
-                    }
-
+                    //     await OverallTrainingProgress.updateMany(
+                    //         { user: expiredUser._id },
+                    //         {
+                    //             $set: {
+                    //                 isDeleted: false,
+                    //             }
+                    //         }
+                    //     ).session(session);
+                    // }
 
                     const existingUser = await User.findOne({
                         $or: [

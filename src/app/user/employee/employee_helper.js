@@ -59,6 +59,11 @@ const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
+const { fetchDeletionBatch,deleteDeletionBatch,insertDeletionRequests } = require("../../../util/sqlite_email_helper");
+
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -413,7 +418,8 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
-                        assignedLearnerId: { $in: userIds }
+                        assignedLearnerId: { $in: userIds },
+                        isDeleted: { $ne: true }
                     }, { assignedLearnerId: 1 });
 
                     const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
@@ -1058,6 +1064,130 @@ const deleteUsers = async (users, errors) => {
                     );
 
                     if (updateGroupMember) {
+
+                        const usersToDelete = getUsers; 
+                        insertDeletionRequests(usersToDelete);
+
+                        const result = await sendDeletionEmailBulk();
+
+                        return deleteUsers;
+                    }
+
+                    return deleteUsers;
+
+                } else {
+                    errors.push("Error while deleting users");
+                    return;
+                }
+
+            } else {
+                errors.push("Error while deleting users");
+                return;
+            }
+
+        });
+
+        return deleteUsers;
+
+    } catch (error) {
+        throw Error(error.message);
+
+    }
+
+}
+
+const softDeleteUsers = async (users, errors) => {
+
+    try {
+
+        const getUsers = await User.find({ _id: { $in: users } });
+
+        if (!getUsers || getUsers.length <= 0) {
+            errors.push("User not found");
+            return;
+        }
+
+        const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+
+
+            const deletedUsers = getUsers.map(user => {
+                return {
+                    ...user.toObject(),
+                    isDeleted: true
+                };
+            });
+            const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            if (updateDeletedList) {
+
+                let deleteUsers = await User.deleteMany(
+                    { _id: { $in: users } },
+                    { session }
+                );
+
+                await Employee.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                await LearningPlanAssignment.updateMany(
+                    { assignedLearnerId: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                await OverallTrainingProgress.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                if (deleteUsers) {
+
+                    const getAdminGroups = await Group.find({ groupAdmin: { $in: users } }).session(session);
+
+                    if (getAdminGroups.length > 0) {
+                        const deletedGroups = getAdminGroups.map(group => ({
+                            ...group.toObject(),
+                            isDeleted: true
+                        }));
+
+                        await DeletedGroup.insertMany(deletedGroups, { session });
+                    }
+
+                    let updateGroup;
+
+                    updateGroup = await Group.updateMany(
+                        { members: { $in: users } },
+                        [
+                            {
+                                $set: {
+                                    members: {
+                                        $filter: {
+                                            input: "$members",
+                                            as: "member",
+                                            cond: { $not: { $in: ["$$member", users] } }
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                $set: {
+                                    memberCount: { $size: "$members" }
+                                }
+                            }
+                        ],
+                        { session }
+                    );
+
+                    const updateGroupMember = await GroupMember.updateMany(
+                        { member: { $in: users } },
+                        { $set: { isDeleted: true } },
+                        { session }
+                    );
+
+                    if (updateGroupMember) {
                         for (const user of getUsers) {
                             const htmlContent = sendDeleteEmailToLearner(user.firstName);
                             await SendEmail({
@@ -1143,35 +1273,40 @@ const restoreUsers = async (users, errors) => {
                 { session }
             );
 
+            const restoreOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                { user: { $in: users }, isDeleted: true },
+                { $set: { isDeleted: false } },
+                { session }
+            );
 
-            const userGroupMembers = await GroupMember.find(
-                { member: { $in: users }, isDeleted: false }
-            ).select('group member').session(session);
+            const restoreLearningPlanAssignment = await LearningPlanAssignment.updateMany(
+                { assignedLearnerId: { $in: users }, isDeleted: true },
+                { $set: { isDeleted: false } },
+                { session }
+            );
 
-
-            const groupUpdates = userGroupMembers.reduce((acc, groupMember) => {
-                if (!acc[groupMember.group]) {
-                    acc[groupMember.group] = new Set();
-                }
-                acc[groupMember.group].add(groupMember.member.toString());
-                return acc;
-            }, {});
-
-
-            const bulkOperations = Object.entries(groupUpdates).map(([groupId, members]) => ({
-                updateOne: {
-                    filter: { _id: groupId },
-                    update: {
-                        $addToSet: { members: { $each: [...members] } },
-                        $inc: { memberCount: members.size }
-                    }
-                }
-            }));
-
-
-            if (bulkOperations.length > 0) {
-                const updateResult = await Group.bulkWrite(bulkOperations, { session });
-            }
+            // const userGroupMembers = await GroupMember.find(
+            //     { member: { $in: users }, isDeleted: false }
+            // ).select('group member').session(session);
+            // const groupUpdates = userGroupMembers.reduce((acc, groupMember) => {
+            //     if (!acc[groupMember.group]) {
+            //         acc[groupMember.group] = new Set();
+            //     }
+            //     acc[groupMember.group].add(groupMember.member.toString());
+            //     return acc;
+            // }, {});
+            // const bulkOperations = Object.entries(groupUpdates).map(([groupId, members]) => ({
+            //     updateOne: {
+            //         filter: { _id: groupId },
+            //         update: {
+            //             $addToSet: { members: { $each: [...members] } },
+            //             $inc: { memberCount: members.size }
+            //         }
+            //     }
+            // }));
+            // if (bulkOperations.length > 0) {
+            //     const updateResult = await Group.bulkWrite(bulkOperations, { session });
+            // }
 
 
             const deleteResult = await DeletedUser.deleteMany({ _id: { $in: users } }).session(session);
@@ -1357,8 +1492,82 @@ const moveExpiredDeletedUsers = async () => {
     });
 };
 
+
+const sendDeletionEmailBulk = async () => {
+    try {
+        let results = [];
+        while (true) {
+
+            const deletionBatch = await fetchDeletionBatch();
+            if (deletionBatch.length === 0) {
+                break;
+            }
+
+            const batchResults = await sendDeletionWithRetry(deletionBatch);
+
+            results = results.concat(batchResults);
+            await delay(200);
+
+            const deletionIds = deletionBatch.map(email => email.id);
+            
+            // Filter successful emails to delete
+            const successfulIds = [];
+            batchResults.forEach((result, index) => {
+                if (result.status === "fulfilled") {
+                    successfulIds.push(deletionIds[index]);
+                }
+            });
+
+            if (successfulIds.length > 0) {
+                await deleteDeletionBatch(successfulIds);
+            }
+        }
+
+        const success = results.filter(res => res.status === "fulfilled");
+        const errors = results.filter(res => res.status === "rejected");
+
+        return {
+            status: "success",
+            successCount: success.length,
+            errorCount: errors.length,
+            errors: errors.map(err => err.reason.message),
+            message: `${success.length} deletion emails sent successfully, ${errors.length} failed.`,
+        };
+    } catch (error) {
+        return {
+            status: "error",
+            message: error.message,
+        };
+    }
+};
+
+const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
+    try {
+        const emailPromises = deletionBatch.map(async (user) => {
+            if (user.email?.trim()?.length) {
+                return await SendEmail({
+                    receiverEmail: user.email,
+                    subject: "Your account has been deleted",
+                    htmlContent: sendDeleteEmailToLearner(user.firstName)
+                });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+        });
+
+        return await Promise.allSettled(emailPromises);
+    } catch (error) {
+        if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {
+            await delay(2 ** retryCount * 1000);
+            return sendDeletionWithRetry(deletionBatch, retryCount + 1);
+        }
+        throw error;
+    }
+};
+
 module.exports = {
     deleteUsers,
+    softDeleteUsers,
     restoreUsers,
     sendInvitationMail,
     sendCourseInvitationMail,
@@ -1526,7 +1735,7 @@ module.exports = {
             }
         }
 
-    
+
 
         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
         const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
@@ -1957,7 +2166,7 @@ module.exports = {
     },
 
     createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
-         
+
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
         let userCount = 0;
