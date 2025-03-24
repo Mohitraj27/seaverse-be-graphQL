@@ -184,15 +184,15 @@ module.exports.mutations = {
                 } else if (operationType === operationTypeEnum?.REJECTED) {
                     
                     signupRequest.signupStatus = signupStatus?.REJECTED;
-                    await User.updateOne(
+                    await User.deleteOne(
                         { _id: signupRequest?.userId },
-                        { $set: { isDeleted: true , isSignupAdminAprroved: false} },
+                        // { $set: { isDeleted: true , isSignupAdminAprroved: false} },
                         { session }
                     );
                     
-                    await Employee.updateOne(
+                    await Employee.deleteOne(
                         { user: signupRequest?.userId },
-                        { $set: { isDeleted: true } },
+                        // { $set: { isDeleted: true } },
                         { session }
                     );
                     const historySignupRequest = await HistorySignupRequest.create([{
