@@ -114,7 +114,7 @@ module.exports.mutations = {
                         vesselStatus: vesselStatus || null,
                         currentVessel: vesselName || null
                     }
-                    const existingUser = await User.findOne({ civilIdOrPassport: employeeId, isDeleted: false, isSignupAdminAprroved: true });
+                    const existingUser = await User.findOne({ civilIdOrPassport: employeeId, isDeleted: false, isSignupAdminAprroved: { $ne: false } });
                     if (existingUser) {
                         throw CustomError(ErrorName.USER_ALREADY_EXIST, 'Employee with this EmployeeID already exists.');
                     }
