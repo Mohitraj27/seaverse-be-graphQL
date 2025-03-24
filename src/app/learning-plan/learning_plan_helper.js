@@ -105,7 +105,7 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
             return await Group.find({ _id: { $in: valueOfField }, isDeleted: false });
 
         case typeOfConditionalCustomFieldEnum.EMAIL:
-            return await User.find({ _id: { $in: valueOfField }, isDeleted: false });
+            return await User.find({ _id: { $in: valueOfField }, isDeleted: false, isSignupAdminAprroved: { $ne: false } });
 
         case typeOfConditionalCustomFieldEnum.VESSEL:
             return await Vessel.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
@@ -161,7 +161,8 @@ const audienceSelectionIsMannualValidation = async (input, errorList) => {
         } else {
             const validUserIds = await User.find({
                 _id: { $in: input.userObjectIds },
-                isDeleted: false
+                isDeleted: false,
+                isSignupAdminAprroved: { $ne: false }
             });
             if (validUserIds.length !== input.userObjectIds.length) {
                 errorList.push(errorMessages.INVALID_USER_OBJECT_IDS);
@@ -324,7 +325,9 @@ const updateLearningPlanHelper = async (id, input, context) => {
         await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
+        /*
         await validateRetiredCourses(input, errorList);
+        */
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -376,7 +379,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
         if (input.audienceSelection === audienceSelection.MANUAL) {
             learnersToAssign = await User.find({
                 _id: { $in: input.userObjectIds },
-                isDeleted: false
+                isDeleted: false,
+                isSignupAdminAprroved: { $ne: false }
             }).select('_id');
         } else {
             // Automatic or other selections
@@ -447,6 +451,7 @@ const getUsersAndCount = async (input) => {
     try {
         let filter = {};
         filter.isDeleted = false;
+        filter.isSignupAdminAprroved = true;
         filter.isActive = true;
         filter.isRegistered = true;
 

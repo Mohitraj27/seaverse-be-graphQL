@@ -77,7 +77,8 @@ module.exports.queries = {
                     pipeline: [
                         {
                             $match: {
-                                isDeleted: false
+                                isDeleted: false,
+                                isSignupAdminAprroved: { $ne: false },
                             }
                         }
                     ]
@@ -132,7 +133,8 @@ module.exports.queries = {
             {
                 $match: {
                     'userInfo': { $ne: null },
-                    'userInfo.isDeleted': { $ne: true }
+                    'userInfo.isDeleted': { $ne: true },
+                    'userInfo.isSignupAdminAprroved': { $ne: false }
                 }
             },
             {
