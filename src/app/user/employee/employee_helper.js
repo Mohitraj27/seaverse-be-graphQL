@@ -59,7 +59,7 @@ const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
-const { fetchDeletionBatch,deleteDeletionBatch,insertDeletionRequests } = require("../../../util/sqlite_email_helper");
+const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
 
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1065,7 +1065,7 @@ const deleteUsers = async (users, errors) => {
 
                     if (updateGroupMember) {
 
-                        const usersToDelete = getUsers; 
+                        const usersToDelete = getUsers;
                         insertDeletionRequests(usersToDelete);
 
                         const result = await sendDeletionEmailBulk();
@@ -1510,7 +1510,7 @@ const sendDeletionEmailBulk = async () => {
             await delay(200);
 
             const deletionIds = deletionBatch.map(email => email.id);
-            
+
             // Filter successful emails to delete
             const successfulIds = [];
             batchResults.forEach((result, index) => {
@@ -2734,7 +2734,7 @@ module.exports = {
             if (passwordEmailList.length > 0) {
 
 
-                // await sendBulkEmails(passwordEmailList);
+                await sendBulkEmails(passwordEmailList);
 
 
             }
@@ -2784,10 +2784,16 @@ module.exports = {
 
                 let rowIndex = 0;
                 let isEmptyFile = true;
+                const MAX_ROWS = 1000;
 
                 parser.on("data", async (row) => {
 
                     rowIndex++;
+
+                    if (rowIndex > MAX_ROWS) {
+                        validationErrors.push("The CSV file exceeds the maximum allowed row limit of 1000.");
+                        return;
+                    }
 
                     isEmptyFile = false;
 
