@@ -102,7 +102,7 @@ function DeleteRequestRejected(data) {
               <p class="greeting">Hello ${data?.firstName},</p>
               
               <p class="message">
-                  We have reviewed your request to delete your account and, unfortunately, it has not been approved.
+                  We have reviewed your request to delete your account and unfortunately, it has not been approved.
               </p>
               
               <p class="message">

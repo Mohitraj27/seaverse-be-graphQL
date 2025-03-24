@@ -21,7 +21,7 @@ module.exports = {
     INVALID_GROUP_TYPE: "The group type provided is invalid. Please check the configuration.",
     INVALID_ROLE_ID: "The role provided is invalid. Please check your selection.",
     INVALID_REG_STATUS: "Registration status must be either true or false.",
-    INVALID_VESSEL_STATUS: "Vessel status must be one of the following: 'Assigned', 'Onboarded', or 'Onshore'.",
+    INVALID_VESSEL_STATUS: "Vessel status must be one of the following: 'Assigned', 'Onboard', or 'Onshore'.",
     GROUP_IDS_GROUP_TYPE_REQUIRED_FOR_GROUP_BASED: "Both group IDs and group type are required for a group-based field.",
     VALUE_OF_FIELD_NOT_REQUIRED_FOR_GROUP_BASED: "Field value is not required for group-based fields.",
     INVALID_CONDITIONAL_FIELDS_FOR_GROUP_BASED: "The conditional custom fields provided for a group-based audience selection are invalid.",
