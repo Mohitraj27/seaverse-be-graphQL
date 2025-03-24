@@ -563,15 +563,18 @@ module.exports.mutations = {
             <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
             </div>`;
 
-            // const sendEmailResponse = await AwsHelper.sendEmail({
-            //     receiverEmail: email,
-            //     subject: "OTP Email Verification",
-            //     htmlContent: html,
-            // });
+            const sendEmailResponse = await AwsHelper.sendEmail({
+                receiverEmail: email,
+                subject: "OTP Email Verification",
+                htmlContent: signUpVerifyEmailTemplate({
+                    otp: otp,
+                    verificationLink: `${process.env.APP_URL}/verification-code?token=${generatedtoken}`
+                }),
+            });
 
 
 
-
+            /*
             const transporter = nodemailer.createTransport({
                 host: 'smtp.gmail.com',
                 port: '587',
@@ -593,7 +596,7 @@ module.exports.mutations = {
             };
 
             const sendEmailResponse = await transporter.sendMail(mailOptions);
-
+            */
             const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
             if (sendEmailResponse) {
                 await SignUpOtp.create({
