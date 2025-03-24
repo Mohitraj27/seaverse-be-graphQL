@@ -67,6 +67,10 @@ const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
 const { last } = require("lodash");
 const { DeleteRequestHistory } = require("./delete_request_history_model");
+const aws_helper = require("../../../util/aws_helper");
+const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
+const signupRequestModel = require("../../signup-request/signup-request-model");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -115,6 +119,27 @@ function formatDateWithSuffix(date) {
     return null;
 }
 module.exports.queries = {
+    getDeleteAndSignUpRequestCounts: async (_, context) => {
+        const { role, userPermissions, subscriberId } = AuthUser(context);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const deleteRequestCount = await User.countDocuments({ deleteRequest: true });
+        const signUpRequestCount = await signupRequestModel.countDocuments();
+        return {
+            deleteRequestCount,
+            signUpRequestCount,
+        };
+    },
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
@@ -1963,7 +1988,8 @@ const manageRole = async ({ input }, context) => {
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
-        updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
         notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
@@ -2075,7 +2101,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user.reasonForDelete,
                 directSignup: user.directSignup,
                 deleteRequestDate: user.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             const rejectDeleteRequest = await User.updateMany(
@@ -2093,7 +2120,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
                 const history = await DeleteRequestHistory.find();
 
-                const deleteHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
                 for (let userId of input.users) {
                     const user = await User.findById(userId);
@@ -2110,9 +2137,23 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             action: "rejected",
                             message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
                             createdBy: userInfo,
+                            icon:  notificationiconEnum.DELETE_REQUEST
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);
+                    }
+
+                    if (updateDeleteRequestHistory) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: 'Delete request APPROVED',
+                            htmlContent: DeleteRequestRejected({
+                                firstName: userHistoryData[0]?.firstName,
+                            })
+                        });
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
                 }
 
@@ -2134,7 +2175,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 reasonForDelete: user?.reasonForDelete,
                 directSignup: user?.directSignup,
                 deleteRequestDate: user?.deleteRequestDate,
-                decisionDate: new Date()
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
             }));
 
             let errors = [];
@@ -2146,7 +2188,21 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
             if (deleteUsers.deletedCount > 0) {
 
-                await DeleteRequestHistory.insertMany(userHistoryData);
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+
+                if (updateDeleteRequestHistory) {
+                    const sendmailforApproval = await aws_helper.sendEmail({
+                        receiverEmail: userHistoryData[0]?.email,
+                        subject: 'Delete request APPROVED',
+                        htmlContent: DeleteRequestApproved({
+                            firstName: userHistoryData[0]?.firstName,
+                        })
+                    });
+                    if (!sendmailforApproval) {
+                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                    }
+
+                }
 
                 return "Successfully deleted";
             } else {
@@ -2382,6 +2438,26 @@ module.exports.mutations = {
         const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
+
+        const existingDeletedUser = await DeletedUser.find({ email: input.user.email, civilIdOrPassport: input.user.civilIdOrPassport });
+
+        if (existingDeletedUser.length > 0) {
+
+            const existingDeletedUserIds = existingDeletedUser.map(user => user._id);
+
+            let errors = [];
+            const restoreUser = await EmployeeHelper.restoreUsers(existingDeletedUserIds, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `${errors[0]}`);
+            }
+
+            return {
+                status: true,
+                message: "User restored successfully!",
+            };
+
+        }
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
