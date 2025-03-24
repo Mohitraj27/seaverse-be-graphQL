@@ -2490,7 +2490,6 @@ module.exports.mutations = {
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
                 email: input.user.email,
-                isSignupAdminAprroved: true,
                 role: userRole,
                 ...userPasswordInfo,
                 UID: await EmployeeHelper.generateUserUID({ session }),
