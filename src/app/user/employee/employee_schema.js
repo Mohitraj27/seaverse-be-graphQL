@@ -243,6 +243,7 @@ type userVessels {
             vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
+            showInvited: Boolean
         }
         input SortFieldInput {
             field : SortableFieldEnum
