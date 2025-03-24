@@ -218,7 +218,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                         {
                             $match: {
                                 role: "LEARNER",
-                                superAdmin: false
+                                superAdmin: false,
+                                isSignupAdminAprroved : { $ne: false }
                             }
                         }
                     ]
@@ -1864,7 +1865,8 @@ const getMainCoursesReport = async ({ input }, context) => {
                     pipeline : [
                       {
                         $match :{
-                          isDeleted : false
+                          isDeleted : false,
+                          isSignupAdminAprroved :{ $ne : false}
                         }
                       }
                     ]
@@ -2274,7 +2276,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             pipeline: [
                                 {
                                     $match: {
-                                        isDeleted: false
+                                        isDeleted: false,
+                                        isSignupAdminAprroved :{ $ne : false}
                                     }
                                 }
                             ]
@@ -3678,7 +3681,8 @@ const getVesselMainReport = async ({ input }, context) => {
                         pipeline: [
                             {
                                 $match: {
-                                    isDeleted: false
+                                    isDeleted: false,
+                                    isSignupAdminAprroved :{ $ne : false}
                                 }
                             },
                             {
@@ -4163,6 +4167,9 @@ const generateCustomReport = async ({ input }, context) => {
                                     "$match": {
                                         "isDeleted": {
                                             $ne: true
+                                        },
+                                        "isSignupAdminAprroved": {
+                                            $ne: false
                                         }
                                     }
                                 }
@@ -4468,7 +4475,8 @@ const generateCustomReport = async ({ input }, context) => {
                             pipeline: [
                                 {
                                     $match: {
-                                        isDeleted: false
+                                        isDeleted: false,
+                                        isSignupAdminAprroved :{ $ne : false}
                                     }
                                 }
                             ]

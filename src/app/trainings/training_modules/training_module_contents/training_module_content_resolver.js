@@ -649,7 +649,7 @@ module.exports.mutations = {
             if (input.title) {
                 const titleValues = input.title.map(x => x.value.trim());
                 if (titleValues.some(x => x === "")) {
-                    throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
+                    throw CustomError(ErrorName.INVALID_TITLE, "Name of the content cannot be empty!");
                 }
             }
             /*
