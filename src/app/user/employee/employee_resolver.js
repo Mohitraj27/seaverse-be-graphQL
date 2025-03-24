@@ -2441,12 +2441,16 @@ module.exports.mutations = {
 
         const existingDeletedUser = await DeletedUser.find({ email: input.user.email, civilIdOrPassport: input.user.civilIdOrPassport });
 
-        if (existingDeletedUser) {
+        if (existingDeletedUser.length > 0) {
 
             const existingDeletedUserIds = existingDeletedUser.map(user => user._id);
 
             let errors = [];
             const restoreUser = await EmployeeHelper.restoreUsers(existingDeletedUserIds, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `${errors[0]}`);
+            }
 
             return {
                 status: true,

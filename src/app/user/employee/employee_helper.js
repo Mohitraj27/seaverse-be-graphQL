@@ -1230,7 +1230,7 @@ const restoreUsers = async (users, errors) => {
 
             if (!getDeletedUsers || getDeletedUsers.length <= 0) {
                 errors.push("No deleted users found");
-                throw new Error("No deleted users found");
+                return;
             }
 
 
@@ -1243,7 +1243,8 @@ const restoreUsers = async (users, errors) => {
             const insertRestoredUsers = await User.insertMany(restoredUsers, { session });
 
             if (!insertRestoredUsers) {
-                throw new Error("Error while restoring users");
+                errors.push("Error while restoring users");
+                return;
             }
 
 

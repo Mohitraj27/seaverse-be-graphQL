@@ -108,6 +108,7 @@ const errorName = {
     FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
     FAILED_TO_SEND_APPROVAL_EMAIL: "FAILED_TO_SEND_APPROVAL_EMAIL",
     FAILED_TO_SEND_REJECTION_EMAIL: "FAILED_TO_SEND_REJECTION_EMAIL",
+    DELETE_REQUEST_PENDING:"DELETE_REQUEST_PENDING"
 };
 
 const errorType = {
@@ -650,6 +651,11 @@ const errorType = {
         message: 'Failed to send rejection email to the Learner',
         statusCode: 400,
         type: "FAILED_TO_SEND_REJECTION_EMAIL"
+    },
+    DELETE_REQUEST_PENDING: {
+        message: 'Delete Request Pending',
+        statusCode: 400,
+        type: "DELETE_REQUEST_PENDING"
     }
 };
 
