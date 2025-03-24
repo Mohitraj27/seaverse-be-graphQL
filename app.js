@@ -83,4 +83,4 @@ ExpressServer.use("/api", RestResolver);
 TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
 BatchRemainder.batchCompletionRemainder();
-EmployeeHelper.moveExpiredDeletedUsers();
+// EmployeeHelper.moveExpiredDeletedUsers();

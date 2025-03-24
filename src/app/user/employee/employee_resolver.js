@@ -1491,13 +1491,13 @@ module.exports.queries = {
         await Promise.all(
             emails.map(async (email) => {
                 if (!emailRegex.test(email)) {
-                    messages.push(`Invalid email format: ${email}`);
+                    messages.push(`Invalid Email format: ${email}`);
                     return;
                 }
 
                 let currentUserData = await User.findOne({ email: email });
                 if (!currentUserData) {
-                    messages.push(`No user data found for email: ${email}`);
+                    messages.push(`No user data found for Email: ${email}`);
                     return;
                 }
 
@@ -1549,11 +1549,11 @@ module.exports.queries = {
                         subject: "Registration Invitation",
                         htmlContent: html,
                     });
-                    messages.push(`Welcome mail sent to ${email}`);
+                    messages.push(`Welcome Email sent to ${email}`);
 
                 }
                 catch (error) {
-                    messages.push(`Unable to send Welcome mail to ${email}`);
+                    messages.push(`Unable to send Welcome Email to ${email}`);
                 }
                 notifications.push({
                     subscriber: subscriberId,
