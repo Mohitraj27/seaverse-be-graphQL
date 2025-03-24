@@ -2438,12 +2438,16 @@ module.exports.mutations = {
 
         const existingDeletedUser = await DeletedUser.find({ email: input.user.email, civilIdOrPassport: input.user.civilIdOrPassport });
 
-        if (existingDeletedUser) {
+        if (existingDeletedUser.length > 0) {
 
             const existingDeletedUserIds = existingDeletedUser.map(user => user._id);
 
             let errors = [];
             const restoreUser = await EmployeeHelper.restoreUsers(existingDeletedUserIds, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `${errors[0]}`);
+            }
 
             return {
                 status: true,
@@ -2483,6 +2487,7 @@ module.exports.mutations = {
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
                 email: input.user.email,
+                isSignupAdminAprroved: true,
                 role: userRole,
                 ...userPasswordInfo,
                 UID: await EmployeeHelper.generateUserUID({ session }),
