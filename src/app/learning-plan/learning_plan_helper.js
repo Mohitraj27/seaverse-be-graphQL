@@ -325,7 +325,9 @@ const updateLearningPlanHelper = async (id, input, context) => {
         await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
+        /*
         await validateRetiredCourses(input, errorList);
+        */
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
