@@ -1066,8 +1066,8 @@ module.exports.queries = {
                         from: "users",
                         let: { userId: "$user" },
                         pipeline: [
-                            { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, role: { $in: ["LEARNER", "ADMIN"] } } },
-                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1 } }
+                            { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false,isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
+                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1 } }
                         ],
                         as: "user"
                     }
@@ -1491,13 +1491,13 @@ module.exports.queries = {
         await Promise.all(
             emails.map(async (email) => {
                 if (!emailRegex.test(email)) {
-                    messages.push(`Invalid email format: ${email}`);
+                    messages.push(`Invalid Email format: ${email}`);
                     return;
                 }
 
                 let currentUserData = await User.findOne({ email: email });
                 if (!currentUserData) {
-                    messages.push(`No user data found for email: ${email}`);
+                    messages.push(`No user data found for Email: ${email}`);
                     return;
                 }
 
@@ -1549,11 +1549,11 @@ module.exports.queries = {
                         subject: "Registration Invitation",
                         htmlContent: html,
                     });
-                    messages.push(`Welcome mail sent to ${email}`);
+                    messages.push(`Welcome Email sent to ${email}`);
 
                 }
                 catch (error) {
-                    messages.push(`Unable to send Welcome mail to ${email}`);
+                    messages.push(`Unable to send Welcome Email to ${email}`);
                 }
                 notifications.push({
                     subscriber: subscriberId,
@@ -2492,6 +2492,7 @@ module.exports.mutations = {
                 email: input.user.email,
                 role: userRole,
                 ...userPasswordInfo,
+                isSignupAdminAprroved : true,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
