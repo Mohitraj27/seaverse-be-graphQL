@@ -2146,7 +2146,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     if (updateDeleteRequestHistory) {
                         const sendmailforApproval = await aws_helper.sendEmail({
                             receiverEmail: userHistoryData[0]?.email,
-                            subject: 'Delete request APPROVED',
+                            subject: 'Delete request REJECTED',
                             htmlContent: DeleteRequestRejected({
                                 firstName: userHistoryData[0]?.firstName,
                             })
