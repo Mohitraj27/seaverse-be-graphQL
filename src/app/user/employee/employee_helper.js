@@ -1458,40 +1458,40 @@ const validateName = (name) => {
     return nameRegex.test(trimmedName);
 };
 
-const moveExpiredDeletedUsers = async () => {
-    CronHelper.schedule("0 0 * * *", async () => {
-        try {
+// const moveExpiredDeletedUsers = async () => {
+//     CronHelper.schedule("0 0 * * *", async () => {
+//         try {
 
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setMinutes(thirtyDaysAgo.getMinutes() - 1);
+//             const thirtyDaysAgo = new Date();
+//             thirtyDaysAgo.setMinutes(thirtyDaysAgo.getMinutes() - 1);
 
-            const result = await DbTransactionHelper.performDbTransaction(async session => {
+//             const result = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const expiredUsers = await User.find({
-                    deleteRequestDate: { $lte: thirtyDaysAgo },
-                    isDeleted: true,
-                    isActive: false
-                }).session(session);
+//                 const expiredUsers = await User.find({
+//                     deleteRequestDate: { $lte: thirtyDaysAgo },
+//                     isDeleted: true,
+//                     isActive: false
+//                 }).session(session);
 
-                if (expiredUsers.length > 0) {
-                    const expiredUserIds = expiredUsers.map(user => user.id);
+//                 if (expiredUsers.length > 0) {
+//                     const expiredUserIds = expiredUsers.map(user => user.id);
 
-                    const errors = [];
-                    const deletedUsers = await deleteUsers(expiredUserIds, errors);
+//                     const errors = [];
+//                     const deletedUsers = await deleteUsers(expiredUserIds, errors);
 
-                    if (deletedUsers.length < 0) {
-                        console.error("Errors occurred while deleting users");
-                    }
-                }
+//                     if (deletedUsers.length < 0) {
+//                         console.error("Errors occurred while deleting users");
+//                     }
+//                 }
 
-                return `${expiredUsers.length} users processed`;
-            });
+//                 return `${expiredUsers.length} users processed`;
+//             });
 
-        } catch (error) {
-            console.error("Error occurred while processing expired users:", error);
-        }
-    });
-};
+//         } catch (error) {
+//             console.error("Error occurred while processing expired users:", error);
+//         }
+//     });
+// };
 
 
 const sendDeletionEmailBulk = async () => {
@@ -1585,7 +1585,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
-    moveExpiredDeletedUsers,
+    // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
