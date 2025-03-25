@@ -107,16 +107,16 @@ module.exports.mutations = {
                 if (operationType === operationTypeEnum?.APPROVED) {
                     signupRequest.signupStatus = signupStatus?.APPROVED;
 
+                    const existingUser = await User.findOne({ civilIdOrPassport: employeeId, isDeleted: false, isSignupAdminAprroved: { $ne: false } });
+                    if (existingUser) {
+                        throw CustomError(ErrorName.USER_ALREADY_EXIST, 'Employee with this EmployeeID already exists.');
+                    }
                     const updateUser = {
-                        civilIdOrPassport: employeeId,
+                        civilIdOrPassport: employeeId?.toUpperCase(),
                         isSignupAdminAprroved: true,
                         isRegistered,
                         vesselStatus: vesselStatus || null,
                         currentVessel: vesselName || null
-                    }
-                    const existingUser = await User.findOne({ civilIdOrPassport: employeeId, isDeleted: false, isSignupAdminAprroved: { $ne: false } });
-                    if (existingUser) {
-                        throw CustomError(ErrorName.USER_ALREADY_EXIST, 'Employee with this EmployeeID already exists.');
                     }
                     if(designation) {
                         const designationRecord = await Designation.findOne({ _id: designation, isDeleted: false });
@@ -151,7 +151,7 @@ module.exports.mutations = {
                         firstName: signupRequest?.firstName,
                         lastName: signupRequest?.lastName,
                         email: signupRequest?.email,
-                        employeeId,
+                        employeeId: employeeId?.toUpperCase(),
                         userId: signupRequest?.userId,
                         requestDate: signupRequest?.requestDate,
                         signupStatus: signupStatus?.APPROVED,
