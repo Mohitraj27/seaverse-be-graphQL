@@ -1067,7 +1067,7 @@ module.exports.queries = {
                         let: { userId: "$user" },
                         pipeline: [
                             { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false,isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
-                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1 } }
+                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 } }
                         ],
                         as: "user"
                     }
@@ -1119,7 +1119,12 @@ module.exports.queries = {
 
                 // Check if filterInput exists and has lastSeen
                 ...(filterInput?.lastSeen ? [
-                    { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate }, "user.isResetPasswordDialog": { $ne: false } } }
+                    { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate } } }
+                ] : []),
+
+                // Check if filterInput exists and has showInvited
+                ...(filterInput?.showInvited ? [
+                    { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
                 ] : []),
 
                 // Lookup designations
@@ -2137,7 +2142,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             action: "rejected",
                             message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
                             createdBy: userInfo,
-                            icon:  notificationiconEnum.DELETE_REQUEST
+                            icon: notificationiconEnum.DELETE_REQUEST
                         });
                     } else {
                         console.error(`User with ID ${userId} not found`);
@@ -2378,6 +2383,7 @@ module.exports.mutations = {
                 userId,
                 newFileName,
                 saveCSV,
+                context
             });
 
             child.on("message", async message => {
