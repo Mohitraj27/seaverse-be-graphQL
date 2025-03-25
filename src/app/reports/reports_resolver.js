@@ -893,7 +893,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
                         Email: item.email || null,
-                        EmployeeId: item.employeeId || null,
+                        'User Id': item.employeeId || null,
                         Designation: item.designation || null,
                         'Current Vessel': item.vesselName || 'Not Applicable',
                         'Vessel Type': item.vesselTypeName || 'Not Applicable',
@@ -966,19 +966,22 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     worksheet['!rows'] = [{ hpt: 30 }]; */
                     const headers = [
-                        "learnerName",
+                        "Name",
                         "Email",
+                        "User Id",
                         "Designation",
+                        "Current Vessel",
+                        "Vessel Type",
                         "Course Name",
-                        "Status",
+                        "Course Status",
                         "Admin Marked As Completed",
-                        "Enrollment Date (UTC)",
-                        "Unenrollment Date (UTC)",
-                        "Completion Date (UTC)",
-                        "Started Date (UTC)",
+                        "Course Enrollment Date & Time (UTC)",
+                        "Course Unenrollment Date & Time (UTC)",
+                        "Course Started Date & Time (UTC)",
+                        "Course Completion Date & Time (UTC)",
                         "Quiz Score",
-                        "userState",
-                        "Time Spent (mins)"
+                        "User State",
+                        "Time Spent",
                     ]
                     worksheet = XLSX.utils.aoa_to_sheet([headers]);
                 }
