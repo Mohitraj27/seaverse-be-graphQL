@@ -2166,7 +2166,7 @@ module.exports = {
         };
     },
 
-    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV) => {
+    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV, context) => {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
@@ -2247,12 +2247,10 @@ module.exports = {
 
                 if (existingEmailIdsMap) {
 
-                    const empId = existingEmailIdsMap[user.email?.toLowerCase()];
+                    const empId = existingEmailIdsMap[user.email?.toLowerCase()].toUpperCase();
 
                     if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
-
-                        // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user.`));
                         break;
 
@@ -2286,8 +2284,6 @@ module.exports = {
 
                 } else if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
-
-                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
@@ -2324,7 +2320,7 @@ module.exports = {
 
             } else if (existingEmailIdsMap) {
 
-                const empId = existingEmailIdsMap[user.email].toLowerCase();
+                const empId = existingEmailIdsMap[user.email].toUpperCase();
 
                 if (existingEmpIdsMap) {
 
@@ -2332,8 +2328,6 @@ module.exports = {
 
                     if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
 
-
-                        // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: Email ID ${user.email} already exists with User ID ${existingEmpIdsInDB.get(user.email.toLowerCase())}`));
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                         break;
 
@@ -2369,7 +2363,6 @@ module.exports = {
 
                 } else if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
-                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport?.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
@@ -2407,15 +2400,12 @@ module.exports = {
 
                 if (getAllDBEmails.includes(user.email)) {
 
-
-                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: email ID ${user.email} already exists with employee ID ${existingEmpIdsInDB.get(user.email?.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
 
                 } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
 
-                    // errors.push(errors.push(`Conflict in Row ${userIndex + 1}: User ID ${user.civilIdOrPassport} already exists with Email ID ${existingEmailsInDB.get(user.civilIdOrPassport.toLowerCase())}`));
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
@@ -2679,63 +2669,66 @@ module.exports = {
                 );
             }
 
-            // const userIDs = allUpdatedUsers.map(user => user._id);
-            // const employees = await Employee.find(
-            //     { user: { $in: userIDs } },
-            //     { user: 1, empDesignation: 1, _id: 0 }
-            // );
+            const userIDs = allUpdatedUsers.map(user => user._id);
+            const employees = await Employee.find(
+                { user: { $in: userIDs } },
+                { user: 1, empDesignation: 1, _id: 0 }
+            );
 
-            // const empDesignationMap = {};
-            // employees.forEach(employee => {
-            //     empDesignationMap[employee.user] = employee.empDesignation;
-            // });
-            // const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
-            // const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
-            // const vesselTypeMap = {};
-            // vessels.forEach(vessel => {
-            //     vesselTypeMap[vessel._id] = vessel.typeOfVessel;
-            // });
-
-
-            // const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-            // let conditionsList = []
-            // try {
-            //     allUpdatedUsers.forEach(user => {
-            //         const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-
-            //         const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
-            //         const typeOfVesselIds = vesselTypeMap[user.currentVessel];
-
-            //         const conditions = {
-            //             designationID: empDesignation,
-            //             vesselID: user.currentVessel ?? null,
-            //             vesselTypeID: typeOfVesselIds ?? null,
-            //             currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
-            //             email: user.email,
-            //             _id: user._id
-
-            //         };
-
-            //         conditionsList.push(conditions);
-
-            //     });
-
-            //     const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, session);
+            const empDesignationMap = {};
+            employees.forEach(employee => {
+                empDesignationMap[employee.user] = employee.empDesignation;
+            });
+            const vesselIDs = allUpdatedUsers.map(user => user.currentVessel);
+            const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
+            const vesselTypeMap = {};
+            vessels.forEach(vessel => {
+                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+            });
 
 
-            //     if (filteredPlans.length > 0) {
-            //         console.log("filteredPlans: ", filteredPlans);
-            //     }
-            // } catch (error) {
-            //     console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
-            // }
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            let conditionsList = []
+            try {
+                allUpdatedUsers.forEach(user => {
+                    const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
+
+                    const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
+                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
+
+                    const conditions = {
+                        designationID: empDesignation,
+                        vesselID: user.currentVessel ?? null,
+                        vesselTypeID: typeOfVesselIds ?? null,
+                        currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
+                        email: user.email,
+                        _id: user._id
+
+                    };
+
+                    conditionsList.push(conditions);
+
+                });
+
+                console.log('conditionsList');
+                console.log(conditionsList);
+
+                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+
+
+                // if (filteredPlans.length > 0) {
+                //     console.log("filteredPlans: ", filteredPlans);
+                // }
+            } catch (error) {
+                console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
+            }
 
 
 
             if (passwordEmailList.length > 0) {
 
 
-                await sendBulkEmails(passwordEmailList);
+                // await sendBulkEmails(passwordEmailList);
 
 
             }

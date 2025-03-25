@@ -4,11 +4,11 @@ const { createEmployeesBackgroundTask } = require("./employee_helper");
 
 process.on('message', async (data) => {
 
-    const { users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV } = data;
+    const { users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV, context } = data;
 
     try {
         await connectDb();
-        await createEmployeesBackgroundTask(users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV);
+        await createEmployeesBackgroundTask(users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV, context);
 
         await closeDb();
 
