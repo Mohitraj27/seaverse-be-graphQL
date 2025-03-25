@@ -1188,6 +1188,7 @@ const softDeleteUsers = async (users, errors) => {
                     );
 
                     if (updateGroupMember) {
+                        /*
                         for (const user of getUsers) {
                             const htmlContent = sendDeleteEmailToLearner(user.firstName);
                             await SendEmail({
@@ -1196,6 +1197,7 @@ const softDeleteUsers = async (users, errors) => {
                                 htmlContent: htmlContent,
                             });
                         }
+                        */
                         return deleteUsers;
                     }
 
@@ -1493,7 +1495,7 @@ const validateName = (name) => {
 //     });
 // };
 
-
+/*
 const sendDeletionEmailBulk = async () => {
     try {
         let results = [];
@@ -1565,7 +1567,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
         throw error;
     }
 };
-
+*/
 module.exports = {
     deleteUsers,
     softDeleteUsers,
