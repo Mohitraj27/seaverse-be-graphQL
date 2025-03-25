@@ -50,7 +50,7 @@ const convertUnderscoreSeperatedStringToCamelCase = async (str) => {
         })
         .join(''); 
 }
-
+/* 
 const formatDate = (date) => {
     if (date) {
         const formattedDate = new Date(date);
@@ -64,6 +64,25 @@ const formatDate = (date) => {
             hour12: false,
             timeZone: 'UTC',
         });
+    }
+    return null;
+};
+*/
+
+const formatDate = (date) => {
+    if (date) {
+        const formattedDate = new Date(date);
+
+        // Get day, month, year, hours, minutes, and seconds
+        const day = String(formattedDate.getUTCDate()).padStart(2, '0');
+        const month = String(formattedDate.getUTCMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+        const year = formattedDate.getUTCFullYear();
+        const hours = String(formattedDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(formattedDate.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(formattedDate.getUTCSeconds()).padStart(2, '0');
+
+        // Format the date as "DD-MM-YYYY HH.MM.SS"
+        return `${day}-${month}-${year} ${hours}.${minutes}.${seconds}`;
     }
     return null;
 };

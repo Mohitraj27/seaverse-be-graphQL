@@ -190,11 +190,11 @@ module.exports.mutations = {
 
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
 
-                const passwordRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{8,})");
+                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*[0-9])(?=.{8,})(?![a-z])");
                 if (!passwordRegex.test(password)) {
                     throw CustomError(
                         ErrorName.INVALID_PASSWORD,
-                        "Password must have at least one uppercase letter, one lowercase letter, one number and minimum 8 characters"
+                        "Password must have at least one uppercase letter, one special character, one number and minimum 8 characters"
                     );
                 }
 
@@ -563,15 +563,18 @@ module.exports.mutations = {
             <p>Click on the link below to verify your email <a href="${process.env.APP_URL}/verification-code?token=${generatedtoken}">Verify Email</a></p>
             </div>`;
 
-            // const sendEmailResponse = await AwsHelper.sendEmail({
-            //     receiverEmail: email,
-            //     subject: "OTP Email Verification",
-            //     htmlContent: html,
-            // });
+            const sendEmailResponse = await AwsHelper.sendEmail({
+                receiverEmail: email,
+                subject: "OTP Email Verification",
+                htmlContent: signUpVerifyEmailTemplate({
+                    otp: otp,
+                    verificationLink: `${process.env.APP_URL}/verification-code?token=${generatedtoken}`
+                }),
+            });
 
 
 
-
+            /*
             const transporter = nodemailer.createTransport({
                 host: 'smtp.gmail.com',
                 port: '587',
@@ -593,7 +596,7 @@ module.exports.mutations = {
             };
 
             const sendEmailResponse = await transporter.sendMail(mailOptions);
-
+            */
             const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
             if (sendEmailResponse) {
                 await SignUpOtp.create({
