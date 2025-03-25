@@ -38,10 +38,6 @@ const vesselSchema = new Schema(
             type: Boolean,
             default: true,
         },
-        naVessel: {
-            type: Boolean,
-            default: false,
-        },
         createdBy: {
             type: ObjectId,
             ref: "User",
