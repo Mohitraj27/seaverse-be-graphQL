@@ -90,7 +90,7 @@ module.exports.queries = {
                         ],
                     },
                 },
-                { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: "$typeOfVessel" } },
                 {
                     $lookup: {
                         from: "owners",
