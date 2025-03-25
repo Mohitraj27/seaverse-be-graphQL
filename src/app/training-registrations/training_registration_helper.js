@@ -720,7 +720,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
-
+                    /*
                     case 'UNENROLL':
                         html = courseUnenrollmentEmail({
                             firstName: email.firstName,
@@ -728,6 +728,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                             email: email.email,
                         });
                         break;
+                    */
                     default:
                         throw new Error('Unknown action');
                 }
