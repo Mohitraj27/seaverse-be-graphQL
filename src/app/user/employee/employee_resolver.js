@@ -2383,6 +2383,7 @@ module.exports.mutations = {
                 userId,
                 newFileName,
                 saveCSV,
+                context
             });
 
             child.on("message", async message => {
