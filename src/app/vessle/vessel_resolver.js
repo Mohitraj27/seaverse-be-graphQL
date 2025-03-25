@@ -206,11 +206,9 @@ module.exports.mutations = {
 
             let ownerName;
 
-            if (ownerId) {
-
+            if (ownerId && ownerId !== '') {
                 const existingOwner = await Owner.findById(ownerId);
-                if (!existingOwner) throw CustomError(ErrorName.FAILED);
-
+                if (!existingOwner) throw CustomError(ErrorName.FAILED,'Owner does not exist');
                 if (address) {
                     existingOwner.address = address;
                     await existingOwner.save();
@@ -218,10 +216,9 @@ module.exports.mutations = {
 
                 ownerName = existingOwner?.name;
 
-            }
-
-            if (!ownerName) {
-                throw CustomError(ErrorName.FAILED);
+                if (!ownerName) {
+                    throw CustomError(ErrorName.FAILED,'Owner Name does not exist');
+                }
             }
 
             const vessel = new Vessel({
