@@ -11,7 +11,6 @@ module.exports = {
             isActive: Boolean!
             createdAt: String!
             updatedAt: String!
-            naVessel: String
             owner: Owner
         }
         type VesselTypeNew {

@@ -1264,6 +1264,7 @@ module.exports = {
                                     attemptCount: 1,
                                     timeSpend: 0,
                                     learningPlan: [],
+                                    finishedCourseFirstTime: false,
                                 }
                             },
                             { session }
