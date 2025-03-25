@@ -268,6 +268,7 @@ module.exports.queries = {
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
+                isDeleted: { $ne: true },
             }
 
             if (filterInput?.search) {
@@ -286,8 +287,8 @@ module.exports.queries = {
                 };
             }
 
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            // const twoDaysAgo = new Date();
+            // twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
             const courses = await OverallTrainingProgress.aggregate([
                 {
@@ -302,14 +303,14 @@ module.exports.queries = {
                 {
                     $match: {
                         ...filterConditions,
-                        $and: [
-                            {
-                                $or: [
-                                    { "training.deletedDate": { $gt: twoDaysAgo } },
-                                    { "training.deletedDate": { $exists: false } },
-                                ]
-                            }
-                        ]
+                        // $and: [
+                        //     {
+                        //         $or: [
+                        //             { "training.deletedDate": { $gt: twoDaysAgo } },
+                        //             { "training.deletedDate": { $exists: false } },
+                        //         ]
+                        //     }
+                        // ]
                     },
                 },
                 {
@@ -1904,7 +1905,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.assignedCertificateLayout,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
 
                         }
                     },
@@ -1943,7 +1944,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.assignedCertificateLayout,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
                         }
                     }
                 );
