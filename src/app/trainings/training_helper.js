@@ -307,11 +307,12 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 contentData, startDate: new Date(),
                                 totalTrainingModules: contentData?.length,
                                 isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
-                                currentCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
+                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
                             }
                         },
                     },
                 });
+
             }
         }
 

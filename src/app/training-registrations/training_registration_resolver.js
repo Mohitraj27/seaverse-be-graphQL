@@ -1904,7 +1904,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.assignedCertificateLayout,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
 
                         }
                     },
@@ -1943,7 +1943,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.assignedCertificateLayout,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
                         }
                     }
                 );
