@@ -2970,14 +2970,14 @@ module.exports.mutations = {
             if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-
+            /*
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-
+            */
             const emailContentForAdmin = roleUpdateNotifyAdmin({
                 firstName: userInfo?.firstName,
                 usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
