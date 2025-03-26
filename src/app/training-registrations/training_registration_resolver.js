@@ -1820,7 +1820,6 @@ module.exports.mutations = {
                 trainingTitle: trainingData.title[0]?.value,
                 durationHours: trainingData.durationHours,
                 courseId: trainingData._id,
-                courseImage: courseImages
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
