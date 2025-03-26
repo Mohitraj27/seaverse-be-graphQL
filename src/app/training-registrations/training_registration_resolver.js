@@ -1973,6 +1973,7 @@ module.exports.mutations = {
                 { $match: { _id: input.training } },
                 { $project: { title: 1 } }
             ]);
+            /*
             users.forEach(user => {
                 trainings.forEach(training => {
                     const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
@@ -1988,6 +1989,7 @@ module.exports.mutations = {
                     });
                 });
             });
+            */
             await Promise.all(userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
