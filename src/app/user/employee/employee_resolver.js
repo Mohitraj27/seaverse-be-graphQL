@@ -71,6 +71,7 @@ const aws_helper = require("../../../util/aws_helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
 const signupRequestModel = require("../../signup-request/signup-request-model");
+const { generateFileNameTimestamp } = require("../../reports/reports_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2969,14 +2970,14 @@ module.exports.mutations = {
             if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-
+            /*
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-
+            */
             const emailContentForAdmin = roleUpdateNotifyAdmin({
                 firstName: userInfo?.firstName,
                 usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
@@ -3293,6 +3294,11 @@ module.exports.mutations = {
                 });
                 return rowData;
             });
+
+/**  
+            @initial_requirement
+            //Old data to export user to csv
+
             // const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
             const csvData = xlsx.utils.sheet_to_csv(worksheet);
@@ -3305,6 +3311,24 @@ module.exports.mutations = {
                 fileName: `exported_users_${Date.now()}.csv`,
                 uploadType: UploadHelper.uploadType.exportExcel,
             });
+  */
+
+   /**
+    * @description
+    *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
+    */
+
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(data);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_users_${await generateFileNameTimestamp()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+
             if (excelFilePath) {
                 const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
                 const urlObject = new URL(s3PresignedUrl);

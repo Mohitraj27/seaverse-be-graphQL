@@ -81,16 +81,7 @@ function courseCompletion(user) {
                     </tr>
 
                     <tr>
-                        <td style="padding: 10px;" class="content-inner">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                <tr>
-                                    <img src="${user.courseImage}" alt="Course Image" style="display: block; margin: 0 auto; height: 210px; width: 460px;">
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 35px 35px;" class="content-inner">
+                        <td style="padding: 0px 35px;" class="content-inner">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="text-align: center;">
@@ -104,7 +95,7 @@ function courseCompletion(user) {
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding: 35px 0 40px 0;" class="content-inner">
+                        <td style="padding: 13px 0 40px 0;" class="content-inner">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                 ${user.certificatePresent ?
