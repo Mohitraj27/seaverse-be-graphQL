@@ -530,7 +530,6 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     trainingTitle: trainingName,
                     durationHours: item?.training?.durationHours,
                     courseId: item.training._id,
-                    courseImage: courseImages
                 });
 
                 emails.push({
