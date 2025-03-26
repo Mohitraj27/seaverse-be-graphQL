@@ -118,7 +118,7 @@ module.exports.mutations = {
             }
 
             if (updateUser) {
-
+                /*
                 const emailContent = vesselAssignmentEmail({
                     firstName: getUser.firstName,
                     vesselName: getVessel?.name || 'N/A',
@@ -128,11 +128,13 @@ module.exports.mutations = {
                     subject: `Vessel Assignment Notification`,
                     htmlContent: emailContent,
                 });
+                
                 const emailContentforAdmin = vesselAssignmentEmailforAdmin({
                     firstName: userInfo.firstName,
                     vesselName: getVessel?.name || 'N/A',
                     userName: getUser.firstName,
                 })
+                    */
                 if (getVessel) {
 
                     await NotificationHelper.createNotificationhelper({
@@ -163,11 +165,13 @@ module.exports.mutations = {
                     _id: input?.userId ,
                 }];
                 const result = await filterLearningPlans(learningPlans, conditions, context);
+               /*
                 await SendEmail({
                     receiverEmail: userInfo.email,
                     subject: `User Vessel Assignment Notification`,
                     htmlContent: emailContentforAdmin,
                 })
+                */
                 return {
                     status: "Success",
                     message: "The vessel updated successfully!"
