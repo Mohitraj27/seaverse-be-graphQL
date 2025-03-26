@@ -197,8 +197,9 @@ module.exports.mutations = {
                         "Password must have at least one uppercase letter, one special character, one number and minimum 8 characters"
                     );
                 }
+                const lowerCaseEmail = email.toLowerCase();
 
-                const existingUser = await User.findOne({ email, isDeleted: false }).session(session);
+                const existingUser = await User.findOne({ email: lowerCaseEmail, isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
 
@@ -218,7 +219,7 @@ module.exports.mutations = {
                         firstName: firstName,
                         lastName: lastName ?? null,
                         password: encryptedPassword,
-                        email: email,
+                        email: lowerCaseEmail,
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
@@ -246,7 +247,7 @@ module.exports.mutations = {
                 const result = await SignupRequest.create([{
                     firstName: firstName,
                     lastName: lastName,
-                    email: email,
+                    email: lowerCaseEmail,
                     country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
@@ -546,7 +547,8 @@ module.exports.mutations = {
         try {
             const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
-            const existingUser = await User.findOne({ email, isDeleted: false });
+            const lowercaseEmail = email.toLowerCase();
+            const existingUser = await User.findOne({ email:lowercaseEmail, isDeleted: false });
             if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email entered already exists!");
 
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
@@ -600,7 +602,7 @@ module.exports.mutations = {
             const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
             if (sendEmailResponse) {
                 await SignUpOtp.create({
-                    email : email,
+                    email : lowercaseEmail,
                     otp: encryptedOtp,
                     generatedtoken: generatedtoken,
                     country: country
