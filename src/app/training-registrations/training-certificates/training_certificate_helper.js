@@ -247,17 +247,17 @@ module.exports = {
             }
 
             const nonExistingOverallDocs = overallDocs.filter(doc =>
-                !existingCertRegIds.includes(doc.trainingRegistration.toString())
+                nonExistingRegistrations.includes(doc.trainingRegistration)
             );
 
             const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
             const certificateLayouts = await certificateLayout.find({
-                key: { $in: assignedLayoutKeys },
+                layout: { $in: assignedLayoutKeys },
                 disabled: false
             }).session(session).lean();
 
             const certificateLayoutMap = new Map(
-                certificateLayouts.map(layout => [layout.key, layout])
+                certificateLayouts.map(layout => [layout.layout, layout])
             );
 
             const validOverallDocs = nonExistingOverallDocs.filter(doc =>
