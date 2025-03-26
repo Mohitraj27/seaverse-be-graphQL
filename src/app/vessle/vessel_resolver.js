@@ -548,6 +548,7 @@ module.exports.mutations = {
                     });
 
                     const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
+                    /*
                     for (let user of assignedUsers) {
                         const emailContent = vesselStatusUpdateEmail({
                             firstName: user.firstName,
@@ -561,7 +562,7 @@ module.exports.mutations = {
                             session,
                         });
                     }
-
+                    
                     const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
                         firstName: userInfo?.firstName,
                         vesselName: vesselNames,
@@ -573,7 +574,7 @@ module.exports.mutations = {
                         htmlContent: emailContentforAdmin,
                         session,
                     });
-
+                    */
                     const userVesselIdsToNotify = updatedVessels.map(v => v.id);
                     const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id').session(session);
                     if (matchingUsers.length > 0) {
