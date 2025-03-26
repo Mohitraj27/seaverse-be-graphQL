@@ -87,7 +87,7 @@ function courseCompletion(user) {
                                     <td style="text-align: center;">
                                         <div
                                             style="margin: 0 auto; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                            Click on the button below to view and download your certificate:
+                                            ${user.certificatePresent ? 'Click on the button below to view and download your certificate:' : 'Click on the button below to view the course:'}
                                         </div>
                                     </td>
                                 </tr>
@@ -98,12 +98,25 @@ function courseCompletion(user) {
                         <td style="padding: 13px 0 40px 0;" class="content-inner">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
+                                ${user.certificatePresent ?
+            `
                                     <td style="text-align: center;">
                                         <a href="${process.env.APP_URL}/learner-profile?tab=certificates"
                                             style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
                                             View Certificate
                                         </a>
                                     </td>
+                                    `
+            :
+            `
+                                    <td style="text-align: center;">
+                                        <a href="${process.env.APP_URL}/course-preview/${user.courseId}"
+                                            style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
+                                            View Course
+                                        </a>
+                                    </td>
+                                    `
+        }
                                 </tr>
                             </table>
                         </td>
