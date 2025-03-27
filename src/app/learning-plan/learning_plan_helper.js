@@ -61,11 +61,19 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'owner':
                     group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     break;
+                // case 'role':
+                //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
+                //         errors.push(errorMessages.INVALID_ROLE_ID);
+                //     } else {
+                //         group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                //     }
+                //     break;
                 case 'role':
+                    if (typeof group.groupIDs === 'string') {
+                        group.groupIDs = [group.groupIDs];
+                    }
                     if (!group.groupIDs.every(role => validRoles.includes(role))) {
                         errors.push(errorMessages.INVALID_ROLE_ID);
-                    } else {
-                        group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
                     }
                     break;
                 case 'regStatus':
