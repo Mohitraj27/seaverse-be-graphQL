@@ -621,7 +621,7 @@ module.exports.mutations = {
     verifyOTPSignup: async ({ input }) => {
         try {
             const { email, generatedtoken, otp } = input;
-            if (!email || !otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email or otp is missing!");
+            if (!otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Otp or generated token is missing!");
             const savedOtp = await SignUpOtp.findOne({ generatedtoken });
             if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
             
