@@ -610,7 +610,7 @@ module.exports.mutations = {
             }
             return {
                 status: true,
-                message: "OTP sent successfully!",
+                message: `OTP sent successfully to ${email}`,
                 generatedtoken:generatedtoken,
                 email:email,
                 country: country
