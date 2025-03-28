@@ -108,7 +108,10 @@ const errorName = {
     FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
     FAILED_TO_SEND_APPROVAL_EMAIL: "FAILED_TO_SEND_APPROVAL_EMAIL",
     FAILED_TO_SEND_REJECTION_EMAIL: "FAILED_TO_SEND_REJECTION_EMAIL",
-    DELETE_REQUEST_PENDING:"DELETE_REQUEST_PENDING"
+    DELETE_REQUEST_PENDING:"DELETE_REQUEST_PENDING",
+    FAILED_TO_FETCH_DESIGNATIONS:"FAILED_TO_FETCH_DESIGNATIONS",
+    FAILED_TO_CHANGE_REGISTER_STATUS: "FAILED_TO_CHANGE_REGISTER_STATUS",
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
 };
 
 const errorType = {
@@ -656,6 +659,21 @@ const errorType = {
         message: 'Delete Request Pending',
         statusCode: 400,
         type: "DELETE_REQUEST_PENDING"
+    },
+    FAILED_TO_FETCH_DESIGNATIONS: {
+        message: 'Failed to fetch designations',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_DESIGNATIONS"
+    },
+    FAILED_TO_CHANGE_REGISTER_STATUS:{
+        message: 'Failed to change register status',
+        statusCode: 400,
+        type: "FAILED_TO_CHANGE_REGISTER_STATUS"
+    },
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: {
+        message: 'Failed to unenroll from learning plan',
+        statusCode: 400,    
+        type: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
     }
 };
 

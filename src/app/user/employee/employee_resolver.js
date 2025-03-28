@@ -72,6 +72,9 @@ const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApp
 const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
 const signupRequestModel = require("../../signup-request/signup-request-model");
 const { generateFileNameTimestamp } = require("../../reports/reports_helper");
+const  LearningPlanStatus  = require('../../learning-plan/enumFields/learning_plan_status.json');
+const LearningPlanAssignment = require('../../learning-plan/assignedLearner/assignedLearnerModel');
+const {OverallTrainingProgress} = require('../../training-registrations/overall-course-progress/overall_progress_model');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1865,16 +1868,42 @@ const deleteEmployees = async ({ input }, context) => {
         errors,
     };
 };
+const removerUnregisterLearnerfromLearningPlan = async (userId, activeLearningPlanIds) => {
+    try {
+        console.log('input recieved',userId,activeLearningPlanIds);
+        if (!userId || !activeLearningPlanIds) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, 'Invalid input: userId and activeLearningPlanIds are required');
+        }
+        console.log('activeLearningPlanIds',activeLearningPlanIds);
+        console.log('recieverd userId',userId);
+        const deletedLearningPlanAssignments = await LearningPlanAssignment.deleteMany({
+            assignedLearnerId: userId,
+            learningPlanId: { $in: activeLearningPlanIds }
+        });
+        console.log('deleteLearning Plan Assigment',deletedLearningPlanAssignments);
+        
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: userId, learningPlan: { $in: activeLearningPlanIds } },
+            { $pull: { learningPlan: { $in: activeLearningPlanIds } } }
+        );
+        console.log('updated Overall Training Progress',updatedOverallTrainingProgress);   
 
+          return {
+            success: true,
+        };
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED_TO_UNENROLL_FROM_LEARNING_PLAN, error.message);
+    }
+};
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
+try {
     const users = await User.find({ _id: { $in: input.users } });
 
     if (users.length === 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
-
+    const learningPlans = await LearningPlan.find({isDeleted: false, status: LearningPlanStatus.ACTIVE });
     let updateUsers;
     if (input.type === "Registered") {
         const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
@@ -1897,6 +1926,34 @@ const changeRegisterEmployees = async ({ input }, context) => {
             subject: `User Status Update: ${input.type}`,
             htmlContent: emailContentforAdmin,
         });
+                const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
+                let typeOfVessel;
+                const userData = await User.find({_id: input?.userId, isDeleted: false});
+                if(userData?.[0]?.currentVessel){
+                    typeOfVessel = await Vessel.find({_id: userData?.[0]?.currentVessel, isDeleted: false, isActive: true}).select('typeOfVessel -_id');
+                }
+                const conditions = [{
+                    designationID: designation?.[0]?.empDesignation ?? null,
+                    vesselID: userData?.[0]?.currentVessel ?? null, 
+                    vesselTypeID: typeOfVessel?.[0]?.typeOfVessel ?? null,
+                    currentStatus: userData?.[0]?.vesselStatus ?? null,
+                    email: userData?.[0]?.email,
+                    _id: input?.userId,
+                }];
+                if(learningPlans?.length > 0){
+                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+                console.log('filteredPlans', filteredPlans);
+                // const learningPlanIds = filteredPlans.map(plan => plan._id);
+                // const matchedLearningPlans = filteredPlans.map(plan => {
+                //     console.log('this is the matching plan', plan);
+                //     return {
+                //         learningPlanID: plan._id,
+                //         learningPlanName: plan.title,
+                //     };
+                // });
+                // console.log('matchedLearningPlans', matchedLearningPlans);
+            }
+    
     } else if (input.type === "Unregistered") {
         const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
         if (alreadyUnregisteredUsers.length > 0) {
@@ -1910,6 +1967,11 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 $set: { isRegistered: false }
             }
         );
+        if(learningPlans?.length > 0){
+            await Promise.all(input?.users.map(userId => 
+                removerUnregisterLearnerfromLearningPlan(userId, learningPlans.map(plan => plan._id))
+            ));
+        }
     }
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
@@ -1942,7 +2004,9 @@ const changeRegisterEmployees = async ({ input }, context) => {
             return { count: updateUsers.nModified, success: false };
         }
     } else {
-        throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+    }}catch(error){
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
 
