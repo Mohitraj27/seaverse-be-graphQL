@@ -32,7 +32,7 @@ module.exports.queries = {
             );
 
             const selectFirstThreeDays = [];
-
+            const userRequestsFilter = [];
 
             if (skip === 0) {
                 selectFirstThreeDays.push({
@@ -94,11 +94,20 @@ module.exports.queries = {
                             .endOf("day")
                             .toDate();
                 }
+
+                if(filterInput?.selectUserRequests){
+                    userRequestsFilter.push({
+                        $match :{
+                            isUserRequest : true
+                        }
+                    })
+                }
             }
 
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
+                        ...userRequestsFilter,
                         ...pipeline,
                         {
                             $addFields: {

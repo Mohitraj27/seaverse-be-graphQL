@@ -150,7 +150,7 @@ module.exports = {
             country: String!
         }
         input OTPVerificationInput{
-            email: String!
+            email: String
             generatedtoken: String!
             otp: String!
         }
