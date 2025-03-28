@@ -9,6 +9,7 @@ const NotificationEvent = require("./notification_event.json");
 const Permission = require("../user/sub-roles/permission.json");
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { User } = require("../user/user_model");
+const { filter } = require("lodash");
 
 module.exports.queries = {
     getNotifications: async ({ pageInput, filterInput }, context) => {
@@ -32,7 +33,7 @@ module.exports.queries = {
             );
 
             const selectFirstThreeDays = [];
-
+            const userRequestsFilter = [];
 
             if (skip === 0) {
                 selectFirstThreeDays.push({
@@ -94,11 +95,20 @@ module.exports.queries = {
                             .endOf("day")
                             .toDate();
                 }
+
+                if(filterInput?.selectUserRequests){
+                    userRequestsFilter.push({
+                        $match :{
+                            isUserRequest : true
+                        }
+                    })
+                }
             }
 
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
+                        ...userRequestsFilter,
                         ...pipeline,
                         {
                             $addFields: {
