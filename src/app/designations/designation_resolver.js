@@ -11,8 +11,8 @@ module.exports.queries = {
     getDesignations: async ({ pageInput, filterInput }, context) => {
         const { subscriberId } = AuthUser(context);
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+        const skip = pageInput?.skip, limit = pageInput?.limit;
+    try{
         let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
 
         if (filterInput?.search) {
@@ -29,26 +29,37 @@ module.exports.queries = {
             };
         }
 
-        return Designation.aggregatePaginate(
-            Designation.aggregate([
+        if (typeof skip !== "undefined" && typeof limit !== "undefined") {
+            return await Designation.aggregatePaginate(
+                Designation.aggregate([{ $match: filterConditions }]),
                 {
-                    $match: filterConditions,
-                },
-            ]),
-            {
-                offset: skip,
-                limit,
-                sort: { createdAt: "descending" },
-                customLabels: {
-                    docs: "designations",
-                    totalDocs: "totalCount",
-                    offset: "skip",
-                },
-                pagination: limit !== 0,
-                allowDiskUse: true,
-            }
-        )
+                    offset: skip,
+                    limit,
+                    sort: { createdAt: "descending" },
+                    customLabels: {
+                        docs: "designations",
+                        totalDocs: "totalCount",
+                        offset: "skip",
+                    },
+                    pagination: limit !== 0,
+                    allowDiskUse: true,
+                }
+            );
+        } else {
+            const designations = await Designation.aggregate([
+                { $match: filterConditions },
+                { $sort: { createdAt: -1 } },
+            ]);
+
+            return {
+                designations,
+                totalCount: designations.length,
+            };
+        }
     }
+    catch(error){
+        throw CustomError(ErrorName.FAILED_TO_FETCH_DESIGNATIONS, `${error.message}`);
+    }}
 };
 
 module.exports.mutations = {

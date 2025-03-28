@@ -6,9 +6,10 @@ const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../uti
 const aws_helper = require("../../../util/aws_helper");
 const { ObjectId } = require("../../../tools");
 const { createOrupdateCertificateLayout } = require("./certificatelayout_helper");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 
 module.exports.queries = {
-    getCertificateLayoutByTrainingId: async ({ trainingId , layout }, context) => {
+    getCertificateLayoutByTrainingId: async ({ trainingId, layout }, context) => {
         const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         if (!subscriberId) {
@@ -17,7 +18,7 @@ module.exports.queries = {
         try {
 
             if (!trainingId) {
-                throw new Error("Course ID is required");
+                throw CustomError(ErrorName.FAILED, "Course ID is required");
             }
 
             const trainingExists = await Training.findById(trainingId)
@@ -25,7 +26,7 @@ module.exports.queries = {
                 .exec();
 
             if (!trainingExists) {
-                throw new Error("Course not found for the provided ID");
+                throw CustomError(ErrorName.FAILED, "Course not found for the provided ID");
             }
 
 
@@ -34,7 +35,7 @@ module.exports.queries = {
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
 
             if (!certificate) {
-                throw Error(`Certificate layout ${layout??""} not found for this training ID`);
+                throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
             certificate.listOfLayouts = listOfLayouts;
             return certificate;
@@ -114,15 +115,25 @@ module.exports.mutations = {
 
                     await certificateLayout.findByIdAndUpdate(id, { $set: { disabled } });
 
-                    await Training.findByIdAndUpdate(
+                    const updateTraining = await Training.findByIdAndUpdate(
                         { _id: training },
                         { $set: { isCertificate: !disabled } }
                     );
 
-                    return {
-                        success: true,
-                        message: "Certificate layout updated successfully.",
-                    };
+                    // Update to NOT_STARTED users
+                    if (updateTraining) {
+
+                        await OverallTrainingProgress.updateMany(
+                            { training: training, status: "NOT_STARTED" },
+                            { $set: { isCertificatePresent: !disabled } }
+                        );
+
+                        return {
+                            success: true,
+                            message: "Certificate layout updated successfully.",
+                        };
+                    }
+
                 }
                 existingLayout = await certificateLayout.findById(id);
                 if (!existingLayout) {
@@ -135,6 +146,12 @@ module.exports.mutations = {
             }
 
             const selectedTraining = await Training.findById(training).select("currentCertificateLayout").exec();
+            if (selectedTraining.length === 0) {
+                throw CustomError(
+                    ErrorName.VALIDATION_ERROR,
+                    "Training not found for the provided ID"
+                );
+            }
 
             if (logoImage1) {
                 const logo = await UploadHelper.uploadImage({
@@ -186,14 +203,6 @@ module.exports.mutations = {
                 );
             }
 
-            const trainingExists = await Training.findById(training);
-            if (!trainingExists) {
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    "Training not found for the provided ID"
-                );
-            }
-
             if (additionalData && !Array.isArray(additionalData)) {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
             }
@@ -208,11 +217,11 @@ module.exports.mutations = {
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
 
-                if(layout){
+                if (layout) {
                     selectedTraining.currentCertificateLayout = layout;
                     await selectedTraining.save();
                 }
-                
+
                 await existingLayout.save();
                 return {
                     success: true,
@@ -220,12 +229,13 @@ module.exports.mutations = {
                     logos: logosInput,
                 };
             } else {
+
                 const oldCertificateLayout = await certificateLayout.findOne({
                     training: ObjectId(training),
                     layout: layout,
                 });
-                if (oldCertificateLayout){
-                    throw new Error("A layout already exists for this training");
+                if (oldCertificateLayout) {
+                    throw CustomError(ErrorName.FAILED, "A layout already exists for this training");
                 }
                 const newCertificateLayout = new certificateLayout({
                     layout,
@@ -238,15 +248,23 @@ module.exports.mutations = {
                     additionalData,
                 });
                 await newCertificateLayout.save();
-                await Training.findByIdAndUpdate(
+                const updateTraining = await Training.findByIdAndUpdate(
                     { _id: training },
-                    { 
-                        $set: { 
+                    {
+                        $set: {
                             isCertificate: true,
-                            currentCertificateLayout: layout  
-                        } 
+                            currentCertificateLayout: layout
+                        }
                     }
                 );
+
+                if (updateTraining) {
+                    const updateCertificate = await OverallTrainingProgress.updateMany(
+                        { training: training, status: "NOT_STARTED" },
+                        { $set: { isCertificatePresent: true } }
+                    );
+                }
+
                 return {
                     success: true,
                     message: "Certificate layout created successfully.",
