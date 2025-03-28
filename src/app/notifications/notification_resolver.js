@@ -9,7 +9,6 @@ const NotificationEvent = require("./notification_event.json");
 const Permission = require("../user/sub-roles/permission.json");
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { User } = require("../user/user_model");
-const { filter } = require("lodash");
 
 module.exports.queries = {
     getNotifications: async ({ pageInput, filterInput }, context) => {
