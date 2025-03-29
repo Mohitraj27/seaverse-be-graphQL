@@ -90,7 +90,7 @@ return `<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="logo-container">
-            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo">
         </div>
         <div class="content">
             <div class="message">
@@ -106,7 +106,7 @@ return `<!DOCTYPE html>
             </div>
         </div>
         <div class="footer">
-            Sent by Seaverse - Training for Advanced Navigation Techniques
+            Sent by Lynk - Training for Advanced Navigation Techniques
         </div>
     </div>
 </body>

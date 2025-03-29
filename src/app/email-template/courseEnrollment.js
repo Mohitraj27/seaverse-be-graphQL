@@ -63,7 +63,7 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
           <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
               <tr>
                   <td style="text-align: center;">
-                      <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo"
+                      <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo"
                           style="padding: 40px 48px; margin: auto;">
                   </td>
               </tr>
@@ -132,7 +132,7 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
               <tr>
                   <td
                       style="padding: 24px 40px; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                      Sent by Seaverse - Training for Advanced Navigation Techniques
+                      Sent by Lynk - Training for Advanced Navigation Techniques
                   </td>
               </tr>
           </table>

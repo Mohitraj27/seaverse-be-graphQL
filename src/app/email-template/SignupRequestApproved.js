@@ -25,7 +25,7 @@ function approvalEmailTemplate(data) {
             
           }
           .logo {
-              height: 36px;
+              height: 120px;
           }
           .content {
               padding: 30px;
@@ -92,7 +92,7 @@ function approvalEmailTemplate(data) {
   </head>
   <body>
         <div class="logo-container">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" class="logo">
+              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo" class="logo">
           </div>
       <div class="container">
           
@@ -111,7 +111,7 @@ function approvalEmailTemplate(data) {
               
               <p class="message">
                   Thanks,<br>
-                  Synergy Marine Group
+                   
               </p>
               
               <div class="button-container">
@@ -126,7 +126,7 @@ function approvalEmailTemplate(data) {
           </div>
           
           <div class="footer">
-              Sent by Seaverse - Training for all courses.
+              Sent by Lynk - Training for all courses.
           </div>
       </div>
   </body>
