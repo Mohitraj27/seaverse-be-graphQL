@@ -32,7 +32,7 @@ function sendWelcomeEmailsToLearner(user){
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo">
             </td>
         </tr>
         <tr>
@@ -71,7 +71,7 @@ function sendWelcomeEmailsToLearner(user){
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p> </p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -97,7 +97,7 @@ function sendWelcomeEmailsToLearner(user){
         <tr>
             <td
                 style="padding: 24px 0; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                Sent by Seaverse - Training for all courses.
+                Sent by Lynk - Training for all courses.
             </td>
         </tr>
     </table>
@@ -136,7 +136,7 @@ function sendEmailToLearner(user){
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo">
             </td>
         </tr>
         <tr>
@@ -174,7 +174,7 @@ function sendEmailToLearner(user){
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p> </p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -198,7 +198,7 @@ function sendEmailToLearner(user){
         </tr>
         <tr>
             <td style="padding: 24px 0; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                Sent by Seaverse - Training for all courses.
+                Sent by Lynk - Training for all courses.
             </td>
         </tr>
     </table>
