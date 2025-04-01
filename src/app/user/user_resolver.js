@@ -190,7 +190,7 @@ module.exports.mutations = {
 
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
 
-                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*[0-9])(?=.{8,})(?![a-z])");
+                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*.,])(?=.*[0-9])(?=.{8,})(?![a-z])");
                 if (!passwordRegex.test(password)) {
                     throw CustomError(
                         ErrorName.INVALID_PASSWORD,
