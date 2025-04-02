@@ -25,6 +25,8 @@ module.exports.queries = {
 
             const pageLimit = [];
             const skip = pageInput?.skip ?? 0;
+            const isSeeAllPage = filterInput?.isSeeAllPage ?? false;
+            const selectUserRequests = filterInput?.selectUserRequests ?? false;
             pageLimit.push(
                 {
                     $skip: skip
@@ -33,8 +35,7 @@ module.exports.queries = {
 
             const selectFirstThreeDays = [];
             const userRequestsFilter = [];
-
-            if (skip === 0) {
+            if ((skip === 0)&& !selectUserRequests && !isSeeAllPage) {
                 selectFirstThreeDays.push({
                     $match: {
                         $expr: {
@@ -95,7 +96,7 @@ module.exports.queries = {
                             .toDate();
                 }
 
-                if(filterInput?.selectUserRequests){
+                if(selectUserRequests){
                     userRequestsFilter.push({
                         $match :{
                             isUserRequest : true
