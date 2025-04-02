@@ -2553,7 +2553,7 @@ module.exports.mutations = {
                 email: savedUser.email,
                 _id: savedUser._id
             }];
-
+            console.log('conditions', conditions)
 
             const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
