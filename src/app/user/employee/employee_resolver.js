@@ -72,6 +72,9 @@ const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApp
 const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
 const signupRequestModel = require("../../signup-request/signup-request-model");
 const { generateFileNameTimestamp } = require("../../reports/reports_helper");
+const  LearningPlanStatus  = require('../../learning-plan/enumFields/learning_plan_status.json');
+const LearningPlanAssignment = require('../../learning-plan/assignedLearner/assignedLearnerModel');
+const {OverallTrainingProgress} = require('../../training-registrations/overall-course-progress/overall_progress_model');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1868,17 +1871,44 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
-
+try {
     const users = await User.find({ _id: { $in: input.users } });
 
     if (users.length === 0) {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
-
+    const learningPlans = await LearningPlan.find({isDeleted: false, status: LearningPlanStatus.ACTIVE });
     let updateUsers;
+    const employeeDesignations = await Employee.find(
+        { user: { $in: input?.users } }
+    ).select('user empDesignation -_id');
+    
+    const designationMap = {};
+    employeeDesignations.forEach(emp => {
+        designationMap[emp?.user?.toString()] = emp.empDesignation;
+    });
+    
+    const userVesselIds = users.filter(u => u.currentVessel).map(u => u.currentVessel);
+    const vessels = await Vessel.find(
+        { _id: { $in: userVesselIds }, isDeleted: false, isActive: true }
+    ).select('typeOfVessel');
+    
+    const vesselTypeMap = {};
+    vessels.forEach(v => {
+        vesselTypeMap[v._id.toString()] = v.typeOfVessel;
+    });
+
+    const conditions = users.map(user => ({
+        designationID: designationMap[user?._id?.toString()] || null,
+        vesselID: user?.currentVessel || null,
+        vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()] || null : null,
+        currentStatus: user?.vesselStatus || null,
+        email: user?.email,
+        _id: user?._id 
+    }));
     if (input.type === "Registered") {
         const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
-        if (alreadyRegisteredUsers.length > 0) {
+        if (alreadyRegisteredUsers?.length > 0) {
             throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
         }
 
@@ -1897,6 +1927,9 @@ const changeRegisterEmployees = async ({ input }, context) => {
             subject: `User Status Update: ${input.type}`,
             htmlContent: emailContentforAdmin,
         });
+        if(learningPlans?.length > 0){
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+        }   
     } else if (input.type === "Unregistered") {
         const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
         if (alreadyUnregisteredUsers.length > 0) {
@@ -1910,6 +1943,9 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 $set: { isRegistered: false }
             }
         );
+        if(learningPlans?.length > 0){
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+        }      
     }
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
@@ -1942,7 +1978,9 @@ const changeRegisterEmployees = async ({ input }, context) => {
             return { count: updateUsers.nModified, success: false };
         }
     } else {
-        throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+    }}catch(error){
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
 
