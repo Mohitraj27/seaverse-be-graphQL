@@ -93,6 +93,8 @@ module.exports.mutations = {
                 title,
                 authoringTitle,
                 certificateReference,
+                courseProvidedBy,
+                certificateExpiry,
                 logos,
                 additionalData,
                 disabled
@@ -181,11 +183,12 @@ module.exports.mutations = {
                 }
                 logoKeys.push(logo);
             }
+            //we are using this as signature
             if (logoImage3) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage3,
                     folderName: `certificate-layout`,
-                    fileName: `certificate-layout-logo3_${Date.now()}`,
+                    fileName: `certificate-layout-signature${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
                 if (logosInput[2]) {
@@ -214,6 +217,8 @@ module.exports.mutations = {
                 existingLayout.title = title;
                 existingLayout.authoringTitle = authoringTitle;
                 existingLayout.certificateReference = certificateReference;
+                existingLayout.courseProvidedBy = courseProvidedBy;
+                existingLayout.certificateExpiry = certificateExpiry;
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
 
@@ -246,6 +251,8 @@ module.exports.mutations = {
                     certificateReference,
                     logos: logosInput,
                     additionalData,
+                    certificateExpiry,
+                    courseProvidedBy,
                 });
                 await newCertificateLayout.save();
                 const updateTraining = await Training.findByIdAndUpdate(
