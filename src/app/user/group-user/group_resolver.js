@@ -20,13 +20,118 @@ const { getCustomGroupUsers, getAutoSyncUsers } = require("../../training-regist
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-
 const xlsx = require('xlsx');
 const path = require('path');
 const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const { pipeline } = require("stream");
 const { formatDate } = require("../../reports/reports_helper");
+const {LearningPlan} = require('../../learning-plan/learning_plan_model');
+const LearningPlanStatus = require('../../learning-plan/enumFields/learning_plan_status.json')
+const targetAudience = require('../../learning-plan/enumFields/targetAudienceEnum.json');
+const audienceSelection = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const typeOfConditionalCustomFieldEnum = require('../../learning-plan/enumFields/typeOfConditionalCustomField.json');
+const groupTypes = require('../../../util/group_types.json');
+const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const enrollUsers = require('../employee/employee_helper');
+
+async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
+    if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
+
+    for (const field of plan?.conditionalCustomFields) {
+        if (field.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field.groupIDs)) {
+            for (const group of field.groupIDs) {
+                if (group.groupType === groupTypes.custom && group.groupIDs.includes(customGroupId)) {
+                    return { matchFound: true, learningPlanId: plan._id };
+                }
+            }
+        }
+    }
+    return { matchFound: false, learningPlanId: [] };
+}
+async function checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId) {
+    if (!plan?.groupIDs) return { matchFound: false, learningPlanId: [] };
+    const group = plan.groupIDs.find(g => g.groupType === groupTypes.custom && g.groupIDs.includes(customGroupId));
+    if (group) {
+        return { matchFound: true, learningPlanId: plan._id };
+    }
+    return { matchFound: false, learningPlanId: [] };
+}
+async function autoenrollmentfromCustomGroup(learningPlans,customGroupId,userIdToAutoenroll){
+    const filteredPlans = await Promise.allSettled(
+        learningPlans.map(async (plan) => {
+         const usersToEnroll = [];
+        if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                console.log('custom Group ID',customGroupId);
+
+        const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId);
+            console.log('match found',matchFound);
+            console.log('learningPlanId',learningPlanId);
+        // if (matchFound) {
+               
+        //     /* This is for handling duplicates before inserting inside LearningPlanAssigment Table */
+        //     const existingAssignments = await LearningPlanAssignment.find({
+        //         learningPlanId: plan._id,
+        //         assignedLearnerId: { $in: userIdToAutoenroll }
+        //     }).select('assignedLearnerId');
+
+        //     const existingIds = new Set(existingAssignments.map(a => a.assignedLearnerId.toString()));
+
+        //     const newAssignments = userIdToAutoenroll
+        //         .filter(userId => !existingIds.has(userId.toString()))
+        //         .map(userId => ({
+        //             learningPlanId: plan._id,
+        //             assignedLearnerId: userId,
+        //             isMannuallyAdded: false,
+        //             createdBy: context.user.userId,
+        //             updatedBy: context.user.userId
+        //         }));
+
+        //     if (newAssignments.length > 0) {
+        //         const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+        //         console.log('New data enrolled:', dataenrolled);
+        //     }
+
+        //     usersToEnroll.push(...userIdToAutoenroll.filter(userId => !existingIds.has(userId.toString())));
+        //  }
+        }
+        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+            const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId);
+            if (matchFound) {
+                return { matchFound, learningPlanId };
+            }
+
+            
+            if(matchFound){
+                const assignments = userIdToAutoenroll.map(userId => ({
+                    learningPlanId: plan._id,
+                    assignedLearnerId: userId,
+                    isMannuallyAdded: false,
+                    createdBy: context.user.userId,
+                    updatedBy: context.user.userId
+                }));
+                console.log('assignment2',assignments);
+                if(assignments?.length > 0){
+                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered :false });
+                    console.log('this all data gets enrolled for everyone in the all employees',dataenrolled);
+                }
+            }
+        }
+        if (usersToEnroll.length > 0) {
+            const enrollData = {
+                trainings: plan.selectCourses,
+                users: usersToEnroll,
+                type: "ENROLL",
+                learningPlan: plan._id,
+                session,
+            };
+            await enrollUsers([enrollData]);
+            return true;
+        }
+        return false;
+        })
+    );
+}
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
@@ -644,6 +749,7 @@ module.exports.mutations = {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
 
+
         if (!input.list && !input.members) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
@@ -876,7 +982,8 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-
+        const learningPlans = await LearningPlan.find({status:LearningPlanStatus.ACTIVE,isDeleted: false});
+        await autoenrollmentfromCustomGroup(learningPlans,input._id,input.members);
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
             group: {

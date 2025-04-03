@@ -154,6 +154,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+                        
                         default:
                             return false;
                     }
@@ -1587,6 +1588,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    enrollUsers,
     // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
