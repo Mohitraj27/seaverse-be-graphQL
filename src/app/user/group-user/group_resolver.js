@@ -200,87 +200,87 @@ module.exports.queries = {
         if (!groupType) groupType = "all";
 
         const { subscriberId } = AuthUser(context);
-    try {
-        const skip = pageInput?.skip ?? 0;
-        const limit = pageInput?.limit ?? 50;
+        try {
+            const skip = pageInput?.skip ?? 0;
+            const limit = pageInput?.limit ?? 50;
 
-        let filterConditions = {
-            subscriber: subscriberId,
-            isDeleted: { $ne: true },
-            groupName: { $ne: null },
-        };
+            let filterConditions = {
+                subscriber: subscriberId,
+                isDeleted: { $ne: true },
+                groupName: { $ne: null },
+            };
 
-        if (groupFilter?.search) {
-            const searchRegex = new RegExp(groupFilter.search, "i");
-            filterConditions.groupName = {
-                $regex: searchRegex,
+            if (groupFilter?.search) {
+                const searchRegex = new RegExp(groupFilter.search, "i");
+                filterConditions.groupName = {
+                    $regex: searchRegex,
+                };
+            }
+
+            let groups = [];
+            let totalCount = 0;
+
+            switch (groupType) {
+                case "Autosyncedgroups":
+                    let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                    allAutosyncedGroups = allAutosyncedGroups.filter(group => group._id && group.groupName);
+
+                    let filteredAutosyncedGroups = allAutosyncedGroups;
+                    if (groupFilter?.search) {
+                        filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+                    const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
+                    groups = paginatedAutosyncedGroups;
+                    totalCount = filteredAutosyncedGroups.length;
+                    break;
+
+                case "Customgroups":
+                    if (groupFilter && !groupFilter.customGroupId) {
+                        groupFilter.customGroupId = null;
+                    }
+
+                    const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
+
+                    let filteredCustomGroups = allCustomGroups;
+                    if (groupFilter?.search) {
+                        filteredCustomGroups = allCustomGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+
+                    const paginatedCustomGroups = filteredCustomGroups;
+                    groups = paginatedCustomGroups;
+                    totalCount = paginatedCustomGroups.length;
+                    break;
+
+                default:
+                    let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
+                    let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
+
+                    let allGroups = [...allAutosynced, ...allCustom];
+                    allGroups = allGroups.filter(group => group._id && group.groupName);
+
+                    let filteredGroups = allGroups;
+                    if (groupFilter?.search) {
+                        filteredGroups = allGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+                    const paginatedGroups = filteredGroups.slice(skip, skip + limit);
+                    groups = paginatedGroups;
+                    totalCount = paginatedGroups.length;
+                    break;
+            }
+
+            return {
+                status: "Success",
+                totalCount,
+                groups,
             };
         }
-
-        let groups = [];
-        let totalCount = 0;
-
-        switch (groupType) {
-            case "Autosyncedgroups":
-                let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
-                allAutosyncedGroups = allAutosyncedGroups.filter(group => group._id && group.groupName);
-
-                let filteredAutosyncedGroups = allAutosyncedGroups;
-                if (groupFilter?.search) {
-                    filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-                const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
-                groups = paginatedAutosyncedGroups;
-                totalCount = filteredAutosyncedGroups.length;
-                break;
-
-            case "Customgroups":
-                if (groupFilter && !groupFilter.customGroupId) {
-                    groupFilter.customGroupId = null;
-                }
-
-                const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                let filteredCustomGroups = allCustomGroups;
-                if (groupFilter?.search) {
-                    filteredCustomGroups = allCustomGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-
-                const paginatedCustomGroups = filteredCustomGroups;
-                groups = paginatedCustomGroups;
-                totalCount = paginatedCustomGroups.length;
-                break;
-
-            default:
-                let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
-                let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                let allGroups = [...allAutosynced, ...allCustom];
-                allGroups = allGroups.filter(group => group._id && group.groupName);
-
-                let filteredGroups = allGroups;
-                if (groupFilter?.search) {
-                    filteredGroups = allGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-                const paginatedGroups = filteredGroups.slice(skip, skip + limit);
-                groups = paginatedGroups;
-                totalCount = paginatedGroups.length;
-                break;
-        }
-
-        return {
-            status: "Success",
-            totalCount,
-            groups,
-         };
-        }
-        catch(error) {
+        catch (error) {
             throw Error(error.message);
         }
     },
@@ -352,80 +352,81 @@ module.exports.queries = {
     },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
-    try {
-        if (!userId) {
-            throw CustomError(ErrorName.USER_ID_REQUIRED);
-        }
+        try {
+            if (!userId) {
+                throw CustomError(ErrorName.USER_ID_REQUIRED);
+            }
 
-        const existingUser = await User.findById(userId).populate({
-            path: 'currentVessel',
-            populate: {
-                path: 'typeOfVessel',
-            },
-        });
+            const existingUser = await User.findById(userId).populate({
+                path: 'currentVessel',
+                populate: {
+                    path: 'typeOfVessel',
+                },
+            });
 
-        if (!existingUser) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
+            if (!existingUser) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
 
-        const user = await Employee.findOne({ user: userId });
+            const user = await Employee.findOne({ user: userId });
 
-        if (!user) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
 
-        const designation = await Designation.findById(user.empDesignation);
+            const designation = await Designation.findById(user.empDesignation);
 
-        if (!designation) {
-            throw CustomError(ErrorName.NOT_FOUND);
-        }
+            if (!designation) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
 
-        const designationName = designation.name;
+            const designationName = designation.name;
 
-        const roleName = existingUser.role;
+            const roleName = existingUser.role;
 
-        const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
-        const owner = ownerName[0]?.ownerName || null;
-        let regStatusGroup;
+            const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
+            const owner = ownerName[0]?.ownerName || null;
+            let regStatusGroup;
 
-        if (existingUser.isRegistered) {
-            regStatusGroup = "Registered";
-        } else {
-            regStatusGroup = "Unregistered";
-        }
+            if (existingUser.isRegistered) {
+                regStatusGroup = "Registered";
+            } else {
+                regStatusGroup = "Unregistered";
+            }
 
-        const subRoleIds = existingUser.subRoles;
+            const subRoleIds = existingUser.subRoles;
 
-        const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
-        const subRoleNames = subRoles.map(subRole => subRole.name);
+            const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
+            const subRoleNames = subRoles.map(subRole => subRole.name);
 
-        const vesselName = existingUser?.currentVessel?.name;
-        const vesselStatus = existingUser?.vesselStatus;
-        const vesselType = existingUser?.currentVessel?.typeOfVessel?.name;
+            const vesselName = existingUser?.currentVessel?.name;
+            const vesselStatus = existingUser?.vesselStatus;
+            const vesselType = existingUser?.currentVessel?.typeOfVessel?.name;
 
-        let customGroupNames = null;
-        const customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
-        const groupIds = customGroups.map(item => item.group);
-        if (groupIds && groupIds.length > 0) {
-            const customGroup = await Group.find({ _id: { $in: groupIds } });
-            if (customGroup && customGroup.length > 0) {
-                customGroupNames = customGroup.map(group => group.groupName);
+            let customGroupNames = null;
+            const customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
+            const groupIds = customGroups.map(item => item.group);
+            if (groupIds && groupIds.length > 0) {
+                const customGroup = await Group.find({ _id: { $in: groupIds } });
+                if (customGroup && customGroup.length > 0) {
+                    customGroupNames = customGroup.map(group => group.groupName);
+                }
+            }
+            if (existingUser && user && designation) {
+                return {
+                    designation: designationName ?? null,
+                    role: roleName ?? null,
+                    vessel: vesselName ?? null,
+                    vesselStatus: vesselStatus ?? null,
+                    vesselType: vesselType ?? null,
+                    subRole: subRoleNames ?? null,
+                    regStatus: regStatusGroup ?? null,
+                    customGroups: customGroupNames ?? null,
+                    owner: owner ?? null
+                };
             }
         }
-        if (existingUser && user && designation) {
-            return {
-                designation: designationName ?? null,
-                role: roleName ?? null,
-                vessel: vesselName ?? null,
-                vesselStatus: vesselStatus ?? null,
-                vesselType: vesselType ?? null,
-                subRole: subRoleNames ?? null,
-                regStatus: regStatusGroup ?? null,
-                customGroups: customGroupNames ?? null,
-                owner: owner ?? null
-            };
-        }}
-        catch(error){
+        catch (error) {
             throw new Error(error.message);
         }
     },
@@ -470,7 +471,7 @@ module.exports.queries = {
     },
     getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
-
+        console.log(groupFilter, "groupFilter");
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
@@ -482,8 +483,11 @@ module.exports.queries = {
                 const selectedGroup = await Group.findOne({ _id: groupId }).select('groupType').lean();
                 if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND);
                 customGroupMembers = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
-
-                members = await User.find({ _id: { $in: customGroupMembers.map(member => member._id) } })
+                const query = { _id: { $in: customGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
 
@@ -509,11 +513,16 @@ module.exports.queries = {
                                         localField: 'member',
                                         foreignField: '_id',
                                         as: 'memberDetails',
-                                        pipeline: [{ $match: { isDeleted: false } }]
+                                        pipeline: [
+                                            { $match: { isDeleted: false,isRegistered:groupFilter?.isRegistered } },
+                                        ]
                                     }
                                 },
                                 {
                                     $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true }
+                                },
+                                {
+                                    $match: { 'memberDetails.isRegistered': groupFilter?.isRegistered }
                                 },
                                 {
                                     $project: {
@@ -529,7 +538,7 @@ module.exports.queries = {
                     },
 
                     {
-                        $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
+                        $unwind: { path: '$members', preserveNullAndEmptyArrays: false }
                     },
                     {
                         $project: {
@@ -543,13 +552,17 @@ module.exports.queries = {
                 ]);
 
 
-                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
+                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false, });
                 members = groupData.slice(skip, skip + limit);
                 totalCount = totalMembers;
 
             } else {
                 autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput?.groupId, groupType: autosyncInput?.groupType });
-                 members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
+                const query = { _id: { $in: autoSyncGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
                 totalCount = members.length;
@@ -563,7 +576,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw new Error('Error fetching group members');
+            throw CustomError(error);
         }
     },
 
