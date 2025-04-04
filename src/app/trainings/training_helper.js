@@ -236,7 +236,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
-        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate currentCertificateLayout').session(session).lean();
+        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate currentCertificateLayout certificateValidity').session(session).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -307,7 +307,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 contentData, startDate: new Date(),
                                 totalTrainingModules: contentData?.length,
                                 isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
-                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
+                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout,
+                                certificateExpiry : trainingDataById[doc.training.toString()]?.certificateValidity,
                             }
                         },
                     },

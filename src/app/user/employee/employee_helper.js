@@ -1761,6 +1761,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    enrollUsers,    
     // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
