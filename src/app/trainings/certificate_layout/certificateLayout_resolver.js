@@ -224,6 +224,7 @@ module.exports.mutations = {
 
                 if (layout) {
                     selectedTraining.currentCertificateLayout = layout;
+                    selectedTraining.certificateValidity = certificateExpiry ?? null;
                     await selectedTraining.save();
                 }
 
@@ -260,7 +261,8 @@ module.exports.mutations = {
                     {
                         $set: {
                             isCertificate: true,
-                            currentCertificateLayout: layout
+                            currentCertificateLayout: layout,
+                            certificateValidity: certificateExpiry,
                         }
                     }
                 );
