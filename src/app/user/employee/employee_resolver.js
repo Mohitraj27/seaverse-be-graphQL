@@ -2093,8 +2093,9 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
                 { $set: { subRoles: [], roleAssignmentDate: null } }
             );
-            if(updateUserRole?.nModified > 0){
-                const dta = await autoenrollRoleBasedLP(learningPlans, input.users,Roles.ADMIN,operationTypeRoleEnum.REMOVE_AS_ADMIN,userInfo);
+            const registeredUsers = await User.find({_id: { $in: input.users },isRegistered: true});
+            if(updateUserRole?.nModified > 0 && registeredUsers?.length > 0){
+                const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id),Roles.ADMIN,operationTypeRoleEnum.REMOVE_AS_ADMIN,userInfo);
             }
             operationType = "Removed Roles for LEARNER";
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
@@ -3155,10 +3156,10 @@ module.exports.mutations = {
                     webLink: "",
                 });
             }
-            
-            if(validSubRole.name === Roles.ADMIN){
-            const learningPlans = await LearningPlan.find({isDeleted: false, status: LearningPlanStatus.ACTIVE});
-            await autoenrollRoleBasedLP(learningPlans, input.users,Roles.ADMIN,operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN,userInfo);              
+            const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
+            if(validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0){
+                const learningPlans = await LearningPlan.find({isDeleted: false, status: LearningPlanStatus.ACTIVE});
+                await autoenrollRoleBasedLP(learningPlans,sendOnlyRegisteredUsers?.map(user => user._id),Roles.ADMIN,operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN,userInfo);              
             }
 
             return {
