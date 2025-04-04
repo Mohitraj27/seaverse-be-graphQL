@@ -1236,10 +1236,13 @@ const deleteUsers = async (users, errors) => {
 
                     if (updateGroupMember) {
 
-                        const usersToDelete = getUsers;
-                        insertDeletionRequests(usersToDelete);
 
-                        const result = await sendDeletionEmailBulk();
+                        //REMOVED DELETION MAIL
+                        
+                        // const usersToDelete = getUsers;
+                        // insertDeletionRequests(usersToDelete);
+
+                        // const result = await sendDeletionEmailBulk();
 
                         return deleteUsers;
                     }

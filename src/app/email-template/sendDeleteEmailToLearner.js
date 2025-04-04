@@ -49,7 +49,7 @@ function sendDeleteEmailToLearner(firstName) {
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        We would like to inform you that your account on Synergy Marine Group has been deleted as part of our system updates or administrative processes. This may affect the features and permissions available to you.
+                                        We would like to inform you that your account has been deleted as part of our system updates or administrative processes. This may affect the features and permissions available to you.
                                     </td>
                                 </tr>
                                 <tr>
@@ -60,7 +60,7 @@ function sendDeleteEmailToLearner(firstName) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                             </table>

@@ -44,6 +44,8 @@ module.exports = {
             dateFrom: String
             dateTo: String
             isRead: Boolean
+            selectUserRequests : Boolean
+            isSeeAllPage : Boolean
         }
         type dismissNotificationResponse {
             status: String

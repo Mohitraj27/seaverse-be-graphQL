@@ -190,7 +190,7 @@ module.exports.mutations = {
 
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
 
-                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*[0-9])(?=.{8,})(?![a-z])");
+                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*.,])(?=.*[0-9])(?=.{8,})(?![a-z])");
                 if (!passwordRegex.test(password)) {
                     throw CustomError(
                         ErrorName.INVALID_PASSWORD,
@@ -610,7 +610,7 @@ module.exports.mutations = {
             }
             return {
                 status: true,
-                message: "OTP sent successfully!",
+                message: `OTP sent successfully to ${email}`,
                 generatedtoken:generatedtoken,
                 email:email,
                 country: country
@@ -623,7 +623,7 @@ module.exports.mutations = {
     verifyOTPSignup: async ({ input }) => {
         try {
             const { email, generatedtoken, otp } = input;
-            if (!email || !otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email or otp is missing!");
+            if (!otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Otp or generated token is missing!");
             const savedOtp = await SignUpOtp.findOne({ generatedtoken });
             if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
             

@@ -51,12 +51,7 @@ function resetPasswordRequest(user, token) {
                                         We received a request to reset your password. If you made this request, please click the link below to reset your password:
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
-                                    </td>
-                                </tr>
+                               
                                 <tr>
                                     <td>
                                         <a href="${process.env.APP_URL}/resetpassword?token=${token}" style="text-decoration: none;">
@@ -143,7 +138,7 @@ function resetPasswordRequestforAdmin(user, token) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>

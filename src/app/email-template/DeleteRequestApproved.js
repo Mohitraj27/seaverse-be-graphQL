@@ -106,8 +106,8 @@ function DeleteRequestApproved(data) {
               </p>
               
               <p class="message">
-                  Thanks,<br>
-                  Synergy Marine Group
+                  Thanks<br>
+                  
               </p>
               
               <div class="support-box">

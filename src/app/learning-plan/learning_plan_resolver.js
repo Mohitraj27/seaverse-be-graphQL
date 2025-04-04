@@ -110,7 +110,7 @@ module.exports.mutations = {
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Learning Plan Status Updated`,
+                        titleValue: `Learning Plan Status Updated to ${newStatus}`,
                         messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,

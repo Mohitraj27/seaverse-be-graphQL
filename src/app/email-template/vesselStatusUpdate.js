@@ -51,12 +51,7 @@ function vesselStatusUpdateEmail(user) {
                                         The status of the vessel  <strong>${user.vesselName}</strong> you are assigned to has been updated to <strong>${user.vesselStatus}</strong>.
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
-                                    </td>
-                                </tr>
+                               
                             </table>
                         </td>
                     </tr>
@@ -130,7 +125,7 @@ function vesselStatusUpdateEmailAdmin(user) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>

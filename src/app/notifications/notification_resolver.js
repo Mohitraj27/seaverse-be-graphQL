@@ -25,6 +25,8 @@ module.exports.queries = {
 
             const pageLimit = [];
             const skip = pageInput?.skip ?? 0;
+            const isSeeAllPage = filterInput?.isSeeAllPage ?? false;
+            const selectUserRequests = filterInput?.selectUserRequests ?? false;
             pageLimit.push(
                 {
                     $skip: skip
@@ -32,9 +34,8 @@ module.exports.queries = {
             );
 
             const selectFirstThreeDays = [];
-
-
-            if (skip === 0) {
+            const userRequestsFilter = [];
+            if ((skip === 0)&& !selectUserRequests && !isSeeAllPage) {
                 selectFirstThreeDays.push({
                     $match: {
                         $expr: {
@@ -94,11 +95,20 @@ module.exports.queries = {
                             .endOf("day")
                             .toDate();
                 }
+
+                if(selectUserRequests){
+                    userRequestsFilter.push({
+                        $match :{
+                            isUserRequest : true
+                        }
+                    })
+                }
             }
 
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
+                        ...userRequestsFilter,
                         ...pipeline,
                         {
                             $addFields: {

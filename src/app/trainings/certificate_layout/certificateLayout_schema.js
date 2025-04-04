@@ -11,6 +11,8 @@ module.exports = {
         logos: [logoUrl],
         additionalData: [genericObjectInput],
         disabled: Boolean
+        courseProvidedBy : String
+        certificateExpiry : Int
     }
     input logoUrl {
         url : String
@@ -50,6 +52,8 @@ module.exports = {
         user:ID
         isFromMigration:Boolean
         disabled: Boolean
+        certificateExpiry : Int
+        courseProvidedBy : String
         listOfLayouts:[String]
     }
         type CertificateLayoutData {
