@@ -1943,9 +1943,11 @@ try {
                 $set: { isRegistered: false }
             }
         );
+        /* Removed Unregistered User Autoenerollment
         if(learningPlans?.length > 0){
             const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
         }      
+        */
     }
     if (updateUsers) {
         if (updateUsers.nModified > 0) {
