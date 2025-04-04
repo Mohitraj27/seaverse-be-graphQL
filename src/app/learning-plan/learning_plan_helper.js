@@ -1127,7 +1127,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 $filter: {
                                     input: "$users",
                                     as: "user",
-                                    cond: { $eq: ["$$user.userDetails.isRegistered", true] }
+                                    cond: { $eq: ["$$user.userDetails.isDeleted", false] }
                                 }
                             },
                             as: "user",
