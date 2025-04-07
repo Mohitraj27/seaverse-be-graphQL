@@ -1800,7 +1800,7 @@ module.exports = {
                         vessel: ObjectId(input?.user?.currentVessel),
                         vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus,
                     });
-
+/*
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `User Vessel Updated Successfully`,
@@ -1816,7 +1816,7 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
+ 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Your Vessel has been Updated`,
@@ -1834,13 +1834,13 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
+  */
                 }
 
             }
 
         }
-
+/* 
         if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
 
             await UserVessel.findOneAndUpdate(
@@ -1884,7 +1884,7 @@ module.exports = {
             });
 
         }
-
+ */
         const updatedUser = await UserHelper.updateUser(
             {
                 id: id,
@@ -2911,14 +2911,15 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
+        if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */ ) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
