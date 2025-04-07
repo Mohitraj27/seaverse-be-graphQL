@@ -189,10 +189,10 @@ module.exports.mutations = {
                         _id: signupRequest?.userId
                     }];
 
-                    if(learningPlans.length === 0) {
+                    if (learningPlans.length > 0) {
                         const result = await filterLearningPlans(learningPlans, conditions, context, session);
                     }
-                    
+
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
