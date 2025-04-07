@@ -49,8 +49,6 @@ const generateUniqueCertificateId = async () => {
      
      const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
 
-      console.log(lastCertificate, "lo");
-
       if (lastCertificate) {
         const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
         const newCertNum = lastCertificateIdNum + 1;
@@ -67,7 +65,6 @@ const generateUniqueCertificateId = async () => {
         isUnique = true;
       }
     }
-    console.log(newCertId);
     return newCertId;
   }
 
@@ -344,7 +341,7 @@ module.exports = {
 
                 if (!training) continue;
 
-                const certificateLayout = certificateLayoutMap.get(overallDoc.assignedCertificateLayout);
+                const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallCreatedAtMap.get(overallDoc._id.toString());
                 const completedAt = CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
@@ -357,7 +354,7 @@ module.exports = {
                     training: training._id,
                     certificateLayout: certificateLayout._id,
                     user: userId,
-                    trainingCertificateValidity: training.certificateValidity,
+                    trainingCertificateValidity: overallDoc.certificateExpiry,
                     status: 'COMPLETED',
                     certificateNumber: await generateUniqueCertificateId(),
                     startDate,
