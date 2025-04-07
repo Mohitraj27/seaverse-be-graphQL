@@ -8,6 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
     dummyPassword,
+    
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
 
@@ -60,8 +61,8 @@ const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assi
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
 const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
-
-
+const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const {groupTypes}  = require('../../../util');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -367,6 +368,106 @@ async function enrollUsers(enrollDataArray) {
 }
 
 
+async function findGroupBasedPublishedLearningPlans (plan, userConditions)  {
+    try {
+      if (!plan || !plan.groupIDs || !Array.isArray(plan.groupIDs) || plan.groupIDs.length === 0) {
+        return { success: false, message: "No group IDs found in the plan", matchedUsers: [] };
+      }
+      
+      let matchedUserIds = [];
+      
+      for (const group of plan.groupIDs) {
+        const groupType = group.groupType;
+        const groupIDsList = group.groupIDs || [];
+        
+        if (!groupType || !Array.isArray(groupIDsList) || groupIDsList.length === 0) {
+          console.log(`Skipping invalid group configuration: ${JSON.stringify(group)}`);
+          continue;
+        }
+        
+        console.log(`Processing group type: ${groupType}, IDs: ${JSON.stringify(groupIDsList)}`);
+        
+        const matchingUsers = userConditions.filter(user => {
+          if (!user) return false;
+          
+          let matches = false;
+          
+          switch (groupType) {
+            case groupTypes.designation:
+              if (user?.designationID) {
+                matches = groupIDsList.includes(user.designationID.toString());
+              }
+              break;
+            case groupTypes.vessel:
+              if (user?.vesselID) {
+                matches = groupIDsList.includes(user.vesselID.toString());
+              }
+              break;
+            case groupTypes.vesselType:
+              if (user?.vesselTypeID) {
+                matches = groupIDsList.includes(user.vesselTypeID.toString());
+              }
+              break;
+            case groupTypes.vesselStatus:
+              if (user?.currentStatus) {
+                matches = groupIDsList.includes(user.currentStatus);
+              }
+              break;
+          }
+          
+          if (matches) {
+            console.log(`User ${user._id} matches ${groupType} criteria`);
+          }
+          
+          return matches;
+        });
+        
+        if (matchingUsers?.length > 0) {
+          const newMatchedUserIds = matchingUsers.map(user => user._id);
+          matchedUserIds.push(...newMatchedUserIds);
+          console.log(`Found ${newMatchedUserIds.length} matching users for ${groupType}`);
+        }
+      }
+      
+      // Remove duplicates (a user might match multiple group criteria)
+      const uniqueMatchedUserIds = [...new Set(matchedUserIds)];
+      
+      console.log(`Total unique matched users: ${uniqueMatchedUserIds.length}`);
+      
+      // Check for existing assignments to avoid duplicates
+      const existingAssignments = await LearningPlanAssignment.find({
+        learningPlanId: plan._id,
+        assignedLearnerId: { $in: uniqueMatchedUserIds },
+        isDeleted: { $ne: true }
+      }, { assignedLearnerId: 1 });
+      
+      const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => 
+        assignment.assignedLearnerId.toString()));
+      // Filter out users that are already assigned
+      const newUserIds = uniqueMatchedUserIds.filter(userId => 
+        !alreadyAssignedUserIds.has(userId.toString())
+      );
+      
+      console.log(`Users to be newly assigned: ${newUserIds.length}`);
+      
+      return {
+        success: true,
+        planId: plan._id,
+        allMatchedUsers: uniqueMatchedUserIds,
+        newUsersToAssign: newUserIds,
+        existingAssignedUsers: existingAssignments.length
+      };
+      
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.message, 
+        error: error 
+      };
+    }
+  };
+ 
+
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
     if (!Array.isArray(learningPlans)) {
@@ -470,6 +571,76 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                         assignedLearnerId: { $in: usersToRemove }
                     });
 
+                }
+            }
+        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+               const resultforGroup = await findGroupBasedPublishedLearningPlans(plan,userConditions);
+               if(resultforGroup?.success === 'true' && resultforGroup?.allMatchedUsers?.length > 0){
+                   const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
+                       learningPlanId: resultforGroup?.planId, 
+                       assignedLearnerId: userId,
+                       isMannuallyAdded: false,
+                       createdBy: context.user.userId,
+                       updatedBy: context.user.userId
+                   }));
+                   if (assignments?.length) {
+                       await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                   }
+                  usersToEnroll.push(...resultforGroup?.allMatchedUsers);
+               }
+            } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                const validUsers = userConditions.filter(user =>
+                    evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                );
+                const validUserIds = new Set(validUsers.map(user => user._id));
+                const usersToRemove = userConditions
+                    .filter(user => !validUserIds.has(user._id))
+                    .map(user => user._id);
+
+                const userIds = validUsers.map(user => user._id);
+
+                if (validUsers?.length > 0) {
+
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: userIds },
+                        isDeleted: { $ne: true }
+                    }, { assignedLearnerId: 1 });
+
+                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                    const newAssignments = userIds
+                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                        .map(userId => ({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: userId,
+                            isMannuallyAdded: false,
+                            createdBy: context.user.userId,
+                            updatedBy: context.user.userId,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }));
+
+                    if (newAssignments.length > 0) {
+                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                        console.log('data enrolled ',dataEnrolled);
+                    }
+                    usersToEnroll.push(...userIds);
+                }
+                if (usersToRemove.length > 0) {
+                    await OverallTrainingProgress.updateMany(
+                        {
+                            learningPlan: plan._id,
+                            user: { $in: usersToRemove }
+                        },
+                        {
+                            $pull: { learningPlan: plan._id }
+                        }
+                    );
+                    const deleteResult = await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove }
+                    });
                 }
             }
             if (usersToEnroll.length > 0) {
@@ -1065,10 +1236,13 @@ const deleteUsers = async (users, errors) => {
 
                     if (updateGroupMember) {
 
-                        const usersToDelete = getUsers;
-                        insertDeletionRequests(usersToDelete);
 
-                        const result = await sendDeletionEmailBulk();
+                        //REMOVED DELETION MAIL
+                        
+                        // const usersToDelete = getUsers;
+                        // insertDeletionRequests(usersToDelete);
+
+                        // const result = await sendDeletionEmailBulk();
 
                         return deleteUsers;
                     }
@@ -1587,6 +1761,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    enrollUsers,    
     // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
@@ -1750,7 +1925,6 @@ module.exports = {
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
         }];
-
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
         return savedEmployee;
 

@@ -37,6 +37,37 @@ const generateSVCertificateId = async () => {
     return certNumber;
 }
 
+const generateUniqueCertificateId = async () => {
+    const date = new Date();
+    const formattedDate = date.toLocaleDateString("en-GB").replace(/\//g, "");
+    const prefix = "CERT";
+
+    let newCertId;
+    let isUnique = false;
+
+    while (!isUnique) {
+     
+     const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
+
+      if (lastCertificate) {
+        const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
+        const newCertNum = lastCertificateIdNum + 1;
+        const paddedNewCertNum = newCertNum.toString().padStart(5, "0");
+        newCertId = `${prefix}${formattedDate}${paddedNewCertNum}`;
+      } else {
+        newCertId = `${prefix}${formattedDate}00001`;
+      }
+
+      // Check if this ID is unique
+      const existingCert = await TrainingCertificate.findOne({ certificateNumber: newCertId });
+
+      if (!existingCert) {
+        isUnique = true;
+      }
+    }
+    return newCertId;
+  }
+
 const sendCertificateGenerationNotification = async notificationsData => {
     if (notificationsData?.length) {
         const notifications = [];
@@ -113,9 +144,20 @@ const sendCertificateGenerationNotification = async notificationsData => {
     }
 };
 
+const calculateExpiryDate = async (completionDateStr,validityPeriod) => {
+    if (validityPeriod === null) {
+        return null;
+    }
+    const completionDate = new Date(completionDateStr);
+    completionDate.setDate(completionDate.getDate() + validityPeriod);
+
+    return completionDate.toISOString();
+}
 
 
 module.exports = {
+    calculateExpiryDate,
+    generateUniqueCertificateId,
     generateCertificate: async (input, context) => {
         try {
             const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager, userInfo } = AuthUser(context);
@@ -176,7 +218,7 @@ module.exports = {
                 : undefined;
 
             const userName = `${existingProgressData.user?.firstName ?? ""} ${existingProgressData.user?.lastName ?? ""}`
-            const certificateNumber = await generateSVCertificateId();
+            const certificateNumber = await generateUniqueCertificateId();
             const certificateData = {
                 subscriber: subscriberId,
                 trainingRegistration: input.trainingRegistrationId,
@@ -299,12 +341,12 @@ module.exports = {
 
                 if (!training) continue;
 
-                const certificateLayout = certificateLayoutMap.get(overallDoc.assignedCertificateLayout);
+                const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallCreatedAtMap.get(overallDoc._id.toString());
                 const completedAt = CurrentDateTime().utcDateTime;
-                const expiresAt = training.certificateValidity
-                    ? ParseDateTime(completedAt).utcDateTimeObj.add({ days: training.certificateValidity }).format()
-                    : undefined;
+                const expiresAt = overallDoc.certificateExpiry
+                    ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
+                    : null;
 
                 certificatesToCreate.push({
                     subscriber: training.subscriber,
@@ -312,9 +354,9 @@ module.exports = {
                     training: training._id,
                     certificateLayout: certificateLayout._id,
                     user: userId,
-                    trainingCertificateValidity: training.certificateValidity,
+                    trainingCertificateValidity: overallDoc.certificateExpiry,
                     status: 'COMPLETED',
-                    certificateNumber: await generateSVCertificateId(),
+                    certificateNumber: await generateUniqueCertificateId(),
                     startDate,
                     completedAt,
                     generatedAt: completedAt,
