@@ -1623,6 +1623,7 @@ module.exports.queries = {
                 catch (error) {
                     messages.push(`Unable to send Welcome Email to ${email}`);
                 }
+/* 
                 notifications.push({
                     subscriber: subscriberId,
                     title: [{ lang: "en", value: `Welcome Email Sent` }],
@@ -1646,8 +1647,7 @@ module.exports.queries = {
                     createdBy: userInfo,
                     status: "SENT"
                 });
-
-
+ */
             })
         );
         if (notifications.length > 0) {
@@ -2020,7 +2020,7 @@ try {
                 updatedBy: userInfo,
                 type: input.type,
             }));
-            await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+            // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
             /* Ticket No SEAV-91
             for (const user of users) {
                 const emailContent =
@@ -3460,7 +3460,8 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            value: `"User Export" file is ready:`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
