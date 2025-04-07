@@ -46,6 +46,7 @@ const certificateLayout = new Schema(
             type : Number,
             default : null
         }, 
+        version : Number,
     },
     { timestamps: true }
 );

@@ -31,7 +31,10 @@ module.exports.queries = {
 
 
             const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
-            const certificate = await certificateLayout.findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false }).exec();
+            const certificate = await certificateLayout
+                .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
+                .sort({ version: -1 })
+                .exec();
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
 
             if (!certificate) {
@@ -144,6 +147,15 @@ module.exports.mutations = {
                         "Certificate layout not found for the provided ID"
                     );
                 }
+
+                if (existingLayout.layout !== layout) {
+                    return {
+                        success: false,
+                        message: "The Layout ID does not match the selected layout. Please verify the input.",
+                        logos: logosInput,
+                    };
+                }
+
                 logosInput = existingLayout.logos || [];
             }
 
@@ -210,8 +222,16 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
             }
 
+            let usersAssosciatedToLayout =[];
             if (id) {
-                existingLayout.layout = layout;
+                //if there are no users in ['IN_PROGRESS', 'COMPLETED'] states we dont have to store the data
+                usersAssosciatedToLayout = await OverallTrainingProgress.find({
+                    assignedCertificateLayoutId: id,
+                    status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
+                }).lean();
+            }
+
+            if ((!(usersAssosciatedToLayout?.length > 0)) && id) { //If there are no users connected with the existing layout then edit that layout
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
                 existingLayout.title = title;
@@ -221,6 +241,7 @@ module.exports.mutations = {
                 existingLayout.certificateExpiry = certificateExpiry;
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
+                existingLayout.version = (existingLayout?.version ?? 0)+1;
 
                 if (layout) {
                     selectedTraining.currentCertificateLayout = layout;
@@ -234,14 +255,18 @@ module.exports.mutations = {
                     message: "Certificate layout updated successfully.",
                     logos: logosInput,
                 };
-            } else {
+            } else if(((usersAssosciatedToLayout?.length > 0) && id) || ((!(usersAssosciatedToLayout?.length > 0)) && (!id))) { //If there are users connected with the existing layout OR if the admin wants to create a new layout
+                let action = 'created';
+                let version = 0;
 
                 const oldCertificateLayout = await certificateLayout.findOne({
                     training: ObjectId(training),
                     layout: layout,
                 });
-                if (oldCertificateLayout) {
-                    throw CustomError(ErrorName.FAILED, "A layout already exists for this training");
+
+                if ((usersAssosciatedToLayout?.length > 0) && id) {
+                    action = 'updated';
+                    version =(oldCertificateLayout?.version ?? 0)+1;
                 }
                 const newCertificateLayout = new certificateLayout({
                     layout,
@@ -254,6 +279,7 @@ module.exports.mutations = {
                     additionalData,
                     certificateExpiry,
                     courseProvidedBy,
+                    version,
                 });
                 await newCertificateLayout.save();
                 const updateTraining = await Training.findByIdAndUpdate(
@@ -276,12 +302,11 @@ module.exports.mutations = {
 
                 return {
                     success: true,
-                    message: "Certificate layout created successfully.",
+                    message: `Certificate layout ${action} successfully.`,
                     logos: logosInput,
                 };
             }
         } catch (error) {
-            console.log(error);
             return {
                 success: false,
                 message: error.message || "An unexpected error occurred. Please try again later.",
