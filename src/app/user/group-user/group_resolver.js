@@ -27,6 +27,8 @@ const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const { pipeline } = require("stream");
 const { formatDate } = require("../../reports/reports_helper");
+const { LearningPlan } = require("../../learning-plan/learning_plan_model");
+const { filterLearningPlans } = require("../employee/employee_helper");
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
@@ -797,6 +799,45 @@ module.exports.mutations = {
                             { session }
                         );
                     }
+
+                    // Update to the learning plans if any
+                    const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+
+                    const conditions = await Employee.find({
+                        'user': { $in: newMembers },
+                        'isDeleted': false
+                    })
+                        .populate({
+                            path: 'user',
+                            select: '_id email currentVessel vesselStatus  isDeleted',
+                            match: { 'isDeleted': false },
+                            populate: {
+                                path: 'currentVessel',
+                                select: '_id typeOfVessel isDeleted',
+                                match: { 'isDeleted': false }
+                            }
+                        })
+                        .then((employees) => {
+
+                            const result = employees.map(employee => ({
+                                designationID: employee?.empDesignation ? employee?.empDesignation : null,
+                                vesselID: employee?.user && employee?.user?.currentVessel ? employee?.user?.currentVessel?._id : "",
+                                vesselTypeID: employee?.user && employee?.user?.currentVessel ? employee?.user?.currentVessel?.typeOfVessel : "",
+                                currentStatus: employee?.user && employee?.user?.vesselStatus ? employee?.user?.vesselStatus : "",
+                                email: employee?.user ? employee?.user?.email : null,
+                                _id: employee?.user ? employee.user._id : null,
+                            }));
+
+                            return result;
+                        })
+                        .catch((error) => {
+                            console.error(error);
+                        });
+
+                    if (learningPlans.length === 0) {
+                        const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                    }
+
                 }
             }
 
