@@ -168,6 +168,8 @@ module.exports.queries = {
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
+            email: user.email,
+            isRegistered: user.isRegistered,
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
