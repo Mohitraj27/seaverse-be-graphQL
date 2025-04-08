@@ -33,7 +33,7 @@ const audienceSelection = require('../../learning-plan/enumFields/audienceSelect
 const typeOfConditionalCustomFieldEnum = require('../../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const groupTypes = require('../../../util/group_types.json');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
-const enrollUsers = require('../employee/employee_helper');
+const {enrollUsers} = require('../employee/employee_helper');
 
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
     if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
@@ -50,82 +50,110 @@ async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
     return { matchFound: false, learningPlanId: [] };
 }
 async function checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId) {
-    if (!plan?.groupIDs) return { matchFound: false, learningPlanId: [] };
-    const group = plan.groupIDs.find(g => g.groupType === groupTypes.custom && g.groupIDs.includes(customGroupId));
-    if (group) {
-        return { matchFound: true, learningPlanId: plan._id };
-    }
-    return { matchFound: false, learningPlanId: [] };
+    console.log('reached here 2',plan,customGroupId);
+    if (!plan?.groupIDs?.length) { return { matchFound: false, learningPlanId: [] }; } 
+    const match = plan.groupIDs.find((group) => group?.groupType === groupTypes.custom && Array.isArray(group.groupIDs) &&
+          group.groupIDs.includes(customGroupId.toString()));
+    console.log('mathc',match);
+    return match ? { matchFound: true, learningPlanId: plan._id }: { matchFound: false, learningPlanId: [] };
 }
-async function autoenrollmentfromCustomGroup(learningPlans,customGroupId,userIdToAutoenroll){
+async function autoenrollmentfromCustomGroup(learningPlans,customGroupId,userIdToAutoenroll,context){
+    console.log('recived custom groupID',customGroupId,userIdToAutoenroll);
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
          const usersToEnroll = [];
+         console.log(plan);
         if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-                console.log('custom Group ID',customGroupId);
-
-        const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId);
+            console.log('custom Group ID',customGroupId);
+            console.log('plan',plan);
+            const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId);
             console.log('match found',matchFound);
             console.log('learningPlanId',learningPlanId);
-        // if (matchFound) {
-               
-        //     /* This is for handling duplicates before inserting inside LearningPlanAssigment Table */
-        //     const existingAssignments = await LearningPlanAssignment.find({
-        //         learningPlanId: plan._id,
-        //         assignedLearnerId: { $in: userIdToAutoenroll }
-        //     }).select('assignedLearnerId');
+        if (matchFound) {
+            /* This is for handling duplicates before inserting inside LearningPlanAssigment Table */
+            const existingAssignments = await LearningPlanAssignment.find({
+                learningPlanId: plan._id,
+                assignedLearnerId: { $in: userIdToAutoenroll }
+            }).select('assignedLearnerId');
 
-        //     const existingIds = new Set(existingAssignments.map(a => a.assignedLearnerId.toString()));
-
-        //     const newAssignments = userIdToAutoenroll
-        //         .filter(userId => !existingIds.has(userId.toString()))
-        //         .map(userId => ({
-        //             learningPlanId: plan._id,
-        //             assignedLearnerId: userId,
-        //             isMannuallyAdded: false,
-        //             createdBy: context.user.userId,
-        //             updatedBy: context.user.userId
-        //         }));
-
-        //     if (newAssignments.length > 0) {
-        //         const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-        //         console.log('New data enrolled:', dataenrolled);
-        //     }
-
-        //     usersToEnroll.push(...userIdToAutoenroll.filter(userId => !existingIds.has(userId.toString())));
-        //  }
-        }
-        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-            const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId);
-            if (matchFound) {
-                return { matchFound, learningPlanId };
-            }
-
-            
-            if(matchFound){
-                const assignments = userIdToAutoenroll.map(userId => ({
+            const existingIds = new Set(existingAssignments.map(a => a.assignedLearnerId.toString()));
+            console.log('existing Ids',existingIds);
+            console.log('type of existing Ids',typeof existingIds);
+            const newAssignments = userIdToAutoenroll
+                .filter(userId => !existingIds.has(userId.toString()))
+                .map(userId => ({
                     learningPlanId: plan._id,
                     assignedLearnerId: userId,
                     isMannuallyAdded: false,
                     createdBy: context.user.userId,
                     updatedBy: context.user.userId
                 }));
-                console.log('assignment2',assignments);
-                if(assignments?.length > 0){
-                    const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered :false });
-                    console.log('this all data gets enrolled for everyone in the all employees',dataenrolled);
-                }
+
+            if (newAssignments.length > 0) {
+                const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                console.log('New data enrolled:', dataenrolled);
             }
+
+            usersToEnroll.push(...userIdToAutoenroll.filter(userId => !existingIds.has(userId.toString())));
+         }
         }
-        if (usersToEnroll.length > 0) {
+        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+            console.log(plan,customGroupId);
+            const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId);
+            console.log('findal step 11',matchFound, learningPlanId);
+            console.log('userIdtoAutoenroll',userIdToAutoenroll);
+              if (matchFound) {
+               
+            /* This is for handling duplicates before inserting inside LearningPlanAssigment Table */
+            const existingAssignments = await LearningPlanAssignment.find({
+                learningPlanId: plan._id,
+                assignedLearnerId: { $in: userIdToAutoenroll }
+            }).select('assignedLearnerId');
+            console.log('existingAssignments',existingAssignments);
+            const existingIds = new Set(existingAssignments.map(a => a.assignedLearnerId.toString()));
+            console.log('existing Ids',existingIds);
+            console.log('type of existing Ids',typeof existingIds);
+            const newAssignments = userIdToAutoenroll
+                .filter(userId => !existingIds.has(userId.toString()))
+                .map(userId => ({
+                    learningPlanId: plan._id,
+                    assignedLearnerId: userId,
+                    isMannuallyAdded: false,
+                    createdBy: context.user.userId,
+                    updatedBy: context.user.userId
+                }));
+
+            if (newAssignments?.length > 0) {
+                const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                console.log('New data enrolled:', dataenrolled);
+            }
+
+            usersToEnroll.push(...userIdToAutoenroll.filter(userId => !existingIds.has(userId.toString())));
+         }
+         
+        }
+        // console.log('usersToEnroll',usersToEnroll);
+        // const datagettingIsnideOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+        //         {
+        //              learningPlan: plan._id,
+        //              user: { $in: usersToEnroll }
+        //         },
+        //         {
+        //              $pull: { learningPlan: plan._id }
+        //         }
+        //  );
+         console.log('overall Training Progress',datagettingIsnideOverallTrainingProgress);
+        if (usersToEnroll?.length > 0) {
+            console.log('usersToEnroll',usersToEnroll);
             const enrollData = {
-                trainings: plan.selectCourses,
+                trainings: plan?.selectCourses,
                 users: usersToEnroll,
                 type: "ENROLL",
-                learningPlan: plan._id,
-                session,
+                learningPlan: plan?._id,
             };
-            await enrollUsers([enrollData]);
+            console.log('enrollData',enrollData);
+           const data =  await enrollUsers([enrollData]);
+           console.log('data for getting enrolled',data);
             return true;
         }
         return false;
@@ -983,7 +1011,9 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
         const learningPlans = await LearningPlan.find({status:LearningPlanStatus.ACTIVE,isDeleted: false});
-        await autoenrollmentfromCustomGroup(learningPlans,input._id,input.members);
+        if(learningPlans?.length > 0){
+            await autoenrollmentfromCustomGroup(learningPlans,input._id,input.members,context);
+        }
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
             group: {
