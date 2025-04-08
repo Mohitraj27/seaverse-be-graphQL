@@ -121,7 +121,7 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                     isDeleted: { $ne: true },
                     firstName: { $ne: null },
                     email: { $ne: null },
-                    superAdmin: false
+                    // superAdmin: false
                 },
             },
             {
@@ -584,7 +584,7 @@ module.exports = {
                     isDeleted: { $ne: true },
                     firstName: { $ne: null },
                     email: { $ne: null },
-                    superAdmin: false
+                    // superAdmin: false
                 },
             },
             {
