@@ -576,7 +576,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
             }
         if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan,userConditions);
-               if(resultforGroup?.success === 'true' && resultforGroup?.allMatchedUsers?.length > 0){
+               if(resultforGroup?.success){
                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
                        learningPlanId: resultforGroup?.planId, 
                        assignedLearnerId: userId,

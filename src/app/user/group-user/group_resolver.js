@@ -34,7 +34,7 @@ const typeOfConditionalCustomFieldEnum = require('../../learning-plan/enumFields
 const groupTypes = require('../../../util/group_types.json');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const {enrollUsers} = require('../employee/employee_helper');
-
+const { filterLearningPlans } = require("../employee/employee_helper");
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
     if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
 
@@ -160,8 +160,6 @@ async function autoenrollmentfromCustomGroup(learningPlans,customGroupId,userIdT
         })
     );
 }
-const { LearningPlan } = require("../../learning-plan/learning_plan_model");
-const { filterLearningPlans } = require("../employee/employee_helper");
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
