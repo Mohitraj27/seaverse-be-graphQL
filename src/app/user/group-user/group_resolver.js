@@ -142,7 +142,7 @@ async function autoenrollmentfromCustomGroup(learningPlans,customGroupId,userIdT
         //              $pull: { learningPlan: plan._id }
         //         }
         //  );
-         console.log('overall Training Progress',datagettingIsnideOverallTrainingProgress);
+        //  console.log('overall Training Progress',datagettingIsnideOverallTrainingProgress);
         if (usersToEnroll?.length > 0) {
             console.log('usersToEnroll',usersToEnroll);
             const enrollData = {
