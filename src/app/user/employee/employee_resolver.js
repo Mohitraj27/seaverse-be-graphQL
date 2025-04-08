@@ -132,7 +132,7 @@ async function autoenrollRoleBasedLP(learningPlans,userIdsToSend,roles,operation
                             }
                         );
                     }
-                // usersToEnroll.push(...userIdsToSend);
+                 usersToEnroll.push(...userIdsToSend);
                 }
             }
         
@@ -144,7 +144,10 @@ async function autoenrollRoleBasedLP(learningPlans,userIdsToSend,roles,operation
             type: "ENROLL",
             learningPlan: plan?._id,
         };
+        console.log("enrollData",enrollData);
         const datagoingtoenrollUsers = await enrollUsers([enrollData]);
+        console.log("datagoingtoenrollUsers",datagoingtoenrollUsers);
+
         return true;
     }
         return false;
