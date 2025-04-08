@@ -604,7 +604,7 @@ module.exports.queries = {
     },
     getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
-
+        console.log(groupFilter, "groupFilter");
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
@@ -616,8 +616,11 @@ module.exports.queries = {
                 const selectedGroup = await Group.findOne({ _id: groupId }).select('groupType').lean();
                 if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND);
                 customGroupMembers = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
-
-                members = await User.find({ _id: { $in: customGroupMembers.map(member => member._id) } })
+                const query = { _id: { $in: customGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
 
@@ -643,11 +646,16 @@ module.exports.queries = {
                                         localField: 'member',
                                         foreignField: '_id',
                                         as: 'memberDetails',
-                                        pipeline: [{ $match: { isDeleted: false } }]
+                                        pipeline: [
+                                            { $match: { isDeleted: false,isRegistered:groupFilter?.isRegistered } },
+                                        ]
                                     }
                                 },
                                 {
                                     $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true }
+                                },
+                                {
+                                    $match: { 'memberDetails.isRegistered': groupFilter?.isRegistered }
                                 },
                                 {
                                     $project: {
@@ -663,7 +671,7 @@ module.exports.queries = {
                     },
 
                     {
-                        $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
+                        $unwind: { path: '$members', preserveNullAndEmptyArrays: false }
                     },
                     {
                         $project: {
@@ -677,13 +685,17 @@ module.exports.queries = {
                 ]);
 
 
-                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
+                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false, });
                 members = groupData.slice(skip, skip + limit);
                 totalCount = totalMembers;
 
             } else {
                 autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput?.groupId, groupType: autosyncInput?.groupType });
-                members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
+                const query = { _id: { $in: autoSyncGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
                 totalCount = members.length;
@@ -697,7 +709,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw new Error('Error fetching group members');
+            throw CustomError(error);
         }
     },
 

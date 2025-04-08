@@ -140,6 +140,7 @@ module.exports = {
         input memberFilter {
             isDeleted :Boolean
             search : String
+            isRegistered : Boolean
         }
         input autosyncInput {
             groupId : String
