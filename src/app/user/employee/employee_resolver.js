@@ -132,7 +132,7 @@ async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operat
                             }
                         );
                     }
-                    // usersToEnroll.push(...userIdsToSend);
+                 usersToEnroll.push(...userIdsToSend);
                 }
             }
 

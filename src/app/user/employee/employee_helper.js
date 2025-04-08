@@ -155,6 +155,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+                        
                         default:
                             return false;
                     }
@@ -573,21 +574,21 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 }
             }
-            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-                if (resultforGroup?.success === 'true' && resultforGroup?.allMatchedUsers?.length > 0) {
-                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
-                        learningPlanId: resultforGroup?.planId,
-                        assignedLearnerId: userId,
-                        isMannuallyAdded: false,
-                        createdBy: context.user.userId,
-                        updatedBy: context.user.userId
-                    }));
-                    if (assignments?.length) {
-                        await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                    }
-                    usersToEnroll.push(...resultforGroup?.allMatchedUsers);
-                }
+        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+               const resultforGroup = await findGroupBasedPublishedLearningPlans(plan,userConditions);
+               if(resultforGroup?.success){
+                   const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
+                       learningPlanId: resultforGroup?.planId, 
+                       assignedLearnerId: userId,
+                       isMannuallyAdded: false,
+                       createdBy: context.user.userId,
+                       updatedBy: context.user.userId
+                   }));
+                   if (assignments?.length) {
+                       await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                   }
+                  usersToEnroll.push(...resultforGroup?.allMatchedUsers);
+               }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
