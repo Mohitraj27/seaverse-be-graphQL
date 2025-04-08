@@ -177,20 +177,24 @@ module.exports.mutations = {
                         })
                     });
 
-                    // Conditions for auto enrollment
-                    const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-                    const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('typeOfVessel -_id').lean();
-                    const conditions = [{
-                        designationID: designation,
-                        vesselID: vesselName || "",
-                        vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
-                        currentStatus: vesselStatus || "",
-                        email: signupRequest?.email,
-                        _id: signupRequest?.userId
-                    }];
-
-                    if (learningPlans.length > 0) {
-                        const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                    if (isRegistered) {
+                        
+                        // Conditions for auto enrollment
+                        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('typeOfVessel -_id').lean();
+                        const conditions = [{
+                            designationID: designation,
+                            vesselID: vesselName || "",
+                            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
+                            currentStatus: vesselStatus || "",
+                            email: signupRequest?.email,
+                            _id: signupRequest?.userId
+                        }];
+    
+                        if (learningPlans.length > 0) {
+                            const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                        }
+                        
                     }
 
                     if (!sendmailforApproval) {
