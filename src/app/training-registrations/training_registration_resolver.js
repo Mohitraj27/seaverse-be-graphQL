@@ -155,16 +155,21 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
+                    email: '$userInfo.email',
+                    isRegistered: '$userInfo.isRegistered',
                     directEnrollment: '$directEnrollment',
                     adminMarkedAsCompleted: '$adminMarkedAsCompleted'
                 }
             }
         ]);
+        
         const formattedResults = results.map(user => ({
             id: user.id,
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
+            email: user.email,
+            isRegistered: user.isRegistered,
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));

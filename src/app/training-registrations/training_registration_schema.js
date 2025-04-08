@@ -192,6 +192,8 @@ module.exports = {
             firstName: String!
             lastName: String
             status: Status!
+            email: String!
+            isRegistered: Boolean!
             directEnrollment: Boolean
             adminMarkedAsCompleted: Boolean
         }
