@@ -8,7 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
     dummyPassword,
-    
+
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
 
@@ -62,7 +62,7 @@ const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
 const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
 const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
-const {groupTypes}  = require('../../../util');
+const { groupTypes } = require('../../../util');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -155,6 +155,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+                        
                         default:
                             return false;
                     }
@@ -368,105 +369,105 @@ async function enrollUsers(enrollDataArray) {
 }
 
 
-async function findGroupBasedPublishedLearningPlans (plan, userConditions)  {
+async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
     try {
-      if (!plan || !plan.groupIDs || !Array.isArray(plan.groupIDs) || plan.groupIDs.length === 0) {
-        return { success: false, message: "No group IDs found in the plan", matchedUsers: [] };
-      }
-      
-      let matchedUserIds = [];
-      
-      for (const group of plan.groupIDs) {
-        const groupType = group.groupType;
-        const groupIDsList = group.groupIDs || [];
-        
-        if (!groupType || !Array.isArray(groupIDsList) || groupIDsList.length === 0) {
-          console.log(`Skipping invalid group configuration: ${JSON.stringify(group)}`);
-          continue;
+        if (!plan || !plan.groupIDs || !Array.isArray(plan.groupIDs) || plan.groupIDs.length === 0) {
+            return { success: false, message: "No group IDs found in the plan", matchedUsers: [] };
         }
-        
-        console.log(`Processing group type: ${groupType}, IDs: ${JSON.stringify(groupIDsList)}`);
-        
-        const matchingUsers = userConditions.filter(user => {
-          if (!user) return false;
-          
-          let matches = false;
-          
-          switch (groupType) {
-            case groupTypes.designation:
-              if (user?.designationID) {
-                matches = groupIDsList.includes(user.designationID.toString());
-              }
-              break;
-            case groupTypes.vessel:
-              if (user?.vesselID) {
-                matches = groupIDsList.includes(user.vesselID.toString());
-              }
-              break;
-            case groupTypes.vesselType:
-              if (user?.vesselTypeID) {
-                matches = groupIDsList.includes(user.vesselTypeID.toString());
-              }
-              break;
-            case groupTypes.vesselStatus:
-              if (user?.currentStatus) {
-                matches = groupIDsList.includes(user.currentStatus);
-              }
-              break;
-          }
-          
-          if (matches) {
-            console.log(`User ${user._id} matches ${groupType} criteria`);
-          }
-          
-          return matches;
-        });
-        
-        if (matchingUsers?.length > 0) {
-          const newMatchedUserIds = matchingUsers.map(user => user._id);
-          matchedUserIds.push(...newMatchedUserIds);
-          console.log(`Found ${newMatchedUserIds.length} matching users for ${groupType}`);
+
+        let matchedUserIds = [];
+
+        for (const group of plan.groupIDs) {
+            const groupType = group.groupType;
+            const groupIDsList = group.groupIDs || [];
+
+            if (!groupType || !Array.isArray(groupIDsList) || groupIDsList.length === 0) {
+                console.log(`Skipping invalid group configuration: ${JSON.stringify(group)}`);
+                continue;
+            }
+
+            console.log(`Processing group type: ${groupType}, IDs: ${JSON.stringify(groupIDsList)}`);
+
+            const matchingUsers = userConditions.filter(user => {
+                if (!user) return false;
+
+                let matches = false;
+
+                switch (groupType) {
+                    case groupTypes.designation:
+                        if (user?.designationID) {
+                            matches = groupIDsList.includes(user.designationID.toString());
+                        }
+                        break;
+                    case groupTypes.vessel:
+                        if (user?.vesselID) {
+                            matches = groupIDsList.includes(user.vesselID.toString());
+                        }
+                        break;
+                    case groupTypes.vesselType:
+                        if (user?.vesselTypeID) {
+                            matches = groupIDsList.includes(user.vesselTypeID.toString());
+                        }
+                        break;
+                    case groupTypes.vesselStatus:
+                        if (user?.currentStatus) {
+                            matches = groupIDsList.includes(user.currentStatus);
+                        }
+                        break;
+                }
+
+                if (matches) {
+                    console.log(`User ${user._id} matches ${groupType} criteria`);
+                }
+
+                return matches;
+            });
+
+            if (matchingUsers?.length > 0) {
+                const newMatchedUserIds = matchingUsers.map(user => user._id);
+                matchedUserIds.push(...newMatchedUserIds);
+                console.log(`Found ${newMatchedUserIds.length} matching users for ${groupType}`);
+            }
         }
-      }
-      
-      // Remove duplicates (a user might match multiple group criteria)
-      const uniqueMatchedUserIds = [...new Set(matchedUserIds)];
-      
-      console.log(`Total unique matched users: ${uniqueMatchedUserIds.length}`);
-      
-      // Check for existing assignments to avoid duplicates
-      const existingAssignments = await LearningPlanAssignment.find({
-        learningPlanId: plan._id,
-        assignedLearnerId: { $in: uniqueMatchedUserIds },
-        isDeleted: { $ne: true }
-      }, { assignedLearnerId: 1 });
-      
-      const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => 
-        assignment.assignedLearnerId.toString()));
-      // Filter out users that are already assigned
-      const newUserIds = uniqueMatchedUserIds.filter(userId => 
-        !alreadyAssignedUserIds.has(userId.toString())
-      );
-      
-      console.log(`Users to be newly assigned: ${newUserIds.length}`);
-      
-      return {
-        success: true,
-        planId: plan._id,
-        allMatchedUsers: uniqueMatchedUserIds,
-        newUsersToAssign: newUserIds,
-        existingAssignedUsers: existingAssignments.length
-      };
-      
+
+        // Remove duplicates (a user might match multiple group criteria)
+        const uniqueMatchedUserIds = [...new Set(matchedUserIds)];
+
+        console.log(`Total unique matched users: ${uniqueMatchedUserIds.length}`);
+
+        // Check for existing assignments to avoid duplicates
+        const existingAssignments = await LearningPlanAssignment.find({
+            learningPlanId: plan._id,
+            assignedLearnerId: { $in: uniqueMatchedUserIds },
+            isDeleted: { $ne: true }
+        }, { assignedLearnerId: 1 });
+
+        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment =>
+            assignment.assignedLearnerId.toString()));
+        // Filter out users that are already assigned
+        const newUserIds = uniqueMatchedUserIds.filter(userId =>
+            !alreadyAssignedUserIds.has(userId.toString())
+        );
+
+        console.log(`Users to be newly assigned: ${newUserIds.length}`);
+
+        return {
+            success: true,
+            planId: plan._id,
+            allMatchedUsers: uniqueMatchedUserIds,
+            newUsersToAssign: newUserIds,
+            existingAssignedUsers: existingAssignments.length
+        };
+
     } catch (error) {
-      return { 
-        success: false, 
-        message: error.message, 
-        error: error 
-      };
+        return {
+            success: false,
+            message: error.message,
+            error: error
+        };
     }
-  };
- 
+};
+
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
@@ -575,7 +576,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
             }
         if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan,userConditions);
-               if(resultforGroup?.success === 'true' && resultforGroup?.allMatchedUsers?.length > 0){
+               if(resultforGroup?.success){
                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
                        learningPlanId: resultforGroup?.planId, 
                        assignedLearnerId: userId,
@@ -623,7 +624,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                     if (newAssignments.length > 0) {
                         const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                        console.log('data enrolled ',dataEnrolled);
+                        console.log('data enrolled ', dataEnrolled);
                     }
                     usersToEnroll.push(...userIds);
                 }
@@ -1499,7 +1500,7 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -1761,7 +1762,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
-    enrollUsers,    
+    enrollUsers,
     // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
@@ -2944,9 +2945,9 @@ module.exports = {
 
         try {
 
-            const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
-            const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
-            const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
+            // const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
+            // const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
+            // const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
@@ -2967,7 +2968,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
@@ -2976,16 +2977,13 @@ module.exports = {
 
                     } else {
                         let formatedData;
-                        if (row["User ID*"] !== fetchAdmin.civilIdOrPassport && row["Email*"] !== fetchAdmin.email) {
 
-                            if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
-                                return;
-                            }
-
-                            formatedData = mapCSVRowToUser(row);
-                            users.push(formatedData);
-
+                        if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
+                            return;
                         }
+
+                        formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
                     }
 
                 });
