@@ -148,14 +148,6 @@ module.exports.mutations = {
                     );
                 }
 
-                if (existingLayout.layout !== layout) {
-                    return {
-                        success: false,
-                        message: "The Layout ID does not match the selected layout. Please verify the input.",
-                        logos: logosInput,
-                    };
-                }
-
                 logosInput = existingLayout.logos || [];
             }
 
