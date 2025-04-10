@@ -16,7 +16,7 @@ const { Designation } = require("../../designations/designation_model");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup, getAutoSyncedGroupsOnly, getCustomGroupsOnly } = require("./group_helper");
 const error_helper = require("../../../util/error_helper");
-const { getCustomGroupUsers, getAutoSyncUsers } = require("../../training-registrations/training_registration_helper");
+const { getCustomGroupUsers, getAutoSyncUsers, fetchUserFromAutoSyncedGroups } = require("../../training-registrations/training_registration_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
@@ -562,7 +562,6 @@ module.exports.queries = {
     },
     getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
-        console.log(groupFilter, "groupFilter");
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
@@ -760,6 +759,7 @@ module.exports.mutations = {
         };
 
         let excludedMembers = [];
+        let membersToInsert = [];
 
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
 
@@ -894,70 +894,86 @@ module.exports.mutations = {
                         );
                     }
 
-                    // Update to the learning plans if any
-                    const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-
-                    const conditions = await Employee.find({
-                        'user': { $in: newMembers },
-                        'isDeleted': false
-                    })
-                        .populate({
-                            path: 'user',
-                            select: '_id email currentVessel vesselStatus  isDeleted',
-                            match: { 'isDeleted': false },
-                            populate: {
-                                path: 'currentVessel',
-                                select: '_id typeOfVessel isDeleted',
-                                match: { 'isDeleted': false }
-                            }
-                        })
-                        .then((employees) => {
-
-                            const result = employees.map(employee => ({
-                                designationID: employee?.empDesignation ? employee?.empDesignation : null,
-                                vesselID: employee?.user && employee?.user?.currentVessel ? employee?.user?.currentVessel?._id : "",
-                                vesselTypeID: employee?.user && employee?.user?.currentVessel ? employee?.user?.currentVessel?.typeOfVessel : "",
-                                currentStatus: employee?.user && employee?.user?.vesselStatus ? employee?.user?.vesselStatus : "",
-                                email: employee?.user ? employee?.user?.email : null,
-                                _id: employee?.user ? employee.user._id : null,
-                            }));
-
-                            return result;
-                        })
-                        .catch((error) => {
-                            console.error(error);
-                        });
-
-                    if (learningPlans.length === 0) {
-                        const result = await filterLearningPlans(learningPlans, conditions, context, session);
-                    }
-
                 }
             }
 
+            let deletedGroups = [];
+            let includeMemberDatas = [];
+
             if (input.groupType === "GROUP") {
+
+                // If removed any autosynced group in custom group, find the users of that group.
+                if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
+                    deletedGroups = await GroupMember.find({ _id: { $in: input.deleteMembersOrGroups } });
+
+                    if (deletedGroups.length > 0) {
+
+                        let groupArray = [];
+
+                        for (const group of deletedGroups) {
+                            groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                        }
+
+                        const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+
+                        excludedMembers = excludedMemberDatas.map(user => user._id);
+
+                    }
+                }
+
                 if (getDesignationIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "designation", getDesignationIds, session);
+                    for (const designation of getDesignationIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "designation", groupId: designation.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
                 }
 
                 if (subRoleIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "subRole", subRoleIds, session);
+                    for (const subRole of subRoleIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "subRole", groupId: subRole.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vessel", vesselIds, session);
+                    for (const vessel of vesselIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vessel", groupId: vessel.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselTypeIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselType", vesselTypeIds, session);
+                    for (const vesselType of vesselTypeIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vesselType", groupId: vesselType.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselStatusIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselStatus", vesselStatusIds, session);
+                    for (const vesselStatus of vesselStatusIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vesselStatus", groupId: vesselStatus.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
                 }
 
                 if (roleIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "role", roleIds, session);
+                    for (const role of roleIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "role", groupId: role.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+                }
+
+                if (includeMemberDatas.length > 0) {
+                    membersToInsert = includeMemberDatas.map(user => user._id);
                 }
             }
 
@@ -1025,51 +1041,52 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
 
-        // Remove excluded learners from learning plans
+        if (input?._id) {
 
-        // const learningPlans = await LearningPlan.find({ status: LearningPlanStatus.ACTIVE, isDeleted: false });
-        const groupIdInString = input?._id.toString();
+            const groupIdInString = input?._id.toString();
 
-        const learningPlans = await LearningPlan.find({
-            status: LearningPlanStatus.ACTIVE,
-            isDeleted: false,
-            groupIDs: {
-                $elemMatch: {
-                    groupIDs: Array.isArray(groupIdInString) ? { $in: groupIdInString } : groupIdInString
-                }
-            },
-        });
-
-        if (excludedMembers.length > 0) {
-
-            const removedLearnersID = excludedMembers;
-
-            const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
-
-            const learningPlanIds = learningPlans.map(learningPlan => learningPlan._id);
-
-            await LearningPlanAssignment.deleteMany({
-                learningPlanId: { $in: learningPlanIds },
-                assignedLearnerId: { $in: removedLearnersIDToObject },
+            const learningPlans = await LearningPlan.find({
+                status: LearningPlanStatus.ACTIVE,
+                isDeleted: false,
+                groupIDs: {
+                    $elemMatch: {
+                        groupIDs: Array.isArray(groupIdInString) ? { $in: groupIdInString } : groupIdInString
+                    }
+                },
             });
 
-            const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-                { user: { $in: removedLearnersIDToObject }, learningPlan: { $in: learningPlanIds }, isDeleted: { $ne: true } },
-                {
-                    $pull: {
-                        learningPlan: { $in: learningPlanIds },
+            if (excludedMembers.length > 0) {
+
+                const removedLearnersID = excludedMembers;
+
+                const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
+
+                const learningPlanIds = learningPlans.map(learningPlan => learningPlan._id);
+
+                await LearningPlanAssignment.deleteMany({
+                    learningPlanId: { $in: learningPlanIds },
+                    assignedLearnerId: { $in: removedLearnersIDToObject },
+                });
+
+                const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                    { user: { $in: removedLearnersIDToObject }, learningPlan: { $in: learningPlanIds }, isDeleted: { $ne: true } },
+                    {
+                        $pull: {
+                            learningPlan: { $in: learningPlanIds },
+                        }
                     }
-                }
-            );
+                );
 
+            }
+
+            if (input?.groupType === "GROUP" && learningPlans?.length > 0) {
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, context);
+            }
+            if (input?.groupType === "MEMBER" && learningPlans?.length > 0) {
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
+            }
         }
 
-        if (input?.groupType === "GROUP" && learningPlans?.length > 0) {
-            await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
-        }
-        if (input?.groupType === "MEMBER" && learningPlans?.length > 0) {
-            await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
-        }
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
             group: {
