@@ -30,6 +30,7 @@ module.exports = {
         success : Boolean,
         message : String
         logos : [MultiMediaInfo]
+        signature : MultiMediaInfo
     }
     type certificateLayoutOutputForDelete {
         success : Boolean,
@@ -44,6 +45,7 @@ module.exports = {
         authoringTitle: String
         certificateReference: String
         logos: [MultiMediaInfo]
+        signature: MultiMediaInfo
         additionalData: [genericObjectOutput]
         createdAt: String
         updatedAt: String
@@ -66,7 +68,7 @@ module.exports = {
     getMigrationcoursesToCertificateLayout:CertificateLayoutData
 `,
     mutations: `
-    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
+    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload, signatureImage : Upload):certificateLayoutOutput
     deleteLogosFromCertificateLayout(layoutId : ID! , logoIndexes:[Int]!):certificateLayoutOutputForDelete
 `,
 };
