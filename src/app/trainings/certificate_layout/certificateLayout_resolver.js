@@ -33,10 +33,10 @@ module.exports.queries = {
             const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
             const certificate = await certificateLayout
                 .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
-                .sort({ version: -1 })
+                .sort({ version: -1, createdAt: -1 }) 
                 .exec();
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
-
+            console.log(certificate);
             if (!certificate) {
                 throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
@@ -66,10 +66,10 @@ module.exports.queries = {
 };
 module.exports.mutations = {
     createOrUpdateCertificateLayout: async (
-        { input, logoImage1, logoImage2, logoImage3 },
+        { input, logoImage1, logoImage2, logoImage3, signatureImage },
         context
     ) => {
-        try {
+         try {
             const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
                 AuthUser(context);
             if (
@@ -148,19 +148,11 @@ module.exports.mutations = {
                     );
                 }
 
-                if (existingLayout.layout !== layout) {
-                    return {
-                        success: false,
-                        message: "The Layout ID does not match the selected layout. Please verify the input.",
-                        logos: logosInput,
-                    };
-                }
-
                 logosInput = existingLayout.logos || [];
             }
 
             const selectedTraining = await Training.findById(training).select("currentCertificateLayout").exec();
-            if (selectedTraining.length === 0) {
+            if (!selectedTraining||selectedTraining?.length === 0) {
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     "Training not found for the provided ID"
@@ -195,12 +187,12 @@ module.exports.mutations = {
                 }
                 logoKeys.push(logo);
             }
-            //we are using this as signature
+
             if (logoImage3) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage3,
                     folderName: `certificate-layout`,
-                    fileName: `certificate-layout-signature${Date.now()}`,
+                    fileName: `certificate-layout-logo${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
                 if (logosInput[2]) {
@@ -209,6 +201,18 @@ module.exports.mutations = {
                     logosInput[2] = { url: logo };
                 }
                 logoKeys.push(logo);
+            }
+
+            // Handle signature upload separately
+            let signatureUrl = null;
+            if (signatureImage) {
+                console.log("Uploading Signature Image");
+                signatureUrl = await UploadHelper.uploadImage({
+                    data: signatureImage,
+                    folderName: `certificate-layout`,
+                    fileName: `certificate-layout-signature_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.certificateLogo,
+                });
             }
 
             if (!title) {
@@ -231,7 +235,7 @@ module.exports.mutations = {
                 }).lean();
             }
 
-            if ((!(usersAssosciatedToLayout?.length > 0)) && id) { //If there are no users connected with the existing layout then edit that layout
+            if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
                 existingLayout.title = title;
@@ -241,7 +245,8 @@ module.exports.mutations = {
                 existingLayout.certificateExpiry = certificateExpiry;
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
-                existingLayout.version = (existingLayout?.version ?? 0)+1;
+                existingLayout.signature = signatureUrl ? { url : signatureUrl} : null; // Save signature as a separate field
+                existingLayout.version = (existingLayout?.version ?? 0) + 1;
 
                 if (layout) {
                     selectedTraining.currentCertificateLayout = layout;
@@ -254,6 +259,7 @@ module.exports.mutations = {
                     success: true,
                     message: "Certificate layout updated successfully.",
                     logos: logosInput,
+                    signature: { url : signatureUrl}, 
                 };
             } else if(((usersAssosciatedToLayout?.length > 0) && id) || ((!(usersAssosciatedToLayout?.length > 0)) && (!id))) { //If there are users connected with the existing layout OR if the admin wants to create a new layout
                 let action = 'created';
@@ -279,6 +285,7 @@ module.exports.mutations = {
                     additionalData,
                     certificateExpiry,
                     courseProvidedBy,
+                    signature:  signatureUrl ? { url : signatureUrl} : null, // Save signature as a separate field
                     version,
                 });
                 await newCertificateLayout.save();
@@ -299,14 +306,16 @@ module.exports.mutations = {
                         { $set: { isCertificatePresent: true } }
                     );
                 }
-
+                console.log("Signature Url: ",signatureUrl);
                 return {
                     success: true,
                     message: `Certificate layout ${action} successfully.`,
                     logos: logosInput,
+                    signature: signatureUrl, // Return signature URL as part of response
                 };
             }
         } catch (error) {
+            console.log(error);
             return {
                 success: false,
                 message: error.message || "An unexpected error occurred. Please try again later.",
