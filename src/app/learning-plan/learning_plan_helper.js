@@ -412,6 +412,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 createdBy: existingLearningPlan.createdBy,
                 updatedBy: existingLearningPlan.updatedBy,
             }));
+
+            await OverallTrainingProgress.updateMany(
+                { user: { $in: learnersToAssign }, isDeleted: { $ne: true }, training: { $in: existingLearningPlan?.selectCourses } },
+                {
+                    $addToSet: { learningPlan: existingLearningPlan._id }
+                }
+            );
+
             await LearningPlanAssignment.insertMany(learningPlanAssignments);
         }
 
