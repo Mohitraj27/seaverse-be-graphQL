@@ -56,6 +56,7 @@ async function checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId) {
     return match ? { matchFound: true, learningPlanId: plan._id } : { matchFound: false, learningPlanId: [] };
 }
 async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userIdToAutoenroll, context) {
+
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
             const usersToEnroll = [];
@@ -77,10 +78,10 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
                         const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
                     usersToEnroll.push(...userIds);
-                  }
+                }
             }
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-                console.log(plan, customGroupId);
+
                 const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId);
                 if (matchFound) {
                     const userIds = userIdToAutoenroll.map(id => id.toString());
@@ -96,25 +97,21 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
                         createdBy: context.user.userId,
                         updatedBy: context.user.userId
                     }));
-                    if(newAssignments?.length > 0){
-                    const insertedAssignments = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                    console.log('New assignments inserted:', insertedAssignments);
-                      }
+                    if (newAssignments?.length > 0) {
+                        const insertedAssignments = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                    }
                     usersToEnroll.push(...userIdToAutoenroll);
                 }
             }
 
             if (usersToEnroll?.length > 0) {
-                console.log('usersToEnroll', usersToEnroll);
                 const enrollData = {
                     trainings: plan?.selectCourses,
                     users: usersToEnroll,
                     type: "ENROLL",
                     learningPlan: plan?._id,
                 };
-                console.log('enrollData', enrollData);
                 const data = await enrollUsers([enrollData]);
-                console.log('data for getting enrolled', data);
                 return true;
             }
             return false;
@@ -762,6 +759,8 @@ module.exports.mutations = {
             isDeleted: false,
         };
 
+        let excludedMembers = [];
+
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
 
             let existingGroupMembers;
@@ -870,8 +869,10 @@ module.exports.mutations = {
 
             if (input.members && input.members.length > 0) {
                 const uniqueInputMembers = [...new Set(input.members)];
+                const inputMembersString = uniqueInputMembers.map(member => member.toString());
                 const existingMemberIds = existingGroupMembers?.map(member => member.toString());
                 const newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
+                excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
                     if (memberCount > 0) {
@@ -962,7 +963,6 @@ module.exports.mutations = {
 
             return savedGroupName;
         });
-        console.log('savedGroup',savedGroup);
 
         if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
             if (input.groupType === "GROUP") {
@@ -1024,12 +1024,51 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-        const learningPlans = await LearningPlan.find({ status: LearningPlanStatus.ACTIVE, isDeleted: false });
-        if(savedGroup.groupType === "GROUP"  && learningPlans?.length>0){
-            await autoenrollmentfromCustomGroup(learningPlans, input?._id, savedGroup?.members,  context);
+
+        // Remove excluded learners from learning plans
+
+        // const learningPlans = await LearningPlan.find({ status: LearningPlanStatus.ACTIVE, isDeleted: false });
+        const groupIdInString = input?._id.toString();
+
+        const learningPlans = await LearningPlan.find({
+            status: LearningPlanStatus.ACTIVE,
+            isDeleted: false,
+            groupIDs: {
+                $elemMatch: {
+                    groupIDs: Array.isArray(groupIdInString) ? { $in: groupIdInString } : groupIdInString
+                }
+            },
+        });
+
+        if (excludedMembers.length > 0) {
+
+            const removedLearnersID = excludedMembers;
+
+            const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
+
+            const learningPlanIds = learningPlans.map(learningPlan => learningPlan._id);
+
+            await LearningPlanAssignment.deleteMany({
+                learningPlanId: { $in: learningPlanIds },
+                assignedLearnerId: { $in: removedLearnersIDToObject },
+            });
+
+            const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                { user: { $in: removedLearnersIDToObject }, learningPlan: { $in: learningPlanIds }, isDeleted: { $ne: true } },
+                {
+                    $pull: {
+                        learningPlan: { $in: learningPlanIds },
+                    }
+                }
+            );
+
         }
-        if (savedGroup.groupType === "MEMBER" && learningPlans?.length > 0) {
-            await autoenrollmentfromCustomGroup(learningPlans, input?._id, savedGroup?.members,  context);
+
+        if (input?.groupType === "GROUP" && learningPlans?.length > 0) {
+            await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
+        }
+        if (input?.groupType === "MEMBER" && learningPlans?.length > 0) {
+            await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
         }
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
