@@ -627,6 +627,7 @@ module.exports.queries = {
                                 $project: {
                                     _id: 1,
                                     firstName: 1,
+                                    isRegistered: 1,
                                     lastName: 1,
                                     email: 1
                                 }
@@ -644,6 +645,7 @@ module.exports.queries = {
                                     _id: "$$user._id",
                                     firstName: "$$user.firstName",
                                     lastName: "$$user.lastName",
+                                    isRegistered: "$$user.isRegistered",
                                     email: "$$user.email"
                                 }
                             }
