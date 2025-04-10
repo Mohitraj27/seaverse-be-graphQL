@@ -112,6 +112,9 @@ const errorName = {
     FAILED_TO_FETCH_DESIGNATIONS:"FAILED_TO_FETCH_DESIGNATIONS",
     FAILED_TO_CHANGE_REGISTER_STATUS: "FAILED_TO_CHANGE_REGISTER_STATUS",
     FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
 };
 
 const errorType = {
@@ -674,6 +677,21 @@ const errorType = {
         message: 'Failed to unenroll from learning plan',
         statusCode: 400,    
         type: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    },
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: {
+        message: 'Failed to create content language',
+        statusCode: 400,    
+        type: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: {
+        message: 'Failed to update content language',
+        statusCode: 400,    
+        type: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: {
+        message: 'Failed to fetch content language',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
     }
 };
 

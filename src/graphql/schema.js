@@ -54,12 +54,13 @@ const { UserVesselSchema } = require('../app/user/user-vessel-bridge');
 const { QuestionSchema } = require('../app/trainings/training_modules/training_module_contents/question');
 const { LearningPlanSchema } = require("../app/learning-plan");
 const { CertificateLayoutSchema } = require("../app/trainings/certificate_layout/index");
-const {  ContentZipSchema } = require("../app/trainings/compress_to_zip");
+const { ContentZipSchema } = require("../app/trainings/compress_to_zip");
 const { CompanySchema } = require("../app/vessle/company");
 const { OwnerSchema } = require("../app/vessle/owner");
-const {migrationcoursesSchema} = require("../app/trainings/migrationcourses");
+const { migrationcoursesSchema } = require("../app/trainings/migrationcourses");
 const { SignupRequestSchema } = require("../app/signup-request");
 const { SignupRequestHistorySchema } = require("../app/signup-request-history");
+const { contentLanguagesSchema} = require("../app/trainings/training_modules/training_module_contents/content_languages");
 const schemas = [
     AppDataSchema,
     AppSettingsSchema,
@@ -112,7 +113,8 @@ const schemas = [
     OwnerSchema,
     migrationcoursesSchema,
     SignupRequestSchema,
-    SignupRequestHistorySchema
+    SignupRequestHistorySchema,
+    contentLanguagesSchema
 ];
 
 const types = [];
@@ -146,6 +148,7 @@ module.exports = GqlHelper(`
         lang: String
         url: String
         s3Path: String
+        isDefault: Boolean
     }
     input LocalisedDataInput {
         lang: Language!
@@ -154,7 +157,8 @@ module.exports = GqlHelper(`
     input MultiMediaInfoInput {
         _id: ID
         lang: Language
-        url: Upload
+        url: Upload 
+        isDefault: Boolean
     }
     input PageInput {
         skip: Int
