@@ -1272,10 +1272,16 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                     if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
 
                         const threshold = 2;
-                        isCorrectAnswer = question.answerKey.some(correctAnswer => {
-                            const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
-                            return distance <= threshold;
-                        });
+
+                        if (userAnswer.answer.length !== question.answerKey.length) {
+                            isCorrectAnswer = false;
+                        } else {
+                            isCorrectAnswer = userAnswer.answer.every((userAns, index) => {
+                                const correctAnswer = question.answerKey[index];
+                                const distance = levenshtein.get(correctAnswer.toLowerCase(), userAns.toLowerCase());
+                                return distance <= threshold;
+                            });
+                        }
 
                         if (isCorrectAnswer) {
                             acquiredScore += question.points;
