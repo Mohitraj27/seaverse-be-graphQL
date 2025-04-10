@@ -178,6 +178,7 @@ module.exports = {
         type userObjectDetails {
             _id: ID
             firstName: String
+            isRegistered: Boolean
             lastName: String
             email: String
         }
