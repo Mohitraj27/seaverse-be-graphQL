@@ -60,6 +60,7 @@ const { convertMinutesToHHMMSS } = require("../util/string_helper");
 const {migrationcoursesResolver} = require("../app/trainings/migrationcourses")
 const { SignupRequestResolver } = require('../app/signup-request');
 const { SignupRequestHistoryResolver } = require('../app/signup-request-history');
+const { contentLanguageResolver  } = require('../app/trainings/training_modules/training_module_contents/content_languages');
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -155,7 +156,8 @@ module.exports = {
         ...AuthHelper.requiresAdmin(UserResolver.queries),
         ...AuthHelper.simplify(migrationcoursesResolver.queries),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.queries),
-        ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.queries)
+        ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.queries),
+        ...AuthHelper.requiresAdmin(contentLanguageResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -202,6 +204,7 @@ module.exports = {
         
         ...AuthHelper.requiresEmployee(NotificationResolver.mutations),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.mutations),
+        ...AuthHelper.requiresAdmin(contentLanguageResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,
