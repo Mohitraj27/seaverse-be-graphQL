@@ -505,12 +505,22 @@ const getSingleLearnerReport = async ({ input }, context) => {
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
-            if (filterInput.title) {
+            if (filterInput?.title) {
                 matchStage.push({
                     $match: {
                         "trainingInfo.title.value": {
                             $regex: filterInput.title,
                             $options: 'i'
+                        }
+                    },
+                });
+            }
+
+            if (filterInput?.courseIds?.length > 0) {
+                matchStage.push({
+                    $match: {
+                        "training": {
+                            $in: Array.isArray(filterInput?.courseIds) ? filterInput?.courseIds : [filterInput?.courseIds],
                         }
                     },
                 });
@@ -922,7 +932,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         Enrollment_Date: item.createdAt,
                         Completion_Date: item.completionDate || "Not Applicable",
                         totalTimeSpent: item.totalTimeSpent || 0,
-                        LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A',
+                        LastSeen: item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'Not Applicable',
                     });
                 });
             }
@@ -1619,11 +1629,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
-                                    Designation: designation,
                                     'User Id': learner?.empId || 'Not Applicable',
-                                    'Course Name': courseName,
+                                    Designation: designation,
                                     'Current Vessel': currentVessel,
                                     'Vessel Type': vesselType,
+                                    'Course Name': courseName,
                                     'Course Status': status,
                                     'Admin Marked As Completed': isAdminMarkedAsCompleted,
                                     'Course Enrollment Date & Time (UTC) ': enrollmentDate,
@@ -3332,7 +3342,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             const designation = course?.designation || '';
                             const firstName = course?.firstName || '';
                             const lastName = course?.lastName || '';
-                            const status = course?.status || 'N/A';
+                            const status = course?.status || 'Not Applicable';
                             const courseName = course?.trainingTitle[0].value;
                             const adminMarkedAsCompleted = course?.adminMarkedAsCompleted ? 'Yes' : 'No';
                             const enrollmentDate = course?.createdAt ? ReportsHelper.formatDate(course.createdAt) : "Not Applicable";
@@ -3346,7 +3356,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             course.modules.forEach(module => {
                                 const moduleName = module.moduleName[0]?.value || '';
                                 const hasQuiz = module.hasQuiz || false;
-                                const quizScore = hasQuiz ? (module.percentage || 'N/A') : 'N/A';
+                                const quizScore = hasQuiz ? (module.percentage || 'Not Applicable') : 'Not Applicable';
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
@@ -5238,7 +5248,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                     $match: {
                         $or: [
                             {
-                                $and: [
+                                $or: [
                                     {
                                         "usersInfo.firstName": {
                                             $regex: `.*${searchTerms[0]}.*`,
@@ -5246,10 +5256,20 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                                         }
                                     },
                                     {
-                                        "usersInfo.lastName": {
-                                            $regex: `.*${searchTerms[1] || ""}.*`,
-                                            $options: "i"
-                                        }
+                                        $and: [
+                                            {
+                                                "usersInfo.firstName": {
+                                                    $regex: `.*${searchTerms[0]}.*`,
+                                                    $options: "i"
+                                                }
+                                            },
+                                            {
+                                                "usersInfo.lastName": {
+                                                    $regex: `.*${searchTerms[1] || ""}.*`,
+                                                    $options: "i"
+                                                }
+                                            }
+                                        ]
                                     }
                                 ]
                             },
