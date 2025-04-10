@@ -47,6 +47,9 @@ const certificateLayout = new Schema(
             default : null
         }, 
         version : Number,
+        signature :{
+            url : String,
+        },
     },
     { timestamps: true }
 );
