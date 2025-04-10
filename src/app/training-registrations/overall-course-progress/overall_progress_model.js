@@ -95,6 +95,7 @@ const overallProgressSchema = new Schema(
         isEnrolled: Boolean,
         isCertificatePresent: Boolean,
         assignedCertificateLayout : String,
+        assignedCertificateLayoutId : ObjectId,
         certificateExpiry : Number,
         totalDuration: Number,
         timeSpend: Number,
