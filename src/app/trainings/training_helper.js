@@ -1616,7 +1616,7 @@ module.exports = {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${trainingTitle}" training`,
+                        value: `Admin User "${notificationData.createdBy?.firstName ?? ""}" ${notificationData.action} "${trainingTitle ?? ""}" training`,
                     },
                 ];
             }
