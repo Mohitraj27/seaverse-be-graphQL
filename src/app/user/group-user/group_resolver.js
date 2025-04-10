@@ -225,7 +225,7 @@ module.exports.queries = {
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
                 "Last Login Date (UTC)": formatDate(user?.lastLoginAt),
-                "User State": user?.isRegistered ? "Registered" : "Unregistered",
+                "User Status": user?.isRegistered ? "Registered" : "Unregistered",
                 "Designation": user?.designation,
                 "Type Of Vessel": user?.vesselType,
             }));
