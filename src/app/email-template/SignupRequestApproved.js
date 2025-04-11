@@ -25,7 +25,7 @@ function approvalEmailTemplate(data) {
             
           }
           .logo {
-              height: 120px;
+              height: 36px;
           }
           .content {
               padding: 30px;

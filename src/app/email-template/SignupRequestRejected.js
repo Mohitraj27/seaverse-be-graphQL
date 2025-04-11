@@ -24,7 +24,7 @@ function rejectionEmailTemplate(data) {
               padding: 20px;
           }
           .logo {
-              height: 120px;
+              height: 36px;
           }
           .content {
               padding: 30px;
