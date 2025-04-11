@@ -57,8 +57,6 @@ module.exports.queries = {
                 }
               ]);
 
-              console.log(latestLayouts);
-
             if (!certificate) {
                 throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
