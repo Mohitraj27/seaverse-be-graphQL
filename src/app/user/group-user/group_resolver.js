@@ -869,8 +869,6 @@ module.exports.mutations = {
 
             if (input.members && input.members.length > 0) {
                 const uniqueInputMembers = [...new Set(input.members)];
-                console.log('uniqueInputMembers')
-                console.log(uniqueInputMembers)
                 let existingMemberIds = [];
                 let newMembers = [];
                 if (existingGroupMembers && existingGroupMembers.length > 0) {
