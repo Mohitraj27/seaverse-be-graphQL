@@ -155,7 +155,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
-                        
+
                         default:
                             return false;
                     }
@@ -574,21 +574,21 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 }
             }
-        if(plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-               const resultforGroup = await findGroupBasedPublishedLearningPlans(plan,userConditions);
-               if(resultforGroup?.success){
-                   const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
-                       learningPlanId: resultforGroup?.planId, 
-                       assignedLearnerId: userId,
-                       isMannuallyAdded: false,
-                       createdBy: context.user.userId,
-                       updatedBy: context.user.userId
-                   }));
-                   if (assignments?.length) {
-                       await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                   }
-                  usersToEnroll.push(...resultforGroup?.allMatchedUsers);
-               }
+            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+                if (resultforGroup?.success) {
+                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
+                        learningPlanId: resultforGroup?.planId,
+                        assignedLearnerId: userId,
+                        isMannuallyAdded: false,
+                        createdBy: context.user.userId,
+                        updatedBy: context.user.userId
+                    }));
+                    if (assignments?.length) {
+                        await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                    }
+                    usersToEnroll.push(...resultforGroup?.allMatchedUsers);
+                }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
@@ -1239,7 +1239,7 @@ const deleteUsers = async (users, errors) => {
 
 
                         //REMOVED DELETION MAIL
-                        
+
                         // const usersToDelete = getUsers;
                         // insertDeletionRequests(usersToDelete);
 
@@ -1275,19 +1275,38 @@ const softDeleteUsers = async (users, errors) => {
 
     try {
 
-        const getUsers = await User.find({ _id: { $in: users } });
+        const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
+            .populate("subRoles", "name")
+            .lean();
 
-        if (!getUsers || getUsers.length <= 0) {
-            errors.push("User not found");
-            return;
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
         }
 
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: users }, 
+            isDeleted: false
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+           console.log("remainingAdmins",remainingAdmins.length)
+        if (remainingAdmins.length === 1) {
+            console.log("At least one admin must remain in the system.");
+             throw CustomError(ErrorName.FAILED_TO_DELETE_USER, "At least one admin must remain in the system.");
+        }
+
+        
+        
         const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
 
 
             const deletedUsers = getUsers.map(user => {
                 return {
-                    ...user.toObject(),
+                    ...user,
                     isDeleted: true
                 };
             });
@@ -1393,7 +1412,7 @@ const softDeleteUsers = async (users, errors) => {
         return deleteUsers;
 
     } catch (error) {
-        throw Error(error.message);
+        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
 
     }
 
@@ -1801,11 +1820,59 @@ module.exports = {
                         vessel: ObjectId(input?.user?.currentVessel),
                         vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus,
                     });
-/*
+                    /*
+                                        await NotificationHelper.createNotificationhelper({
+                                            subscriber: subscriberId,
+                                            titleValue: `User Vessel Updated Successfully`,
+                                            messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
+                                            notifyAdmin: true,
+                                            affected: [
+                                                {
+                                                    targetRef: "User",
+                                                    target: existingEmployee?.user?._id,
+                                                },
+                                            ],
+                                            icon: notificationiconEnum.SUCCESS,
+                                            createdBy: userInfo,
+                                        });
+                     
+                                        await NotificationHelper.createNotificationhelper({
+                                            subscriber: subscriberId,
+                                            titleValue: `Your Vessel has been Updated`,
+                                            messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
+                                            notifyAdmin: false,
+                                            affected: [
+                                                {
+                                                    targetRef: "User",
+                                                    target: existingEmployee?.user?._id,
+                                                },
+                                            ],
+                                            notifiers: [existingEmployee?.user?._id],
+                                            employeeNotifiers: [existingEmployee?.user?._id],
+                                            icon: notificationiconEnum.SUCCESS,
+                                            createdBy: userInfo,
+                                        });
+                      */
+                }
+
+            }
+
+        }
+        /* 
+                if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
+        
+                    await UserVessel.findOneAndUpdate(
+                        { user: existingEmployee?.user?._id, isActive: true },
+                        { vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus }
+                    )
+        
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `User Vessel Updated Successfully`,
-                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                        titleValue: `User status Updated Successfully`,
+                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
+        
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
                         notifyAdmin: true,
                         affected: [
@@ -1817,11 +1884,11 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
- 
+        
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Your Vessel has been Updated`,
-                        messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                        titleValue: `Your vessel status has been Updated`,
+                        messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
                         notifyAdmin: false,
                         affected: [
@@ -1835,57 +1902,9 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-  */
+        
                 }
-
-            }
-
-        }
-/* 
-        if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
-
-            await UserVessel.findOneAndUpdate(
-                { user: existingEmployee?.user?._id, isActive: true },
-                { vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus }
-            )
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `User status Updated Successfully`,
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
-
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Your vessel status has been Updated`,
-                messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: false,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                notifiers: [existingEmployee?.user?._id],
-                employeeNotifiers: [existingEmployee?.user?._id],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
-        }
- */
+         */
         const updatedUser = await UserHelper.updateUser(
             {
                 id: id,
@@ -2912,7 +2931,7 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */ ) {
+        if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",

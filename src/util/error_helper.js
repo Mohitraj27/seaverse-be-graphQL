@@ -115,6 +115,8 @@ const errorName = {
     FAILED_TO_CREATE_CONTENT_LANGUAGE: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
     FAILED_TO_UPDATE_CONTENT_LANGUAGE: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
     FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
+
 };
 
 const errorType = {
@@ -692,6 +694,11 @@ const errorType = {
         message: 'Failed to fetch content language',
         statusCode: 400,    
         type: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_DELETE_USER: {
+        message: 'Failed to delete admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_USER",
     }
 };
 
