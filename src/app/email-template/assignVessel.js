@@ -92,7 +92,7 @@ function vesselAssignmentEmail(user) {
     `;
 }
 
-function  vesselAssignmentEmailforAdmin(user) {
+function vesselAssignmentEmailforAdmin(user) {
     return `
     <html lang="en">
 <head>
@@ -172,4 +172,4 @@ function  vesselAssignmentEmailforAdmin(user) {
 </html>    
     `;
 }
-module.exports = {vesselAssignmentEmail, vesselAssignmentEmailforAdmin};
+module.exports = { vesselAssignmentEmail, vesselAssignmentEmailforAdmin };

@@ -123,5 +123,5 @@ function DeleteRequestApproved(data) {
       </div>
   </body>
   </html>`;
-  }
-module.exports = { DeleteRequestApproved } ; 
+}
+module.exports = { DeleteRequestApproved }; 

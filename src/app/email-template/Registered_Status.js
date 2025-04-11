@@ -154,7 +154,7 @@ function registered_statusforAdmin({ adminfirstName, userfirstName }) {
     <body>
         <div class="container">
             <div class="header">
-                <img src="https://yourlogo.com/seaverse-logo.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
             </div>
             <div class="content">
                 <h1>User Successfully Registered</h1>

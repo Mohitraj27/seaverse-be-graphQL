@@ -1,4 +1,4 @@
-function forgetPassword(token){
+function forgetPassword(token) {
     return `
      <html lang="en">
 <head>
