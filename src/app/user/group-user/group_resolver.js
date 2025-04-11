@@ -877,8 +877,8 @@ module.exports.mutations = {
                     if (existingMemberIds.length > 0) {
                         excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
                     }
-                    newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 }
+                newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
                     if (memberCount > 0) {
