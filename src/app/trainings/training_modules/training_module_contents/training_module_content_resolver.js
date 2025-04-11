@@ -613,6 +613,7 @@ module.exports.mutations = {
                 });
             }
         }
+/* 
         if (successfullyDeleted.length > 0) {
             for (const content of successfullyDeleted) {
                 await NotificationHelper.createNotificationhelper({
@@ -633,6 +634,7 @@ module.exports.mutations = {
                 });
             }
         }
+*/
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
@@ -961,7 +963,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+/* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Content Created`,
@@ -978,7 +980,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+  */
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -1238,7 +1240,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+/*  
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
@@ -1255,7 +1257,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+  */
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1415,7 +1417,7 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
+/* 
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
@@ -1427,7 +1429,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-
+  */
                 return {
                     success: true,
                     message: "Quiz content updated with a new version.",
@@ -1466,7 +1468,7 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
+/*  
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
@@ -1483,7 +1485,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-
+  */
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",

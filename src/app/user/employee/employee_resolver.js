@@ -1623,6 +1623,7 @@ module.exports.queries = {
                 catch (error) {
                     messages.push(`Unable to send Welcome Email to ${email}`);
                 }
+/* 
                 notifications.push({
                     subscriber: subscriberId,
                     title: [{ lang: "en", value: `Welcome Email Sent` }],
@@ -1646,8 +1647,7 @@ module.exports.queries = {
                     createdBy: userInfo,
                     status: "SENT"
                 });
-
-
+ */
             })
         );
         if (notifications.length > 0) {
@@ -1995,53 +1995,52 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
             }
 
-            const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-            updateUsers = await User.updateMany(
-                { _id: { $in: input.users } },
-                {
-                    $set: { isRegistered: false }
-                }
-            );
-            /* Removed Unregistered User Autoenerollment
-            if(learningPlans?.length > 0){
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
-            }      
-            */
-        }
-        if (updateUsers) {
-            if (updateUsers.nModified > 0) {
-                const users = await User.find({
-                    _id: { $in: input.users },
-                    subscriber: subscriberId,
-                });
-                const notificationsData = users.map((user) => ({
-                    subscriber: subscriberId,
-                    employee: { user },
-                    updatedBy: userInfo,
-                    type: input.type,
-                }));
-                await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-                /* Ticket No SEAV-91
-                for (const user of users) {
-                    const emailContent =
-                        input.type === "Registered"
-                            ? registered_status({ firstName: user.firstName })
-                            : Unregistered_Status({ firstName: user.firstName });
-                    await SendEmail({
-                        receiverEmail: user.email,
-                        subject: `Current Status Update: ${input.type}`,
-                        htmlContent: emailContent,
-                    });
-                }
-                */
-                return { count: updateUsers.nModified, success: true };
-            } else {
-                return { count: updateUsers.nModified, success: false };
+        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+        updateUsers = await User.updateMany(
+            { _id: { $in: input.users } },
+            {
+                $set: { isRegistered: false }
             }
+        );
+        /* Removed Unregistered User Autoenerollment
+        if(learningPlans?.length > 0){
+            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+        }      
+        */
+    }
+    if (updateUsers) {
+        if (updateUsers.nModified > 0) {
+            const users = await User.find({
+                _id: { $in: input.users },
+                subscriber: subscriberId,
+            });
+            const notificationsData = users.map((user) => ({
+                subscriber: subscriberId,
+                employee: { user },
+                updatedBy: userInfo,
+                type: input.type,
+            }));
+            // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+            /* Ticket No SEAV-91
+            for (const user of users) {
+                const emailContent =
+                    input.type === "Registered"
+                        ? registered_status({ firstName: user.firstName })
+                        : Unregistered_Status({ firstName: user.firstName });
+                await SendEmail({
+                    receiverEmail: user.email,
+                    subject: `Current Status Update: ${input.type}`,
+                    htmlContent: emailContent,
+                });
+            }
+            */
+            return { count: updateUsers.nModified, success: true };
         } else {
-            throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+            return { count: updateUsers.nModified, success: false };
         }
-    } catch (error) {
+    } else {
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+    }}catch(error){
         throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
@@ -3465,7 +3464,8 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            value: `"User Export" file is ready:`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,

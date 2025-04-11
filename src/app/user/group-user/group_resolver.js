@@ -253,7 +253,7 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                            value: `"User group Export" file is ready: `,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,

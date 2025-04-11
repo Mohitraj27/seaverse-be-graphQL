@@ -1125,6 +1125,7 @@ module.exports = {
                 );
                 await NotificationHelper.createNotificationhelper(...notifications);
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
+/* 
                 if (userObjectIds.length > 1) {
 
                     await NotificationHelper.createNotificationhelper({
@@ -1159,7 +1160,7 @@ module.exports = {
                     });
 
                 }
-
+*/
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.TRAINING_REGISTRATION_LOG,
