@@ -1133,7 +1133,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
         await updateOverallProgressPercentage(overallDocs, session);
         await calculateTimeSpend(overallIds, session)
     }
-
+    console.log(overallIds, "overallIds");
     const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, subscriberId, session);
 
     return { updatedCount: bulkOps.length };

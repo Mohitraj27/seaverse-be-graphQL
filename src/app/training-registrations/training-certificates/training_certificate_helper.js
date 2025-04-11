@@ -320,18 +320,19 @@ module.exports = {
                 trainingData.map(training => [training._id.toString(), training])
             );
 
-            const trainingProgresses = await TrainingProgress.find({
+            /* const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
             }).session(session);
-
-            if (trainingProgresses.length === 0) {
+            console.log(1); */
+            /* if (trainingProgresses.length === 0) {
+                console.log('fking piece of shit');
                 errors.push("No training progress found");
                 return errors;
             }
 
             const overallCreatedAtMap = new Map(
                 trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
-            );
+            ); */
 
             const certificatesToCreate = [];
 
@@ -342,7 +343,7 @@ module.exports = {
                 if (!training) continue;
 
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
-                const startDate = overallCreatedAtMap.get(overallDoc._id.toString());
+                const startDate = overallDoc?.startDate;
                 const completedAt = CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
                     ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
