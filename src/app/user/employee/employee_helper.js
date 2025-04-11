@@ -1563,6 +1563,9 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
     }
 
     if (row["Vessel Status"]) {
+        if (row["Vessel Status"].toUpperCase() === 'ONBOARD') {
+            row["Vessel Status"] = 'ONBOARDED'
+        }
         const status = row["Vessel Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
