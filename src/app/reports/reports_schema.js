@@ -149,6 +149,7 @@ module.exports = {
             courseStatuses:[String]
             dateRange : filterDateRange
             title :String
+            courseIds : [ID]
         }
         input filterDateRange {
             startDate: String
