@@ -56,11 +56,16 @@ module.exports = {
         disabled: Boolean
         certificateExpiry : Int
         courseProvidedBy : String
-        listOfLayouts:[String]
+        listOfLayouts:[layoutAndIds]
     }
         type CertificateLayoutData {
         success:Boolean
         message:String
+    }
+
+    type layoutAndIds {
+        layout:String
+        _id:ID
     }
 `,
     queries:`
