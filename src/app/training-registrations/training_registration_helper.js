@@ -1407,9 +1407,9 @@ module.exports = {
                         ]
                     }))
                 );
-
+                
                 // Send all notifications in parallel
-                await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
+                /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
 
@@ -1443,8 +1443,7 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
-                }
+                } */
                 return {
                     message: "Course unenrollment successful!",
                 }
