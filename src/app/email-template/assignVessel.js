@@ -83,7 +83,7 @@ function vesselAssignmentEmail(user) {
         </tr>
         <tr>
             <td style="padding: 24px 0; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                Sent by Lynk - Training for all courses.
+                Sent by Seaverse - Training for all courses.
             </td>
         </tr>
     </table>
@@ -164,7 +164,7 @@ function vesselAssignmentEmailforAdmin(user) {
         </tr>
         <tr>
             <td style="padding: 24px 0; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                Sent by Lynk - Training for all courses.
+                Sent by Seaverse - Training for all courses.
             </td>
         </tr>
     </table>

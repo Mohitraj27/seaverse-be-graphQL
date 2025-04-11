@@ -104,7 +104,7 @@ function rejectionEmailTemplate(data) {
           </div>
           
           <div class="footer">
-              Sent by Lynk - Training for all courses.
+              Sent by Seaverse - Training for all courses.
           </div>
       </div>
   </body>

@@ -106,7 +106,7 @@ function signUpVerifyEmailTemplate(data) {
             </div>
         </div>
         <div class="footer">
-            Sent by Lynk - Training for Advanced Navigation Techniques
+            Sent by Seaverse - Training for Advanced Navigation Techniques
         </div>
     </div>
 </body>
