@@ -340,6 +340,9 @@ module.exports.queries = {
                         'user.firstName': 1,
                         'user.lastName': 1,
                         'layoutInfo.layout': 1,
+                        'layoutInfo._id': 1,
+                        'layoutInfo.courseProvidedBy':1,
+                        'layoutInfo.certificateExpiry':1,
                         'layoutInfo.authorName': 1,
                         'layoutInfo.title': 1,
                         'layoutInfo.authoringTitle': 1,
@@ -357,6 +360,7 @@ module.exports.queries = {
                         'issuedAt': 1,
                         'layoutInfo.isFromMigration': 1,
                         'layoutInfo.certificateNumber': 1,
+                        'layoutInfo.signature':1,
                     },
                 },
             ];
