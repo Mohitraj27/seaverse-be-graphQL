@@ -763,7 +763,7 @@ module.exports.mutations = {
 
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
 
-            let existingGroupMembers;
+            let existingGroupMembers = [];
             let existingGroup;
 
             if (input._id) {
@@ -869,10 +869,16 @@ module.exports.mutations = {
 
             if (input.members && input.members.length > 0) {
                 const uniqueInputMembers = [...new Set(input.members)];
-                const inputMembersString = uniqueInputMembers.map(member => member.toString());
-                const existingMemberIds = existingGroupMembers?.map(member => member.toString());
-                const newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
-                excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
+                let existingMemberIds = [];
+                let newMembers = [];
+                if (existingGroupMembers && existingGroupMembers.length > 0) {
+                    existingMemberIds = existingGroupMembers?.map(member => member.toString());
+                    const inputMembersString = uniqueInputMembers.map(member => member.toString());
+                    if (existingMemberIds.length > 0) {
+                        excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
+                    }
+                    newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
+                }
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
                     if (memberCount > 0) {
