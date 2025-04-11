@@ -2347,7 +2347,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
     } catch (error) {
-        throw Error(error);
+        throw CustomError(ErrorName.FAILED,error.message);
     }
 };
 
