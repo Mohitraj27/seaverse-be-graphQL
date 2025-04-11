@@ -36,11 +36,31 @@ module.exports.queries = {
                 .sort({ version: -1, createdAt: -1 }) 
                 .exec();
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
-            console.log(certificate);
+
+            const latestLayouts = await certificateLayout.aggregate([
+                { $match: { training: trainingId, disabled: false } },
+                { $sort: { layout: 1, version: -1 } }, 
+                {
+                  $group: {
+                    _id: '$layout',
+                    layout: { $first: '$layout' },
+                    version: { $first: '$version' },
+                    docId: { $first: '$_id' }
+                  }
+                },
+                {
+                  $project: {
+                    _id: '$docId',
+                    layout: 1,
+                    version: 1,
+                  }
+                }
+              ]);
+
             if (!certificate) {
                 throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
-            certificate.listOfLayouts = listOfLayouts;
+            certificate.listOfLayouts = latestLayouts;
             return certificate;
         } catch (error) {
             console.log(error);
