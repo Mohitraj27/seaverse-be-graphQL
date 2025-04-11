@@ -3,18 +3,22 @@ const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
 const SignupRequest = require("./signup-request-model");
 const mongoose = require("mongoose");
-const  HistorySignupRequest = require('../signup-request-history/signup-request-history-model');
+const HistorySignupRequest = require('../signup-request-history/signup-request-history-model');
 const operationTypeEnum = require('./signup-request-operation.json')
-const DbTransactionHelper = require('../../util/db_transaction_helper'); 
+const DbTransactionHelper = require('../../util/db_transaction_helper');
 const signupStatus = require('./signup-status.json');
 const { User } = require("../user/user_model");
 const { Designation } = require('../designations/designation_model');
-const {Employee} = require('../user/employee/employee_model');
-const {UserVessel} = require('../user/user-vessel-bridge/userVessel_model');
+const { Employee } = require('../user/employee/employee_model');
+const { UserVessel } = require('../user/user-vessel-bridge/userVessel_model');
 const sortingFieldJSONData = require('./sortingField.json')
-const {rejectionEmailTemplate} = require('../email-template/SignupRequestRejected');
-const {approvalEmailTemplate} = require('../email-template/SignupRequestApproved');
+const { rejectionEmailTemplate } = require('../email-template/SignupRequestRejected');
+const { approvalEmailTemplate } = require('../email-template/SignupRequestApproved');
 const aws_helper = require("../../util/aws_helper");
+const { LearningPlan } = require('../learning-plan/learning_plan_model');
+const { Vessel } = require('../vessle/vessel_model');
+const { filterLearningPlans } = require("../user/employee/employee_helper");
+
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -24,27 +28,27 @@ module.exports.queries = {
             const limit = pageInput?.limit || 100;
             const sortingFieldValue = pageInput?.sortingFieldValue || sortingFieldJSONData?.requestDate;
             const sortingOrder = pageInput?.sortingOrder || -1;
-            const pendingStatusCount = await SignupRequest.countDocuments({ 
-                signupStatus: signupStatus.PENDING, 
-                isDeleted: false 
+            const pendingStatusCount = await SignupRequest.countDocuments({
+                signupStatus: signupStatus.PENDING,
+                isDeleted: false
             });
             if (id) {
                 if (typeof id !== 'string' || !mongoose.Types.ObjectId.isValid(id)) {
-                    throw CustomError(ErrorName.INVALID_SIGNUP_REQUEST_ID,'Please pass the correct signup request id');
+                    throw CustomError(ErrorName.INVALID_SIGNUP_REQUEST_ID, 'Please pass the correct signup request id');
                 }
-                
+
                 const item = await SignupRequest.findById(id);
-                
-                if (!item) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND,'Signup request data not found');
-                
+
+                if (!item) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'Signup request data not found');
+
                 return {
                     items: [item],
                     pendingStatusCount
                 };
             }
-            
+
             let query = { isDeleted: false };
-            
+
             if (search) {
                 query = {
                     ...query,
@@ -57,12 +61,12 @@ module.exports.queries = {
             }
             const sortObj = {};
             sortObj[sortingFieldValue] = sortingOrder;
-            
+
             const items = await SignupRequest.find(query)
                 .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
-                
+
             return {
                 items,
                 pendingStatusCount
@@ -76,7 +80,7 @@ module.exports.queries = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const user = await SignupRequest.findOne({ userId: id, isDeleted: false });
-            if (!user) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND,'Signup request data not found');
+            if (!user) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'Signup request data not found');
             return user;
 
         } catch (error) {
@@ -86,7 +90,7 @@ module.exports.queries = {
 };
 
 module.exports.mutations = {
-    processSignupRequestApproval: async ( { input }, context) => {
+    processSignupRequestApproval: async ({ input }, context) => {
         const { subscriberId, userInfo } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -118,24 +122,24 @@ module.exports.mutations = {
                         vesselStatus: vesselStatus || null,
                         currentVessel: vesselName || null
                     }
-                    if(designation) {
+                    if (designation) {
                         const designationRecord = await Designation.findOne({ _id: designation, isDeleted: false });
                         if (!designationRecord) {
                             throw CustomError(ErrorName.INVALID_DESIGNATION, 'Designation not found');
                         }
                         await Employee.findOneAndUpdate(
                             { user: signupRequest?.userId },
-                            { 
-                                $set: { 
+                            {
+                                $set: {
                                     designation: designationRecord?.name,
-                                    empDesignation: designation 
+                                    empDesignation: designation
                                 }
                             },
                             { session, upsert: true }
                         );
                     }
                     await User.updateOne(
-                        {_id: signupRequest?.userId},
+                        { _id: signupRequest?.userId },
                         { $set: updateUser },
                         { session }
                     )
@@ -164,15 +168,36 @@ module.exports.mutations = {
 
                     await SignupRequest.deleteOne({ userId }, { session });
 
-                    const sendmailforApproval =  await aws_helper.sendEmail({
+                    const sendmailforApproval = await aws_helper.sendEmail({
                         receiverEmail: signupRequest?.email,
                         subject: 'Signup request APPROVED',
                         htmlContent: approvalEmailTemplate({
                             firstName: signupRequest?.firstName,
                             loginLink: `${process.env.APP_URL}/login`
-                          })
+                        })
                     });
-                    if(!sendmailforApproval){
+
+                    if (isRegistered) {
+                        
+                        // Conditions for auto enrollment
+                        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('typeOfVessel -_id').lean();
+                        const conditions = [{
+                            designationID: designation,
+                            vesselID: vesselName || "",
+                            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
+                            currentStatus: vesselStatus || "",
+                            email: signupRequest?.email,
+                            _id: signupRequest?.userId
+                        }];
+    
+                        if (learningPlans.length > 0) {
+                            const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                        }
+                        
+                    }
+
+                    if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
                     const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
@@ -182,14 +207,14 @@ module.exports.mutations = {
                     };
 
                 } else if (operationType === operationTypeEnum?.REJECTED) {
-                    
+
                     signupRequest.signupStatus = signupStatus?.REJECTED;
                     await User.deleteOne(
                         { _id: signupRequest?.userId },
                         // { $set: { isDeleted: true , isSignupAdminAprroved: false} },
                         { session }
                     );
-                    
+
                     await Employee.deleteOne(
                         { user: signupRequest?.userId },
                         // { $set: { isDeleted: true } },
@@ -204,17 +229,17 @@ module.exports.mutations = {
                         signupStatus: signupStatus?.REJECTED,
                         country: signupRequest?.country,
                         decisionDate: new Date()
-                    }],{session});
+                    }], { session });
                     await SignupRequest.deleteOne({ userId }, { session });
                     const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
-                    const sendmailforRejection =  await aws_helper.sendEmail({
+                    const sendmailforRejection = await aws_helper.sendEmail({
                         receiverEmail: signupRequest?.email,
                         subject: 'Signup request REJECTED',
                         htmlContent: rejectionEmailTemplate({
                             firstName: signupRequest?.firstName,
                         })
                     });
-                    if(!sendmailforRejection){
+                    if (!sendmailforRejection) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_REJECTION_EMAIL, 'Failed to send rejection email');
                     }
                     return {

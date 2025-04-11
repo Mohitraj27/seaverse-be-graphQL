@@ -110,8 +110,8 @@ function DeleteRequestRejected(data) {
               </p>
               
               <p class="message">
-                  Thanks,<br>
-                   
+                  Thanks<br>
+                  
               </p>
               
               <div class="support-box">

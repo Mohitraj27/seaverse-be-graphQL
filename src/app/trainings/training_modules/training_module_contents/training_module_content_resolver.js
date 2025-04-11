@@ -613,6 +613,7 @@ module.exports.mutations = {
                 });
             }
         }
+/* 
         if (successfullyDeleted.length > 0) {
             for (const content of successfullyDeleted) {
                 await NotificationHelper.createNotificationhelper({
@@ -633,6 +634,7 @@ module.exports.mutations = {
                 });
             }
         }
+*/
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
@@ -642,7 +644,10 @@ module.exports.mutations = {
         };
     },
 
-    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
+    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
+        const videosList = await Promise.all(videos.map(video => video));
+        console.log(videosList.map(video => video.filename), "null", videoMetas, "")
+
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
@@ -674,7 +679,7 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = video ? await video : null;
+            const videoFile = videos ? await videos : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
 
@@ -732,15 +737,18 @@ module.exports.mutations = {
                 contentTypeNotification = 'Thumbnail'
             }
 
-            if (video) {
-                const videoUrl = await UploadHelper.uploadVideo({
-                    data: video,
-                    folderName: `video-content`,
-                    fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentVideo,
-                });
-                input.videos = [{ url: videoUrl }];
-                contentTypeNotification = 'Video';
+            if (videos?.length) {
+                const videoUrls = await Promise.all(videos.map(async (v) => {
+                    const videoUrl = await UploadHelper.uploadVideo({
+                        data: v,
+                        folderName: `video-content`,
+                        fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    });
+                    return videoUrl;
+                }));
+                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault }));
+                contentTypeNotification = 'Videos';
             }
 
             if (audio) {
@@ -833,6 +841,7 @@ module.exports.mutations = {
 
             return savedContent;
         } catch (error) {
+            console.error("Error in createTrainingModuleContent:", error);
             throw Error(error.message);
         }
     },
@@ -954,7 +963,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+/* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Content Created`,
@@ -971,7 +980,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+  */
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -1231,7 +1240,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+/*  
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
@@ -1248,7 +1257,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+  */
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1408,7 +1417,7 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
+/* 
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
@@ -1420,7 +1429,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-
+  */
                 return {
                     success: true,
                     message: "Quiz content updated with a new version.",
@@ -1459,7 +1468,7 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
+/*  
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Training Module Content Updated`,
@@ -1476,7 +1485,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 });
-
+  */
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",

@@ -56,12 +56,7 @@ function moduleResetNotificationEmail(user) {
                                             To get started, Click the button below to access the module.
                                         </td>
                                     </tr>
-                                    <tr>
-                                        <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                            <p>Best Regards,</p>
-                                            <p> </p>
-                                        </td>
-                                    </tr>
+                                  
                                     <tr>
                                         <td>
                                             <a href="${process.env.APP_URL}/login" style="text-decoration: none;">

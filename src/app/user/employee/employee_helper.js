@@ -8,6 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
     dummyPassword,
+
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
 
@@ -60,8 +61,8 @@ const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assi
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
 const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
-
-
+const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const { groupTypes } = require('../../../util');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -154,6 +155,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+
                         default:
                             return false;
                     }
@@ -367,6 +369,106 @@ async function enrollUsers(enrollDataArray) {
 }
 
 
+async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
+    try {
+        if (!plan || !plan.groupIDs || !Array.isArray(plan.groupIDs) || plan.groupIDs.length === 0) {
+            return { success: false, message: "No group IDs found in the plan", matchedUsers: [] };
+        }
+
+        let matchedUserIds = [];
+
+        for (const group of plan.groupIDs) {
+            const groupType = group.groupType;
+            const groupIDsList = group.groupIDs || [];
+
+            if (!groupType || !Array.isArray(groupIDsList) || groupIDsList.length === 0) {
+                console.log(`Skipping invalid group configuration: ${JSON.stringify(group)}`);
+                continue;
+            }
+
+            console.log(`Processing group type: ${groupType}, IDs: ${JSON.stringify(groupIDsList)}`);
+
+            const matchingUsers = userConditions.filter(user => {
+                if (!user) return false;
+
+                let matches = false;
+
+                switch (groupType) {
+                    case groupTypes.designation:
+                        if (user?.designationID) {
+                            matches = groupIDsList.includes(user.designationID.toString());
+                        }
+                        break;
+                    case groupTypes.vessel:
+                        if (user?.vesselID) {
+                            matches = groupIDsList.includes(user.vesselID.toString());
+                        }
+                        break;
+                    case groupTypes.vesselType:
+                        if (user?.vesselTypeID) {
+                            matches = groupIDsList.includes(user.vesselTypeID.toString());
+                        }
+                        break;
+                    case groupTypes.vesselStatus:
+                        if (user?.currentStatus) {
+                            matches = groupIDsList.includes(user.currentStatus);
+                        }
+                        break;
+                }
+
+                if (matches) {
+                    console.log(`User ${user._id} matches ${groupType} criteria`);
+                }
+
+                return matches;
+            });
+
+            if (matchingUsers?.length > 0) {
+                const newMatchedUserIds = matchingUsers.map(user => user._id);
+                matchedUserIds.push(...newMatchedUserIds);
+                console.log(`Found ${newMatchedUserIds.length} matching users for ${groupType}`);
+            }
+        }
+
+        // Remove duplicates (a user might match multiple group criteria)
+        const uniqueMatchedUserIds = [...new Set(matchedUserIds)];
+
+        console.log(`Total unique matched users: ${uniqueMatchedUserIds.length}`);
+
+        // Check for existing assignments to avoid duplicates
+        const existingAssignments = await LearningPlanAssignment.find({
+            learningPlanId: plan._id,
+            assignedLearnerId: { $in: uniqueMatchedUserIds },
+            isDeleted: { $ne: true }
+        }, { assignedLearnerId: 1 });
+
+        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment =>
+            assignment.assignedLearnerId.toString()));
+        // Filter out users that are already assigned
+        const newUserIds = uniqueMatchedUserIds.filter(userId =>
+            !alreadyAssignedUserIds.has(userId.toString())
+        );
+
+        console.log(`Users to be newly assigned: ${newUserIds.length}`);
+
+        return {
+            success: true,
+            planId: plan._id,
+            allMatchedUsers: uniqueMatchedUserIds,
+            newUsersToAssign: newUserIds,
+            existingAssignedUsers: existingAssignments.length
+        };
+
+    } catch (error) {
+        return {
+            success: false,
+            message: error.message,
+            error: error
+        };
+    }
+};
+
+
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
     if (!Array.isArray(learningPlans)) {
@@ -470,6 +572,76 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                         assignedLearnerId: { $in: usersToRemove }
                     });
 
+                }
+            }
+            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+                if (resultforGroup?.success) {
+                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
+                        learningPlanId: resultforGroup?.planId,
+                        assignedLearnerId: userId,
+                        isMannuallyAdded: false,
+                        createdBy: context.user.userId,
+                        updatedBy: context.user.userId
+                    }));
+                    if (assignments?.length) {
+                        await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                    }
+                    usersToEnroll.push(...resultforGroup?.allMatchedUsers);
+                }
+            } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                const validUsers = userConditions.filter(user =>
+                    evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                );
+                const validUserIds = new Set(validUsers.map(user => user._id));
+                const usersToRemove = userConditions
+                    .filter(user => !validUserIds.has(user._id))
+                    .map(user => user._id);
+
+                const userIds = validUsers.map(user => user._id);
+
+                if (validUsers?.length > 0) {
+
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: userIds },
+                        isDeleted: { $ne: true }
+                    }, { assignedLearnerId: 1 });
+
+                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                    const newAssignments = userIds
+                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                        .map(userId => ({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: userId,
+                            isMannuallyAdded: false,
+                            createdBy: context.user.userId,
+                            updatedBy: context.user.userId,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }));
+
+                    if (newAssignments.length > 0) {
+                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                        console.log('data enrolled ', dataEnrolled);
+                    }
+                    usersToEnroll.push(...userIds);
+                }
+                if (usersToRemove.length > 0) {
+                    await OverallTrainingProgress.updateMany(
+                        {
+                            learningPlan: plan._id,
+                            user: { $in: usersToRemove }
+                        },
+                        {
+                            $pull: { learningPlan: plan._id }
+                        }
+                    );
+                    const deleteResult = await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove }
+                    });
                 }
             }
             if (usersToEnroll.length > 0) {
@@ -1065,10 +1237,13 @@ const deleteUsers = async (users, errors) => {
 
                     if (updateGroupMember) {
 
-                        const usersToDelete = getUsers;
-                        insertDeletionRequests(usersToDelete);
 
-                        const result = await sendDeletionEmailBulk();
+                        //REMOVED DELETION MAIL
+
+                        // const usersToDelete = getUsers;
+                        // insertDeletionRequests(usersToDelete);
+
+                        // const result = await sendDeletionEmailBulk();
 
                         return deleteUsers;
                     }
@@ -1100,19 +1275,38 @@ const softDeleteUsers = async (users, errors) => {
 
     try {
 
-        const getUsers = await User.find({ _id: { $in: users } });
+        const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
+            .populate("subRoles", "name")
+            .lean();
 
-        if (!getUsers || getUsers.length <= 0) {
-            errors.push("User not found");
-            return;
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
         }
 
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: users }, 
+            isDeleted: false
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+           console.log("remainingAdmins",remainingAdmins.length)
+        if (remainingAdmins.length === 1) {
+            console.log("At least one admin must remain in the system.");
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+        }
+
+        
+        
         const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
 
 
             const deletedUsers = getUsers.map(user => {
                 return {
-                    ...user.toObject(),
+                    ...user,
                     isDeleted: true
                 };
             });
@@ -1218,7 +1412,7 @@ const softDeleteUsers = async (users, errors) => {
         return deleteUsers;
 
     } catch (error) {
-        throw Error(error.message);
+        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
 
     }
 
@@ -1325,7 +1519,7 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
 
     const errors = [];
 
@@ -1587,6 +1781,7 @@ module.exports = {
     removeGroupMember,
     sendNotificationOnBULKOutsideChildProcess,
     filterLearningPlans,
+    enrollUsers,
     // moveExpiredDeletedUsers,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
@@ -1625,11 +1820,59 @@ module.exports = {
                         vessel: ObjectId(input?.user?.currentVessel),
                         vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus,
                     });
+                    /*
+                                        await NotificationHelper.createNotificationhelper({
+                                            subscriber: subscriberId,
+                                            titleValue: `User Vessel Updated Successfully`,
+                                            messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
+                                            notifyAdmin: true,
+                                            affected: [
+                                                {
+                                                    targetRef: "User",
+                                                    target: existingEmployee?.user?._id,
+                                                },
+                                            ],
+                                            icon: notificationiconEnum.SUCCESS,
+                                            createdBy: userInfo,
+                                        });
+                     
+                                        await NotificationHelper.createNotificationhelper({
+                                            subscriber: subscriberId,
+                                            titleValue: `Your Vessel has been Updated`,
+                                            messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
+                                            notifyAdmin: false,
+                                            affected: [
+                                                {
+                                                    targetRef: "User",
+                                                    target: existingEmployee?.user?._id,
+                                                },
+                                            ],
+                                            notifiers: [existingEmployee?.user?._id],
+                                            employeeNotifiers: [existingEmployee?.user?._id],
+                                            icon: notificationiconEnum.SUCCESS,
+                                            createdBy: userInfo,
+                                        });
+                      */
+                }
 
+            }
+
+        }
+        /* 
+                if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
+        
+                    await UserVessel.findOneAndUpdate(
+                        { user: existingEmployee?.user?._id, isActive: true },
+                        { vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus }
+                    )
+        
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `User Vessel Updated Successfully`,
-                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                        titleValue: `User status Updated Successfully`,
+                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
+        
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
                         notifyAdmin: true,
                         affected: [
@@ -1641,11 +1884,11 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
+        
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Your Vessel has been Updated`,
-                        messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                        titleValue: `Your vessel status has been Updated`,
+                        messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
                         notifyAdmin: false,
                         affected: [
@@ -1659,57 +1902,9 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
+        
                 }
-
-            }
-
-        }
-
-        if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
-
-            await UserVessel.findOneAndUpdate(
-                { user: existingEmployee?.user?._id, isActive: true },
-                { vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus }
-            )
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `User status Updated Successfully`,
-                messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
-
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Your vessel status has been Updated`,
-                messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
-                notificationType: NotificationType.USER_VESSEL_UPDATE,
-                notifyAdmin: false,
-                affected: [
-                    {
-                        targetRef: "User",
-                        target: existingEmployee?.user?._id,
-                    },
-                ],
-                notifiers: [existingEmployee?.user?._id],
-                employeeNotifiers: [existingEmployee?.user?._id],
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
-        }
-
+         */
         const updatedUser = await UserHelper.updateUser(
             {
                 id: id,
@@ -1750,7 +1945,6 @@ module.exports = {
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
         }];
-
         const result = await filterLearningPlans(learningPlans, conditions, context, session);
         return savedEmployee;
 
@@ -2737,14 +2931,15 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
+        if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */) {
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
                 createdBy: adminUser?._id,
                 uploadedBy: adminUser?._id,
                 isError: false,
-                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
@@ -2770,9 +2965,9 @@ module.exports = {
 
         try {
 
-            const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
-            const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
-            const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
+            // const fetchAdmin = await User.findOne({ superAdmin: { $ne: false } }).populate("currentVessel");
+            // const fetchAdminEmployee = await Employee.findOne({ user: fetchAdmin._id }).populate("empDesignation");
+            // const fetchAdminDesignation = fetchAdminEmployee?.empDesignation?.name;
             await new Promise((resolve, reject) => {
                 const stream = createReadStream();
                 const parser = csvParse({ columns: true, trim: true });
@@ -2793,7 +2988,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, fetchAdmin, fetchAdminDesignation }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
@@ -2802,16 +2997,13 @@ module.exports = {
 
                     } else {
                         let formatedData;
-                        if (row["User ID*"] !== fetchAdmin.civilIdOrPassport && row["Email*"] !== fetchAdmin.email) {
 
-                            if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
-                                return;
-                            }
-
-                            formatedData = mapCSVRowToUser(row);
-                            users.push(formatedData);
-
+                        if (Object.values(row).every(value => value === '' || value === null || value === undefined)) {
+                            return;
                         }
+
+                        formatedData = mapCSVRowToUser(row);
+                        users.push(formatedData);
                     }
 
                 });

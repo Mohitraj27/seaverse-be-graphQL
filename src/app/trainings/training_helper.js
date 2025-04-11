@@ -236,7 +236,80 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
-        const trainingData = await Training.find({ _id: { $in: trainingIds } }).select('_id isCertificate currentCertificateLayout').session(session).lean();
+        const trainingData = await Training.aggregate([
+            {
+                $match: {
+                    _id: {
+                        $in: trainingIds
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: "certificatelayouts",
+
+                    localField: "_id",
+
+                    foreignField: "training",
+
+                    as: "certificateLayouts",
+
+                    let: {
+                        currentCertificateLayout:
+                            "$$ROOT.currentCertificateLayout"
+                    },
+                    pipeline: [
+                        {
+                            $project :{
+                                _id :1,
+                                layout :1,
+                                certificateExpiry :1,
+                            }
+                        },
+                        {
+                            $match: {
+
+                                $expr: {
+                                    $eq: [
+                                        "$layout",
+                                        "$$currentCertificateLayout"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $project :{
+                                _id :1,
+                                certificateExpiry:1,
+                            }
+                        },
+                        {
+                            $sort: {
+                                updatedAt: -1
+                            }
+                        },
+                        {
+                            $limit: 1
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: {
+                    path: "$certificateLayouts",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    isCertificate: 1,
+                    currentCertificateLayout: 1,
+                    layoutId: "$certificateLayouts._id",
+                    certificateValidity : "$certificateLayouts.certificateExpiry",
+                }
+            }
+        ]);
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -307,7 +380,9 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 contentData, startDate: new Date(),
                                 totalTrainingModules: contentData?.length,
                                 isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
-                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout
+                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout,
+                                certificateExpiry : trainingDataById[doc.training.toString()]?.certificateValidity,
+                                assignedCertificateLayoutId : trainingDataById[doc.training.toString()]?.layoutId,
                             }
                         },
                     },
@@ -1197,10 +1272,16 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
                     if (question.questionType === "FILL_IN_THE_BLANK" && !isAnswerNumber) {
 
                         const threshold = 2;
-                        isCorrectAnswer = question.answerKey.some(correctAnswer => {
-                            const distance = levenshtein.get(correctAnswer.toLowerCase(), userAnswer.answer[0].toLowerCase());
-                            return distance <= threshold;
-                        });
+
+                        if (userAnswer.answer.length !== question.answerKey.length) {
+                            isCorrectAnswer = false;
+                        } else {
+                            isCorrectAnswer = userAnswer.answer.every((userAns, index) => {
+                                const correctAnswer = question.answerKey[index];
+                                const distance = levenshtein.get(correctAnswer.toLowerCase(), userAns.toLowerCase());
+                                return distance <= threshold;
+                            });
+                        }
 
                         if (isCorrectAnswer) {
                             acquiredScore += question.points;
@@ -1541,7 +1622,7 @@ module.exports = {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${trainingTitle}" training`,
+                        value: `Admin User "${notificationData.createdBy?.firstName ?? ""}" ${notificationData.action} "${trainingTitle ?? ""}" training`,
                     },
                 ];
             }

@@ -58,8 +58,8 @@ function vesselAssignmentEmail(user) {
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks,</p>
-                                        <p> </p>
+                                        <p>Thanks</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -153,7 +153,7 @@ function  vesselAssignmentEmailforAdmin(user) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p> </p>
+                                        <p></p>
                                     </td>
                                 </tr>
                             </table>

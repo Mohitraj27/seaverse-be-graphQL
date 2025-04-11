@@ -110,8 +110,8 @@ function approvalEmailTemplate(data) {
               </p>
               
               <p class="message">
-                  Thanks,<br>
-                   
+                  Thanks<br>
+                  
               </p>
               
               <div class="button-container">

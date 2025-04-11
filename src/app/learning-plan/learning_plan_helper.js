@@ -412,6 +412,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 createdBy: existingLearningPlan.createdBy,
                 updatedBy: existingLearningPlan.updatedBy,
             }));
+
+            await OverallTrainingProgress.updateMany(
+                { user: { $in: learnersToAssign }, isDeleted: { $ne: true }, training: { $in: existingLearningPlan?.selectCourses } },
+                {
+                    $addToSet: { learningPlan: existingLearningPlan._id }
+                }
+            );
+
             await LearningPlanAssignment.insertMany(learningPlanAssignments);
         }
 
@@ -1135,7 +1143,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                                 $filter: {
                                     input: "$users",
                                     as: "user",
-                                    cond: { $eq: ["$$user.userDetails.isRegistered", true] }
+                                    cond: { $eq: ["$$user.userDetails.isDeleted", false] }
                                 }
                             },
                             as: "user",

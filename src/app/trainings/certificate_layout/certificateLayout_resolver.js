@@ -31,13 +31,36 @@ module.exports.queries = {
 
 
             const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
-            const certificate = await certificateLayout.findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false }).exec();
+            const certificate = await certificateLayout
+                .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
+                .sort({ version: -1, createdAt: -1 }) 
+                .exec();
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
+
+            const latestLayouts = await certificateLayout.aggregate([
+                { $match: { training: trainingId, disabled: false } },
+                { $sort: { layout: 1, version: -1 } }, 
+                {
+                  $group: {
+                    _id: '$layout',
+                    layout: { $first: '$layout' },
+                    version: { $first: '$version' },
+                    docId: { $first: '$_id' }
+                  }
+                },
+                {
+                  $project: {
+                    _id: '$docId',
+                    layout: 1,
+                    version: 1,
+                  }
+                }
+              ]);
 
             if (!certificate) {
                 throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
-            certificate.listOfLayouts = listOfLayouts;
+            certificate.listOfLayouts = latestLayouts;
             return certificate;
         } catch (error) {
             console.log(error);
@@ -63,10 +86,10 @@ module.exports.queries = {
 };
 module.exports.mutations = {
     createOrUpdateCertificateLayout: async (
-        { input, logoImage1, logoImage2, logoImage3 },
+        { input, logoImage1, logoImage2, logoImage3, signatureImage },
         context
     ) => {
-        try {
+         try {
             const { role, userId, userPermissions, subscriberId, isOrganizationManager } =
                 AuthUser(context);
             if (
@@ -93,6 +116,8 @@ module.exports.mutations = {
                 title,
                 authoringTitle,
                 certificateReference,
+                courseProvidedBy,
+                certificateExpiry,
                 logos,
                 additionalData,
                 disabled
@@ -142,11 +167,12 @@ module.exports.mutations = {
                         "Certificate layout not found for the provided ID"
                     );
                 }
+
                 logosInput = existingLayout.logos || [];
             }
 
             const selectedTraining = await Training.findById(training).select("currentCertificateLayout").exec();
-            if (selectedTraining.length === 0) {
+            if (!selectedTraining||selectedTraining?.length === 0) {
                 throw CustomError(
                     ErrorName.VALIDATION_ERROR,
                     "Training not found for the provided ID"
@@ -181,11 +207,12 @@ module.exports.mutations = {
                 }
                 logoKeys.push(logo);
             }
+
             if (logoImage3) {
                 const logo = await UploadHelper.uploadImage({
                     data: logoImage3,
                     folderName: `certificate-layout`,
-                    fileName: `certificate-layout-logo3_${Date.now()}`,
+                    fileName: `certificate-layout-logo${Date.now()}`,
                     uploadType: UploadHelper.uploadType.certificateLogo,
                 });
                 if (logosInput[2]) {
@@ -194,6 +221,18 @@ module.exports.mutations = {
                     logosInput[2] = { url: logo };
                 }
                 logoKeys.push(logo);
+            }
+
+            // Handle signature upload separately
+            let signatureUrl = null;
+            if (signatureImage) {
+                console.log("Uploading Signature Image");
+                signatureUrl = await UploadHelper.uploadImage({
+                    data: signatureImage,
+                    folderName: `certificate-layout`,
+                    fileName: `certificate-layout-signature_${Date.now()}`,
+                    uploadType: UploadHelper.uploadType.certificateLogo,
+                });
             }
 
             if (!title) {
@@ -207,18 +246,32 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
             }
 
+            let usersAssosciatedToLayout =[];
             if (id) {
+                //if there are no users in ['IN_PROGRESS', 'COMPLETED'] states we dont have to store the data
+                usersAssosciatedToLayout = await OverallTrainingProgress.find({
+                    assignedCertificateLayoutId: id,
+                    status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
+                }).lean();
+            }
+
+            if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
                 existingLayout.layout = layout;
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
                 existingLayout.title = title;
                 existingLayout.authoringTitle = authoringTitle;
                 existingLayout.certificateReference = certificateReference;
+                existingLayout.courseProvidedBy = courseProvidedBy;
+                existingLayout.certificateExpiry = certificateExpiry;
                 existingLayout.logos = logosInput;
                 existingLayout.additionalData = additionalData;
+                existingLayout.signature = signatureUrl ? { url : signatureUrl} : null; // Save signature as a separate field
+                existingLayout.version = (existingLayout?.version ?? 0) + 1;
 
                 if (layout) {
                     selectedTraining.currentCertificateLayout = layout;
+                    selectedTraining.certificateValidity = certificateExpiry ?? null;
                     await selectedTraining.save();
                 }
 
@@ -227,15 +280,20 @@ module.exports.mutations = {
                     success: true,
                     message: "Certificate layout updated successfully.",
                     logos: logosInput,
+                    signature: { url : signatureUrl}, 
                 };
-            } else {
+            } else if(((usersAssosciatedToLayout?.length > 0) && id) || ((!(usersAssosciatedToLayout?.length > 0)) && (!id))) { //If there are users connected with the existing layout OR if the admin wants to create a new layout
+                let action = 'created';
+                let version = 0;
 
                 const oldCertificateLayout = await certificateLayout.findOne({
                     training: ObjectId(training),
                     layout: layout,
                 });
-                if (oldCertificateLayout) {
-                    throw CustomError(ErrorName.FAILED, "A layout already exists for this training");
+
+                if ((usersAssosciatedToLayout?.length > 0) && id) {
+                    action = 'updated';
+                    version =(oldCertificateLayout?.version ?? 0)+1;
                 }
                 const newCertificateLayout = new certificateLayout({
                     layout,
@@ -246,6 +304,10 @@ module.exports.mutations = {
                     certificateReference,
                     logos: logosInput,
                     additionalData,
+                    certificateExpiry,
+                    courseProvidedBy,
+                    signature:  signatureUrl ? { url : signatureUrl} : null, // Save signature as a separate field
+                    version,
                 });
                 await newCertificateLayout.save();
                 const updateTraining = await Training.findByIdAndUpdate(
@@ -253,7 +315,8 @@ module.exports.mutations = {
                     {
                         $set: {
                             isCertificate: true,
-                            currentCertificateLayout: layout
+                            currentCertificateLayout: layout,
+                            certificateValidity: certificateExpiry,
                         }
                     }
                 );
@@ -264,11 +327,12 @@ module.exports.mutations = {
                         { $set: { isCertificatePresent: true } }
                     );
                 }
-
+                console.log("Signature Url: ",signatureUrl);
                 return {
                     success: true,
-                    message: "Certificate layout created successfully.",
+                    message: `Certificate layout ${action} successfully.`,
                     logos: logosInput,
+                    signature: signatureUrl, // Return signature URL as part of response
                 };
             }
         } catch (error) {

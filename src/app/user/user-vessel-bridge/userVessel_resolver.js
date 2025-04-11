@@ -135,8 +135,8 @@ module.exports.mutations = {
                     userName: getUser.firstName,
                 })
                     */
+/*  
                 if (getVessel) {
-
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `New Vessel Assigned: ${getVessel?.name}`,
@@ -147,8 +147,8 @@ module.exports.mutations = {
                         icon: notificationEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
                 }
+  */
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
                 const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
                 let typeOfVessel;

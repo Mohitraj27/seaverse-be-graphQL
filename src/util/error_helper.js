@@ -110,6 +110,14 @@ const errorName = {
     FAILED_TO_SEND_REJECTION_EMAIL: "FAILED_TO_SEND_REJECTION_EMAIL",
     DELETE_REQUEST_PENDING:"DELETE_REQUEST_PENDING",
     FAILED_TO_FETCH_DESIGNATIONS:"FAILED_TO_FETCH_DESIGNATIONS",
+    FAILED_TO_CHANGE_REGISTER_STATUS: "FAILED_TO_CHANGE_REGISTER_STATUS",
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
+    FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
+
 };
 
 const errorType = {
@@ -662,6 +670,41 @@ const errorType = {
         message: 'Failed to fetch designations',
         statusCode: 400,
         type: "FAILED_TO_FETCH_DESIGNATIONS"
+    },
+    FAILED_TO_CHANGE_REGISTER_STATUS:{
+        message: 'Failed to change register status',
+        statusCode: 400,
+        type: "FAILED_TO_CHANGE_REGISTER_STATUS"
+    },
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: {
+        message: 'Failed to unenroll from learning plan',
+        statusCode: 400,    
+        type: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    },
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: {
+        message: 'Failed to create content language',
+        statusCode: 400,    
+        type: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: {
+        message: 'Failed to update content language',
+        statusCode: 400,    
+        type: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: {
+        message: 'Failed to fetch content language',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_DELETE_USER: {
+        message: 'Failed to delete admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_USER",
+    },
+    FAILED_TO_DELETE_LAST_ADMIN: {
+        message: 'Failed to delete last admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_LAST_ADMIN",
     }
 };
 

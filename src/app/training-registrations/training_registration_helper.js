@@ -84,9 +84,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     vesselTypeIds.push(groupId);
                     break;
                 case groupTypes.owner:
-                    if(Array.isArray(groupId)){
+                    if (Array.isArray(groupId)) {
                         ownernameIds.push(...groupId);
-                    }else {
+                    } else {
                         ownernameIds.push(groupId);
                     }
                     break;
@@ -148,22 +148,22 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
             vesselTypeQuery = Promise.resolve([]);
         }
         let ownernameQuery;
-        if(ownernameIds?.length > 0){
-        
-         ownernameQuery = ownernameIds?.length > 0 ? Vessel.find({ ownerName: { $in: ownernameIds } }, { _id: 1 }) // Fetch vessel IDs
-            .then(vessels => {
-                const vesselIds = vessels.map(v => v._id);
-                return Vessel.find({ 
-                    $or: [
-                        { ownerName: { $in: ownernameIds } }, // Match by ownerName
-                        { vesselId: { $in: vesselIds } } // Match by vesselId
-                    ],
-                    isDeleted: { $ne: true } 
-                });
-            }) : Promise.resolve([]);
-        } else{
-             ownernameQuery = Promise.resolve([]);
-        }    
+        if (ownernameIds?.length > 0) {
+
+            ownernameQuery = ownernameIds?.length > 0 ? Vessel.find({ ownerName: { $in: ownernameIds } }, { _id: 1 }) // Fetch vessel IDs
+                .then(vessels => {
+                    const vesselIds = vessels.map(v => v._id);
+                    return Vessel.find({
+                        $or: [
+                            { ownerName: { $in: ownernameIds } }, // Match by ownerName
+                            { vesselId: { $in: vesselIds } } // Match by vesselId
+                        ],
+                        isDeleted: { $ne: true }
+                    });
+                }) : Promise.resolve([]);
+        } else {
+            ownernameQuery = Promise.resolve([]);
+        }
 
         const [
             designationUsersIds,
@@ -208,7 +208,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const ownerIds = ownernameUsersIds.map(user => user._id);
 
 
-        if (ownerIds.length > 0){
+        if (ownerIds.length > 0) {
             ownernameUsers = await User.find({ currentVessel: { $in: ownerIds }, isDeleted: { $ne: true } });
         }
 
@@ -584,7 +584,7 @@ const getAutoSyncUsersOfSingleGroup = async (group) => {
 }
 
 const getCustomGroupUsers = (async (groups) => {
-
+    console.log('this is the groups',groups);
     if (groups.length <= 0) {
         return [];
     }
@@ -1125,6 +1125,7 @@ module.exports = {
                 );
                 await NotificationHelper.createNotificationhelper(...notifications);
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
+/* 
                 if (userObjectIds.length > 1) {
 
                     await NotificationHelper.createNotificationhelper({
@@ -1159,7 +1160,7 @@ module.exports = {
                     });
 
                 }
-
+*/
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.TRAINING_REGISTRATION_LOG,
@@ -1254,13 +1255,22 @@ module.exports = {
                             {
                                 $set: {
                                     isEnrolled: false,
+                                    directEnrollment: false,
+                                }
+                            },
+                            { session }
+                        );
+
+                        const resetUsers = await OverallTrainingProgress.updateMany(
+                            { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) }, status: { $ne: 'COMPLETED' } },
+                            {
+                                $set: {
                                     contentData: [],
                                     progressPercentage: 0.00,
                                     lastConsumedContent: {},
                                     startDate: null,
                                     endDate: null,
                                     unenrollmentDate: new Date(),
-                                    directEnrollment: false,
                                     status: 'NOT_STARTED',
                                     attemptCount: 1,
                                     timeSpend: 0,
@@ -1273,7 +1283,8 @@ module.exports = {
 
                         const unenrolledUsers = await OverallTrainingProgress.find({
                             user: { $in: userObjectIds },
-                            training: { $in: existingOverallProgresses.map(t => t.training) }
+                            training: { $in: existingOverallProgresses.map(t => t.training) },
+                            status: { $ne: 'COMPLETED' }
                         }).session(session);
 
                         const unenrolledUserIds = unenrolledUsers.map(user => user._id);
@@ -1396,9 +1407,9 @@ module.exports = {
                         ]
                     }))
                 );
-
+                
                 // Send all notifications in parallel
-                await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
+                /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
 
@@ -1432,8 +1443,7 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
-                }
+                } */
                 return {
                     message: "Course unenrollment successful!",
                 }

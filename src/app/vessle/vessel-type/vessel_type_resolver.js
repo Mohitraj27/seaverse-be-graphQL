@@ -14,7 +14,7 @@ module.exports.queries = {
             const { subscriberId } = AuthUser(context);
 
             const skip = pageInput?.skip ?? 0;
-            const limit = pageInput?.limit ?? 50;
+            const limit = pageInput?.limit ?? 5000000;
 
             let filterConditions = { subscriber: subscriberId, isDeleted: { $ne: true } };
 

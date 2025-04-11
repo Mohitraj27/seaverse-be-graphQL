@@ -48,6 +48,7 @@ const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
+const { generateUniqueCertificateId } = require("./training-certificates/training_certificate_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -154,16 +155,21 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
+                    email: '$userInfo.email',
+                    isRegistered: '$userInfo.isRegistered',
                     directEnrollment: '$directEnrollment',
                     adminMarkedAsCompleted: '$adminMarkedAsCompleted'
                 }
             }
         ]);
+        
         const formattedResults = results.map(user => ({
             id: user.id,
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
+            email: user.email,
+            isRegistered: user.isRegistered,
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
@@ -1787,7 +1793,7 @@ module.exports.mutations = {
                             ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
                             : undefined;
 
-                        const certificateNumber = await generateSVCertificateId();
+                        const certificateNumber = await generateUniqueCertificateId();
                         const userName = `${overallTrainingProgress.user?.firstName ?? ""} ${overallTrainingProgress.user?.lastName ?? ""}`;
 
                         const certificateData = {
