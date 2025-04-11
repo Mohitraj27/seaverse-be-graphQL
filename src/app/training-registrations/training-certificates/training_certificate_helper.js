@@ -320,19 +320,23 @@ module.exports = {
                 trainingData.map(training => [training._id.toString(), training])
             );
 
-            /* const trainingProgresses = await TrainingProgress.find({
+            /* 
+            
+            //removed because it was not throwning instead of generating certificates when the course ends with ppt or pdf
+            //hope this was used for getting the startDate
+            const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
-            }).session(session);
-            console.log(1); */
-            /* if (trainingProgresses.length === 0) {
-                console.log('fking piece of shit');
+            }).session(session); 
+
+            if (trainingProgresses.length === 0) {
                 errors.push("No training progress found");
                 return errors;
             }
 
             const overallCreatedAtMap = new Map(
                 trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
-            ); */
+            ); 
+            */
 
             const certificatesToCreate = [];
 
