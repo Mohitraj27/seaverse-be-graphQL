@@ -1,5 +1,5 @@
 function signUpVerifyEmailTemplate(data) {
-return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -90,7 +90,7 @@ return `<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="logo-container">
-            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo">
+            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
         </div>
         <div class="content">
             <div class="message">

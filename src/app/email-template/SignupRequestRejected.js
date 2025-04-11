@@ -78,7 +78,7 @@ function rejectionEmailTemplate(data) {
   </head>
   <body>
       <div class="logo-container">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Screenshot+2025-03-29+221025-Photoroom.png" alt="Seaverse Logo" class="logo">
+              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" class="logo">
           </div>
       <div class="container">
           
@@ -109,6 +109,6 @@ function rejectionEmailTemplate(data) {
       </div>
   </body>
   </html>`;
-  }
-  
-  module.exports = { rejectionEmailTemplate };
+}
+
+module.exports = { rejectionEmailTemplate };
