@@ -236,6 +236,7 @@ module.exports.mutations = {
             }
 
             if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
+                existingLayout.layout = layout;
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
                 existingLayout.title = title;
