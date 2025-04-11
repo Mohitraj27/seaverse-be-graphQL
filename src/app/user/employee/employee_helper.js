@@ -1296,7 +1296,7 @@ const softDeleteUsers = async (users, errors) => {
            console.log("remainingAdmins",remainingAdmins.length)
         if (remainingAdmins.length === 1) {
             console.log("At least one admin must remain in the system.");
-             throw CustomError(ErrorName.FAILED_TO_DELETE_USER, "At least one admin must remain in the system.");
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
 
         

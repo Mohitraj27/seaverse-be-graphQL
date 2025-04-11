@@ -116,6 +116,7 @@ const errorName = {
     FAILED_TO_UPDATE_CONTENT_LANGUAGE: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
     FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
     FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
+    FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
 
 };
 
@@ -699,6 +700,11 @@ const errorType = {
         message: 'Failed to delete admin',
         statusCode: 400,    
         type: "FAILED_TO_DELETE_USER",
+    },
+    FAILED_TO_DELETE_LAST_ADMIN: {
+        message: 'Failed to delete last admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_LAST_ADMIN",
     }
 };
 
