@@ -293,7 +293,7 @@ module.exports.queries = {
         const { subscriberId } = AuthUser(context);
         try {
             const skip = pageInput?.skip ?? 0;
-            const limit = pageInput?.limit ?? 20000;
+            const limit = pageInput?.limit ?? 200000;
 
             let filterConditions = {
                 subscriber: subscriberId,
