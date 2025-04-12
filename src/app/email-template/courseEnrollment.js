@@ -140,7 +140,6 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
   
       </html>
     `;
-  }
+}
 
-  module.exports = courseEnrollment;
-  
+module.exports = courseEnrollment;
