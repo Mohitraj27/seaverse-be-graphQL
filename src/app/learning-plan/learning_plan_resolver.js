@@ -45,7 +45,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan ${result.learningPlan.title} has been successfully created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Learning plan ${result?.learningPlan?.title ?? ""} has been created by  ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAdmin: true,
                 affected: [
@@ -110,8 +110,8 @@ module.exports.mutations = {
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Learning Plan Status Updated to ${newStatus}`,
-                        messageValue: `Learning plan ${plan.title} status has been successfully updated to ${newStatus} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        titleValue: `Learning Plan Status Updated to ${newStatus.toLowerCase()}`,
+                        messageValue: `Learning plan ${plan.title} status changed to ${newStatus.toLowerCase()} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAdmin: true,
                         affected: [
@@ -177,7 +177,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan ${learningPlan.title ?? ""} has been successfully deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Learning plan ${learningPlan.title ?? ""} has been deleted by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAdmin: true,
                 affected: [
@@ -211,6 +211,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
             }
             const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
+            const learningPlanName = updatedLearningPlan?.title ?? "";
             if (!updatedLearningPlan) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
             }
@@ -242,7 +243,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan has been successfully updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Learning plan ${learningPlanName ?? ""} has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAdmin: true,
                 affected: [

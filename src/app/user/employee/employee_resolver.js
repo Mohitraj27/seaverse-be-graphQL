@@ -132,7 +132,7 @@ async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operat
                             }
                         );
                     }
-                //  usersToEnroll.push(...userIdsToSend);
+                    //  usersToEnroll.push(...userIdsToSend);
                 }
             }
 
@@ -1623,31 +1623,31 @@ module.exports.queries = {
                 catch (error) {
                     messages.push(`Unable to send Welcome Email to ${email}`);
                 }
-                notifications.push({
-                    subscriber: subscriberId,
-                    title: [{ lang: "en", value: `Welcome Email Sent` }],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        },
-                    ],
-                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    employeeNotifiers: [],
-                    affected: [
-                        {
-                            targetRef: "User",
-                            target: currentUserData._id,
-                        },
-                    ],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    status: "SENT"
-                });
-
-
+                /* 
+                                notifications.push({
+                                    subscriber: subscriberId,
+                                    title: [{ lang: "en", value: `Welcome Email Sent` }],
+                                    message: [
+                                        {
+                                            lang: "en",
+                                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                        },
+                                    ],
+                                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                                    notifyAdmin: true,
+                                    notifiers: [],
+                                    employeeNotifiers: [],
+                                    affected: [
+                                        {
+                                            targetRef: "User",
+                                            target: currentUserData._id,
+                                        },
+                                    ],
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                    status: "SENT"
+                                });
+                 */
             })
         );
         if (notifications.length > 0) {
@@ -2020,7 +2020,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     updatedBy: userInfo,
                     type: input.type,
                 }));
-                await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+                // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
                 /* Ticket No SEAV-91
                 for (const user of users) {
                     const emailContent =
@@ -2196,8 +2196,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
     try {
 
 
-        const getUsers = await User.find({ _id: { $in: input.users } });
-
+        const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
+        console.log('getUsers',getUsers);
         if (!getUsers) {
             throw CustomError(ErrorName.USER_NOT_FOUND);
         }
@@ -2278,6 +2278,28 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
         if (input.type === "APPROVE") {
+            
+                    if (!getUsers || getUsers.length === 0) {
+                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    }
+            
+                    const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+            
+                    const adminsNotBeingDeleted = await User.find({
+                        _id: { $nin: input?.users }, 
+                        isDeleted: false
+                    })
+                        .populate("subRoles", "name")
+                        .lean();
+            
+                    const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+                       console.log("remainingAdmins",remainingAdmins.length)
+                    if (remainingAdmins.length === 1) {
+                        console.log("At least one admin must remain in the system.");
+                        throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+                    }
+            
+                    
 
             const userHistoryData = getUsers.map(user => ({
                 firstName: user?.firstName,
@@ -2325,7 +2347,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
     } catch (error) {
-        throw Error(error);
+        throw CustomError(ErrorName.FAILED,error.message);
     }
 };
 
@@ -3465,7 +3487,8 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            value: `"User Export" file is ready:`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,

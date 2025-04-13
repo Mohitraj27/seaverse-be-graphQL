@@ -131,5 +131,5 @@ function approvalEmailTemplate(data) {
       </div>
   </body>
   </html>`;
-  }
-module.exports = { approvalEmailTemplate} ; 
+}
+module.exports = { approvalEmailTemplate }; 

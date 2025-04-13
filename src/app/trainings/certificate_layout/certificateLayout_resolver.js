@@ -35,12 +35,36 @@ module.exports.queries = {
                 .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
                 .sort({ version: -1, createdAt: -1 }) 
                 .exec();
+
+            if(!certificate){
+                return { listOfLayouts : [] }
+            }
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
-            console.log(certificate);
+
+            const latestLayouts = await certificateLayout.aggregate([
+                { $match: { training: trainingId, disabled: false } },
+                { $sort: { layout: 1, version: -1 } }, 
+                {
+                  $group: {
+                    _id: '$layout',
+                    layout: { $first: '$layout' },
+                    version: { $first: '$version' },
+                    docId: { $first: '$_id' }
+                  }
+                },
+                {
+                  $project: {
+                    _id: '$docId',
+                    layout: 1,
+                    version: 1,
+                  }
+                }
+              ]);
+
             if (!certificate) {
                 throw CustomError(ErrorName.FAILED, `Certificate layout ${layout ?? ""} not found for this training ID`);
             }
-            certificate.listOfLayouts = listOfLayouts;
+            certificate.listOfLayouts = latestLayouts;
             return certificate;
         } catch (error) {
             console.log(error);
@@ -206,7 +230,6 @@ module.exports.mutations = {
             // Handle signature upload separately
             let signatureUrl = null;
             if (signatureImage) {
-                console.log("Uploading Signature Image");
                 signatureUrl = await UploadHelper.uploadImage({
                     data: signatureImage,
                     folderName: `certificate-layout`,
@@ -236,6 +259,7 @@ module.exports.mutations = {
             }
 
             if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
+                existingLayout.layout = layout;
                 existingLayout.training = training;
                 existingLayout.authorName = authorName;
                 existingLayout.title = title;

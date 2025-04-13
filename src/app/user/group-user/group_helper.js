@@ -506,48 +506,63 @@ module.exports = {
     getAutoSyncedGroupsOnly: async subscriberId => {
         const groupType = "Autosyncedgroups";
 
-        const empDesignationGroups = await Employee.aggregate([
+        const empDesignationGroups = await Designation.aggregate([
             {
                 $match: {
-                    isDeleted: { $ne: true },
-                    empDesignation: { $ne: null },
-                },
+                    isDeleted: { $ne: true }
+                }
             },
             {
                 $lookup: {
-                    from: "designations",
-                    localField: "empDesignation",
-                    foreignField: "_id",
-                    as: "designationDetails",
-                },
+                    from: "employees",
+                    localField: "_id",
+                    foreignField: "empDesignation",
+                    as: "employees"
+                }
             },
             {
-                $unwind: "$designationDetails",
+                $addFields: {
+                    employees: {
+                        $filter: {
+                            input: "$employees",
+                            as: "employee",
+                            cond: { $ne: ["$$employee.isDeleted", true] }
+                        }
+                    }
+                }
             },
             {
                 $lookup: {
                     from: "users",
-                    localField: "user",
+                    localField: "employees.user",
                     foreignField: "_id",
-                    as: "userDetails",
-                },
+                    as: "userDetails"
+                }
             },
             {
-                $unwind: "$userDetails",
+                $addFields: {
+                    userDetails: {
+                        $filter: {
+                            input: "$userDetails",
+                            as: "user",
+                            cond: {
+                                $and: [
+                                    { $ne: ["$$user.firstName", null] },
+                                    { $ne: ["$$user.email", null] }
+                                ]
+                            }
+                        }
+                    }
+                }
             },
             {
-                $match: {
-                    "userDetails.firstName": { $ne: null },
-                    "userDetails.email": { $ne: null },
-                },
-            },
-            {
-                $group: {
-                    _id: "$empDesignation",
-                    groupName: { $first: { $concat: ["All ", "$designationDetails.name"] } },
-                    members: { $push: "$userDetails._id" },
-                    designationName: { $first: "$designationDetails.name" },
-                },
+                $project: {
+                    _id: 1,
+                    name: 1,
+                    groupName: { $concat: ["All ", "$name"] },
+                    members: "$userDetails._id",
+                    designationName: "$name"
+                }
             },
             {
                 $addFields: {
@@ -557,10 +572,10 @@ module.exports = {
                         $concat: [
                             "All the members in =",
                             "$designationName",
-                            "= group which is based on designation.",
-                        ],
-                    },
-                },
+                            "= group which is based on designation."
+                        ]
+                    }
+                }
             },
             {
                 $project: {
@@ -568,131 +583,121 @@ module.exports = {
                     groupName: 1,
                     memberCount: 1,
                     groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
+                    description: 1
+                }
+            }
         ]);
 
-        const roleGroups = await User.aggregate([
-            {
-                $match: {
-                    isDeleted: { $ne: true },
-                    firstName: { $ne: null },
-                    email: { $ne: null },
-                    // superAdmin: false
-                },
-            },
-            {
-                $lookup: {
-                    from: "subroles",
-                    localField: "subRoles",
-                    foreignField: "_id",
-                    as: "subroleDetails",
-                },
-            },
-            {
-                $addFields: {
-                    effectiveRole: {
-                        $cond: [
-                            {
-                                $in: [
-                                    "ADMIN",
+        const allRoles = ["ADMIN", "LEARNER"]; 
+
+        const roleGroups = await Promise.all(
+            allRoles.map(async (role) => {
+                const usersWithRole = await User.aggregate([
+                    {
+                        $match: {
+                            isDeleted: { $ne: true },
+                            firstName: { $ne: null },
+                            email: { $ne: null },
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "subroles",
+                            localField: "subRoles",
+                            foreignField: "_id",
+                            as: "subroleDetails",
+                        }
+                    },
+                    {
+                        $addFields: {
+                            effectiveRole: {
+                                $cond: [
                                     {
-                                        $map: {
-                                            input: "$subroleDetails",
-                                            as: "subrole",
-                                            in: "$$subrole.name",
-                                        },
+                                        $in: [
+                                            "ADMIN",
+                                            {
+                                                $map: {
+                                                    input: "$subroleDetails",
+                                                    as: "subrole",
+                                                    in: "$$subrole.name",
+                                                },
+                                            },
+                                        ],
                                     },
+                                    "ADMIN",
+                                    "$role",
                                 ],
                             },
-                            "ADMIN",
-                            "$role",
-                        ],
+                        }
                     },
-                },
-            },
-            {
-                $group: {
-                    _id: "$effectiveRole",
-                    groupName: { $first: { $concat: ["All ", "$effectiveRole"] } },
-                    members: {
-                        $addToSet: {
-                            _id: "$_id",
-                            firstName: "$firstName",
-                            lastName: "$lastName",
-                            email: "$email",
-                        },
+                    {
+                        $match: {
+                            effectiveRole: role
+                        }
                     },
-                    roleName: { $first: "$effectiveRole" },
-                },
-            },
-            {
-                $addFields: {
-                    memberCount: { $size: "$members" },
-                    groupType: "role",
-                    description: {
-                        $concat: [
-                            "All the members in =",
-                            "$roleName",
-                            "= group which is based on role.",
-                        ],
-                    },
-                },
-            },
-            {
-                $project: {
-                    _id: 1,
-                    groupName: 1,
-                    memberCount: 1,
-                    groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
-        ]);
+                    {
+                        $project: {
+                            _id: 1,
+                            firstName: 1,
+                            lastName: 1,
+                            email: 1,
+                        }
+                    }
+                ]);
 
-        const vesselGroups = await User.aggregate([
+                return {
+                    _id: role,
+                    groupName: `All ${role}`,
+                    memberCount: usersWithRole.length,
+                    groupType: "role",
+                    description: `All the members in =${role}= group which is based on role.`
+                };
+            })
+        );
+
+        const vesselGroups = await Vessel.aggregate([
             {
                 $match: {
                     isDeleted: false,
-                    currentVessel: { $ne: null },
-                },
+                }
             },
             {
                 $lookup: {
-                    from: "vessels",
-                    localField: "currentVessel",
-                    foreignField: "_id",
-                    as: "vesselDetails",
-                },
+                    from: "users",
+                    localField: "_id",
+                    foreignField: "currentVessel",
+                    as: "members"
+                }
             },
             {
-                $unwind: "$vesselDetails",
-            },
-            {
-                $group: {
-                    _id: "$currentVessel",
-                    groupName: { $first: "$vesselDetails.name" },
+                $addFields: {
                     members: {
-                        $push: {
-                            _id: "$_id",
-                            firstName: "$firstName",
-                            lastName: "$lastName",
-                            email: "$email",
-                            vesselStatus: "$vesselStatus",
-                        },
-                    },
-                },
+                        $filter: {
+                            input: "$members",
+                            as: "member",
+                            cond: { $eq: ["$$member.isDeleted", false] }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    groupName: "$name",
+                    members: {
+                        $map: {
+                            input: "$members",
+                            as: "member",
+                            in: {
+                                _id: "$$member._id",
+                                firstName: "$$member.firstName",
+                                lastName: "$$member.lastName",
+                                email: "$$member.email",
+                                vesselStatus: "$$member.vesselStatus"
+                            }
+                        }
+                    }
+                }
             },
             {
                 $addFields: {
@@ -702,10 +707,10 @@ module.exports = {
                         $concat: [
                             "All the members in =",
                             "$groupName",
-                            "= group which is based on vessel.",
-                        ],
-                    },
-                },
+                            "= group which is based on vessel."
+                        ]
+                    }
+                }
             },
             {
                 $project: {
@@ -713,237 +718,193 @@ module.exports = {
                     groupName: 1,
                     memberCount: 1,
                     groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
+                    description: 1
+                }
+            }
         ]);
 
-        const vesselStatusGroups = await User.aggregate([
-            {
-                $match: {
-                    isDeleted: false,
-                    vesselStatus: { $ne: null },
-                    firstName: { $ne: null },
-                    email: { $ne: null },
-                },
-            },
-            {
-                $group: {
-                    _id: "$vesselStatus",
-                    groupName: { $first: "$vesselStatus" },
-                    members: {
-                        $push: {
-                            _id: "$_id",
-                            firstName: "$firstName",
-                            lastName: "$lastName",
-                            email: "$email",
-                        },
+
+        const allVesselStatuses = ["ONBOARDED", "ONSHORE", "ASSIGNED"]; // ARSHID WILL CEHCK THIS STATUS IT SHOULD MATCH WITH BULK IMPORT 
+
+
+        const vesselStatusGroups = await Promise.all(
+            allVesselStatuses.map(async (status) => {
+
+                const usersWithStatus = await User.aggregate([
+                    {
+                        $match: {
+                            isDeleted: false,
+                            vesselStatus: status,
+                            firstName: { $ne: null },
+                            email: { $ne: null },
+                        }
                     },
-                },
-            },
-            {
-                $addFields: {
-                    memberCount: { $size: "$members" },
+                    {
+                        $project: {
+                            _id: 1,
+                            firstName: 1,
+                            lastName: 1,
+                            email: 1
+                        }
+                    }
+                ]);
+                return {
+                    _id: status,
+                    groupName: status,
+                    memberCount: usersWithStatus.length,
                     groupType: "vesselStatus",
-                    description: {
-                        $concat: [
-                            "All the members in =",
-                            "$groupName",
-                            "= group based on vessel status.",
-                        ],
-                    },
-                },
-            },
-            {
-                $project: {
-                    _id: 1,
-                    groupName: 1,
-                    memberCount: 1,
-                    groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
-        ]);
+                    description: `All the members in =${status}= group based on vessel status.`
+                };
+            })
+        );
 
-        const vesselTypeGroups = await UserVessel.aggregate([
+        const vesselTypeGroups = await VesselType.aggregate([
             {
                 $match: {
-                    isActive: true,
-                },
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "userDetails",
-                    pipeline: [
-                        {
-                            $match: {
-                                isDeleted: { $ne: true },
-                                firstName: { $ne: null },
-                                email: { $ne: null },
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $unwind: "$userDetails",
+                    isDeleted: { $ne: true }
+                }
             },
             {
                 $lookup: {
                     from: "vessels",
-                    localField: "vessel",
-                    foreignField: "_id",
-                    as: "vesselDetails",
-                },
-            },
-            {
-                $unwind: "$vesselDetails",
+                    localField: "_id",
+                    foreignField: "typeOfVessel",
+                    as: "vessels"
+                }
             },
             {
                 $lookup: {
-                    from: "vesseltypes",
-                    localField: "vesselDetails.typeOfVessel",
-                    foreignField: "_id",
-                    as: "vesselTypeDetails",
-                },
+                    from: "uservessels",
+                    let: { vesselIds: "$vessels._id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $in: ["$vessel", "$$vesselIds"] },
+                                        { $eq: ["$isActive", true] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "userVessels"
+                }
             },
             {
-                $unwind: "$vesselTypeDetails",
-            },
-            {
-                $group: {
-                    _id: "$vesselDetails.typeOfVessel",
-                    groupName: { $first: "$vesselTypeDetails.name" },
-                    members: {
-                        $push: {
-                            _id: "$userDetails._id",
-                            firstName: "$userDetails.firstName",
-                            lastName: "$userDetails.lastName",
-                            email: "$userDetails.email",
+                // Look up users linked to these user vessels
+                $lookup: {
+                    from: "users",
+                    let: { userIds: "$userVessels.user" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $in: ["$_id", "$$userIds"] },
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null }
+                            }
                         },
-                    },
-                },
+                        {
+                            $project: {
+                                _id: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                email: 1
+                            }
+                        }
+                    ],
+                    as: "members"
+                }
             },
             {
-                $addFields: {
+                // Create the final group projection
+                $project: {
+                    _id: "$_id",
+                    groupName: "$name",
                     memberCount: { $size: "$members" },
                     groupType: "vesselType",
                     description: {
-                        $concat: ["All the =", "$groupName", "= members based on vessel type."],
-                    },
-                },
-            },
-            {
-                $project: {
-                    _id: 1,
-                    groupName: 1,
-                    memberCount: 1,
-                    groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
+                        $concat: ["All the =", "$name", "= members based on vessel type."]
+                    }
+                }
+            }
         ]);
-        const ownerGroups = await UserVessel.aggregate([
+
+        console.log(vesselGroups, "vesselGroups")
+
+
+        const ownerGroups = await Vessel.aggregate([
             {
+                
                 $match: {
-                    isActive: true,
-                },
+                    ownerName: { $ne: null }
+                }
+            },
+            {
+                $group: {
+                    _id: "$ownerName",
+                    groupName: { $first: "$ownerName" },
+                    vesselIds: { $push: "$_id" }
+                }
             },
             {
                 $lookup: {
-                    from: "vessels",
-                    localField: "vessel",
-                    foreignField: "_id",
-                    as: "vesselDetails",
-                },
-            },
-            {
-                $unwind: "$vesselDetails",
+                    from: "uservessels",
+                    let: { vesselIds: "$vesselIds" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $in: ["$vessel", "$$vesselIds"] },
+                                        { $eq: ["$isActive", true] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "userVessels"
+                }
             },
             {
                 $lookup: {
                     from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "userDetails",
+                    let: { userIds: "$userVessels.user" },
                     pipeline: [
                         {
                             $match: {
+                                $expr: { $in: ["$_id", "$$userIds"] },
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
-                                email: { $ne: null },
-                            },
+                                email: { $ne: null }
+                            }
                         },
+                        {
+                            $project: {
+                                _id: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                email: 1
+                            }
+                        }
                     ],
-                },
-            },
-            {
-                $unwind: "$userDetails",
-            },
-            {
-                $group: {
-                    _id: "$vesselDetails.ownerName",
-                    groupName: { $first: "$vesselDetails.ownerName" },
-                    members: {
-                        $push: {
-                            _id: "$userDetails._id",
-                            firstName: "$userDetails.firstName",
-                            lastName: "$userDetails.lastName",
-                            email: "$userDetails.email",
-                        },
-                    },
-                },
-            },
-              // Exclude groups where _id or groupName is null
-            {
-                $match: {
-                    _id: { $ne: null },
-                    groupName: { $ne: null },
-                },
-            },
-            {
-                $addFields: {
-                    memberCount: { $size: "$members" },
-                    groupType: "owner",
-                    description: {
-                        $concat: ["All the members in =", "$groupName", "= group which is based on owner name."],
-                    },
-                },
+                    as: "members"
+                }
             },
             {
                 $project: {
-                    _id: 1,
-                    groupName: 1,
-                    memberCount: 1,
-                    groupType: 1,
-                    description: 1,
-                },
-            },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
+                    _id: "$_id",
+                    groupName: "$groupName",
+                    memberCount: { $size: "$members" },
+                    groupType: "owner",
+                    description: {
+                        $concat: ["All the members in =", "$groupName", "= group which is based on owner name."]
+                    }
+                }
+            }
         ]);
-        
+
         let allGroups = [];
         if (
             empDesignationGroups ||
@@ -1030,11 +991,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const roleGroups = await User.aggregate([
@@ -1107,11 +1068,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const registeredUserGroups = await User.aggregate([
@@ -1147,11 +1108,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const unregisteredUserGroups = await User.aggregate([
@@ -1187,11 +1148,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const subRoleGroups = await User.aggregate([
@@ -1245,11 +1206,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const vesselGroups = await UserVessel.aggregate([
@@ -1308,11 +1269,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const vesselStatusGroups = await UserVessel.aggregate([
@@ -1359,11 +1320,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
 
         const vesselTypeGroups = await UserVessel.aggregate([
@@ -1428,11 +1389,11 @@ module.exports = {
                     },
                 },
             },
-            {
-                $match: {
-                    members: { $ne: [] },
-                },
-            },
+            // {
+            //     $match: {
+            //         members: { $ne: [] },
+            //     },
+            // },
         ]);
         const ownerGroups = await UserVessel.aggregate([
             {
@@ -1509,11 +1470,11 @@ module.exports = {
                     members: 1,
                 },
             },
-            {
-                $match: {
-                    memberCount: { $gt: 0 },
-                },
-            },
+            // {
+            //     $match: {
+            //         memberCount: { $gt: 0 },
+            //     },
+            // },
         ]);
         let allGroups = [];
         if (
@@ -1531,16 +1492,17 @@ module.exports = {
                 ...ownerGroups,
             ];
         }
-        
+
         return allGroups;
     },
     getAutoSyncUsersOfSingleGroup: async (group) => {
         const groupArray = [{ groupType: group?.groupType, groupId: group?.groupId }];
         const autoSyncedUsers = await fetchUserFromAutoSyncedGroups(groupArray);
-        if (autoSyncedUsers && autoSyncedUsers.length > 0) {
+        if (autoSyncedUsers && autoSyncedUsers.length < 0) {
+            console.log('auto', autoSyncedUsers);
             return autoSyncedUsers;
         } else {
-            return [];
+            return autoSyncedUsers;
         }
     }
 };
