@@ -3494,8 +3494,9 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
+                    notifiers: [userId],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -3510,6 +3511,7 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 };
                 // notifications.push(successNotification);
+                console.log(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,

@@ -260,9 +260,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `A New Vessel: ${vessel.name} has been created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Vessel: ${vessel.name} has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,

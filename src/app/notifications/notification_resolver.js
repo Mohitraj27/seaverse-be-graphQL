@@ -194,19 +194,18 @@ module.exports.queries = {
             }).lean();
 
             if (context.platform === Role.ADMIN) {
-
-                filterConditions.$and = [
+                filterConditions.$or = [
                     {
-                        $or: [
+                        $and: [
                             { isNotificatonForAdmin: true },
-                            { notifyAllAdmin: true },
+                            { notifiers: {$in : [userId]} },
                         ]   
                     },
-                    { notifiers: {$in : [userId]} },
+                    { notifyAllAdmin: true },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
-                    filterConditions.$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                    filterConditions.$or[0].$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
                 }
 
                 const pipeline = [{ $match: filterConditions }];
@@ -215,14 +214,14 @@ module.exports.queries = {
 
             } else if (context.platform === Role.ADMIN && checkIfAdmin) {
 
-                filterConditions.$and = [
+                filterConditions.$or = [
                     {
-                        $or: [
+                        $and: [
                             { isNotificatonForAdmin: true },
-                            { notifyAllAdmin: true },
+                            { notifiers: {$in : [userId]} },
                         ]   
                     },
-                    { notifiers: {$in : [userId]} },
+                    { notifyAllAdmin: true },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
@@ -252,6 +251,7 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
+            console.log(error);
             throw CustomError(GET_NOTIFICATION_FAILED, error.message);
         }
     },
