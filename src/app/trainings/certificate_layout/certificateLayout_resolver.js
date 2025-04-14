@@ -259,17 +259,17 @@ module.exports.mutations = {
             }
 
             if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
-                existingLayout.layout = layout;
-                existingLayout.training = training;
-                existingLayout.authorName = authorName;
-                existingLayout.title = title;
-                existingLayout.authoringTitle = authoringTitle;
-                existingLayout.certificateReference = certificateReference;
-                existingLayout.courseProvidedBy = courseProvidedBy;
-                existingLayout.certificateExpiry = certificateExpiry;
-                existingLayout.logos = logosInput;
-                existingLayout.additionalData = additionalData;
-                existingLayout.signature = signatureUrl ? { url : signatureUrl} : null; // Save signature as a separate field
+                if (layout !== undefined) existingLayout.layout = layout;
+                if (training !== undefined) existingLayout.training = training;
+                if (authorName !== undefined) existingLayout.authorName = authorName;
+                if (title !== undefined) existingLayout.title = title;
+                if (authoringTitle !== undefined) existingLayout.authoringTitle = authoringTitle;
+                if (certificateReference !== undefined) existingLayout.certificateReference = certificateReference;
+                if (courseProvidedBy !== undefined) existingLayout.courseProvidedBy = courseProvidedBy;
+                if (certificateExpiry !== undefined) existingLayout.certificateExpiry = certificateExpiry;
+                if (logosInput !== undefined) existingLayout.logos = logosInput;
+                if (additionalData !== undefined) existingLayout.additionalData = additionalData;
+                if (signatureUrl !== undefined) existingLayout.signature = signatureUrl ? { url: signatureUrl } : null;                
                 existingLayout.version = (existingLayout?.version ?? 0) + 1;
 
                 if (layout) {
@@ -289,27 +289,32 @@ module.exports.mutations = {
                 let action = 'created';
                 let version = 0;
 
-                const oldCertificateLayout = await certificateLayout.findOne({
+                const oldCertificateLayout = await certificateLayout.find({
                     training: ObjectId(training),
                     layout: layout,
-                });
+                }).sort({ version: -1 }).limit(1);                
 
                 if ((usersAssosciatedToLayout?.length > 0) && id) {
                     action = 'updated';
                     version =(oldCertificateLayout?.version ?? 0)+1;
                 }
+                // if we have new input values for the layout to be updated we will change only that , preserving the old values 
                 const newCertificateLayout = new certificateLayout({
-                    layout,
-                    training,
-                    authorName,
-                    title,
-                    authoringTitle,
-                    certificateReference,
-                    logos: logosInput,
-                    additionalData,
-                    certificateExpiry,
-                    courseProvidedBy,
-                    signature:  signatureUrl ? { url : signatureUrl} : null, // Save signature as a separate field
+                    layout: layout ?? oldCertificateLayout?.layout,
+                    training: training ?? oldCertificateLayout?.training,
+                    authorName: authorName ?? oldCertificateLayout?.authorName,
+                    title: title ?? oldCertificateLayout?.title,
+                    authoringTitle: authoringTitle ?? oldCertificateLayout?.authoringTitle,
+                    certificateReference: certificateReference ?? oldCertificateLayout?.certificateReference,
+                    logos: logosInput.length > 0 ? logosInput : oldCertificateLayout?.logos ?? [],
+                    additionalData: additionalData ?? oldCertificateLayout?.additionalData,
+                    certificateExpiry: certificateExpiry ?? oldCertificateLayout?.certificateExpiry,
+                    courseProvidedBy: courseProvidedBy ?? oldCertificateLayout?.courseProvidedBy,
+                    signature: signatureUrl
+                        ? { url: signatureUrl }
+                        : oldCertificateLayout?.signature
+                            ? { url: oldCertificateLayout.signature.url }
+                            : null,
                     version,
                 });
                 await newCertificateLayout.save();
