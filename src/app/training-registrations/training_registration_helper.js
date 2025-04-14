@@ -584,7 +584,6 @@ const getAutoSyncUsersOfSingleGroup = async (group) => {
 }
 
 const getCustomGroupUsers = (async (groups) => {
-    console.log('this is the groups', groups);
     if (groups.length <= 0) {
         return [];
     }
