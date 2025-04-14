@@ -151,8 +151,8 @@ module.exports = GqlHelper(`
         isDefault: Boolean
     }
     input LocalisedDataInput {
-        lang: Language!
-        value: String!
+        lang: String
+        value: String
     }
     input MultiMediaInfoInput {
         _id: ID

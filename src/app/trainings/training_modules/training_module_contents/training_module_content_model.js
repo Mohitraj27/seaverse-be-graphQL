@@ -26,7 +26,7 @@ const trainingModuleContentSchema = new Schema(
         },
         title: {
             type: [LocalisedDataSchema],
-            required: true,
+            // required: true,
         },
         description: {
             type: [LocalisedDataSchema],
@@ -51,6 +51,12 @@ const trainingModuleContentSchema = new Schema(
                 isDefault: {
                     type: Boolean,
                     default: false,
+                },
+                title: {
+                    type: String,
+                },
+                description: {
+                    type: String,
                 },
                 
             },

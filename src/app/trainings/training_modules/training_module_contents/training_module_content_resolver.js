@@ -613,28 +613,28 @@ module.exports.mutations = {
                 });
             }
         }
-/* 
-        if (successfullyDeleted.length > 0) {
-            for (const content of successfullyDeleted) {
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Deleted`,
-                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
-                    notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: content._id,
-                        },
-                    ],
-                    status: 'SENT',
-                    icon: notificationiconEnum.WARNING,
-                    createdBy: userId,
-                });
-            }
-        }
-*/
+        /* 
+                if (successfullyDeleted.length > 0) {
+                    for (const content of successfullyDeleted) {
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Training Module Content Deleted`,
+                            messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
+                            notifyAdmin: true,
+                            affected: [
+                                {
+                                    targetRef: "TrainingModuleContent",
+                                    target: content._id,
+                                },
+                            ],
+                            status: 'SENT',
+                            icon: notificationiconEnum.WARNING,
+                            createdBy: userId,
+                        });
+                    }
+                }
+        */
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
@@ -645,13 +645,14 @@ module.exports.mutations = {
     },
 
     createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
+        console.log("input", input, videoMetas, "videoMetas", videos, "videos");
         const videosList = await Promise.all(videos.map(video => video));
         console.log(videosList.map(video => video.filename), "null", videoMetas, "")
 
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
-            if (input.title) {
+            if (!videos && input.title) {
                 const titleValues = input.title.map(x => x.value.trim());
                 if (titleValues.some(x => x === "")) {
                     throw CustomError(ErrorName.INVALID_TITLE, "Name of the content cannot be empty!");
@@ -747,7 +748,7 @@ module.exports.mutations = {
                     });
                     return videoUrl;
                 }));
-                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault }));
+                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault, title: videoMetas[i]?.title, description: videoMetas[i]?.description }));
                 contentTypeNotification = 'Videos';
             }
 
@@ -838,11 +839,11 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+            
             return savedContent;
         } catch (error) {
             console.error("Error in createTrainingModuleContent:", error);
-            throw Error(error.message);
+            throw CustomError(ErrorName.FAILED,error.message);
         }
     },
 
@@ -963,32 +964,35 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-/* 
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `New Content Created`,
-                messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: savedContent._id,
-                    },
-                ],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-  */
+            /* 
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `New Content Created`,
+                            messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
+                            notifyAdmin: true,
+                            affected: [
+                                {
+                                    targetRef: "TrainingModuleContent",
+                                    target: savedContent._id,
+                                },
+                            ],
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                        });
+              */
             return savedContent;
         } catch (error) {
             throw Error(error.message);
         }
     },
 
-    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
+    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
+        console.log("input", input, videoMetas, "videoMetas", videos, "videos");
+
+        return
         try {
             const alreadyContentExist = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
@@ -1017,7 +1021,7 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = video ? await video : null;
+            const videoFile = videos ? await videos : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
 
@@ -1119,7 +1123,7 @@ module.exports.mutations = {
                 isMediaUpdated = true;
             }
 
-            if (video) {
+            if (videos) {
                 const videoUrl = await UploadHelper.uploadVideo({
                     data: video,
                     folderName: `video-content-${existingContent._id}`,
@@ -1240,24 +1244,24 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-/*  
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Training Module Content Updated`,
-                messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: savedContent._id,
-                    },
-                ],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-  */
+            /*  
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Training Module Content Updated`,
+                            messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                            notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                            notifyAdmin: true,
+                            affected: [
+                                {
+                                    targetRef: "TrainingModuleContent",
+                                    target: savedContent._id,
+                                },
+                            ],
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                        });
+              */
             return {
                 success: true,
                 message: "Content updated successfully.",
@@ -1417,19 +1421,19 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-/* 
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-  */
+                /* 
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `Training Module Content Updated`,
+                                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                                    notifyAdmin: true,
+                                    affected: [],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                });
+                  */
                 return {
                     success: true,
                     message: "Quiz content updated with a new version.",
@@ -1468,24 +1472,24 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-/*  
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: savedContent._id,
-                        },
-                    ],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-  */
+                /*  
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `Training Module Content Updated`,
+                                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                                    notifyAdmin: true,
+                                    affected: [
+                                        {
+                                            targetRef: "TrainingModuleContent",
+                                            target: savedContent._id,
+                                        },
+                                    ],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                });
+                  */
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",

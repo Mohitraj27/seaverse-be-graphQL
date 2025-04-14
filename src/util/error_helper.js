@@ -709,7 +709,7 @@ const errorType = {
 };
 
 const formatError = error => {
-
+    console.log(error);
     let errorObject;
     try {
         errorObject = JSON.parse(error.message);
@@ -725,6 +725,7 @@ const formatError = error => {
     if (!errorObject) {
         errorObject = errorType[error.message];
     }
+    console.log({ errorObject });
 
     return {
         message: errorObject?.message ?? "An error occurred",
