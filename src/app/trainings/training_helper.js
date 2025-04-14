@@ -607,6 +607,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     courseId: item._id,
                     courseImage: courseImages,
                     certificatePresent: item.isCertificatePresent,
+                    userId:item?.user?._id,
                 });
 
                 emails.push({
@@ -1580,9 +1581,10 @@ module.exports = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Training ${notificationData.action}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
-                notifyAdmin: true,
-                notifiers: notificationData.notifiers ?? [],
-                employeeNotifiers: [],
+                notifyAllAdmin: false,
+                isNotificatonForAdmin : true,
+                employeeNotifiers: notificationData.notifiers ?? [],
+                notifiers: [notificationData?.createdBy?._id],
                 affected: [
                     {
                         targetRef: "Training",

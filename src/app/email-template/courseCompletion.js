@@ -101,7 +101,7 @@ function courseCompletion(user) {
                                 ${user.certificatePresent ?
             `
                                     <td style="text-align: center;">
-                                        <a href="${process.env.APP_URL}/learner-profile?tab=certificates"
+                                        <a href="${process.env.APP_URL}/learner-profile?tab=certificates&userId=${user.userId}"
                                             style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
                                             View Certificate
                                         </a>
