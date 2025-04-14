@@ -1210,7 +1210,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-/*  
+
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
@@ -1227,7 +1227,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-  */
+
             return {
                 success: true,
                 message: "Content updated successfully.",
