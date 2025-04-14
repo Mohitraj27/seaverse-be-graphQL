@@ -257,8 +257,9 @@ module.exports.queries = {
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin : true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     additionalInfo: [
                         {
@@ -293,7 +294,7 @@ module.exports.queries = {
         const { subscriberId } = AuthUser(context);
         try {
             const skip = pageInput?.skip ?? 0;
-            const limit = pageInput?.limit ?? 50;
+            const limit = pageInput?.limit ?? 200000;
 
             let filterConditions = {
                 subscriber: subscriberId,
@@ -314,6 +315,7 @@ module.exports.queries = {
             switch (groupType) {
                 case "Autosyncedgroups":
                     let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                    // console.log('this is new grp',allAutosyncedGroups);
                     allAutosyncedGroups = allAutosyncedGroups.filter(group => group._id && group.groupName);
 
                     let filteredAutosyncedGroups = allAutosyncedGroups;
@@ -324,7 +326,8 @@ module.exports.queries = {
                     }
                     const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
                     groups = paginatedAutosyncedGroups;
-                    totalCount = filteredAutosyncedGroups.length;
+                    totalCount = filteredAutosyncedGroups.length || 0; 
+
                     break;
 
                 case "Customgroups":
@@ -343,7 +346,7 @@ module.exports.queries = {
 
                     const paginatedCustomGroups = filteredCustomGroups;
                     groups = paginatedCustomGroups;
-                    totalCount = paginatedCustomGroups.length;
+                    totalCount = paginatedCustomGroups.length || 0;
                     break;
 
                 default:
@@ -877,8 +880,8 @@ module.exports.mutations = {
                     if (existingMemberIds.length > 0) {
                         excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
                     }
-                    newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 }
+                newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
                     if (memberCount > 0) {

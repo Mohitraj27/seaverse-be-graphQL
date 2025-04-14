@@ -1,4 +1,4 @@
-function sendWelcomeEmailsToLearner(user){
+function sendWelcomeEmailsToLearner(user) {
     return `
     <html lang="en">
 
@@ -107,7 +107,7 @@ function sendWelcomeEmailsToLearner(user){
     `;
 }
 
-function sendEmailToLearner(user){
+function sendEmailToLearner(user) {
     return `
     <html lang="en">
 <head>
@@ -206,4 +206,4 @@ function sendEmailToLearner(user){
 </html>    
     `;
 }
-module.exports = {sendWelcomeEmailsToLearner, sendEmailToLearner};
+module.exports = { sendWelcomeEmailsToLearner, sendEmailToLearner };

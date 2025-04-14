@@ -109,6 +109,6 @@ function rejectionEmailTemplate(data) {
       </div>
   </body>
   </html>`;
-  }
-  
-  module.exports = { rejectionEmailTemplate };
+}
+
+module.exports = { rejectionEmailTemplate };

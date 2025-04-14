@@ -132,7 +132,7 @@ async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operat
                             }
                         );
                     }
-                //  usersToEnroll.push(...userIdsToSend);
+                    //  usersToEnroll.push(...userIdsToSend);
                 }
             }
 
@@ -1623,40 +1623,40 @@ module.exports.queries = {
                 catch (error) {
                     messages.push(`Unable to send Welcome Email to ${email}`);
                 }
-/* 
-                notifications.push({
-                    subscriber: subscriberId,
-                    title: [{ lang: "en", value: `Welcome Email Sent` }],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        },
-                    ],
-                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    employeeNotifiers: [],
-                    affected: [
-                        {
-                            targetRef: "User",
-                            target: currentUserData._id,
-                        },
-                    ],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    status: "SENT"
-                });
- */
+                /* 
+                                notifications.push({
+                                    subscriber: subscriberId,
+                                    title: [{ lang: "en", value: `Welcome Email Sent` }],
+                                    message: [
+                                        {
+                                            lang: "en",
+                                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                        },
+                                    ],
+                                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                                    notifyAdmin: true,
+                                    notifiers: [],
+                                    employeeNotifiers: [],
+                                    affected: [
+                                        {
+                                            targetRef: "User",
+                                            target: currentUserData._id,
+                                        },
+                                    ],
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                    status: "SENT"
+                                });
+                 */
             })
         );
-        if (notifications.length > 0) {
+       /*  if (notifications.length > 0) {
             try {
-                await NotificationHelper.createNotification(notifications);
+                // await NotificationHelper.createNotification(notifications);
             } catch (error) {
                 messages.push(`Failed to create notifications.`);
             }
-        }
+        } */
         return messages;
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
@@ -1995,52 +1995,53 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
             }
 
-        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-        updateUsers = await User.updateMany(
-            { _id: { $in: input.users } },
-            {
-                $set: { isRegistered: false }
-            }
-        );
-        /* Removed Unregistered User Autoenerollment
-        if(learningPlans?.length > 0){
-            const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
-        }      
-        */
-    }
-    if (updateUsers) {
-        if (updateUsers.nModified > 0) {
-            const users = await User.find({
-                _id: { $in: input.users },
-                subscriber: subscriberId,
-            });
-            const notificationsData = users.map((user) => ({
-                subscriber: subscriberId,
-                employee: { user },
-                updatedBy: userInfo,
-                type: input.type,
-            }));
-            // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-            /* Ticket No SEAV-91
-            for (const user of users) {
-                const emailContent =
-                    input.type === "Registered"
-                        ? registered_status({ firstName: user.firstName })
-                        : Unregistered_Status({ firstName: user.firstName });
-                await SendEmail({
-                    receiverEmail: user.email,
-                    subject: `Current Status Update: ${input.type}`,
-                    htmlContent: emailContent,
-                });
-            }
+            const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+            updateUsers = await User.updateMany(
+                { _id: { $in: input.users } },
+                {
+                    $set: { isRegistered: false }
+                }
+            );
+            /* Removed Unregistered User Autoenerollment
+            if(learningPlans?.length > 0){
+                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+            }      
             */
-            return { count: updateUsers.nModified, success: true };
-        } else {
-            return { count: updateUsers.nModified, success: false };
         }
-    } else {
-        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
-    }}catch(error){
+        if (updateUsers) {
+            if (updateUsers.nModified > 0) {
+                const users = await User.find({
+                    _id: { $in: input.users },
+                    subscriber: subscriberId,
+                });
+                const notificationsData = users.map((user) => ({
+                    subscriber: subscriberId,
+                    employee: { user },
+                    updatedBy: userInfo,
+                    type: input.type,
+                }));
+                // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+                /* Ticket No SEAV-91
+                for (const user of users) {
+                    const emailContent =
+                        input.type === "Registered"
+                            ? registered_status({ firstName: user.firstName })
+                            : Unregistered_Status({ firstName: user.firstName });
+                    await SendEmail({
+                        receiverEmail: user.email,
+                        subject: `Current Status Update: ${input.type}`,
+                        htmlContent: emailContent,
+                    });
+                }
+                */
+                return { count: updateUsers.nModified, success: true };
+            } else {
+                return { count: updateUsers.nModified, success: false };
+            }
+        } else {
+            throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+        }
+    } catch (error) {
         throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
@@ -2161,7 +2162,7 @@ const manageRole = async ({ input }, context) => {
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             */
-            await NotificationHelper.createNotification([adminNotification]);
+            // await NotificationHelper.createNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -2195,8 +2196,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
     try {
 
 
-        const getUsers = await User.find({ _id: { $in: input.users } });
-
+        const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
+        console.log('getUsers',getUsers);
         if (!getUsers) {
             throw CustomError(ErrorName.USER_NOT_FOUND);
         }
@@ -2277,6 +2278,28 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
         if (input.type === "APPROVE") {
+            
+                    if (!getUsers || getUsers.length === 0) {
+                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    }
+            
+                    const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+            
+                    const adminsNotBeingDeleted = await User.find({
+                        _id: { $nin: input?.users }, 
+                        isDeleted: false
+                    })
+                        .populate("subRoles", "name")
+                        .lean();
+            
+                    const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+                       console.log("remainingAdmins",remainingAdmins.length)
+                    if (remainingAdmins.length === 1) {
+                        console.log("At least one admin must remain in the system.");
+                        throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+                    }
+            
+                    
 
             const userHistoryData = getUsers.map(user => ({
                 firstName: user?.firstName,
@@ -2324,7 +2347,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
     } catch (error) {
-        throw Error(error);
+        throw CustomError(ErrorName.FAILED,error.message);
     }
 };
 
@@ -2454,8 +2477,9 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.BULK_IMPORT_FAILED,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     icon: notificationiconEnum.ERROR,
                     createdBy: userInfo,
@@ -3101,7 +3125,7 @@ module.exports.mutations = {
             });
 
             const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
-            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned "${validSubRole?.name}" role to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -3112,8 +3136,9 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
-                notifiers: [],
+                notifyAllAdmin: true,
+                isNotificatonForAdmin :true,
+                notifiers: [userId],
                 employeeNotifiers: [],
                 affected: users.map(user => ({
                     targetRef: "User",
@@ -3148,9 +3173,9 @@ module.exports.mutations = {
                 createdBy: userInfo,
             }));
 
-            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            await NotificationHelper.createNotification([adminNotification]);//...userNotifications
 
-            const userIdsToSend = usersToUpdate.map(user => user._id);
+            /* const userIdsToSend = usersToUpdate.map(user => user._id);
             for (const userId of userIdsToSend) {
                 await sendNotifications({
                     userIds: userId,
@@ -3159,7 +3184,7 @@ module.exports.mutations = {
                     content: `You have been assigned the Role "${validSubRole.name}".`,
                     webLink: "",
                 });
-            }
+            } */
             const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
             if (validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0) {
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
@@ -3469,8 +3494,9 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
+                    notifiers: [userId],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -3485,6 +3511,7 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 };
                 // notifications.push(successNotification);
+                console.log(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
