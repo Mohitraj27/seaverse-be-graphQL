@@ -47,7 +47,7 @@ module.exports.mutations = {
                 titleValue: `New Learning Plan Created`,
                 messageValue: `Learning plan ${result?.learningPlan?.title ?? ""} has been created by  ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
@@ -113,7 +113,7 @@ module.exports.mutations = {
                         titleValue: `Learning Plan Status Updated to ${newStatus.toLowerCase()}`,
                         messageValue: `Learning plan ${plan.title} status changed to ${newStatus.toLowerCase()} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         affected: [
                             {
                                 targetRef: "LearningPlan",
@@ -179,7 +179,7 @@ module.exports.mutations = {
                 titleValue: `Learning Plan Deleted`,
                 messageValue: `Learning plan ${learningPlan.title ?? ""} has been deleted by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
@@ -245,7 +245,7 @@ module.exports.mutations = {
                 titleValue: `Learning Plan Updated`,
                 messageValue: `Learning plan ${learningPlanName ?? ""} has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "LearningPlan",
