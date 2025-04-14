@@ -438,9 +438,10 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -1017,7 +1018,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         titleValue: `Enrollment report is ready to download`,
                         // messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
-                        notifyAdmin: true,
+                        notifyAllAdmin: false,
+                        isNotificatonForAdmin :true,
                         additionalInfo: [{
                             infoType: "EXPORT_URL",
                             infoData: {
@@ -1738,7 +1740,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         titleValue: `Module level report is ready to downlaod`,
                         // messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
-                        notifyAdmin: true,
+                        notifyAllAdmin: false,
+                        isNotificatonForAdmin :true,
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -2093,9 +2096,10 @@ const getMainCoursesReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Courses Report Exported Successfully`,
-                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -2587,9 +2591,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Enrollment Report Exported Successfully`,
-                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
-                            notifyAdmin: true,
+                            notifyAllAdmin: false,
+                            isNotificatonForAdmin : true,
+                            notifiers : [userInfo._id],
                             additionalInfo: [
                                 {
                                     infoType: "EXPORT_URL",
@@ -2599,7 +2605,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 }
                             ],
                             status: 'SENT',
-                            createdBy: userInfo,
+                            createdBy: userInfo._id,
                             icon: notificationiconEnum.SUCCESS
                         });
                     }
@@ -2679,9 +2685,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Enrollment Report Exported Successfully`,
-                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
-                        notifyAdmin: true,
+                        notifyAllAdmin: false,
+                        isNotificatonForAdmin :true,
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -3401,9 +3408,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Quiz Report Exported Successfully`,
-                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
-                            notifyAdmin: true,
+                            notifyAllAdmin: false,
+                            isNotificatonForAdmin :true,
                             additionalInfo: [
                                 {
                                     infoType: "EXPORT_URL",
@@ -3489,9 +3497,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Quiz Report Exported Successfully`,
-                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
-                        notifyAdmin: true,
+                        notifyAllAdmin: false,
+                        isNotificatonForAdmin :true,
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -4018,9 +4027,10 @@ const getVesselMainReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Main Vessel Report Exported Successfully`,
-                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
-                    notifyAdmin: true,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -5170,7 +5180,8 @@ const generateCustomReport = async ({ input }, context) => {
                 titleValue: notificationMessage,
                 // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-                notifyAdmin: true,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin :true,
                 additionalInfo: [
                     {
                         infoType: "EXPORT_URL",
