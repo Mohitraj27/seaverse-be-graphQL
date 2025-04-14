@@ -196,7 +196,13 @@ module.exports.queries = {
             if (context.platform === Role.ADMIN) {
 
                 filterConditions.$and = [
-                    { notifyAdmin: true },
+                    {
+                        $or: [
+                            { isNotificatonForAdmin: true },
+                            { notifyAllAdmin: true },
+                        ]   
+                    },
+                    { notifiers: {$in : [userId]} },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
@@ -210,7 +216,13 @@ module.exports.queries = {
             } else if (context.platform === Role.ADMIN && checkIfAdmin) {
 
                 filterConditions.$and = [
-                    { notifyAdmin: true },
+                    {
+                        $or: [
+                            { isNotificatonForAdmin: true },
+                            { notifyAllAdmin: true },
+                        ]   
+                    },
+                    { notifiers: {$in : [userId]} },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
@@ -224,8 +236,9 @@ module.exports.queries = {
             } else if (context.platform === Role.LEARNER) {
 
                 filterConditions.$and = [
-                    { notifyAdmin: false },
-                    { notifiers: userId },
+                    { notifyAllAdmin:  {$ne :true} },
+                    { isNotificatonForAdmin : {$ne :true}},
+                    { notifiers: {$in : [userId]} },
                 ];
 
                 const pipeline = [{ $match: filterConditions }];
@@ -335,6 +348,14 @@ module.exports.queries = {
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
+                        {
+                            $match: {
+                                $or: [
+                                    { notifiers: { $in: [userId] } },
+                                    { notifyAllAdmin: true },
+                                ]
+                            }
+                        },
                         ...pipeline,
                         {
                             $addFields: {
