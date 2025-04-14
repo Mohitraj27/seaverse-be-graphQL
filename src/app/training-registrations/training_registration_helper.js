@@ -117,7 +117,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                     }
                 });
             } else if (roleIds.includes("LEARNER")) {
-                console.log(roleIds, "roleids")
                 learnerUsers.push(user);
             }
         });
