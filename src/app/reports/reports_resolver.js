@@ -442,6 +442,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin :true,
+                    notifiers : [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -1020,6 +1021,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin :true,
+                        notifiers : [userInfo._id],
                         additionalInfo: [{
                             infoType: "EXPORT_URL",
                             infoData: {
@@ -1742,6 +1744,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin :true,
+                        notifiers : [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -2100,6 +2103,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin :true,
+                    notifiers : [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -2689,6 +2693,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin :true,
+                        notifiers : [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -3412,6 +3417,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAllAdmin: false,
                             isNotificatonForAdmin :true,
+                            notifiers : [userInfo._id],
                             additionalInfo: [
                                 {
                                     infoType: "EXPORT_URL",
@@ -3501,6 +3507,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin :true,
+                        notifiers : [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -4031,6 +4038,7 @@ const getVesselMainReport = async ({ input }, context) => {
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin :true,
+                    notifiers : [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -5182,6 +5190,7 @@ const generateCustomReport = async ({ input }, context) => {
                 notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
                 notifyAllAdmin: false,
                 isNotificatonForAdmin :true,
+                notifiers : [userInfo._id],
                 additionalInfo: [
                     {
                         infoType: "EXPORT_URL",
