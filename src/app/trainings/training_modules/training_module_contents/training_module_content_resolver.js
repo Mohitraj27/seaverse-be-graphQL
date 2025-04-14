@@ -645,9 +645,7 @@ module.exports.mutations = {
     },
 
     createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
-        console.log("input", input, videoMetas, "videoMetas", videos, "videos");
-        const videosList = await Promise.all(videos.map(video => video));
-        console.log(videosList.map(video => video.filename), "null", videoMetas, "")
+     
 
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
