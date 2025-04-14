@@ -111,9 +111,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                         if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
                             adminUsers.push(user);
                         }
-                        if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
-                            learnerUsers.push(user);
-                        }
+                        // if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
+                        //     learnerUsers.push(user);
+                        // }
                     }
                 });
             } else if (roleIds.includes("LEARNER")) {
