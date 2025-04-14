@@ -891,6 +891,7 @@ module.exports.mutations = {
                             { member: { $in: input.deleteMembersOrGroups } },
                             { _id: { $in: input.deleteMembersOrGroups } },
                         ],
+                        isDeleted: { $ne: true }
                     });
 
                     if (deletedGroups.length > 0) {
@@ -898,12 +899,15 @@ module.exports.mutations = {
                         let groupArray = [];
 
                         for (const group of deletedGroups) {
-                            groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
                         }
 
-                        const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
 
-                        excludedMembers = excludedMemberDatas.map(user => user._id);
 
                     }
                 }
@@ -945,6 +949,7 @@ module.exports.mutations = {
                             { member: { $in: input.deleteMembersOrGroups } },
                             { _id: { $in: input.deleteMembersOrGroups } },
                         ],
+                        isDeleted: { $ne: true }
                     });
 
                     if (deletedGroups.length > 0) {
@@ -952,12 +957,15 @@ module.exports.mutations = {
                         let groupArray = [];
 
                         for (const group of deletedGroups) {
-                            groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
                         }
 
-                        const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
 
-                        excludedMembers = excludedMemberDatas.map(user => user._id);
 
                     }
                 }
@@ -1113,10 +1121,10 @@ module.exports.mutations = {
 
             }
 
-            if (input?.groupType === "GROUP" && learningPlans?.length > 0) {
+            if (input?.groupType === "GROUP" && learningPlans?.length > 0 && membersToInsert?.length > 0) {
                 await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, context);
             }
-            if (input?.groupType === "MEMBER" && learningPlans?.length > 0) {
+            if (input?.groupType === "MEMBER" && learningPlans?.length > 0 && input?.members?.length > 0) {
                 await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
             }
         }

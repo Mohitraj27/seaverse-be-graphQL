@@ -724,7 +724,7 @@ module.exports = {
         ]);
 
 
-        const allVesselStatuses = ["ONBOARDED", "ONSHORE", "ASSIGNED"]; // ARSHID WILL CEHCK THIS STATUS IT SHOULD MATCH WITH BULK IMPORT 
+        const allVesselStatuses = ["ONBOARDED", "ONSHORE", "ASSIGNED"];
 
 
         const vesselStatusGroups = await Promise.all(
@@ -830,8 +830,6 @@ module.exports = {
                 }
             }
         ]);
-
-        console.log(vesselGroups, "vesselGroups")
 
 
         const ownerGroups = await Vessel.aggregate([
