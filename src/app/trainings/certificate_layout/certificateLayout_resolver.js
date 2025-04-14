@@ -129,7 +129,7 @@ module.exports.mutations = {
 
             let logosInput = logos ? [...logos] : [];
             let logoKeys = [];
-
+            let signatureUrl = null;
             let existingLayout;
             if (id) {
                 if (typeof disabled === "boolean") {
@@ -173,6 +173,7 @@ module.exports.mutations = {
                 }
 
                 logosInput = existingLayout.logos || [];
+                signatureUrl = existingLayout.signature?.url || null;
             }
 
             const selectedTraining = await Training.findById(training).select("currentCertificateLayout").exec();
@@ -228,7 +229,6 @@ module.exports.mutations = {
             }
 
             // Handle signature upload separately
-            let signatureUrl = null;
             if (signatureImage) {
                 signatureUrl = await UploadHelper.uploadImage({
                     data: signatureImage,
@@ -330,7 +330,7 @@ module.exports.mutations = {
                         { $set: { isCertificatePresent: true } }
                     );
                 }
-                console.log("Signature Url: ",signatureUrl);
+
                 return {
                     success: true,
                     message: `Certificate layout ${action} successfully.`,
