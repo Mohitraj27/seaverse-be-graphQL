@@ -103,7 +103,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const adminUsers = [];
         const learnerUsers = [];
 
-        const roleUsersQuery = await User.find({ role: "LEARNER" }).populate("subRoles", "name");
+        const roleUsersQuery = await User.find({ role: "LEARNER", isDeleted: { $ne: true } }).populate("subRoles", "name");
         roleUsersQuery.forEach(user => {
             if (user.subRoles.length > 0) {
                 user.subRoles.forEach(subRole => {
@@ -111,9 +111,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                         if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
                             adminUsers.push(user);
                         }
-                        if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
-                            learnerUsers.push(user);
-                        }
+                        // if (roleIds.includes("LEARNER")) {
+                        //     learnerUsers.push(user);
+                        // }
                     }
                 });
             } else if (roleIds.includes("LEARNER")) {
@@ -584,7 +584,7 @@ const getAutoSyncUsersOfSingleGroup = async (group) => {
 }
 
 const getCustomGroupUsers = (async (groups) => {
-    console.log('this is the groups',groups);
+    console.log('this is the groups', groups);
     if (groups.length <= 0) {
         return [];
     }
@@ -1125,42 +1125,42 @@ module.exports = {
                 );
                 await NotificationHelper.createNotificationhelper(...notifications);
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
-/* 
-                if (userObjectIds.length > 1) {
-
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
-                        notifiers: [],
-                        employeeNotifiers: [],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-
-                } else {
-
-                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
-                        notifiers: [],
-                        employeeNotifiers: [],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-
-                }
-*/
+                /* 
+                                if (userObjectIds.length > 1) {
+                
+                                    await NotificationHelper.createNotificationhelper({
+                                        subscriber: subscriberId,
+                                        titleValue: `New Course Enrollment`,
+                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                                        notifyAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [],
+                                        status: 'SENT',
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                    });
+                
+                                } else {
+                
+                                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
+                                    await NotificationHelper.createNotificationhelper({
+                                        subscriber: subscriberId,
+                                        titleValue: `New Course Enrollment`,
+                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                                        notifyAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [],
+                                        status: 'SENT',
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                    });
+                
+                                }
+                */
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.TRAINING_REGISTRATION_LOG,
@@ -1407,7 +1407,7 @@ module.exports = {
                         ]
                     }))
                 );
-                
+
                 // Send all notifications in parallel
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
