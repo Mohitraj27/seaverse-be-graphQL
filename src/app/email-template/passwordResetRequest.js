@@ -169,4 +169,4 @@ function resetPasswordRequestforAdmin(user, token) {
 </body>
 </html>    `;
 }
-module.exports = {resetPasswordRequest,resetPasswordRequestforAdmin};
+module.exports = { resetPasswordRequest, resetPasswordRequestforAdmin };

@@ -127,5 +127,5 @@ function DeleteRequestRejected(data) {
       </div>
   </body>
   </html>`;
-  }
-module.exports = { DeleteRequestRejected } ; 
+}
+module.exports = { DeleteRequestRejected }; 

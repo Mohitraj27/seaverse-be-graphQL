@@ -35,6 +35,10 @@ module.exports.queries = {
                 .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
                 .sort({ version: -1, createdAt: -1 }) 
                 .exec();
+
+            if(!certificate){
+                return { listOfLayouts : [] }
+            }
             const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
 
             const latestLayouts = await certificateLayout.aggregate([
@@ -226,7 +230,6 @@ module.exports.mutations = {
             // Handle signature upload separately
             let signatureUrl = null;
             if (signatureImage) {
-                console.log("Uploading Signature Image");
                 signatureUrl = await UploadHelper.uploadImage({
                     data: signatureImage,
                     folderName: `certificate-layout`,
