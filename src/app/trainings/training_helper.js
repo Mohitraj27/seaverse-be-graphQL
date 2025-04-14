@@ -607,6 +607,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     courseId: item._id,
                     courseImage: courseImages,
                     certificatePresent: item.isCertificatePresent,
+                    userId:item?.user?._id,
                 });
 
                 emails.push({
