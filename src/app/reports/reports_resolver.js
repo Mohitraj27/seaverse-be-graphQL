@@ -837,7 +837,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     {
                         '$project': {
                             'firstName': '$userInfo.firstName',
-                            'lastName': '$userInfo.lastName',
+                            'lastName': { $ifNull: ['$userInfo.lastName', ''] },
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
