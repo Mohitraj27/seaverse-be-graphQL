@@ -322,7 +322,7 @@ module.exports = {
 
             /* 
             
-            //removed because it was not throwning instead of generating certificates when the course ends with ppt or pdf
+            //removed because it was  throwing error instead of generating certificates when the course ends with ppt or pdf
             //hope this was used for getting the startDate
             const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
