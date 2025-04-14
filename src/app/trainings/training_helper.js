@@ -1581,9 +1581,10 @@ module.exports = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Training ${notificationData.action}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
-                notifyAdmin: true,
-                notifiers: notificationData.notifiers ?? [],
-                employeeNotifiers: [],
+                notifyAllAdmin: false,
+                isNotificatonForAdmin : true,
+                employeeNotifiers: notificationData.notifiers ?? [],
+                notifiers: [notificationData?.createdBy?._id],
                 affected: [
                     {
                         targetRef: "Training",
