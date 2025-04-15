@@ -3393,7 +3393,13 @@ module.exports.mutations = {
                     },
                     'User Roles': '$role',
                     'Vessel Type': '$vesselType',
-                    'Vessel Status': '$vesselStatus',
+                    'Vessel Status': {
+                        $cond: {
+                            if: { $eq: ['$vesselStatus', 'ONBOARDED'] },
+                            then: 'ONBOARD',
+                            else: '$vesselStatus'
+                        }
+                    },
                     'Vessel IMO Number': '$vesselImoNumber',
                     'Created At': {
                         $cond: {
