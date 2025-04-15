@@ -602,7 +602,7 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.USER_DELETE_REQUEST,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     notifiers: [],
                     additionalInfo: [
                         {

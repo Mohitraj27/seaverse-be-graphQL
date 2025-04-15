@@ -102,13 +102,18 @@ module.exports.queries = {
                             isUserRequest : true
                         }
                     })
+                }else{
+                    userRequestsFilter.push({
+                        $match :{
+                            isUserRequest : {$ne : true}
+                        }
+                    })
                 }
             }
 
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
-                        ...userRequestsFilter,
                         ...pipeline,
                         {
                             $addFields: {
@@ -137,6 +142,7 @@ module.exports.queries = {
                                             }
                                         }
                                     },
+                                    ...userRequestsFilter,
                                     ...selectFirstThreeDays,
                                     {
                                         $sort: { createdAt: -1 }
