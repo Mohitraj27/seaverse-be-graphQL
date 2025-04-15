@@ -1,5 +1,14 @@
 module.exports = {
     types: `
+
+    enum certificateLayoutOperation {
+        TOGGLE,
+        CREATE_OR_UPDATE,
+        SWITCH_LAYOUTS,
+    }
+
+
+
     input certificateLayoutInput {
         id: ID, 
         layout: String,
@@ -13,6 +22,7 @@ module.exports = {
         disabled: Boolean
         courseProvidedBy : String
         certificateExpiry : Int
+        apiMode : certificateLayoutOperation
     }
     input logoUrl {
         url : String
@@ -29,6 +39,7 @@ module.exports = {
     type certificateLayoutOutput {
         success : Boolean,
         message : String
+        layout : CertificateLayout
         logos : [MultiMediaInfo]
         signature : MultiMediaInfo
     }
