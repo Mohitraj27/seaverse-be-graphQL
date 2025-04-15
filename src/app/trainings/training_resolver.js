@@ -607,8 +607,11 @@ module.exports.mutations = {
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
+
+                //add content data to overall training progress
                 const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
+                //updating the progress in overall training progress and the final certificate generation 
                 updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
 
                 if (syncContentErrors.length > 0) {
