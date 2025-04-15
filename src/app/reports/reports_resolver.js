@@ -837,7 +837,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     {
                         '$project': {
                             'firstName': '$userInfo.firstName',
-                            'lastName': '$userInfo.lastName',
+                            'lastName': { $ifNull: ['$userInfo.lastName', ''] },
                             'email': '$userInfo.email',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
@@ -1739,7 +1739,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Module level report is ready to downlaod`,
+                        titleValue: `Module level report is ready to download`,
                         // messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
