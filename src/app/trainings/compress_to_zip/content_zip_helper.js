@@ -86,7 +86,14 @@ const fetchFiles = (contents) => {
 
         switch (trainingContent.contentType) {
             case contentTypes.VIDEO:
-                fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
+                  /* fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
+                 break;
+                 */
+                 trainingContent.videos.forEach((video, index) => {
+                    if (video?.url) {
+                        fileUrlMap.set(`${content?._id}_video_${index}`, video?.url);
+                    }
+                });
                 break;
             case contentTypes.IMAGE:
                 fileUrlMap.set(content._id, trainingContent.images[0]?.url);
