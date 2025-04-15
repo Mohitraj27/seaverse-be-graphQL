@@ -33,7 +33,7 @@ const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
-const { create, filter } = require("lodash");
+const { create, filter, over } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
 const path = require('path');
@@ -48,7 +48,7 @@ const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
-const { generateUniqueCertificateId } = require("./training-certificates/training_certificate_helper");
+const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -1729,7 +1729,81 @@ module.exports.mutations = {
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
             if (!input.userIds || input.userIds.length === 0) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "User IDs are required");
 
-            const trainingData = await Training.findOne({ _id: input.training });
+            const trainingData = await Training.aggregate([
+                {
+                    $match: {
+                        _id: { $in: trainingIds },
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "certificatelayouts",
+                        localField: "_id",
+                        foreignField: "training",
+                        as: "certificateLayouts",
+                        let: {
+                            currentCertificateLayout: "$$ROOT.currentCertificateLayout",
+                        },
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    layout: 1,
+                                    version: 1,
+                                    certificateExpiry: 1,
+                                },
+                            },
+                            {
+                                $match: {
+                                    $expr: {
+                                        $eq: ["$layout", "$$currentCertificateLayout"],
+                                    },
+                                },
+                            },
+                            {
+                                $project: {
+                                    _id: 1,
+                                    certificateExpiry: 1,
+                                    version: 1,
+                                },
+                            },
+                            {
+                                $sort: {
+                                    version: -1,
+                                },
+                            },
+                            {
+                                $limit: 1,
+                            },
+                        ],
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$certificateLayouts",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                "$$ROOT",
+                                {
+                                    layoutId: "$certificateLayouts._id",
+                                    certificateValidity: "$certificateLayouts.certificateExpiry",
+                                },
+                            ],
+                        },
+                    },
+                },
+            ]);
+
+            const trainingDataById = trainingData.reduce((acc, training) => {
+                acc[training._id.toString()] = training;
+                return acc;
+            }, {});
+
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
             if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
@@ -1751,9 +1825,12 @@ module.exports.mutations = {
                                 adminMarkedAsCompleted: true,
                                 startDate: record.startDate || new Date(),
                                 endDate: new Date(),
-                            }
-                        }
-                    }
+                                assignedCertificateLayout: trainingDataById[record.training?.toString()].layout ?? null,
+                                assignedCertificateLayoutId: trainingDataById[record.training?.toString()].layoutId ?? null,
+                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ??null,
+                            },
+                        },
+                    },
                 };
             });
 
@@ -1767,54 +1844,60 @@ module.exports.mutations = {
                 training: input.training,
             });
 
-            const generateSVCertificateId = async () => {
-                const uuid = uuidv4().replace(/-/g, '').toUpperCase();
-                const certNumber = `SV-${uuid.substring(0, 8)}`;
-                return certNumber;
-            }
-
             await Promise.all(
                 overallTrainingProgressUsers.map(async (progressUser) => {
 
                     const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
                         { path: "user", select: "firstName lastName email" }
-                    ]);;
-                    const existingCertificate = await TrainingCertificate.findOne({
-                        trainingRegistration: progressUser.trainingRegistration,
-                        user: progressUser.user
-                    });
+                    ]);
 
-                    if (!existingCertificate && selectedCertificateLayout) {
-                        const startDate = overallTrainingProgress.createdAt;
-                        const completedAt = CurrentDateTime()?.utcDateTime;
-                        const generatedAt = CurrentDateTime()?.utcDateTime;
-                        const certificateValidity = trainingData?.certificateValidity;
-                        const expiresAt = certificateValidity
-                            ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
-                            : undefined;
+                    if (overallTrainingProgress.isCertificatePresent) {
+                        const existingCertificate = await TrainingCertificate.findOne({
+                            trainingRegistration: progressUser.trainingRegistration,
+                            user: progressUser.user,
+                        });
 
-                        const certificateNumber = await generateUniqueCertificateId();
-                        const userName = `${overallTrainingProgress.user?.firstName ?? ""} ${overallTrainingProgress.user?.lastName ?? ""}`;
+                        if (!existingCertificate && selectedCertificateLayout) {
+                            const startDate =
+                                overallTrainingProgress.startDate ?? CurrentDateTime().utcDateTime;
+                            const completedAt = CurrentDateTime()?.utcDateTime;
+                            const generatedAt = CurrentDateTime()?.utcDateTime;
+                            const certificateValidity = overallTrainingProgress?.certificateExpiry;
+                            const expiresAt = overallTrainingProgress.certificateExpiry
+                                ? await calculateExpiryDate(
+                                      completedAt,
+                                      overallTrainingProgress.certificateExpiry ?? null
+                                  )
+                                : null;
+                            const certificateLayout =
+                                overallTrainingProgress?.assignedCertificateLayoutId;
+                            const certificateNumber = await generateUniqueCertificateId();
 
-                        const certificateData = {
-                            subscriber: subscriberId,
-                            trainingRegistration: overallTrainingProgress.trainingRegistration,
-                            training: overallTrainingProgress.training,
-                            certificateLayout: selectedCertificateLayout._id,
-                            user: overallTrainingProgress.user,
-                            trainingCertificateValidity: certificateValidity,
-                            status: "COMPLETED",
-                            certificateNumber: certificateNumber,
-                            startDate: startDate,
-                            completedAt: completedAt,
-                            generatedAt: generatedAt,
-                            expiresAt: expiresAt,
-                        };
+                            const certificateData = {
+                                subscriber: subscriberId,
+                                trainingRegistration: overallTrainingProgress.trainingRegistration,
+                                training: overallTrainingProgress.training,
+                                certificateLayout: certificateLayout,
+                                user: overallTrainingProgress.user,
+                                trainingCertificateValidity: certificateValidity,
+                                status: "COMPLETED",
+                                certificateNumber: certificateNumber,
+                                startDate: startDate,
+                                completedAt: completedAt,
+                                generatedAt: generatedAt,
+                                expiresAt: expiresAt,
+                            };
 
-                        const savedTrainingCertificate = await TrainingCertificate.create(certificateData);
+                            const savedTrainingCertificate = await TrainingCertificate.create(
+                                certificateData
+                            );
 
-                        if (!savedTrainingCertificate) {
-                            throw CustomError(ErrorName.FAILED, "Failed to generate certificate");
+                            if (!savedTrainingCertificate) {
+                                throw CustomError(
+                                    ErrorName.FAILED,
+                                    "Failed to generate certificate"
+                                );
+                            }
                         }
                     }
                 })
@@ -1838,7 +1921,7 @@ module.exports.mutations = {
                     titleValue: `Course Completed`,
                     messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
-                    notifyAdmin: false,
+                    notifyAllAdmin: false,
                     notifiers: [input.userIds],
                     employeeNotifiers: [input.userIds],
                     affected: [],
@@ -1848,7 +1931,7 @@ module.exports.mutations = {
                 });
             }));
 
-            await NotificationHelper.createNotificationhelper({
+           /*  await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Course Completion Notification`,
                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
@@ -1860,7 +1943,7 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            });
+            }); */
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
