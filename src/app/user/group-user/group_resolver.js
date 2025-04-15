@@ -326,7 +326,7 @@ module.exports.queries = {
                     }
                     const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
                     groups = paginatedAutosyncedGroups;
-                    totalCount = filteredAutosyncedGroups.length || 0; 
+                    totalCount = filteredAutosyncedGroups.length || 0;
 
                     break;
 
@@ -791,7 +791,7 @@ module.exports.mutations = {
 
             if (existingGroup && input._id) {
                 let existingGroups = await GroupMember.find({ group: input._id, isDeleted: { $ne: true } }).select("member");
-                existingGroupMembers = existingGroups.map(groupMember => groupMember.member) || [];
+                existingGroupMembers = existingGroups.map(groupMember => groupMember?.member || groupMember?._id) || [];
             }
 
             const groupUpdateData = {};
@@ -870,6 +870,8 @@ module.exports.mutations = {
 
             if (!savedGroupName) throw CustomError(ErrorName.FAILED);
 
+            let deletedGroups = [];
+
             if (input.members && input.members.length > 0) {
                 const uniqueInputMembers = [...new Set(input.members)];
                 let existingMemberIds = [];
@@ -881,6 +883,36 @@ module.exports.mutations = {
                         excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
                     }
                 }
+
+                // While changing from group of groups to group of users
+                if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
+                    deletedGroups = await GroupMember.find({
+                        group: input._id,
+                        $or: [
+                            { member: { $in: input.deleteMembersOrGroups } },
+                            { _id: { $in: input.deleteMembersOrGroups } },
+                        ],
+                        isDeleted: { $ne: true }
+                    });
+
+                    if (deletedGroups.length > 0) {
+
+                        let groupArray = [];
+
+                        for (const group of deletedGroups) {
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                        }
+
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
+
+
+                    }
+                }
+
                 newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
@@ -906,26 +938,35 @@ module.exports.mutations = {
                 }
             }
 
-            let deletedGroups = [];
             let includeMemberDatas = [];
 
             if (input.groupType === "GROUP") {
 
                 // If removed any autosynced group in custom group, find the users of that group.
                 if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
-                    deletedGroups = await GroupMember.find({ _id: { $in: input.deleteMembersOrGroups } });
+                    deletedGroups = await GroupMember.find({
+                        group: input._id,
+                        $or: [
+                            { member: { $in: input.deleteMembersOrGroups } },
+                            { _id: { $in: input.deleteMembersOrGroups } },
+                        ],
+                        isDeleted: { $ne: true }
+                    });
 
                     if (deletedGroups.length > 0) {
 
                         let groupArray = [];
 
                         for (const group of deletedGroups) {
-                            groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
                         }
 
-                        const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
 
-                        excludedMembers = excludedMemberDatas.map(user => user._id);
 
                     }
                 }
@@ -990,44 +1031,37 @@ module.exports.mutations = {
         });
 
         if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
-            if (input.groupType === "GROUP") {
-                await GroupMember.updateMany(
-                    {
-                        _id: { $in: input.deleteMembersOrGroups },
-                        group: savedGroup._id
+
+            await GroupMember.updateMany(
+                {
+                    $or: [
+                        { member: { $in: input.deleteMembersOrGroups } },
+                        { _id: { $in: input.deleteMembersOrGroups } },
+                    ],
+                    group: savedGroup._id
+                },
+                {
+                    $set: {
+                        isDeleted: true,
                     },
-                    {
-                        $set: {
-                            isDeleted: true,
-                        },
-                    }
-                );
-            }
+                }
+            );
 
             if (input.groupType === "MEMBER") {
-                await GroupMember.updateMany(
-                    {
-                        group: savedGroup._id,
-                        member: { $in: input.deleteMembersOrGroups },
-                    },
-                    {
-                        $set: {
-                            isDeleted: true,
-                        },
-                    }
-                );
-                await Group.updateOne(
+                const getCount = await GroupMember.countDocuments({ group: savedGroup._id, isDeleted: { $ne: true } });
+                const updateGroup = await Group.updateOne(
                     { _id: savedGroup._id },
                     {
                         $pull: {
                             members: { $in: input.deleteMembersOrGroups },
                         },
-                        $inc: {
-                            memberCount: -input.deleteMembersOrGroups.length,
+                        $set: {
+                            memberCount: getCount,
                         },
                     }
                 );
             }
+
         }
 
         LogHelper.logActivity({
@@ -1088,10 +1122,10 @@ module.exports.mutations = {
 
             }
 
-            if (input?.groupType === "GROUP" && learningPlans?.length > 0) {
+            if (input?.groupType === "GROUP" && learningPlans?.length > 0 && membersToInsert?.length > 0) {
                 await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, context);
             }
-            if (input?.groupType === "MEMBER" && learningPlans?.length > 0) {
+            if (input?.groupType === "MEMBER" && learningPlans?.length > 0 && input?.members?.length > 0) {
                 await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
             }
         }
