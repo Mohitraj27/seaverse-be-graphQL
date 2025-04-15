@@ -257,8 +257,9 @@ module.exports.queries = {
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin : true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     additionalInfo: [
                         {

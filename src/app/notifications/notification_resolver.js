@@ -102,13 +102,18 @@ module.exports.queries = {
                             isUserRequest : true
                         }
                     })
+                }else{
+                    userRequestsFilter.push({
+                        $match :{
+                            isUserRequest : {$ne : true}
+                        }
+                    })
                 }
             }
 
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
-                        ...userRequestsFilter,
                         ...pipeline,
                         {
                             $addFields: {
@@ -137,6 +142,7 @@ module.exports.queries = {
                                             }
                                         }
                                     },
+                                    ...userRequestsFilter,
                                     ...selectFirstThreeDays,
                                     {
                                         $sort: { createdAt: -1 }
@@ -194,13 +200,18 @@ module.exports.queries = {
             }).lean();
 
             if (context.platform === Role.ADMIN) {
-
-                filterConditions.$and = [
-                    { notifyAdmin: true },
+                filterConditions.$or = [
+                    {
+                        $and: [
+                            { isNotificatonForAdmin: true },
+                            { notifiers: {$in : [userId]} },
+                        ]   
+                    },
+                    { notifyAllAdmin: true },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
-                    filterConditions.$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                    filterConditions.$or[0].$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
                 }
 
                 const pipeline = [{ $match: filterConditions }];
@@ -209,8 +220,14 @@ module.exports.queries = {
 
             } else if (context.platform === Role.ADMIN && checkIfAdmin) {
 
-                filterConditions.$and = [
-                    { notifyAdmin: true },
+                filterConditions.$or = [
+                    {
+                        $and: [
+                            { isNotificatonForAdmin: true },
+                            { notifiers: {$in : [userId]} },
+                        ]   
+                    },
+                    { notifyAllAdmin: true },
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
@@ -224,8 +241,9 @@ module.exports.queries = {
             } else if (context.platform === Role.LEARNER) {
 
                 filterConditions.$and = [
-                    { notifyAdmin: false },
-                    { notifiers: userId },
+                    { notifyAllAdmin:  {$ne :true} },
+                    { isNotificatonForAdmin : {$ne :true}},
+                    { notifiers: {$in : [userId]} },
                 ];
 
                 const pipeline = [{ $match: filterConditions }];
@@ -239,6 +257,7 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
+            console.log(error);
             throw CustomError(GET_NOTIFICATION_FAILED, error.message);
         }
     },
@@ -335,6 +354,14 @@ module.exports.queries = {
             const fetchResult = async pipeline => {
                 let result = Notification.aggregatePaginate(
                     Notification.aggregate([
+                        {
+                            $match: {
+                                $or: [
+                                    { notifiers: { $in: [userId] } },
+                                    { notifyAllAdmin: true },
+                                ]
+                            }
+                        },
                         ...pipeline,
                         {
                             $addFields: {
