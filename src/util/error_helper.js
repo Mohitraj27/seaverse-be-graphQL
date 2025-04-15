@@ -117,7 +117,7 @@ const errorName = {
     FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
     FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
     FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
-
+    SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
 };
 
 const errorType = {
@@ -705,6 +705,11 @@ const errorType = {
         message: 'Failed to delete last admin',
         statusCode: 400,    
         type: "FAILED_TO_DELETE_LAST_ADMIN",
+    },
+    SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: {
+        message: 'Group doesn\'t have any member',
+        statusCode: 400,    
+        type: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
     }
 };
 
