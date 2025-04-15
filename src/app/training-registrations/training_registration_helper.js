@@ -482,6 +482,8 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             users.map(user => {
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
+                const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
+
                 if (existingProgressSet.has(progressKey)) {
                     if (learningPlanId) {
                         return {
@@ -527,6 +529,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             startDate: null,
                             endDate: null,
                             unenrollmentDate: null,
+                            isCertificatePresent: isCertificatePresent,
                         },
                     },
                 };
@@ -924,6 +927,7 @@ module.exports = {
 
                         let savedTrainingRegistration;
                         let trainingRegistrationIds = [];
+                        let notEnrolledUsers = [];
 
                         if (existingTrainingRegs?.length) {
 
@@ -958,6 +962,27 @@ module.exports = {
                             let trainingProgressData;
 
                             let learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+
+                            const alreadyEnrolledUsers = await OverallTrainingProgress.find({
+                                training: { $in: input.trainings.map(training => training._id) },
+                                user: { $in: users.map(user => user._id) },
+                                isEnrolled: { $ne: false },
+                                isDeleted: { $ne: true }
+                            }).session(session);
+
+                            const enrollmentMap = {};
+                            alreadyEnrolledUsers.forEach(enrollment => {
+                                const key = `${enrollment.user.toString()}-${enrollment.training.toString()}`;
+                                enrollmentMap[key] = true;
+                            });
+
+                            notEnrolledUsers = users.filter(user => {
+                                return input.trainings.some(training => {
+                                    const key = `${user._id.toString()}-${training._id.toString()}`;
+                                    return !enrollmentMap[key];
+                                });
+                            });
+
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId, session);
 
                         }
@@ -1011,12 +1036,13 @@ module.exports = {
                         }));
 
                         // Prepare email data for insertion into SQLite queue
-                        const emailData = users.map(user => ({
+                        const emailData = notEnrolledUsers.map(user => ({
                             receiverEmail: user.email,
                             firstName: user.firstName,
                             courses: coursesDataMap,
                             isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
+                        
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
@@ -1182,7 +1208,7 @@ module.exports = {
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",
-                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName || ''}.`,
                     content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
                     webUrl: ""
                 });
