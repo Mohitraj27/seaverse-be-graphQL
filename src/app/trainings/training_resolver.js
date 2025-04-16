@@ -346,13 +346,14 @@ module.exports.mutations = {
         });
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
-        TrainingHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            training: savedTraining,
-            action: input._id ? "UPDATED" : "CREATED",
-            createdBy: userInfo,
-        });
-
+        if (!input._id) {
+            TrainingHelper.sendNotificationOnCRUD({
+                subscriber: subscriberId,
+                training: savedTraining,
+                action: input._id ? "UPDATED" : "CREATED",
+                createdBy: userInfo,
+            });
+        }
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,

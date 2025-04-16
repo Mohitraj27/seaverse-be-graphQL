@@ -563,7 +563,7 @@ module.exports.subscriptions = {
                     : notification.subscriber?._id;
 
                 // if (notificationSubscriberId?.toString() === subscriberId.toString()) {
-                if (role === Role.ADMIN && notification.notifyAdmin === true) return true;
+               /*  if (role === Role.ADMIN && notification.notifyAllAdmin === true) return true;
                 if (
                     notification.notifiers
                         ?.map(x => x.toString())
@@ -573,11 +573,39 @@ module.exports.subscriptions = {
                         ?.includes(employeeId.toString())
                 ) {
                     return true;
-                }
+                } */
                 // }
                 // }
 
-                return false;
+
+                switch (role) {
+                    case Role.ADMIN:
+                        if (
+                            notification.notifyAllAdmin === true ||
+                            (notification.isNotificatonForAdmin === true &&
+                                notification.notifiers
+                                    ?.map(x => x.toString())
+                                    ?.includes(userId.toString()))
+                        ) {
+                            return true;
+                        }
+                        return false;
+
+                    case Role.LEARNER:
+                        if (
+                            notification.notifiers
+                                ?.map(x => x.toString())
+                                ?.includes(userId.toString()) &&
+                            notification.isNotificatonForAdmin !== true &&
+                            notification.notifyAllAdmin !== true
+                        ) {
+                            return true;
+                        }
+                        return false;
+                    default:
+                        return false;
+                }
+
             }
         ),
     },
