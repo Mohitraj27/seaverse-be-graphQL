@@ -247,7 +247,7 @@ module.exports = {
                 titleValue: `Certificate Generated Successfully`,
                 messageValue: `Congratulations! Your certificate for completing the course ${selectedCourse.title} has been successfully generated.`,
                 notificationType: NotificationType.CERTIFICATE_GENERATED_SUCCESS,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [userId],
                 employeeNotifiers: [userId],
                 status: 'SENT',
@@ -347,7 +347,7 @@ module.exports = {
                 if (!training) continue;
 
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
-                const startDate = overallDoc?.startDate;
+                const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
                     ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
@@ -357,7 +357,7 @@ module.exports = {
                     subscriber: training.subscriber,
                     trainingRegistration: overallDoc.trainingRegistration,
                     training: training._id,
-                    certificateLayout: certificateLayout._id,
+                    certificateLayout: certificateLayout,
                     user: userId,
                     trainingCertificateValidity: overallDoc.certificateExpiry,
                     status: 'COMPLETED',
