@@ -257,7 +257,6 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
-            console.log(error);
             throw CustomError(GET_NOTIFICATION_FAILED, error.message);
         }
     },
@@ -485,7 +484,6 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
-            console.log(error);
             throw CustomError(GET_NOTIFICATION_FAILED, error.message);
         }
     },

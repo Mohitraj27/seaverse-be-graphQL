@@ -1581,7 +1581,6 @@ module.exports.mutations = {
             };
 
         } catch (error) {
-            console.log(error);
             return Error(error);
         }
 

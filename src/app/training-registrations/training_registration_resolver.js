@@ -2119,7 +2119,6 @@ module.exports.mutations = {
                 message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
-            console.log(error);
             throw Error(error.message);
         }
     }

@@ -1336,7 +1336,6 @@ module.exports.queries = {
                 totalEmployees: totalCount
             };
         } catch (error) {
-            console.log(error)
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },

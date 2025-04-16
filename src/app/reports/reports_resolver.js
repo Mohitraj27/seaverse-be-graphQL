@@ -2129,7 +2129,6 @@ const getMainCoursesReport = async ({ input }, context) => {
         };
 
     } catch (err) {
-        console.log(err);
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
