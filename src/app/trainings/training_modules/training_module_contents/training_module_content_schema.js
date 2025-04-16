@@ -181,6 +181,7 @@ module.exports = {
             lang: String!
             title: String
             description: String
+            duration: Int
         }
 
     `,
