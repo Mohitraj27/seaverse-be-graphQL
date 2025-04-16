@@ -904,8 +904,9 @@ const sendNotificationOnBULK = async notificationData => {
         const notification = {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `${notificationData.action}` }],
-            notifyAdmin: true,
-            notifiers: [],
+            notifyAllAdmin: false,
+            isNotificatonForAdmin : true,
+            notifiers: [notificationData.creatorId],
             employeeNotifiers: [],
             createdBy: notificationData.adminUser?._id,
             employee: notificationData.adminUser?._id,
@@ -922,7 +923,8 @@ const sendNotificationOnBULK = async notificationData => {
         };
 
         const createdNotification = await Notification.create(notification);
-
+        console.log("testingDbEntry\n");
+        console.log(createdNotification);
         process.send({
             type: 'NOTIFICATION',
             event: NotificationEvent.ON_NOTIFICATION,
@@ -1582,6 +1584,13 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
     }
 
     if (row["Vessel Status"]) {
+        if (row["Vessel Status"].toUpperCase() === 'ONBOARDED') {
+            errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
+            return errors;
+        }
+        if (row["Vessel Status"].toUpperCase() === 'ONBOARD') {
+            row["Vessel Status"] = 'ONBOARDED'
+        }
         const status = row["Vessel Status"].toLowerCase();
         if (!vesselStatus.some(statusOption => statusOption.toLowerCase() === status)) {
             errors.push(`Invalid Status in row ${rowIndex + 1} as ${row["Vessel Status"]}`);
@@ -2366,6 +2375,7 @@ module.exports = {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
+        const { userInfo } = AuthUser(context);
         let userCount = 0;
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
@@ -2906,11 +2916,7 @@ module.exports = {
 
                 });
 
-                console.log('conditionsList');
-                console.log(conditionsList);
-
                 const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
-
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);
@@ -2932,6 +2938,8 @@ module.exports = {
 
         });
         if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */) {
+            console.log("hello there")
+            
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
@@ -2943,6 +2951,7 @@ module.exports = {
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
+                creatorId : userInfo._id,
             })
 
             const createImportLog = await ImportLog.create({

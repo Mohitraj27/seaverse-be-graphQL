@@ -291,7 +291,7 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.SIGNUP_USER_REQUEST,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     notifiers: [],
                     additionalInfo: [
                         {

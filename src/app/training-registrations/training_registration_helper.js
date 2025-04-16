@@ -103,7 +103,7 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const adminUsers = [];
         const learnerUsers = [];
 
-        const roleUsersQuery = await User.find({ role: "LEARNER" }).populate("subRoles", "name");
+        const roleUsersQuery = await User.find({ role: "LEARNER", isDeleted: { $ne: true } }).populate("subRoles", "name");
         roleUsersQuery.forEach(user => {
             if (user.subRoles.length > 0) {
                 user.subRoles.forEach(subRole => {
@@ -111,9 +111,9 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                         if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
                             adminUsers.push(user);
                         }
-                        if (subRole.name !== "ADMIN" && roleIds.includes("LEARNER")) {
-                            learnerUsers.push(user);
-                        }
+                        // if (roleIds.includes("LEARNER")) {
+                        //     learnerUsers.push(user);
+                        // }
                     }
                 });
             } else if (roleIds.includes("LEARNER")) {
@@ -482,6 +482,8 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             users.map(user => {
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
+                const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
+
                 if (existingProgressSet.has(progressKey)) {
                     if (learningPlanId) {
                         return {
@@ -527,6 +529,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             startDate: null,
                             endDate: null,
                             unenrollmentDate: null,
+                            isCertificatePresent: isCertificatePresent,
                         },
                     },
                 };
@@ -584,7 +587,6 @@ const getAutoSyncUsersOfSingleGroup = async (group) => {
 }
 
 const getCustomGroupUsers = (async (groups) => {
-    console.log('this is the groups',groups);
     if (groups.length <= 0) {
         return [];
     }
@@ -925,6 +927,7 @@ module.exports = {
 
                         let savedTrainingRegistration;
                         let trainingRegistrationIds = [];
+                        let notEnrolledUsers = [];
 
                         if (existingTrainingRegs?.length) {
 
@@ -959,6 +962,27 @@ module.exports = {
                             let trainingProgressData;
 
                             let learningPlanId = input.learningPlan ? input.learningPlan._id : null;
+
+                            const alreadyEnrolledUsers = await OverallTrainingProgress.find({
+                                training: { $in: input.trainings.map(training => training._id) },
+                                user: { $in: users.map(user => user._id) },
+                                isEnrolled: { $ne: false },
+                                isDeleted: { $ne: true }
+                            }).session(session);
+
+                            const enrollmentMap = {};
+                            alreadyEnrolledUsers.forEach(enrollment => {
+                                const key = `${enrollment.user.toString()}-${enrollment.training.toString()}`;
+                                enrollmentMap[key] = true;
+                            });
+
+                            notEnrolledUsers = users.filter(user => {
+                                return input.trainings.some(training => {
+                                    const key = `${user._id.toString()}-${training._id.toString()}`;
+                                    return !enrollmentMap[key];
+                                });
+                            });
+
                             trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId, session);
 
                         }
@@ -1012,12 +1036,13 @@ module.exports = {
                         }));
 
                         // Prepare email data for insertion into SQLite queue
-                        const emailData = users.map(user => ({
+                        const emailData = notEnrolledUsers.map(user => ({
                             receiverEmail: user.email,
                             firstName: user.firstName,
                             courses: coursesDataMap,
                             isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
+                        
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
@@ -1101,66 +1126,70 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                const notifications = userObjectIds.flatMap(userId =>
-                    input.trainings.map(trainingId => ({
-                        subscriber: subscriberId,
-                        titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
-                        messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: false,
-                        notifiers: [userId],
-                        employeeNotifiers: [userId],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                        additionalInfo: [{
-                            infoType: "VIEW_COURSE",
-                            infoData: {
-                                filePath: trainingId,
-                                trainingProgressId: trainingProgressMapComputed.get(`${userId}_${trainingId}`)
-                            }
-                        }]
-                    }))
-                );
+                if(userObjectIds?.length > 0 ){
+                    const notifications = userObjectIds.flatMap(userId =>
+                        input.trainings.map(trainingId => ({
+                             subscriber: subscriberId,
+                            titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
+                            messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
+                            notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                            notifyAdmin: false,
+                            notifiers: [userId],
+                            employeeNotifiers: [userId],
+                            affected: [],
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                            additionalInfo: [{
+                                infoType: "VIEW_COURSE",
+                                infoData: {
+                                    filePath: trainingId,
+                                    trainingProgressId: trainingProgressMapComputed.get(`${userId}_${trainingId}`)
+                                }
+                            }]
+                        }))
+                    );
                 await NotificationHelper.createNotificationhelper(...notifications);
-                const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
-/* 
-                if (userObjectIds.length > 1) {
-
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
-                        notifiers: [],
-                        employeeNotifiers: [],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-
                 } else {
-
-                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `New Course Enrollment`,
-                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
-                        notifiers: [],
-                        employeeNotifiers: [],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-
+                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have memebers enrollment is not possible");
                 }
-*/
+                const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
+                /* 
+                                if (userObjectIds.length > 1) {
+                
+                                    await NotificationHelper.createNotificationhelper({
+                                        subscriber: subscriberId,
+                                        titleValue: `New Course Enrollment`,
+                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                                        notifyAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [],
+                                        status: 'SENT',
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                    });
+                
+                                } else {
+                
+                                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
+                                    await NotificationHelper.createNotificationhelper({
+                                        subscriber: subscriberId,
+                                        titleValue: `New Course Enrollment`,
+                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
+                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                                        notifyAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [],
+                                        status: 'SENT',
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                    });
+                
+                                }
+                */
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.TRAINING_REGISTRATION_LOG,
@@ -1183,7 +1212,7 @@ module.exports = {
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",
-                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName}.`,
+                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName || ''}.`,
                     content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
                     webUrl: ""
                 });
@@ -1407,7 +1436,7 @@ module.exports = {
                         ]
                     }))
                 );
-                
+
                 // Send all notifications in parallel
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');

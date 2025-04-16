@@ -644,16 +644,14 @@ module.exports.mutations = {
         };
     },
 
-    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
-     
-
+    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
             if (!videos && input.title) {
                 const titleValues = input.title.map(x => x.value.trim());
                 if (titleValues.some(x => x === "")) {
-                    throw CustomError(ErrorName.INVALID_TITLE, "Name of the content cannot be empty!");
+                    throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
                 }
             }
             /*
@@ -670,53 +668,41 @@ module.exports.mutations = {
                 })),
                 isDeleted: { $ne: true },
             }).lean().select("_id");
-
             if (existingContent) {
                 throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
             }
-
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = videos ? await videos : null;
+            const videoFile = video ? await video : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
-
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
-
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
                 return allowedFileFormats.includes(fileExtension);
             }
-
             if (scormFile && !validateFileFormat(scormFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
             }
-
             if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
             }
-
             if (imageFile && !validateFileFormat(imageFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
             }
-
             if (videoFile && !validateFileFormat(videoFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
             }
-
             if (audioFile && !validateFileFormat(audioFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
             }
-
             if (fileFile && !validateFileFormat(fileFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
             }
-
             if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
             }
-
             // if (input.duration) {
             //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
             //     if (!durationStyleChecked) {
@@ -749,7 +735,6 @@ module.exports.mutations = {
                 input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault, title: videoMetas[i]?.title, description: videoMetas[i]?.description , duration: videoMetas[i]?.duration }));
                 contentTypeNotification = 'Videos';
             }
-
             if (audio) {
                 const audioUrl = await UploadHelper.uploadAudio({
                     data: audio,
@@ -760,7 +745,6 @@ module.exports.mutations = {
                 input.audios = [{ url: audioUrl }];
                 contentTypeNotification = 'Audio';
             }
-
             if (image) {
                 const imageUrl = await UploadHelper.uploadImage({
                     data: image,
@@ -771,7 +755,6 @@ module.exports.mutations = {
                 input.images = [{ url: imageUrl }];
                 contentTypeNotification = 'Image';
             }
-
             if (file) {
                 const fileUrl = await UploadHelper.uploadDocument({
                     data: file,
@@ -782,13 +765,11 @@ module.exports.mutations = {
                 input.files = [{ url: fileUrl }];
                 contentTypeNotification = 'Document';
             }
-
             const contentData = {
                 ...input,
                 createdBy: userId,
                 updatedBy: userId,
             };
-
             const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedContent = new TrainingModuleContent({
                     ...contentData,
@@ -798,9 +779,7 @@ module.exports.mutations = {
                 await savedContent.save();
                 return savedContent;
             });
-
             if (!savedContent) throw CustomError(ErrorName.FAILED, 'Failed to create the content');
-
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.TRAINING_MODULE_CONTENT_LOG,
@@ -820,7 +799,6 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New  Content Created`,

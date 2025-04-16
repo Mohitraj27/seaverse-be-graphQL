@@ -247,7 +247,7 @@ module.exports = {
                 titleValue: `Certificate Generated Successfully`,
                 messageValue: `Congratulations! Your certificate for completing the course ${selectedCourse.title} has been successfully generated.`,
                 notificationType: NotificationType.CERTIFICATE_GENERATED_SUCCESS,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [userId],
                 employeeNotifiers: [userId],
                 status: 'SENT',
@@ -295,7 +295,6 @@ module.exports = {
             const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
             const certificateLayouts = await certificateLayout.find({
                 layout: { $in: assignedLayoutKeys },
-                disabled: false
             }).session(session).lean();
 
             const certificateLayoutMap = new Map(
@@ -322,7 +321,7 @@ module.exports = {
 
             /* 
             
-            //removed because it was not throwning instead of generating certificates when the course ends with ppt or pdf
+            //removed because it was  throwing error instead of generating certificates when the course ends with ppt or pdf
             //hope this was used for getting the startDate
             const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
@@ -347,7 +346,7 @@ module.exports = {
                 if (!training) continue;
 
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
-                const startDate = overallDoc?.startDate;
+                const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
                     ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
@@ -357,7 +356,7 @@ module.exports = {
                     subscriber: training.subscriber,
                     trainingRegistration: overallDoc.trainingRegistration,
                     training: training._id,
-                    certificateLayout: certificateLayout._id,
+                    certificateLayout: certificateLayout,
                     user: userId,
                     trainingCertificateValidity: overallDoc.certificateExpiry,
                     status: 'COMPLETED',
