@@ -781,7 +781,7 @@ const sendDeleteNotification = async (notificationsData) => {
             };
             notifications.push(notification);
         }
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 const notifyEmployeeStatusChange = async (notificationsData) => {
@@ -816,7 +816,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
             };
             notifications.push(notification);
         }
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 
@@ -894,7 +894,7 @@ const sendEnrollmentNotification = async notificationsData => {
             notifications.push(notification);
         }
 
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 const sendNotificationOnBULK = async notificationData => {
@@ -923,8 +923,7 @@ const sendNotificationOnBULK = async notificationData => {
         };
 
         const createdNotification = await Notification.create(notification);
-        console.log("testingDbEntry\n");
-        console.log(createdNotification);
+
         process.send({
             type: 'NOTIFICATION',
             event: NotificationEvent.ON_NOTIFICATION,
@@ -1026,7 +1025,7 @@ const sendNotificationOnCRUD = async notificationData => {
             ];
         }
 
-        await NotificationHelper.createNotification(notification);
+        // await NotificationHelper.createNotification(notification);
     } catch (e) {
         throw Error(e?.message);
     }

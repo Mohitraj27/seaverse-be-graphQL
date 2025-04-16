@@ -260,6 +260,6 @@ module.exports = {
             createdBy: notificationData.createdBy,
         };
 
-        await NotificationHelper.createNotification(notification);
+        // await NotificationHelper.createNotification(notification);
     },
 };

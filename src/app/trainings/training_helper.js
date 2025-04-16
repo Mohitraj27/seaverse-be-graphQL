@@ -1579,7 +1579,7 @@ module.exports = {
 
             const notification = {
                 subscriber: notificationData.subscriber,
-                title: [{ lang: "en", value: `Training ${notificationData.action}` }],
+                title: [{ lang: "en", value: `Course ${notificationData?.action?.toLowerCase()}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
                 notifyAllAdmin: false,
                 isNotificatonForAdmin : true,

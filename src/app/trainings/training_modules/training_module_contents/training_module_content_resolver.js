@@ -552,7 +552,8 @@ module.exports.mutations = {
             await content.save();
 
             updatedContents.push(content);
-            await NotificationHelper.createNotificationhelper({
+            //content status update notification
+           /*  await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Content Status Updated`,
                 messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
@@ -567,7 +568,7 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userId,
-            });
+            }); */
         }
 
         return {
@@ -794,7 +795,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-            await NotificationHelper.createNotificationhelper({
+            /* await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New  Content Created`,
                 messageValue: `A new ${contentTypeNotification} has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
@@ -809,7 +810,7 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            });
+            }); */
             return savedContent;
         } catch (error) {
             throw Error(error.message);
@@ -1210,7 +1211,7 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
+/* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Training Module Content Updated`,
@@ -1226,7 +1227,7 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            });
+            }); */
 
             return {
                 success: true,
@@ -1558,7 +1559,7 @@ module.exports.mutations = {
 
             const impactedCoursesCount = bridgesToUpdate.length;
             const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
-
+/* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Content Successfully Pushed to the Courses`,
@@ -1572,8 +1573,8 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userId,
-            });
-
+            }); 
+*/
             return {
                 status: 1,
                 message: "New content pushed to lessons successfully.",

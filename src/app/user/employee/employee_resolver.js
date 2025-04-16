@@ -2111,7 +2111,7 @@ const manageRole = async ({ input }, context) => {
     }
 
     if (updateUserRole) {
-        if (updateUserRole.n > 0) {
+        if (updateUserRole.n > 0 && (input.change !== "Delete") && (input.removeType !== operationTypeRoleEnum.REMOVE_AS_ADMIN)) {
             affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
 
             const adminNotification = {
