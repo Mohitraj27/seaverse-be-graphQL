@@ -260,9 +260,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `A New Vessel: ${vessel.name} has been created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Vessel: ${vessel.name} has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
@@ -367,9 +367,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `${vessel.name} has been Updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Vessel ${vessel.name} has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
@@ -518,7 +518,7 @@ module.exports.mutations = {
                         titleValue: `Vessel Status Updated Successfully`,
                         messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         affected: updatedVessels.map(v => ({
                             targetRef: "Vessel",
                             target: v.id,
@@ -529,7 +529,7 @@ module.exports.mutations = {
                         session,
                     });
 
-                    await NotificationHelper.createNotificationhelper({
+                   /*  await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Your Vessels have been Updated`,
                         messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
@@ -545,7 +545,7 @@ module.exports.mutations = {
                         status: "SENT",
                         createdBy: userInfo,
                         session,
-                    });
+                    }); */
 
                     const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
                     /*

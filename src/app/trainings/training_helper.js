@@ -260,15 +260,15 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     },
                     pipeline: [
                         {
-                            $project :{
-                                _id :1,
-                                layout :1,
-                                certificateExpiry :1,
+                            $project: {
+                                _id: 1,
+                                layout: 1,
+                                version: 1,
+                                certificateExpiry: 1
                             }
                         },
                         {
                             $match: {
-
                                 $expr: {
                                     $eq: [
                                         "$layout",
@@ -278,14 +278,15 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                             }
                         },
                         {
-                            $project :{
-                                _id :1,
-                                certificateExpiry:1,
+                            $project: {
+                                _id: 1,
+                                certificateExpiry: 1,
+                                version: 1
                             }
                         },
                         {
                             $sort: {
-                                updatedAt: -1
+                                version: -1
                             }
                         },
                         {
@@ -338,7 +339,6 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
         let bulkOperations = [];
 
         for (const doc of overallDocsWithNoContentData) {
-
             const matchingContents = fetchTrainingContents.filter(
                 (content) => content.training.toString() === doc.training.toString()
             );
@@ -607,6 +607,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     courseId: item._id,
                     courseImage: courseImages,
                     certificatePresent: item.isCertificatePresent,
+                    userId:item?.user?._id,
                 });
 
                 emails.push({
@@ -1133,7 +1134,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
         await updateOverallProgressPercentage(overallDocs, session);
         await calculateTimeSpend(overallIds, session)
     }
-    console.log(overallIds, "overallIds");
+
     const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, subscriberId, session);
 
     return { updatedCount: bulkOps.length };
@@ -1580,9 +1581,10 @@ module.exports = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Training ${notificationData.action}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
-                notifyAdmin: true,
-                notifiers: notificationData.notifiers ?? [],
-                employeeNotifiers: [],
+                notifyAllAdmin: false,
+                isNotificatonForAdmin : true,
+                employeeNotifiers: notificationData.notifiers ?? [],
+                notifiers: [notificationData?.createdBy?._id],
                 affected: [
                     {
                         targetRef: "Training",

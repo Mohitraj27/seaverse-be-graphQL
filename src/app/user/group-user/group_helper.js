@@ -588,62 +588,103 @@ module.exports = {
             }
         ]);
 
-        const allRoles = ["ADMIN", "LEARNER"]; 
+        const allRoles = ["ADMIN", "LEARNER"];
 
         const roleGroups = await Promise.all(
             allRoles.map(async (role) => {
-                const usersWithRole = await User.aggregate([
-                    {
-                        $match: {
-                            isDeleted: { $ne: true },
-                            firstName: { $ne: null },
-                            email: { $ne: null },
+                let usersWithRole;
+
+                if (role === "LEARNER") {
+                    usersWithRole = await User.aggregate([
+
+                        {
+                            $lookup: {
+                                from: "subroles",
+                                localField: "subRoles",
+                                foreignField: "_id",
+                                as: "subroleDetails",
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$subroleDetails",
+                                preserveNullAndEmptyArrays: true
+                            }
+                        },
+
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                                'subroleDetails.name': {
+                                    $ne: "ADMIN"
+                                }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                email: 1,
+                            }
                         }
-                    },
-                    {
-                        $lookup: {
-                            from: "subroles",
-                            localField: "subRoles",
-                            foreignField: "_id",
-                            as: "subroleDetails",
-                        }
-                    },
-                    {
-                        $addFields: {
-                            effectiveRole: {
-                                $cond: [
-                                    {
-                                        $in: [
-                                            "ADMIN",
-                                            {
-                                                $map: {
-                                                    input: "$subroleDetails",
-                                                    as: "subrole",
-                                                    in: "$$subrole.name",
+                    ]);
+                }
+                else if (role === "ADMIN") {
+                    usersWithRole = await User.aggregate([
+                        {
+                            $match: {
+                                isDeleted: { $ne: true },
+                                firstName: { $ne: null },
+                                email: { $ne: null },
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "subroles",
+                                localField: "subRoles",
+                                foreignField: "_id",
+                                as: "subroleDetails",
+                            }
+                        },
+                        {
+                            $addFields: {
+                                isAdmin: {
+                                    $or: [
+                                        { $eq: ["$role", "ADMIN"] },
+                                        {
+                                            $in: [
+                                                "ADMIN",
+                                                {
+                                                    $map: {
+                                                        input: "$subroleDetails",
+                                                        as: "subrole",
+                                                        in: "$$subrole.name",
+                                                    },
                                                 },
-                                            },
-                                        ],
-                                    },
-                                    "ADMIN",
-                                    "$role",
-                                ],
-                            },
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $match: {
+                                isAdmin: true
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                email: 1,
+                            }
                         }
-                    },
-                    {
-                        $match: {
-                            effectiveRole: role
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            firstName: 1,
-                            lastName: 1,
-                            email: 1,
-                        }
-                    }
-                ]);
+                    ]);
+                }
 
                 return {
                     _id: role,
@@ -724,7 +765,7 @@ module.exports = {
         ]);
 
 
-        const allVesselStatuses = ["ONBOARDED", "ONSHORE", "ASSIGNED"]; // ARSHID WILL CEHCK THIS STATUS IT SHOULD MATCH WITH BULK IMPORT 
+        const allVesselStatuses = ["ONBOARDED", "ONSHORE", "ASSIGNED"];
 
 
         const vesselStatusGroups = await Promise.all(
@@ -830,8 +871,6 @@ module.exports = {
                 }
             }
         ]);
-
-        console.log(vesselGroups, "vesselGroups")
 
 
         const ownerGroups = await Vessel.aggregate([

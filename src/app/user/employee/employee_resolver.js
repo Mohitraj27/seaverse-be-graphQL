@@ -1650,13 +1650,13 @@ module.exports.queries = {
                  */
             })
         );
-        if (notifications.length > 0) {
+       /*  if (notifications.length > 0) {
             try {
-                await NotificationHelper.createNotification(notifications);
+                // await NotificationHelper.createNotification(notifications);
             } catch (error) {
                 messages.push(`Failed to create notifications.`);
             }
-        }
+        } */
         return messages;
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
@@ -2162,7 +2162,7 @@ const manageRole = async ({ input }, context) => {
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
             */
-            await NotificationHelper.createNotification([adminNotification]);
+            // await NotificationHelper.createNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -2477,8 +2477,9 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.BULK_IMPORT_FAILED,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     icon: notificationiconEnum.ERROR,
                     createdBy: userInfo,
@@ -3124,7 +3125,7 @@ module.exports.mutations = {
             });
 
             const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
-            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -3135,8 +3136,9 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
-                notifiers: [],
+                notifyAllAdmin: true,
+                isNotificatonForAdmin :true,
+                notifiers: [userId],
                 employeeNotifiers: [],
                 affected: users.map(user => ({
                     targetRef: "User",
@@ -3153,7 +3155,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName || ''}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -3171,9 +3173,9 @@ module.exports.mutations = {
                 createdBy: userInfo,
             }));
 
-            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            await NotificationHelper.createNotification([adminNotification]);//...userNotifications
 
-            const userIdsToSend = usersToUpdate.map(user => user._id);
+            /* const userIdsToSend = usersToUpdate.map(user => user._id);
             for (const userId of userIdsToSend) {
                 await sendNotifications({
                     userIds: userId,
@@ -3182,7 +3184,7 @@ module.exports.mutations = {
                     content: `You have been assigned the Role "${validSubRole.name}".`,
                     webLink: "",
                 });
-            }
+            } */
             const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
             if (validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0) {
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
@@ -3391,7 +3393,13 @@ module.exports.mutations = {
                     },
                     'User Roles': '$role',
                     'Vessel Type': '$vesselType',
-                    'Vessel Status': '$vesselStatus',
+                    'Vessel Status': {
+                        $cond: {
+                            if: { $eq: ['$vesselStatus', 'ONBOARDED'] },
+                            then: 'ONBOARD',
+                            else: '$vesselStatus'
+                        }
+                    },
                     'Vessel IMO Number': '$vesselImoNumber',
                     'Created At': {
                         $cond: {
@@ -3492,8 +3500,9 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin :true,
+                    notifiers: [userId],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -3508,6 +3517,7 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 };
                 // notifications.push(successNotification);
+                console.log(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,

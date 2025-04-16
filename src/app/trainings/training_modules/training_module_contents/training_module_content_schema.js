@@ -87,7 +87,6 @@ module.exports = {
         type TrainingModuleContentList {
             contents: [TrainingModuleContent]!
             totalCount: Int!
-
         }
          type InvalidUpdate {
             id: ID!
@@ -118,13 +117,10 @@ module.exports = {
             _id: ID
             UID: String
             contentType: TrainingModuleContentType
-            
             duration: String
-            
             contentStatus: TrainingModuleContentStatus
             quiz: QuizContentQuizInput @deprecated(reason: "uses quizContent")
             quizContent: ID
-            
             title: [LocalisedDataInput]
             description: [LocalisedDataInput]
             videos: [MultiMediaInfoInput]
@@ -201,7 +197,7 @@ module.exports = {
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
         updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
         deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
-        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput],audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
