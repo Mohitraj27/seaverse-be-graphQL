@@ -746,7 +746,7 @@ module.exports.mutations = {
                     });
                     return videoUrl;
                 }));
-                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault, title: videoMetas[i]?.title, description: videoMetas[i]?.description }));
+                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault, title: videoMetas[i]?.title, description: videoMetas[i]?.description , duration: videoMetas[i]?.duration }));
                 contentTypeNotification = 'Videos';
             }
 

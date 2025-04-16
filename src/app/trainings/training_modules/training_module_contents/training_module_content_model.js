@@ -55,10 +55,9 @@ const trainingModuleContentSchema = new Schema(
                 title: {
                     type: String,
                 },
-                description: {
-                    type: String,
-                },
-                
+                duration:{
+                    type: Number,
+                }
             },
         ],
         audios: [
