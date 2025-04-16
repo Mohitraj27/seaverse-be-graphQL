@@ -295,7 +295,6 @@ module.exports = {
             const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
             const certificateLayouts = await certificateLayout.find({
                 layout: { $in: assignedLayoutKeys },
-                disabled: false
             }).session(session).lean();
 
             const certificateLayoutMap = new Map(

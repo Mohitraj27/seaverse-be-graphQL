@@ -17,7 +17,7 @@ const getLatestCertificateLayoutByTrainingId = async (trainingId, layout) => {
 
     const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
     const certificate = await certificateLayout
-        .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
+        .findOne({ training: trainingId, layout: assignedCertificateLayout})
         .sort({ version: -1 })
         .exec();
 
