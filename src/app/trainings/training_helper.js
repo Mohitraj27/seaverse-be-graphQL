@@ -260,10 +260,10 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     },
                     pipeline: [
                         {
-                            $project :{
-                                _id :1,
-                                layout :1,
-                                certificateExpiry :1,
+                            $project: {
+                                _id: 1,
+                                layout: 1,
+                                certificateExpiry: 1,
                             }
                         },
                         {
@@ -278,9 +278,9 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                             }
                         },
                         {
-                            $project :{
-                                _id :1,
-                                certificateExpiry:1,
+                            $project: {
+                                _id: 1,
+                                certificateExpiry: 1,
                             }
                         },
                         {
@@ -306,7 +306,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     isCertificate: 1,
                     currentCertificateLayout: 1,
                     layoutId: "$certificateLayouts._id",
-                    certificateValidity : "$certificateLayouts.certificateExpiry",
+                    certificateValidity: "$certificateLayouts.certificateExpiry",
                 }
             }
         ]);
@@ -381,8 +381,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                                 totalTrainingModules: contentData?.length,
                                 isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
                                 assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout,
-                                certificateExpiry : trainingDataById[doc.training.toString()]?.certificateValidity,
-                                assignedCertificateLayoutId : trainingDataById[doc.training.toString()]?.layoutId,
+                                certificateExpiry: trainingDataById[doc.training.toString()]?.certificateValidity,
+                                assignedCertificateLayoutId: trainingDataById[doc.training.toString()]?.layoutId,
                             }
                         },
                     },
@@ -607,7 +607,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     courseId: item._id,
                     courseImage: courseImages,
                     certificatePresent: item.isCertificatePresent,
-                    userId:item?.user?._id,
+                    userId: item?.user?._id,
                 });
 
                 emails.push({
@@ -977,11 +977,42 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                         playerSettings: content.playerSettings,
                                         progressPercentage: {
                                             $cond: {
-                                                if: { $gt: [content.progressPercentage, "$progressPercentage"] },
-                                                then: content.progressPercentage,
-                                                else: "$progressPercentage"
+                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                then: "$progressPercentage",
+                                                else: {
+                                                    $cond: {
+                                                        if: {
+                                                            $and: [
+                                                                { $ne: [content.videoId, "$videoId"] },
+                                                                { $ne: [content.videoId, null] },
+                                                                { $ne: [content.videoId, undefined] }
+                                                            ]
+                                                        },
+                                                        then: content.progressPercentage,
+                                                        else: {
+                                                            $cond: {
+                                                                if: { $gt: [content.progressPercentage, "$progressPercentage"] },
+                                                                then: content.progressPercentage,
+                                                                else: "$progressPercentage"
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
-                                        }
+                                        },
+                                        videoId: {
+                                            $cond: {
+                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                then: "$videoId",
+                                                else: {
+                                                    $cond: {
+                                                        if: { $ne: [content.videoId, "$videoId"] },
+                                                        then: content.videoId,
+                                                        else: "$videoId"
+                                                    }
+                                                }
+                                            }
+                                        },
                                     }
                                 }
                             ]
@@ -1002,6 +1033,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                 lastAccessedDuration: content.duration,
                                 progressPercentage: content.progressPercentage,
                                 playerSettings: content.playerSettings,
+                                videoId: content?.videoId || null,
                             },
                         },
                     });
@@ -1134,7 +1166,6 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
         await updateOverallProgressPercentage(overallDocs, session);
         await calculateTimeSpend(overallIds, session)
     }
-    console.log(overallIds, "overallIds");
     const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, subscriberId, session);
 
     return { updatedCount: bulkOps.length };
@@ -1582,7 +1613,7 @@ module.exports = {
                 title: [{ lang: "en", value: `Training ${notificationData.action}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
                 notifyAllAdmin: false,
-                isNotificatonForAdmin : true,
+                isNotificatonForAdmin: true,
                 employeeNotifiers: notificationData.notifiers ?? [],
                 notifiers: [notificationData?.createdBy?._id],
                 affected: [
