@@ -366,7 +366,6 @@ module.exports.queries = {
             ];
 
             const certificates = await TrainingCertificate.aggregate(certificatesQuery);
-
             if (!certificates || certificates.length === 0) {
                 return {
                     trainingCertificates: [],
