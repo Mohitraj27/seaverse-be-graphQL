@@ -1380,6 +1380,7 @@ module.exports = {
                     ])
                 );
 
+                /* 
                 const notifications = userObjectIds.flatMap(userId =>
                     input.trainings.map(trainingId => ({
                         subscriber: subscriberId,
@@ -1401,7 +1402,8 @@ module.exports = {
                             }
                         ]
                     }))
-                );
+                ); 
+                */
 
                 // Send all notifications in parallel
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
@@ -1500,7 +1502,7 @@ module.exports = {
                 createdBy: notificationData.createdBy,
             };
 
-            await NotificationHelper.createNotification(notification);
+            // await NotificationHelper.createNotification(notification);
         } catch (e) {
             throw CustomError(ErrorName.FAILED, e.message);
         }

@@ -1919,10 +1919,10 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Completed`,
-                    messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
+                    messageValue: ` The course ${trainingData.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
-                    notifiers: [input.userIds],
+                    notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
@@ -2082,7 +2082,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Your Course has been reset`,
-                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
+                    messageValue: `Your progress for the course ${trainingData?.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName ?? ""}. Please start again.`,
                     notificationType: NotificationType.COURSE_MODULES_RESET,
                     notifyAllAdmin: false,
                     notifiers: [input.userIds],

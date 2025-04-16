@@ -68,7 +68,7 @@ module.exports = {
                 },
             ];
 
-            await NotificationHelper.createNotification(notification);
+            // await NotificationHelper.createNotification(notification);
         } catch (e) {
             throw Error(e?.message);
         }
