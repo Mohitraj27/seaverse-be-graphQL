@@ -1869,8 +1869,8 @@ module.exports.mutations = {
                                       overallTrainingProgress.certificateExpiry ?? null
                                   )
                                 : null;
-                            const certificateLayout =
-                                overallTrainingProgress?.assignedCertificateLayoutId;
+                            const certificateLayout = overallTrainingProgress?.status === "IN_PROGRESS" ? 
+                                overallTrainingProgress?.assignedCertificateLayoutId : trainingDataById[overallTrainingProgress.training?.toString()].layoutId;
                             const certificateNumber = await generateUniqueCertificateId();
 
                             const certificateData = {
