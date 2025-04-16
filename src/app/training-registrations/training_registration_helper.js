@@ -1126,29 +1126,33 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                const notifications = userObjectIds.flatMap(userId =>
-                    input.trainings.map(trainingId => ({
-                        subscriber: subscriberId,
-                        titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
-                        messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
-                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: false,
-                        notifiers: [userId],
-                        employeeNotifiers: [userId],
-                        affected: [],
-                        status: 'SENT',
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                        additionalInfo: [{
-                            infoType: "VIEW_COURSE",
-                            infoData: {
-                                filePath: trainingId,
-                                trainingProgressId: trainingProgressMapComputed.get(`${userId}_${trainingId}`)
-                            }
-                        }]
-                    }))
-                );
+                if(userObjectIds?.length > 0 ){
+                    const notifications = userObjectIds.flatMap(userId =>
+                        input.trainings.map(trainingId => ({
+                             subscriber: subscriberId,
+                            titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
+                            messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
+                            notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                            notifyAdmin: false,
+                            notifiers: [userId],
+                            employeeNotifiers: [userId],
+                            affected: [],
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                            additionalInfo: [{
+                                infoType: "VIEW_COURSE",
+                                infoData: {
+                                    filePath: trainingId,
+                                    trainingProgressId: trainingProgressMapComputed.get(`${userId}_${trainingId}`)
+                                }
+                            }]
+                        }))
+                    );
                 await NotificationHelper.createNotificationhelper(...notifications);
+                } else {
+                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have memebers enrollment is not possible");
+                }
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 /* 
                                 if (userObjectIds.length > 1) {
