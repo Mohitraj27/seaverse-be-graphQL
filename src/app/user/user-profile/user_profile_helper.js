@@ -139,7 +139,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action}` }],
             notificationType: NotificationType.DELETE_APPROVAL_REQUEST,
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             notifiers: adminUsers.map(admin => admin._id),
             employeeNotifiers: [],
             affected: [
@@ -183,7 +183,7 @@ const sendNotificationOn = async (notificationData) => {
         subscriber: notificationData.subscriber,
         title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action.toUpperCase()}` }],
         notificationType: NotificationType[`DELETE_${notificationData.action.toUpperCase()}`],
-        notifyAdmin: false,
+        notifyAllAdmin: false,
         notifiers: [],
         employeeNotifiers: [],
         affected: [

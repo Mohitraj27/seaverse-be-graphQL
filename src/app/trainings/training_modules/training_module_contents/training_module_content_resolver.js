@@ -557,7 +557,7 @@ module.exports.mutations = {
                 titleValue: `Content Status Updated`,
                 messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "TrainingModuleContent",
@@ -621,7 +621,7 @@ module.exports.mutations = {
                     titleValue: `Training Module Content Deleted`,
                     messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     affected: [
                         {
                             targetRef: "TrainingModuleContent",
@@ -799,7 +799,7 @@ module.exports.mutations = {
                 titleValue: `New  Content Created`,
                 messageValue: `A new ${contentTypeNotification} has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "TrainingModuleContent",
@@ -939,7 +939,7 @@ module.exports.mutations = {
                 titleValue: `New Content Created`,
                 messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "TrainingModuleContent",
@@ -1216,7 +1216,7 @@ module.exports.mutations = {
                 titleValue: `Training Module Content Updated`,
                 messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "TrainingModuleContent",
@@ -1393,7 +1393,7 @@ module.exports.mutations = {
                     titleValue: `Training Module Content Updated`,
                     messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.SUCCESS,
@@ -1444,7 +1444,7 @@ module.exports.mutations = {
                     titleValue: `Training Module Content Updated`,
                     messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
                     notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     affected: [
                         {
                             targetRef: "TrainingModuleContent",
@@ -1564,7 +1564,7 @@ module.exports.mutations = {
                 titleValue: `Content Successfully Pushed to the Courses`,
                 messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.CONTENT_PUSHED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: inputContents.map((content) => ({
                     targetRef: "TrainingModuleContent",
                     target: content._id,

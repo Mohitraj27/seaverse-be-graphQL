@@ -50,7 +50,7 @@ module.exports = {
             const notification = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Role ${notificationData.action}` }],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

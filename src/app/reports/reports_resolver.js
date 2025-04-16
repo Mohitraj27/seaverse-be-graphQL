@@ -473,7 +473,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
                 messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${userInfo?.firstName} ${userInfo?.lastName}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -1780,7 +1780,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             titleValue: `Learners Report Export Failed`,
             messageValue: `An error occurred while generating the learners report`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,
@@ -2136,7 +2136,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 titleValue: `Main Course Report Export Failed`,
                 messageValue: `An error occurred while generating Course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -3539,7 +3539,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 titleValue: `Single Course Report Export Failed`,
                 messageValue: `An error occurred while generating the individual course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -3558,20 +3558,6 @@ const getVesselMainReport = async ({ input }, context) => {
 
         const matchStage = [];
         const pageLimit = [];
-        /* Ticket Number : SEAV-117
-        if (input?.export) {
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Main Vessel Report Exported In Progress`,
-                messageValue: `The Vessel report has been started generating and exporting by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
-                status: 'SENT',
-                createdBy: userInfo,
-                icon: notificationiconEnum.PROGRESS
-            });
-        }
-            */
 
         if (Object.keys(input).length > 0) {
             const filterInput = input.filterInput || {};
@@ -4069,7 +4055,9 @@ const getVesselMainReport = async ({ input }, context) => {
             titleValue: `Main Vessel Report Export Failed`,
             messageValue: `An error occurred while generating the vessel report.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
-            notifyAdmin: true,
+            notifyAllAdmin: false,
+            isNotificatonForAdmin :true,
+            notifiers : [userInfo._id],
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,
@@ -5234,7 +5222,9 @@ const generateCustomReport = async ({ input }, context) => {
             titleValue: `Custom Report Export Failed`,
             messageValue: `An error occurred while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
-            notifyAdmin: true,
+            notifyAllAdmin: false,
+            isNotificatonForAdmin :true,
+            notifiers : [userInfo._id],
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,

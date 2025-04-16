@@ -63,7 +63,7 @@ module.exports = {
                     },
                 ],
                 notificationType: NotificationType["INVOICE_" + notificationData.action],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

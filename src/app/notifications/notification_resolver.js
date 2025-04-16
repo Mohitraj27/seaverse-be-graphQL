@@ -469,8 +469,9 @@ module.exports.queries = {
             } else if (context.platform === Role.LEARNER) {
 
                 filterConditions.$and = [
-                    { notifyAdmin: false },
-                    { notifiers: userId },
+                    { notifyAllAdmin:  {$ne :true} },
+                    { isNotificatonForAdmin : {$ne :true}},
+                    { notifiers: {$in : [userId]} },
                 ];
 
                 const pipeline = [{ $match: filterConditions }];

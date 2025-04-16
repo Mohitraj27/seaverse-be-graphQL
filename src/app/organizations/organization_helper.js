@@ -29,7 +29,7 @@ module.exports = {
             const notification = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Organization ${notificationData.action}` }],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
