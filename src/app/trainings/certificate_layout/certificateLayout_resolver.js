@@ -32,17 +32,17 @@ module.exports.queries = {
 
             const assignedCertificateLayout = layout ? layout : trainingExists?.currentCertificateLayout ?? "0";
             const certificate = await certificateLayout
-                .findOne({ training: trainingId, layout: assignedCertificateLayout, disabled: false })
+                .findOne({ training: trainingId, layout: assignedCertificateLayout })
                 .sort({ version: -1, createdAt: -1 }) 
                 .exec();
 
             if(!certificate){
                 return { listOfLayouts : [] }
             }
-            const listOfLayouts = (await certificateLayout.find({ training: trainingId, disabled: false }).select('layout').exec())?.map(l => l.layout);
+            const listOfLayouts = (await certificateLayout.find({ training: trainingId}).select('layout').exec())?.map(l => l.layout);
 
             const latestLayouts = await certificateLayout.aggregate([
-                { $match: { training: trainingId, disabled: false } },
+                { $match: { training: trainingId } },
                 { $sort: { layout: 1, version: -1 } }, 
                 {
                   $group: {
