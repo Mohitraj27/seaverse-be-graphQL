@@ -568,6 +568,7 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -647,6 +648,7 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoDuration: "$videoDuration",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
@@ -1080,6 +1082,7 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -1156,6 +1159,7 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoDuration: "$videoDuration",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }

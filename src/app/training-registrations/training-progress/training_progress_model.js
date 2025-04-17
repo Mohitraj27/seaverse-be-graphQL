@@ -20,9 +20,9 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
-        overallTrainingProgress : {
-            type : ObjectId,
-            ref : "OverallTrainingProgress"
+        overallTrainingProgress: {
+            type: ObjectId,
+            ref: "OverallTrainingProgress"
         },
         trainingRegistration: {
             type: ObjectId,
@@ -72,6 +72,9 @@ const trainingProgressSchema = new Schema(
         videoId: {
             type: ObjectId,
             default: null,
+        },
+        videoDuration: {
+            type: Number,
         },
         lastAccessedItem: String,
         lastAccessedAt: Date,

@@ -990,6 +990,10 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                     content.duration = parseFloat(content.duration);
                 }
 
+                if (content.videoDuration) {
+                    content.videoDuration = parseFloat(content.videoDuration);
+                }
+                
                 if (existingProgress) {
 
                     bulkOps.push({
@@ -1012,6 +1016,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                                 else: { $add: ["$lastAccessedDuration", content.duration] }
                                             }
                                         },
+                                        videoDuration: content?.videoDuration || null,
                                         playerSettings: content.playerSettings,
                                         progressPercentage: {
                                             $cond: {
