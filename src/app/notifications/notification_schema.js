@@ -21,7 +21,8 @@ module.exports = {
             title: [LocalisedData]
             message: [LocalisedData]
             notificationType: String
-            notifyAdmin: Boolean
+            notifyAllAdmin: Boolean
+            isNotificatonForAdmin: Boolean
             notifiers: [User]
             employeeNotifiers: [Employee]
             affected: [NotificationAffected]

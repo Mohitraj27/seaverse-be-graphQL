@@ -50,7 +50,7 @@ module.exports = {
             const notification = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Role ${notificationData.action}` }],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -88,7 +88,7 @@ module.exports = {
                 },
             ];
 
-            await NotificationHelper.createNotification(notification);
+            // await NotificationHelper.createNotification(notification);
         } catch (e) {
             throw Error(e.message);
         }

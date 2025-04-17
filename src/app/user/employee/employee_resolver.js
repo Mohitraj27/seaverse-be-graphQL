@@ -1336,7 +1336,6 @@ module.exports.queries = {
                 totalEmployees: totalCount
             };
         } catch (error) {
-            console.log(error)
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
@@ -1634,7 +1633,7 @@ module.exports.queries = {
                                         },
                                     ],
                                     notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                                    notifyAdmin: true,
+                                    notifyAllAdmin: true,
                                     notifiers: [],
                                     employeeNotifiers: [],
                                     affected: [
@@ -2111,7 +2110,7 @@ const manageRole = async ({ input }, context) => {
     }
 
     if (updateUserRole) {
-        if (updateUserRole.n > 0) {
+        if (updateUserRole.n > 0 && (input.change !== "Delete") && (input.removeType !== operationTypeRoleEnum.REMOVE_AS_ADMIN)) {
             affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
 
             const adminNotification = {
@@ -2124,7 +2123,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: affectedUsers.map(user => ({
@@ -2146,7 +2145,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -3159,7 +3158,7 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -3240,7 +3239,7 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 createdBy: userInfo,

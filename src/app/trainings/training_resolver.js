@@ -235,10 +235,12 @@ module.exports.mutations = {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const moduleContentIds = [];
+        let isUpdate;
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
             if (!input.title?.length || !input.title || input.title.some(item => item.value == "")) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course title is required");
             if (!input.description?.length && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Description is required");
+            isUpdate = true;
         }
         if (input.training?.length && input.trainingModules?.length) {
             moduleContentIds = await TrainingContentBridge.find(
@@ -346,17 +348,18 @@ module.exports.mutations = {
         });
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
-        TrainingHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            training: savedTraining,
-            action: input._id ? "UPDATED" : "CREATED",
-            createdBy: userInfo,
-        });
-
+        if (!isUpdate) {
+            TrainingHelper.sendNotificationOnCRUD({
+                subscriber: subscriberId,
+                training: savedTraining,
+                action: isUpdate ? "UPDATED" : "CREATED",
+                createdBy: userInfo,
+            });
+        }
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,
-            operation: input._id ? "UPDATE" : "CREATE",
+            operation: isUpdate ? "UPDATE" : "CREATE",
             ipInfo: context.ipInfo,
             affected: [
                 {
