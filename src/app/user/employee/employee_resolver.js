@@ -1336,7 +1336,6 @@ module.exports.queries = {
                 totalEmployees: totalCount
             };
         } catch (error) {
-            console.log(error)
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
@@ -1634,7 +1633,7 @@ module.exports.queries = {
                                         },
                                     ],
                                     notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                                    notifyAdmin: true,
+                                    notifyAllAdmin: true,
                                     notifiers: [],
                                     employeeNotifiers: [],
                                     affected: [
@@ -2111,7 +2110,7 @@ const manageRole = async ({ input }, context) => {
     }
 
     if (updateUserRole) {
-        if (updateUserRole.n > 0) {
+        if (updateUserRole.n > 0 && (input.change !== "Delete") && (input.removeType !== operationTypeRoleEnum.REMOVE_AS_ADMIN)) {
             affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
 
             const adminNotification = {
@@ -2124,7 +2123,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: affectedUsers.map(user => ({
@@ -2146,7 +2145,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -3159,7 +3158,7 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -3240,7 +3239,7 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 createdBy: userInfo,
@@ -3337,6 +3336,14 @@ module.exports.mutations = {
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
                 {
+                    $lookup: {
+                        from: 'subroles',
+                        localField: 'subRoles', 
+                        foreignField: '_id',
+                        as: 'subRoleDetails',
+                    },
+                },
+                {
                     $group: {
                         _id: '$_id',
                         firstName: { $first: '$firstName' },
@@ -3369,6 +3376,7 @@ module.exports.mutations = {
                         vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
                         isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
                         isRegistered: { $first: '$isRegistered' },
+                        subRoleDetails: { $first: '$subRoleDetails' },
                     },
                 },
                 {
@@ -3391,7 +3399,39 @@ module.exports.mutations = {
                             else: { $toDate: '$lastLoginAt' },
                         },
                     },
-                    'User Roles': '$role',
+                    // 'User Roles': '$role',
+                    'User Roles': {
+                        $concat: [
+                        '$role',
+                        {
+                            $cond: {
+                            if: { $and: [
+                                { $isArray: '$subRoleDetails' },
+                                { $gt: [{ $size: '$subRoleDetails' }, 0] }
+                            ]},
+                            then: {
+                                $concat: [
+                                '  ', 
+                                {
+                                    $reduce: {
+                                    input: '$subRoleDetails',
+                                    initialValue: '',
+                                    in: {
+                                        $concat: [
+                                        '$$value',
+                                        { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
+                                        '$$this.name' 
+                                        ]
+                                    }
+                                    }
+                                }
+                                ]
+                            },
+                            else: ' '
+                            }
+                        }
+                        ]
+                    },
                     'Vessel Type': '$vesselType',
                     'Vessel Status': {
                         $cond: {
@@ -3529,7 +3569,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.UPLOAD_FAILED);
             }
         } catch (error) {
-            throw new Error(error.message);
+            throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
         }
     },
     createOrUpdateDynamicData: async ({ input }, context) => {
