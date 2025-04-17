@@ -135,9 +135,15 @@ const generateSortingStage = async(fieldMapping, lowercaseFields = [], defaultFi
 
 
 const convertMinutesToHMS = (minutes) => {
+    if (minutes == null || isNaN(minutes)) {
+        return '00:00:00'; 
+    }
+    if (minutes <= 0) {
+        return '00:00:00'; 
+    }
     const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.floor(minutes % 60); // remaining minutes
-    const remainingSeconds = Math.round((minutes % 1) * 60); // remaining seconds
+    const remainingMinutes = Math.floor(minutes % 60); 
+    const remainingSeconds = Math.round((minutes % 1) * 60); 
 
     return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };

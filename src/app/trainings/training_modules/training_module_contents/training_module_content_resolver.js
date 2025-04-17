@@ -1001,7 +1001,7 @@ module.exports.mutations = {
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
-        const videoFiles = videos ? await Promise.all(videos) : null;
+        const videoFiles = videos ? await videos : null;
         const audioFile = audio ? await audio : null;
         const fileFile = file ? await file : null;
 
@@ -1012,12 +1012,13 @@ module.exports.mutations = {
             return allowedFileFormats.includes(fileExtension);
         };
 
-        const validateFiles = [scormFile, thumbnailFile, imageFile, audioFile, fileFile, ...(videoFiles || [])];
-        for (const mediaFile of validateFiles) {
-            if (mediaFile && !validateFileFormat(mediaFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
-        }
+        // const validateFiles = [scormFile, thumbnailFile, imageFile, audioFile, fileFile, ...(videoFiles || [])];
+        // for (const mediaFile of validateFiles) {
+        //     console.log(mediaFile,"medifile")
+        //     if (mediaFile && !validateFileFormat(mediaFile)) {
+        //         throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+        //     }
+        // }
 
         if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
             input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
@@ -1056,15 +1057,7 @@ module.exports.mutations = {
             }
         }
 
-        if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
-            const deletedIds = deletedVideos.map(id => id.toString());
-            updateData.videos = updateData.videos.filter(video => {
-                const videoIdStr = video._id?.toString?.();
-                return videoIdStr && !deletedIds.includes(videoIdStr);
-            });
-            isUpdated = true;
-            isMediaUpdated = true;
-        }
+      
 
 
         if ((!videoFiles || videoFiles.length === 0) && videoMetas?.length > 0) {
@@ -1094,46 +1087,62 @@ module.exports.mutations = {
                 isUpdated = true;
             }
         }
+
+
+        if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
+            const deletedIds = deletedVideos.map(id => id.toString());
+            updateData.videos = updateData.videos.filter(video => {
+                const videoIdStr = video._id?.toString?.();
+                return videoIdStr && !deletedIds.includes(videoIdStr);
+            });
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
+
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
-            for (let i = 0; i < videoFiles.length; i++) {
-                const videoFile = videoFiles[i];
-                const videoMeta = videoMetas[i];
+            // try {
+            updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
 
-                if (!videoFile || !videoMeta || !videoMeta.lang) continue;
+                const uploadedVideos = await Promise.all(
+                    videoFiles.map(async (videoFile, i) => {
+                        const videoMeta = videoMetas[i];
+                        if (!videoFile || !videoMeta?.lang) return null;
 
-                try {
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: videoFile,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
+                        const videoUrl = await UploadHelper.uploadVideo({
+                            data: videoFile,
+                            folderName: `video-content`,
+                            fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
+                            uploadType: UploadHelper.uploadType.trainingContentVideo,
+                        });
 
-                    const existingVideoIndex = updateData.videos.findIndex(video => video.lang === videoMeta.lang);
+                        return {
+                            url: videoUrl,
+                            lang: videoMeta.lang,
+                            title: videoMeta.title,
+                            description: videoMeta.description,
+                            isDefault: videoMeta.isDefault,
+                            duration: videoMeta.duration
+                        };
+                    })
+                );
 
-                    const newVideo = {
-                        url: videoUrl,
-                        lang: videoMeta.lang,
-                        title: videoMeta.title,
-                        description: videoMeta.description,
-                        isDefault: videoMeta.isDefault,
-                        duration:videoMeta.duration
-                    };
-
-                    if (existingVideoIndex !== -1) {
-                        updateData.videos[existingVideoIndex] = { ...updateData.videos[existingVideoIndex], ...newVideo };
+                // Filter out any nulls (in case some were skipped)
+                for (const newVideo of uploadedVideos.filter(Boolean)) {
+                    const existingIndex = updateData.videos.findIndex(video => video.lang === newVideo.lang);
+                    if (existingIndex !== -1) {
+                        updateData.videos[existingIndex] = { ...updateData.videos[existingIndex], ...newVideo };
                     } else {
                         updateData.videos.push(newVideo);
                     }
-
-                    isUpdated = true;
-                    isMediaUpdated = true;
-                } catch (uploadError) {
-                    throw CustomError(ErrorName.FAILED, `Error uploading video for language ${videoMeta.lang}:`)
-                    // console.error(`Error uploading video for language ${videoMeta.lang}:`, uploadError.message);
                 }
-            }
+
+                isUpdated = true;
+                isMediaUpdated = true;
+            // } catch (err) {
+            //     throw CustomError(ErrorName.FAILED, `Error uploading one or more videos`);
+            // }
         }
+
 
         if (thumbnail === null) {
             updateData.thumbnail = null;
