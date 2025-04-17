@@ -8,7 +8,7 @@ const AwsHelper = require("../../../util/aws_helper");
 const { getTheContent } = require("./content_zip_helper");
 const { TrainingModuleContent } = require("../training_modules/training_module_contents/training_module_content_model");
 const { User } = require("../../user/user_model");
-const validateInputData = async (input,userId) => {
+const validateInputData = async (input, userId) => {
     if (!userId) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
 
     if (!input.training || !input.trainingModule) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training and training module is required");
@@ -31,7 +31,7 @@ module.exports.mutations = {
         const { userId } = AuthUser(context);
 
         try {
-            await validateInputData(input,userId);
+            await validateInputData(input, userId);
             const trainingModuleContentsFromContentData = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
 
             let trainingContentIds = [];
@@ -60,11 +60,11 @@ module.exports.mutations = {
                 }).populate('trainingContent').lean();
 
             }
-            const user = await User.findOne({_id: input?.userId }).lean();
-            const userLanguages = user?.contentLanguages || [];
+            const user = await User.findOne({ _id: userId }).lean();
+            const userLanguages = user?.contentlanguages || [];
             let getContent;
             if (trainingContentIds.length > 0) {
-                getContent = await getTheContent(trainingContents,userLanguages);
+                getContent = await getTheContent(trainingContents, userLanguages);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
                 /*
                 const trainingContents = [];
