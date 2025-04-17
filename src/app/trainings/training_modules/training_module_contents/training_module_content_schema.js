@@ -77,8 +77,8 @@ module.exports = {
             featuredInCourses: Int
             quizDetails: [QuizDetails]
             progressPercentage: String
-            lastAccessedDuration: Int
-            videoDuration: Int
+            lastAccessedDuration: Float
+            videoDuration: Float
             playerSettings: [JSON]
             quizAttemptDetails: JSON
             quizAttempts: [String]
