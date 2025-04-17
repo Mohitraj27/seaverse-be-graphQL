@@ -12,7 +12,7 @@ const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
 
     const matchedVideos = videos.filter(video => userLanguages.includes(video?.lang));
-    
+
     if (matchedVideos?.length > 0) {
         return matchedVideos;
     }
@@ -98,13 +98,13 @@ const fetchFiles = async (contents, userLanguages = []) => {
 
         switch (trainingContent.contentType) {
             case contentTypes.VIDEO:
-                  /* fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
-                 break;
-                 */
-                 const selectedVideos = await filterVideosByLanguage(trainingContent?.videos, userLanguages);
-                 selectedVideos.forEach((video, index) => {
+                /* fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
+               break;
+               */
+                const selectedVideos = await filterVideosByLanguage(trainingContent?.videos, userLanguages);
+                selectedVideos.forEach((video, index) => {
                     if (video?.url) {
-                        fileUrlMap.set(`${content?._id}_video_${index}`, video?.url);
+                        fileUrlMap.set(`${content?._id}_video_${video?._id}_${video?.lang}`, video?.url);
                     }
                 });
                 break;
@@ -130,12 +130,12 @@ const getTheContent = async (contents, userLanguages = []) => {
     let fetchedData;
 
     const allQuizzes = contents.every(content => content.contentType === contentTypes.QUIZ);
-    
+
     if (allQuizzes) {
         return [];
     }
 
-    fetchedData = await fetchFiles(contents,userLanguages);
+    fetchedData = await fetchFiles(contents, userLanguages);
     if (fetchedData?.size > 0) {
         zipUrl = await fileDownloader(fetchedData);
     }
@@ -144,7 +144,7 @@ const getTheContent = async (contents, userLanguages = []) => {
         return null;
     }
 
-    return zipUrl  || null;
+    return zipUrl || null;
 }
 
 module.exports = {
