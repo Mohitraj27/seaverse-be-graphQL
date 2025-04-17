@@ -1924,7 +1924,7 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Completed`,
-                    messageValue: ` The course ${trainingData.title[0]?.value} has been successfully completed.`,
+                    messageValue: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
                     notifiers: [userId],
