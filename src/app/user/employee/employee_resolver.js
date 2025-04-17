@@ -761,364 +761,362 @@ module.exports.queries = {
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
                 filterConditions.empDesignation = { $in: filterInput.empDesignation };
             }
-            let sanitizedSearch;
-            if (filterInput?.search) {
-                sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
-            }
+                const fetchResult = async pipeline => {
+                    const empData = await Employee.aggregate(pipeline);
+                    const empCount = empData.length;
+                    const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
+                        offset: skip,
+                        limit,
+                        customLabels: {
+                            docs: "employees",
+                            totalDocs: "totalCount",
+                            offset: "skip",
+                        },
+                        pagination: limit !== 0,
+                    });
 
-            //     const fetchResult = async pipeline => {
-            //         const empData = await Employee.aggregate(pipeline);
-            //         const empCount = empData.length;
-            //         const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
-            //             offset: skip,
-            //             limit,
-            //             customLabels: {
-            //                 docs: "employees",
-            //                 totalDocs: "totalCount",
-            //                 offset: "skip",
-            //             },
-            //             pagination: limit !== 0,
-            //         });
+                    return {
+                        ...result,
+                        totalCount: empCount ?? 0,
+                    }
+                };
 
-            //         return {
-            //             ...result,
-            //             totalCount: empCount ?? 0,
-            //         }
-            //     };
+                let sanitizedSearch;
+                if (filterInput?.search) {
+                    sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+                }
+            const results = await fetchResult([
+                    {
+                        $match: filterConditions,
+                    },
+                    {
+                        $lookup: {
+                            from: "designations",
+                            localField: "empDesignation",
+                            foreignField: "_id",
+                            as: "empDesignation",
+                        },
+                    },
+                    { $unwind: "$empDesignation" },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "user",
+                            foreignField: "_id",
+                            as: "user",
+                        },
+                    },
+                    {
+                        $unwind: "$user",
+                    },
+                    {
+                        $match: {
+                            "user.isDeleted": { $ne: true },
+                            "user.role": { $in: ["LEARNER", "ADMIN"] },
+                            ...(filterInput?.vesselStatus?.length > 0 && {
+                                "user.vesselStatus": { $in: filterInput.vesselStatus },
+                            }),
+                        },
+                    },
+                    ...(filterInput?.search
+                        ? [
+                            {
+                                $match: {
+                                    $or: [
+                                        {
+                                            $expr: {
+                                                $regexMatch: {
+                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                    regex: ".*" + sanitizedSearch + ".*",
+                                                    options: "i",
+                                                },
+                                            },
+                                        },
+                                        {
+                                            "user.email": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "user.civilIdOrPassport": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        }
+                                    ],
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.isRegistered !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.isRegistered": filterInput.isRegistered,
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.lastSeen
+                        ? [
+                            {
+                                $match: {
+                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                    "user.isResetPasswordDialog": { $ne: false },
+                                },
+                            },
+                        ]
+                        : []),
+                    {
+                        $lookup: {
+                            from: "subroles",
+                            localField: "user.subRoles",
+                            foreignField: "_id",
+                            as: "user.subRoles",
+                        }
+                    },
 
-            //     let sanitizedSearch;
-            //     if (filterInput?.search) {
-            //         sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
-            //     }
-            //     const result = await fetchResult([
-            //         {
-            //             $match: filterConditions,
-            //         },
-            //         {
-            //             $lookup: {
-            //                 from: "designations",
-            //                 localField: "empDesignation",
-            //                 foreignField: "_id",
-            //                 as: "empDesignation",
-            //             },
-            //         },
-            //         { $unwind: "$empDesignation" },
-            //         {
-            //             $lookup: {
-            //                 from: "users",
-            //                 localField: "user",
-            //                 foreignField: "_id",
-            //                 as: "user",
-            //             },
-            //         },
-            //         {
-            //             $unwind: "$user",
-            //         },
-            //         {
-            //             $match: {
-            //                 "user.isDeleted": { $ne: true },
-            //                 "user.role": { $in: ["LEARNER", "ADMIN"] },
-            //                 ...(filterInput?.vesselStatus?.length > 0 && {
-            //                     "user.vesselStatus": { $in: filterInput.vesselStatus },
-            //                 }),
-            //             },
-            //         },
-            //         ...(filterInput?.search
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         $or: [
-            //                             {
-            //                                 $expr: {
-            //                                     $regexMatch: {
-            //                                         input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-            //                                         regex: ".*" + sanitizedSearch + ".*",
-            //                                         options: "i",
-            //                                     },
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "user.email": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "user.civilIdOrPassport": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             }
-            //                         ],
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.isRegistered !== undefined
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "user.isRegistered": filterInput.isRegistered,
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.lastSeen
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-            //                         "user.isResetPasswordDialog": { $ne: false },
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         {
-            //             $lookup: {
-            //                 from: "subroles",
-            //                 localField: "user.subRoles",
-            //                 foreignField: "_id",
-            //                 as: "user.subRoles",
-            //             }
-            //         },
+                    {
+                        $lookup: {
+                            from: "uservessels",
+                            localField: "user._id",
+                            foreignField: "user",
+                            as: "userVessels",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isActive: true,
+                                    },
+                                },
+                                {
+                                    $lookup: {
+                                        from: "vessels",
+                                        localField: "vessel",
+                                        foreignField: "_id",
+                                        as: "vesselDetails",
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    name: { $exists: true, $ne: null },
+                                                },
+                                            },
+                                            {
+                                                $project: {
+                                                    _id: 1,
+                                                    name: 1,
+                                                    typeOfVessel: 1,
+                                                    imoNumber: 1,
+                                                    isActive: 1,
 
-            //         {
-            //             $lookup: {
-            //                 from: "uservessels",
-            //                 localField: "user._id",
-            //                 foreignField: "user",
-            //                 as: "userVessels",
-            //                 pipeline: [
-            //                     {
-            //                         $match: {
-            //                             isActive: true,
-            //                         },
-            //                     },
-            //                     {
-            //                         $lookup: {
-            //                             from: "vessels",
-            //                             localField: "vessel",
-            //                             foreignField: "_id",
-            //                             as: "vesselDetails",
-            //                             pipeline: [
-            //                                 {
-            //                                     $match: {
-            //                                         name: { $exists: true, $ne: null },
-            //                                     },
-            //                                 },
-            //                                 {
-            //                                     $project: {
-            //                                         _id: 1,
-            //                                         name: 1,
-            //                                         typeOfVessel: 1,
-            //                                         imoNumber: 1,
-            //                                         isActive: 1,
+                                                },
+                                            },
+                                            {
+                                                $lookup: {
+                                                    from: "vesseltypes",
+                                                    localField: "typeOfVessel",
+                                                    foreignField: "_id",
+                                                    as: "typeOfVesselDetails",
+                                                    pipeline: [
+                                                        {
+                                                            $match: {
+                                                                _id: { $ne: null },
+                                                            },
+                                                        },
+                                                        {
+                                                            $project: {
+                                                                _id: 1,
+                                                                name: 1,
+                                                                isActive: 1,
 
-            //                                     },
-            //                                 },
-            //                                 {
-            //                                     $lookup: {
-            //                                         from: "vesseltypes",
-            //                                         localField: "typeOfVessel",
-            //                                         foreignField: "_id",
-            //                                         as: "typeOfVesselDetails",
-            //                                         pipeline: [
-            //                                             {
-            //                                                 $match: {
-            //                                                     _id: { $ne: null },
-            //                                                 },
-            //                                             },
-            //                                             {
-            //                                                 $project: {
-            //                                                     _id: 1,
-            //                                                     name: 1,
-            //                                                     isActive: 1,
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                            {
+                                                $unwind: {
+                                                    path: "$typeOfVesselDetails",
+                                                    preserveNullAndEmptyArrays: true,
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$vesselDetails",
+                                        preserveNullAndEmptyArrays: true,
+                                    },
+                                },
+                                {
+                                    $sort: {
+                                        updatedAt: -1,
+                                    },
+                                },
+                                {
+                                    $limit: 1,
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$userVessels",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $addFields: {
+                            latestUpdatedAt: {
+                                $max: ["$updatedAt", "$user.updatedAt"],
+                            },
+                        },
+                    },
+                    {
+                        $sort: {
+                            latestUpdatedAt: -1,
+                        },
+                    },
+                    {
+                        $sort: {
+                            "user.firstName": 1
+                        }
+                    },
+                    ...(filterInput?.vesselName?.length > 0
+                        ? [
+                            {
+                                $match: {
+                                    "userVessels.vesselDetails._id": {
+                                        $in: filterInput.vesselName.map(
+                                            id => ObjectId(id)
+                                        ),
+                                    },
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.vesselType?.length > 0
+                        ? [
+                            {
+                                $match: {
+                                    "userVessels.vesselDetails.typeOfVesselDetails._id": {
+                                        $in: filterInput.vesselType.map(id => ObjectId(id)),
+                                    },
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.search
+                        ? [
+                            {
+                                $match: {
+                                    $or: [
+                                        {
+                                            $expr: {
+                                                $regexMatch: {
+                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                    regex: ".*" + sanitizedSearch + ".*",
+                                                    options: "i",
+                                                },
+                                            },
+                                        },
+                                        {
+                                            "user.email": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "user.civilIdOrPassport": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        /* {
+                                            "user.companyEmail": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "user.phone.number": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            employeeNo: {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "userVessels.vesselDetails.name": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "empDesignation.name": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        }, */
+                                    ],
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.role?.length > 0
+                        ? [
+                            {
+                                $match:
+                                    filterInput.role.includes("LEARNER") &&
+                                        filterInput.role.includes("ADMIN")
+                                        ? {}
+                                        : filterInput.role.includes("LEARNER")
+                                            ? {
+                                                "user.role": "LEARNER",
+                                                "user.subRoles.name": { $ne: "ADMIN" },
+                                            }
+                                            : filterInput.role.includes("ADMIN")
+                                                ? { "user.subRoles.name": "ADMIN" }
+                                                : { "user.role": { $in: filterInput.role } },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.isRegistered !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.isRegistered": filterInput.isRegistered,
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.lastSeen
+                        ? [
+                            {
+                                $match: {
+                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                    "user.isResetPasswordDialog": { $ne: false },
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.showInvited ? [
+                            { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
+                        ] : []),
+            ...sortingStage,
+                ]);
 
-            //                                                 },
-            //                                             },
-            //                                         ],
-            //                                     },
-            //                                 },
-            //                                 {
-            //                                     $unwind: {
-            //                                         path: "$typeOfVesselDetails",
-            //                                         preserveNullAndEmptyArrays: true,
-            //                                     },
-            //                                 },
-            //                             ],
-            //                         },
-            //                     },
-            //                     {
-            //                         $unwind: {
-            //                             path: "$vesselDetails",
-            //                             preserveNullAndEmptyArrays: true,
-            //                         },
-            //                     },
-            //                     {
-            //                         $sort: {
-            //                             updatedAt: -1,
-            //                         },
-            //                     },
-            //                     {
-            //                         $limit: 1,
-            //                     },
-            //                 ],
-            //             },
-            //         },
-            //         {
-            //             $unwind: {
-            //                 path: "$userVessels",
-            //                 preserveNullAndEmptyArrays: true,
-            //             },
-            //         },
-            //         {
-            //             $addFields: {
-            //                 latestUpdatedAt: {
-            //                     $max: ["$updatedAt", "$user.updatedAt"],
-            //                 },
-            //             },
-            //         },
-            //         {
-            //             $sort: {
-            //                 latestUpdatedAt: -1,
-            //             },
-            //         },
-            //         {
-            //             $sort: {
-            //                 "user.firstName": 1
-            //             }
-            //         },
-            //         ...(filterInput?.vesselName?.length > 0
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "userVessels.vesselDetails._id": {
-            //                             $in: filterInput.vesselName.map(
-            //                                 id => ObjectId(id)
-            //                             ),
-            //                         },
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.vesselType?.length > 0
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "userVessels.vesselDetails.typeOfVesselDetails._id": {
-            //                             $in: filterInput.vesselType.map(id => ObjectId(id)),
-            //                         },
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.search
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         $or: [
-            //                             {
-            //                                 $expr: {
-            //                                     $regexMatch: {
-            //                                         input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-            //                                         regex: ".*" + sanitizedSearch + ".*",
-            //                                         options: "i",
-            //                                     },
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "user.email": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "user.civilIdOrPassport": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             /* {
-            //                                 "user.companyEmail": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "user.phone.number": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 employeeNo: {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "userVessels.vesselDetails.name": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             },
-            //                             {
-            //                                 "empDesignation.name": {
-            //                                     $regex: ".*" + sanitizedSearch + ".*",
-            //                                     $options: "i",
-            //                                 },
-            //                             }, */
-            //                         ],
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.role?.length > 0
-            //             ? [
-            //                 {
-            //                     $match:
-            //                         filterInput.role.includes("LEARNER") &&
-            //                             filterInput.role.includes("ADMIN")
-            //                             ? {}
-            //                             : filterInput.role.includes("LEARNER")
-            //                                 ? {
-            //                                     "user.role": "LEARNER",
-            //                                     "user.subRoles.name": { $ne: "ADMIN" },
-            //                                 }
-            //                                 : filterInput.role.includes("ADMIN")
-            //                                     ? { "user.subRoles.name": "ADMIN" }
-            //                                     : { "user.role": { $in: filterInput.role } },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.isRegistered !== undefined
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "user.isRegistered": filterInput.isRegistered,
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            //         ...(filterInput?.lastSeen
-            //             ? [
-            //                 {
-            //                     $match: {
-            //                         "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-            //                         "user.isResetPasswordDialog": { $ne: false },
-            //                     },
-            //                 },
-            //             ]
-            //             : []),
-            // ...sortingStage,
-            //     ]);
-
-            //     return {
-            //         employees: result.employees,
-            //         totalCount: result?.employees.length ?? 0,
-            //         totalEmployees: result?.totalCount ?? 0
-            //     }
-
+                return {
+                    employees: results.employees,
+                    totalCount: results?.employees.length ?? 0,
+                    totalEmployees: results?.totalCount ?? 0
+                }
+                /*
             const optimizedPipeline = [
                 // Initial match on subscriber
                 { $match: filterConditions },
@@ -1130,7 +1128,7 @@ module.exports.queries = {
                         let: { userId: "$user" },
                         pipeline: [
                             { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
-                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, lastLoginAt: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 } }
+                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 , currentVessel:1} }
                         ],
                         as: "user"
                     }
@@ -1168,29 +1166,38 @@ module.exports.queries = {
                         },
                     ]
                     : []),
+                    { 
+                        $unwind: {
+                            path: "$user.currentVessel", 
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
 
-                // Apply user-related filters
-                // Check if filterInput exists and has vesselStatus
+                    ...(filterInput?.vesselName?.length > 0 ? [
+                        { 
+                            $match: { 
+                                "user.currentVessel": { 
+                                    $in: filterInput.vesselName 
+                                } 
+                            } 
+                        }
+                    ] : []),
+                    { $unwind: "$user.currentVessel" , preserveNullAndEmptyArrays: true},
                 ...(filterInput?.vesselStatus?.length > 0 ? [
                     { $match: { "user.vesselStatus": { $in: filterInput.vesselStatus } } }
                 ] : []),
 
-                // Check if filterInput exists and has isRegistered
                 ...(filterInput?.isRegistered !== undefined ? [
                     { $match: { "user.isRegistered": filterInput.isRegistered } }
                 ] : []),
 
-                // Check if filterInput exists and has lastSeen
                 ...(filterInput?.lastSeen ? [
                     { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate } } }
                 ] : []),
 
-                // Check if filterInput exists and has showInvited
                 ...(filterInput?.showInvited ? [
                     { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
                 ] : []),
-
-                // Lookup designations
                 {
                     $lookup: {
                         from: "designations",
@@ -1203,7 +1210,6 @@ module.exports.queries = {
                 { $unwind: "$empDesignation" },
 
                 // Handle search with text index
-
 
                 // Lookup subroles
                 {
@@ -1323,18 +1329,17 @@ module.exports.queries = {
                 //     }
                 // }
             ];
-
+                */
             // Execute the aggregation
-            const results = await Employee.aggregate(optimizedPipeline);
-            // console.log(results[0]);
-            // const { metadata, data } = results[0] || { metadata: [], data: [] };
-            const totalCount = results?.length ? results?.length : 0;
+            // const resultsw = await Employee.aggregate(results);
+            // // const { metadata, data } = results[0] || { metadata: [], data: [] };
+            // const totalCount = resultsw?.length ? resultsw?.length : 0;
 
-            return {
-                employees: results,
-                totalCount,
-                totalEmployees: totalCount
-            };
+            // return {
+            //     employees: resultsw,
+            //     totalCount,
+            //     totalEmployees: totalCount
+            // };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
@@ -3557,7 +3562,6 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 };
                 // notifications.push(successNotification);
-                console.log(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
