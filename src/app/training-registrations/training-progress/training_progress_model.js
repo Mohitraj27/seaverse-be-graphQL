@@ -69,6 +69,10 @@ const trainingProgressSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        videoId: {
+            type: ObjectId,
+            default: null,
+        },
         lastAccessedItem: String,
         lastAccessedAt: Date,
         lastAccessedDuration: {
