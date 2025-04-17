@@ -534,7 +534,7 @@ module.exports.mutations = {
                         titleValue: `Your Vessels have been Updated`,
                         messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAdmin: false,
+                        notifyAllAdmin: false,
                         affected: updatedVessels.map(v => ({
                             targetRef: "Vessel",
                             target: v.id,

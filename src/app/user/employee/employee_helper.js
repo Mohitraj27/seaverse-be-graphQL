@@ -749,7 +749,7 @@ const sendDeleteNotification = async (notificationsData) => {
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -781,7 +781,7 @@ const sendDeleteNotification = async (notificationsData) => {
             };
             notifications.push(notification);
         }
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 const notifyEmployeeStatusChange = async (notificationsData) => {
@@ -801,7 +801,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -816,7 +816,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
             };
             notifications.push(notification);
         }
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 
@@ -848,7 +848,7 @@ const sendEnrollmentNotification = async notificationsData => {
                     },
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
@@ -894,7 +894,7 @@ const sendEnrollmentNotification = async notificationsData => {
             notifications.push(notification);
         }
 
-        await NotificationHelper.createNotification(notifications);
+        // await NotificationHelper.createNotification(notifications);
     }
 };
 const sendNotificationOnBULK = async notificationData => {
@@ -923,8 +923,7 @@ const sendNotificationOnBULK = async notificationData => {
         };
 
         const createdNotification = await Notification.create(notification);
-        console.log("testingDbEntry\n");
-        console.log(createdNotification);
+
         process.send({
             type: 'NOTIFICATION',
             event: NotificationEvent.ON_NOTIFICATION,
@@ -942,7 +941,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
         const notification = {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `${notificationData.action}` }],
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             createdBy: notificationData.createdBy,
@@ -973,7 +972,7 @@ const sendNotificationOnCRUD = async notificationData => {
         const notification = {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `Employee ${notificationData.action}` }],
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [
@@ -1026,7 +1025,7 @@ const sendNotificationOnCRUD = async notificationData => {
             ];
         }
 
-        await NotificationHelper.createNotification(notification);
+        // await NotificationHelper.createNotification(notification);
     } catch (e) {
         throw Error(e?.message);
     }
@@ -1835,7 +1834,7 @@ module.exports = {
                                             titleValue: `User Vessel Updated Successfully`,
                                             messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                                             notificationType: NotificationType.USER_VESSEL_UPDATE,
-                                            notifyAdmin: true,
+                                            notifyAllAdmin: true,
                                             affected: [
                                                 {
                                                     targetRef: "User",
@@ -1851,7 +1850,7 @@ module.exports = {
                                             titleValue: `Your Vessel has been Updated`,
                                             messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
                                             notificationType: NotificationType.USER_VESSEL_UPDATE,
-                                            notifyAdmin: false,
+                                            notifyAllAdmin: false,
                                             affected: [
                                                 {
                                                     targetRef: "User",
@@ -1883,7 +1882,7 @@ module.exports = {
                         messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
         
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         affected: [
                             {
                                 targetRef: "User",
@@ -1899,7 +1898,7 @@ module.exports = {
                         titleValue: `Your vessel status has been Updated`,
                         messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
                         notificationType: NotificationType.USER_VESSEL_UPDATE,
-                        notifyAdmin: false,
+                        notifyAllAdmin: false,
                         affected: [
                             {
                                 targetRef: "User",
