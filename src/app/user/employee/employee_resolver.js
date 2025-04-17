@@ -3336,6 +3336,14 @@ module.exports.mutations = {
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
                 {
+                    $lookup: {
+                        from: 'subroles',
+                        localField: 'subRoles', 
+                        foreignField: '_id',
+                        as: 'subRoleDetails',
+                    },
+                },
+                {
                     $group: {
                         _id: '$_id',
                         firstName: { $first: '$firstName' },
@@ -3368,6 +3376,7 @@ module.exports.mutations = {
                         vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
                         isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
                         isRegistered: { $first: '$isRegistered' },
+                        subRoleDetails: { $first: '$subRoleDetails' },
                     },
                 },
                 {
@@ -3390,7 +3399,39 @@ module.exports.mutations = {
                             else: { $toDate: '$lastLoginAt' },
                         },
                     },
-                    'User Roles': '$role',
+                    // 'User Roles': '$role',
+                    'User Roles': {
+                        $concat: [
+                        '$role',
+                        {
+                            $cond: {
+                            if: { $and: [
+                                { $isArray: '$subRoleDetails' },
+                                { $gt: [{ $size: '$subRoleDetails' }, 0] }
+                            ]},
+                            then: {
+                                $concat: [
+                                '  ', 
+                                {
+                                    $reduce: {
+                                    input: '$subRoleDetails',
+                                    initialValue: '',
+                                    in: {
+                                        $concat: [
+                                        '$$value',
+                                        { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
+                                        '$$this.name' 
+                                        ]
+                                    }
+                                    }
+                                }
+                                ]
+                            },
+                            else: ' '
+                            }
+                        }
+                        ]
+                    },
                     'Vessel Type': '$vesselType',
                     'Vessel Status': {
                         $cond: {
@@ -3528,7 +3569,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.UPLOAD_FAILED);
             }
         } catch (error) {
-            throw new Error(error.message);
+            throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
         }
     },
     createOrUpdateDynamicData: async ({ input }, context) => {

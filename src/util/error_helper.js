@@ -118,6 +118,7 @@ const errorName = {
     FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
     FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
     SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV"
 };
 
 const errorType = {
@@ -710,6 +711,11 @@ const errorType = {
         message: 'Group doesn\'t have any member',
         statusCode: 400,    
         type: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    },
+    FAILED_TO_EXPORT_USERS_TO_CSV: { 
+        message: 'Failed to export users to CSV',
+        statusCode: 400,    
+        type: "FAILED_TO_EXPORT_USERS_TO_CSV"
     }
 };
 
