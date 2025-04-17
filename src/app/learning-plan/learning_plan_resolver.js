@@ -106,12 +106,15 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+
+            const actionInNotification = newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
+            
             await Promise.all(
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
-                        titleValue: `Learning Plan Status Updated to ${newStatus.toLowerCase()}`,
-                        messageValue: `Learning plan ${plan.title} status changed to ${newStatus.toLowerCase()} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                        titleValue: `Learning Plan Status Updated`,
+                        messageValue: `Learning plan ${plan.title} status changed to ${actionInNotification} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [

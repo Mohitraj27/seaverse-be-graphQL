@@ -142,7 +142,7 @@ module.exports.mutations = {
                         titleValue: `New Vessel Assigned: ${getVessel?.name}`,
                         messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.VESSEL_CREATED,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         status: "SENT",
                         icon: notificationEnum.SUCCESS,
                         createdBy: userInfo,
