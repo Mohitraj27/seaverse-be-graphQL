@@ -1085,7 +1085,7 @@ module.exports = {
                 //                     titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been enrolled to you`,
                 //                     messageValue: ` You have been successfully enrolled to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                 //                     notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                //                     notifyAdmin: false,
+                //                     notifyAllAdmin: false,
                 //                     notifiers: [userId],
                 //                     employeeNotifiers: [userId],
                 //                     affected: [],
@@ -1134,7 +1134,7 @@ module.exports = {
                             titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
                             messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
                             notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                            notifyAdmin: false,
+                            notifyAllAdmin: false,
                             notifiers: [userId],
                             employeeNotifiers: [userId],
                             affected: [],
@@ -1155,42 +1155,7 @@ module.exports = {
                     throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have memebers enrollment is not possible");
                 }
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
-                /* 
-                                if (userObjectIds.length > 1) {
-                
-                                    await NotificationHelper.createNotificationhelper({
-                                        subscriber: subscriberId,
-                                        titleValue: `New Course Enrollment`,
-                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${userObjectIds.length} users to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                                        notifyAdmin: true,
-                                        notifiers: [],
-                                        employeeNotifiers: [],
-                                        affected: [],
-                                        status: 'SENT',
-                                        icon: notificationiconEnum.SUCCESS,
-                                        createdBy: userInfo,
-                                    });
-                
-                                } else {
-                
-                                    const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                                    await NotificationHelper.createNotificationhelper({
-                                        subscriber: subscriberId,
-                                        titleValue: `New Course Enrollment`,
-                                        messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has enrolled ${user[0].firstName}  to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
-                                        notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                                        notifyAdmin: true,
-                                        notifiers: [],
-                                        employeeNotifiers: [],
-                                        affected: [],
-                                        status: 'SENT',
-                                        icon: notificationiconEnum.SUCCESS,
-                                        createdBy: userInfo,
-                                    });
-                
-                                }
-                */
+
                 LogHelper.logActivity({
                     subscriber: subscriberId,
                     logType: LogType.TRAINING_REGISTRATION_LOG,
@@ -1381,7 +1346,7 @@ module.exports = {
                 //                     titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been unenrolled to you`,
                 //                     messageValue: ` You have been successfully unenrolled to a new Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                 //                     notificationType: NotificationType.COURSE_UNENROLLMENT,
-                //                     notifyAdmin: false,
+                //                     notifyAllAdmin: false,
                 //                     notifiers: [
                 //                         userId
                 //                     ],
@@ -1416,13 +1381,15 @@ module.exports = {
                     ])
                 );
 
+                /* 
                 const notifications = userObjectIds.flatMap(userId =>
                     input.trainings.map(trainingId => ({
                         subscriber: subscriberId,
                         titleValue: `${trainingMap.get(trainingId.toString())} has been unenrolled to you`,
                         messageValue: `You have been successfully unenrolled from the course: ${trainingMap.get(trainingId.toString())}.`,
                         notificationType: NotificationType.COURSE_UNENROLLMENT,
-                        notifyAdmin: false,
+                        notifyAllAdmin: false,
+                        isNotificatonForAdmin : false,
                         notifiers: [userId],
                         employeeNotifiers: [userId],
                         affected: [],
@@ -1436,7 +1403,8 @@ module.exports = {
                             }
                         ]
                     }))
-                );
+                ); 
+                */
 
                 // Send all notifications in parallel
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
@@ -1448,7 +1416,7 @@ module.exports = {
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         notifiers: [],
                         employeeNotifiers: [],
                         affected: [],
@@ -1465,7 +1433,7 @@ module.exports = {
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
                         notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         notifiers: [],
                         employeeNotifiers: [],
                         affected: [],
@@ -1491,7 +1459,7 @@ module.exports = {
 
             const notification = {
                 subscriber: notificationData.subscriber,
-                title: [{ lang: "en", value: `Training registration ${notificationData.action}` }],
+                title: [{ lang: "en", value: `Course registration ${notificationData.action}` }],
                 message: [
                     {
                         lang: "en",
@@ -1500,7 +1468,7 @@ module.exports = {
                 ],
                 notificationType:
                     NotificationType["TRAINING_REGISTRATION_" + notificationData.action],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -1535,7 +1503,7 @@ module.exports = {
                 createdBy: notificationData.createdBy,
             };
 
-            await NotificationHelper.createNotification(notification);
+            // await NotificationHelper.createNotification(notification);
         } catch (e) {
             throw CustomError(ErrorName.FAILED, e.message);
         }

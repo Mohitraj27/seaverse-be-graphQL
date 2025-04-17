@@ -250,7 +250,7 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                 title: [{ lang: "en", value: title }],
                 message: [{ lang: "en", value: message }],
                 notificationType,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 employeeNotifiers,
                 affected,
                 additionalInfo,

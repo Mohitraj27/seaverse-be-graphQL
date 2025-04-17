@@ -56,7 +56,7 @@ module.exports.QuizContentHelper = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Quiz ${notificationData.action}` }],
                 notificationType: NotificationType["QUIZ_" + notificationData.action],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: notificationData.notifiers ?? [],
                 employeeNotifiers: [],
                 affected: [
@@ -102,7 +102,7 @@ module.exports.QuizContentHelper = {
                 ];
             }
 
-            await NotificationHelper.createNotification(notification);
+            // await NotificationHelper.createNotification(notification);
         } catch (e) {
             throw Error(e.message);
         }

@@ -141,7 +141,7 @@ module.exports.queries = {
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected:[],

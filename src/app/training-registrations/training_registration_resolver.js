@@ -1928,10 +1928,10 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Completed`,
-                    messageValue: `Congratulations! The ${trainingData[0].title[0]?.value} course has been successfully completed by you.`,
+                    messageValue: ` The course ${trainingData.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
-                    notifiers: [input.userIds],
+                    notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
@@ -1945,7 +1945,7 @@ module.exports.mutations = {
                 titleValue: `Course Completion Notification`,
                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
                 notificationType: NotificationType.COURSE_COMPLETION,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [],
@@ -2092,9 +2092,9 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Your Course has been reset`,
-                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
+                    messageValue: `Your progress for the course ${trainingData?.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName ?? ""}. Please start again.`,
                     notificationType: NotificationType.COURSE_MODULES_RESET,
-                    notifyAdmin: false,
+                    notifyAllAdmin: false,
                     notifiers: [input.userIds],
                     employeeNotifiers: [input.userIds],
                     affected: [],
@@ -2109,7 +2109,7 @@ module.exports.mutations = {
                 titleValue: `Course Reset Notification`,
                 messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
                 notificationType: NotificationType.COURSE_MODULES_RESET,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [],
@@ -2129,7 +2129,6 @@ module.exports.mutations = {
                 message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
-            console.log(error);
             throw Error(error.message);
         }
     }
