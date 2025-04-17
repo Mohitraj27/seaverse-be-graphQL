@@ -871,7 +871,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 //     }
 // }
 const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
-    
+
     const overallDurationMap = new Map();
 
     input.forEach(({ overallId, trainingModules }) => {
@@ -993,7 +993,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                 if (content.videoDuration) {
                     content.videoDuration = parseFloat(content.videoDuration);
                 }
-                
+
                 if (existingProgress) {
 
                     bulkOps.push({
@@ -1013,7 +1013,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                             $cond: {
                                                 if: { $eq: ["$status", "COMPLETED"] },
                                                 then: "$lastAccessedDuration",
-                                                else: { $add: ["$lastAccessedDuration", content.duration] }
+                                                else: content.duration ?? 0
                                             }
                                         },
                                         videoDuration: content?.videoDuration || null,

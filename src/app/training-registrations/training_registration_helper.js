@@ -669,6 +669,7 @@ const mergeContentDetails = (combineTrainingDetails, contentData) => {
                         detail.progressPercentage = matchedContent.progressPercentage;
                         detail.status = matchedContent.status;
                         detail.lastAccessedDuration = matchedContent.lastAccessedDuration;
+                        detail.videoId = matchedContent.videoId;
                         detail.videoDuration = matchedContent.videoDuration;
                         detail.quizAttemptDetails = matchedContent.quizAttemptDetails || {};
                     }

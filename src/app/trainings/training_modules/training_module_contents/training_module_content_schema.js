@@ -79,6 +79,7 @@ module.exports = {
             progressPercentage: String
             lastAccessedDuration: Float
             videoDuration: Float
+            videoId: String
             playerSettings: [JSON]
             quizAttemptDetails: JSON
             quizAttempts: [String]
