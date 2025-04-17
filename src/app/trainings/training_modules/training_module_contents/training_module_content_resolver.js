@@ -1101,6 +1101,8 @@ module.exports.mutations = {
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
             // try {
+            updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
+
                 const uploadedVideos = await Promise.all(
                     videoFiles.map(async (videoFile, i) => {
                         const videoMeta = videoMetas[i];
