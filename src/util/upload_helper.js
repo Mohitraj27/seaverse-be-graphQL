@@ -88,8 +88,13 @@ const getPathFromType = ({ type, folder, filename }) => {
 const isPromise = data => data !== undefined && data instanceof Promise;
 
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
-    if (isPromise(fileData)) {
-        const { filename: fileNameCurrent, mimetype, createReadStream } = await fileData;
+    try {
+        if (isPromise(fileData)) {
+            fileData = await fileData;
+        }
+
+        const { filename: fileNameCurrent, mimetype, createReadStream } = fileData || {};
+
         if (
             acceptedTypes === fileType.all ||
             mimetype?.startsWith(acceptedTypes) ||
@@ -113,12 +118,12 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 const stream = createReadStream();
                 const s3Path = await AwsHelper.uploadFile({
                     fileData: stream,
-                    filePath: filePath,
+                    filePath,
                     originalFileName: fileName || fileNameCurrent,
                     mimeType: mimetype,
                 });
 
-                stream.destroy()
+                stream.destroy();
                 if (s3Path) return s3Path;
             }
 
@@ -126,65 +131,12 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
         }
 
         throw CustomError(ErrorName.UNSUPPORTED_FILE);
-    } else if (fileData instanceof require('stream').Readable) {
-        let extension = PathHelper.extname(fileName);
-        if (!extension) {
-            const ext = MimeHelper.extension("application/octet-stream");
-            if (ext) extension = `.${ext}`;
-        }
-        fileName = `${fileName}${extension}`;
-
-        const filePath = getPathFromType({
-            type: uploadType,
-            folder: folderName,
-            filename: fileName,
-        });
-
-        if (filePath) {
-            const s3Path = await AwsHelper.uploadFile({
-                fileData: fileData,
-                filePath: filePath,
-                originalFileName: fileName,
-                mimeType: "application/octet-stream",
-            });
-
-            fileData.destroy();
-            if (s3Path) return s3Path;
-        }
-        throw CustomError(ErrorName.UPLOAD_FAILED);
-
-    } else if (typeof fileData.pipe === "function" &&
-        typeof fileData._read === "function" &&
-        typeof fileData._readableState === "object") {
-        let extension = PathHelper.extname(fileName);
-        if (!extension) {
-            const ext = MimeHelper.extension("application/octet-stream");
-            if (ext) extension = `.${ext}`;
-        }
-        fileName = `${fileName}${extension}`;
-
-        const filePath = getPathFromType({
-            type: uploadType,
-            folder: folderName,
-            filename: fileName,
-        });
-
-        if (filePath) {
-            const s3Path = await AwsHelper.uploadFile({
-                fileData: fileData,
-                filePath: filePath,
-                originalFileName: fileName,
-                mimeType: "application/octet-stream",
-            });
-
-            fileData.destroy();
-            if (s3Path) return s3Path;
-        }
-        throw CustomError(ErrorName.UPLOAD_FAILED);
+    } catch (err) {
+        console.error("uploadFile error:", err);
+        throw CustomError(ErrorName.INVALID_FILE);
     }
-
-    throw CustomError(ErrorName.INVALID_FILE);
 };
+
 
 const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) => {
     fileName = `${fileName}.json`;
@@ -224,9 +176,15 @@ module.exports = {
         } else if (typeof data === "string") return data;
     },
     uploadVideo: async ({ data, folderName, fileName, uploadType }) => {
-        if (isPromise(data)) {
+        console.log({ data, folderName, fileName, uploadType });
+
+        // Handle both Promise and already resolved file data
+        const fileData = isPromise(data) ? await data : data;
+
+        if (fileData) {
+            console.log("Processing file data:", fileData.filename);
             const filePath = await uploadFile({
-                fileData: data,
+                fileData: fileData,
                 folderName: folderName,
                 fileName: fileName,
                 uploadType: uploadType,
@@ -234,7 +192,12 @@ module.exports = {
             });
 
             if (filePath) return filePath;
-        } else if (typeof data === "string") return data;
+        } else if (typeof data === "string") {
+            return data;
+        }
+
+        console.error("Invalid file data:", data);
+        return null;
     },
     uploadAudio: async ({ data, folderName, fileName, uploadType }) => {
         if (isPromise(data)) {
