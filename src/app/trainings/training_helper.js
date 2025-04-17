@@ -584,9 +584,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 notifications.push({
                     subscriber: subscriberId,
                     title: [{ lang: "en", value: `Course completed successfully!` }],
-                    message: [{ lang: "en", value: `You have successfully completed the course '${trainingName ?? ''}'` }],
+                    message: [{ lang: "en", value: `The course ${trainingName ?? ''} has been successfully completed. You have successfully completed the course ${trainingName ?? ''}` }],
                     notificationType: NotificationType.COURSE_COMPLETION,
-                    notifyAdmin: false,
+                    notifyAllAdmin: false,
                     notifiers: [userId],
                     employeeNotifiers: [userId],
                     additionalInfo: [],
@@ -651,9 +651,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         sendCertificateNotification.push({
                             subscriber: subscriberId,
                             title: [{ lang: "en", value: `Your course certificate issued` }],
-                            message: [{ lang: "en", value: `Your certificate for the course '${courseTitle ?? ''}' has been issued.` }],
+                            message: [{ lang: "en", value: `Cogratulations !! Certificate for the ${courseTitle ?? ''} has been issued.` }],
                             notificationType: NotificationType.COURSE_COMPLETION,
-                            notifyAdmin: false,
+                            notifyAllAdmin: false,
                             notifiers: [userId],
                             employeeNotifiers: [userId],
                             additionalInfo: [],
@@ -990,6 +990,10 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                     content.duration = parseFloat(content.duration);
                 }
 
+                if (content.videoDuration) {
+                    content.videoDuration = parseFloat(content.videoDuration);
+                }
+                
                 if (existingProgress) {
 
                     bulkOps.push({
@@ -1012,6 +1016,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                                 else: { $add: ["$lastAccessedDuration", content.duration] }
                                             }
                                         },
+                                        videoDuration: content?.videoDuration || null,
                                         playerSettings: content.playerSettings,
                                         progressPercentage: {
                                             $cond: {
@@ -1649,7 +1654,7 @@ module.exports = {
 
             const notification = {
                 subscriber: notificationData.subscriber,
-                title: [{ lang: "en", value: `Training ${notificationData.action}` }],
+                title: [{ lang: "en", value: `Course ${notificationData?.action?.toLowerCase()}` }],
                 notificationType: NotificationType["TRAINING_" + notificationData.action],
                 notifyAllAdmin: false,
                 isNotificatonForAdmin: true,

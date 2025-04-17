@@ -26,7 +26,7 @@ module.exports.BatchHelper = {
             const notification = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Batch ${notificationData.action}` }],
-                notifyAdmin: true,
+                // notifyAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

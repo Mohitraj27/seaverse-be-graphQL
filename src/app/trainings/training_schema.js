@@ -249,6 +249,7 @@ module.exports = {
             videoId: ID
             contentStatus: String
             duration: Float
+            videoDuration: Float
             progressPercentage: Float
             playerSettings: JSON
             questionAnswers: [QuestionAnswerInput!]

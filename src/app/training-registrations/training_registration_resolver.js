@@ -568,6 +568,7 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -647,6 +648,7 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoDuration: "$videoDuration",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
@@ -1080,6 +1082,7 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -1156,6 +1159,7 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoDuration: "$videoDuration",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
@@ -1732,7 +1736,7 @@ module.exports.mutations = {
             const trainingData = await Training.aggregate([
                 {
                     $match: {
-                        _id: { $in: trainingIds },
+                        _id: { $in: [input.training] },
                     },
                 },
                 {
@@ -1805,12 +1809,17 @@ module.exports.mutations = {
             }, {});
 
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            if (!trainingData.length>0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
             const recordsToUpdate = await OverallTrainingProgress.find({
                 training: input.training,
                 user: { $in: input.userIds }
             });
+
+            const overallProgressDataById = recordsToUpdate.reduce((acc, progress) => {
+                acc[progress._id.toString()] = progress;
+                return acc;
+            }, {});
 
             const updateOps = recordsToUpdate.map((record) => {
                 return {
@@ -1823,7 +1832,7 @@ module.exports.mutations = {
                                 completedModules: trainingModuleIds.length,
                                 isCertificateGenerated: true,
                                 adminMarkedAsCompleted: true,
-                                startDate: record.startDate || new Date(),
+                                startDate: record.startDate ?? new Date(),
                                 endDate: new Date(),
                                 assignedCertificateLayout: trainingDataById[record.training?.toString()].layout ?? null,
                                 assignedCertificateLayoutId: trainingDataById[record.training?.toString()].layoutId ?? null,
@@ -1869,7 +1878,7 @@ module.exports.mutations = {
                                       overallTrainingProgress.certificateExpiry ?? null
                                   )
                                 : null;
-                            const certificateLayout = overallTrainingProgress?.status === "IN_PROGRESS" ? 
+                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ? 
                                 overallTrainingProgress?.assignedCertificateLayoutId : trainingDataById[overallTrainingProgress.training?.toString()].layoutId;
                             const certificateNumber = await generateUniqueCertificateId();
 
@@ -1902,27 +1911,27 @@ module.exports.mutations = {
                     }
                 })
             );
-            const courseImages = await AWS_HELPER.fetchFile(trainingData?.coverImage?.url) ||
+            const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             const emailContent = courseCompletion({
                 firstName: overallTrainingProgressUsers[0].user.firstName,
-                trainingTitle: trainingData.title[0]?.value,
-                durationHours: trainingData.durationHours,
-                courseId: trainingData._id,
+                trainingTitle: trainingData[0].title[0]?.value,
+                durationHours: trainingData[0].durationHours,
+                courseId: trainingData[0]._id,
             });
             sendEmail({
                 receiverEmail: overallTrainingProgressUsers[0].user.email,
-                subject: `Congratulations on Completing the ${trainingData.title[0]?.value} Course!`,
+                subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                 htmlContent: emailContent,
             });
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Completed`,
-                    messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
+                    messageValue: ` The course ${trainingData.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
-                    notifiers: [input.userIds],
+                    notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
@@ -1936,7 +1945,7 @@ module.exports.mutations = {
                 titleValue: `Course Completion Notification`,
                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
                 notificationType: NotificationType.COURSE_COMPLETION,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [],
@@ -1947,7 +1956,7 @@ module.exports.mutations = {
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
-                body: `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
+                body: `Congratulations! You have successfully completed the course ${trainingData[0].title[0]?.value}.`,
                 content: "Course Completion Content",
                 webLink: ""
             });
@@ -1956,6 +1965,7 @@ module.exports.mutations = {
                 message: "Marked as completed successfully"
             }
         } catch (error) {
+            console.log(error);
             throw Error(error.message);
         }
     },
@@ -2082,9 +2092,9 @@ module.exports.mutations = {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Your Course has been reset`,
-                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
+                    messageValue: `Your progress for the course ${trainingData?.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName ?? ""}. Please start again.`,
                     notificationType: NotificationType.COURSE_MODULES_RESET,
-                    notifyAdmin: false,
+                    notifyAllAdmin: false,
                     notifiers: [input.userIds],
                     employeeNotifiers: [input.userIds],
                     affected: [],
@@ -2099,7 +2109,7 @@ module.exports.mutations = {
                 titleValue: `Course Reset Notification`,
                 messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
                 notificationType: NotificationType.COURSE_MODULES_RESET,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [],
@@ -2119,7 +2129,6 @@ module.exports.mutations = {
                 message: `${trainingTitle} reset successfully`
             }
         } catch (error) {
-            console.log(error);
             throw Error(error.message);
         }
     }

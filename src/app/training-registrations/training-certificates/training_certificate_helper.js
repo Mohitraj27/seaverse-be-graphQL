@@ -95,7 +95,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                     },
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [

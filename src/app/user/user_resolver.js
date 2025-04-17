@@ -58,7 +58,7 @@ module.exports.queries = {
                     titleValue: `Import Log is ready!`,
                     messageValue: `Your import log download is ready!`,
                     notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -89,7 +89,7 @@ module.exports.queries = {
                     titleValue: `Custom Report is ready!`,
                     messageValue: `Your custom report download is ready!`,
                     notificationType: notificationType.IMPORT_LOG_DOWNLOAD_READY,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -118,7 +118,7 @@ module.exports.queries = {
                     titleValue: `Failed!`,
                     messageValue: `Your File Download is failed!`,
                     notificationType: notificationType.IMPORT_LOG_DOWNLOAD_FAILED,
-                    notifyAdmin: true,
+                    notifyAllAdmin: true,
                     affected: [],
                     status: 'SENT',
                     icon: notificationiconEnum.ERROR,

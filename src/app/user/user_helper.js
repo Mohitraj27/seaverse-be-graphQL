@@ -238,7 +238,7 @@ module.exports = {
                 },
             ],
             notificationType: NotificationType.EMPLOYEE_JOINED,
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [
@@ -260,6 +260,6 @@ module.exports = {
             createdBy: notificationData.createdBy,
         };
 
-        await NotificationHelper.createNotification(notification);
+        // await NotificationHelper.createNotification(notification);
     },
 };

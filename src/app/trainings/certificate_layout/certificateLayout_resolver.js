@@ -67,7 +67,6 @@ module.exports.queries = {
             certificate.listOfLayouts = latestLayouts;
             return certificate;
         } catch (error) {
-            console.log(error);
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
@@ -352,7 +351,6 @@ module.exports.mutations = {
                     }
             }
         } catch (error) {
-            console.log(error);
             return {
                 success: false,
                 message: error.message || "An unexpected error occurred. Please try again later.",

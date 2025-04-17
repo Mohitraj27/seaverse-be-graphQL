@@ -119,6 +119,10 @@ const errorName = {
     FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
     INVALID_LANGUAGES_CODES_SELECTED: "INVALID_LANGUAGES_CODES_SELECTED",
     SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    FAILED_TO_DOWNLOAD_ZIP: "FAILED_TO_DOWNLOAD_ZIP",
+    COURSE_NOT_FOUND: "COURSE_NOT_FOUND",
+    LESSON_NOT_FOUND: "LESSON_NOT_FOUND",
+    FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV"
 };
 
 const errorType = {
@@ -716,6 +720,26 @@ const errorType = {
         message: 'Group doesn\'t have any member',
         statusCode: 400,    
         type: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    },
+    FAILED_TO_DOWNLOAD_ZIP: {
+        message: 'Failed to download zip',
+        statusCode: 400,    
+        type: "FAILED_TO_DOWNLOAD_ZIP",
+    },
+    COURSE_NOT_FOUND: {
+        message: 'Course not found',    
+        statusCode: 400,    
+        type: "COURSE_NOT_FOUND",
+    },
+    LESSON_NOT_FOUND: {
+        message: 'Lesson not found',
+        statusCode: 400,    
+        type: "LESSON_NOT_FOUND",
+    },
+    FAILED_TO_EXPORT_USERS_TO_CSV: { 
+        message: 'Failed to export users to CSV',
+        statusCode: 400,    
+        type: "FAILED_TO_EXPORT_USERS_TO_CSV"
     }
 };
 

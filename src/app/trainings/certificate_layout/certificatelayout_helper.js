@@ -1,8 +1,7 @@
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 const { Training } = require("../training_model");
 const { certificateLayout } = require("./certificateLayout_model");
-const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper } = require("../../../util");
-const { cert } = require("firebase-admin/app");
+const { CustomError, ErrorName, AuthUser } = require("../../../util");
 
 
 const getLatestCertificateLayoutByTrainingId = async (trainingId, layout) => {
@@ -68,7 +67,7 @@ const toggleCertificatesOnOrOFF = async (training, disabled) => {
             const assignedCertificateLayout = trainingExists?.currentCertificateLayout;
             if (!assignedCertificateLayout) {
                 return {
-                    success: false,
+                    success: true,
                     message: "No certificate layout assigned to this training.",
                 };
             }

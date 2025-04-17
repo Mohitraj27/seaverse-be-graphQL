@@ -19,7 +19,6 @@ module.exports.queries = {
                 totalCount: contentLanguages?.length || 0,
             };
         } catch (error) {
-            console.log("error", error)
             throw CustomError(ErrorName.FAILED_TO_FETCH_CONTENT_LANGUAGES, error.message);
         }
     }
@@ -32,7 +31,6 @@ module.exports.mutations = {
         const { userId, subscriberId, userInfo } = AuthUser(context);
 
         try {
-            console.log("input", input)
             const contactSupportData = new contentLanguage({
                 title: input?.title,
                 contentLanguageCode: input?.contentLanguageCode,
