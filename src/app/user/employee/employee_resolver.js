@@ -1611,24 +1611,34 @@ module.exports.queries = {
                     });
                     html = htmlContent;
                     await SendEmail({
+                        receiverEmail: currentUserData.email,
+                        subject: "Registration Invitation",
+                        htmlContent: html,
+                    });
+                    /*
+                    await SendEmail({
                         receiverEmail: userInfo.email,
                         subject: "Registration Invitation",
                         htmlContent: html,
                     })
+                    */
                 }
-
+                /*
                 try {
-                    await SendEmail({
-                        receiverEmail: email,
+                   const data = await SendEmail({
+                        receiverEmail: currentUserData?.email,
                         subject: "Registration Invitation",
                         htmlContent: html,
                     });
+                    console.log('data',data);
                     messages.push(`Welcome Email sent to ${email}`);
-
+                    console.log('message',messages);
                 }
-                catch (error) {
+                catch (error) { 
+                    console.log('error',error);
                     messages.push(`Unable to send Welcome Email to ${email}`);
                 }
+                */
                 /* 
                                 notifications.push({
                                     subscriber: subscriberId,
