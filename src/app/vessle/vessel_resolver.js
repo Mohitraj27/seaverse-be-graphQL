@@ -260,7 +260,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `Vessel: ${vessel.name} has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -367,7 +367,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `Vessel ${vessel.name} has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel "${vessel.name}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_UPDATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -511,7 +511,7 @@ module.exports.mutations = {
 
                 if (updatedVessels.length > 0) {
                     const vesselNames = updatedVessels.map(v => v.name).join(", ");
-                    const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
+                    const statusSummary = updatedVessels.map(v => ` "${v.name}" : ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,

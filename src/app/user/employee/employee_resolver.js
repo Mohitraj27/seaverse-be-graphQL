@@ -667,7 +667,7 @@ module.exports.queries = {
             const skip = pageInput?.skip ?? 0,
                 limit = pageInput?.limit ?? 50;
 
-            //     let startDate, endDate;
+            let startDate, endDate;
             let filterConditions = {
                 // subscriber: subscriberId,
             };
@@ -724,32 +724,32 @@ module.exports.queries = {
                 const today = Moment();
                 switch (filterInput.lastSeen) {
                     case "TODAY":
-                        startDate = today.startOf("day").toDate();
-                        endDate = today.endOf("day").toDate();
+                        startDate = Moment().startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "YESTERDAY":
-                        startDate = today.subtract(1, "day").startOf("day").toDate();
-                        endDate = today;
+                        startDate = Moment().subtract(1, "day").startOf("day").toDate();
+                        endDate = Moment().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
-                        startDate = today.subtract(7, "days").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(7, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_30_DAYS":
-                        startDate = today.subtract(30, "days").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(30, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_3_MONTHS":
-                        startDate = today.subtract(3, "months").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(3, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_6_MONTHS":
-                        startDate = today.subtract(6, "months").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(6, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_YEAR":
-                        startDate = today.subtract(1, "year").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(1, "year").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     default:
                         break;
@@ -1095,6 +1095,7 @@ module.exports.queries = {
                             },
                         ]
                         : []),
+                        /*
                     ...(filterInput?.lastSeen
                         ? [
                             {
@@ -1105,6 +1106,7 @@ module.exports.queries = {
                             },
                         ]
                         : []),
+                        */
                     ...(filterInput?.showInvited ? [
                             { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
                         ] : []),
