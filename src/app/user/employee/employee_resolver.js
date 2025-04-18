@@ -1611,7 +1611,7 @@ module.exports.queries = {
                     });
                     html = htmlContent;
                     await SendEmail({
-                        receiverEmail: currentUserData.email,
+                        receiverEmail: currentUserData?.email,
                         subject: "Registration Invitation",
                         htmlContent: html,
                     });
