@@ -548,7 +548,9 @@ module.exports = {
                             cond: {
                                 $and: [
                                     { $ne: ["$$user.firstName", null] },
-                                    { $ne: ["$$user.email", null] }
+                                    { $ne: ["$$user.email", null] },
+                                    { $eq: ["$$user.isSignupAdminAprroved", true] },
+
                                 ]
                             }
                         }
@@ -617,6 +619,7 @@ module.exports = {
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
                                 email: { $ne: null },
+                                isSignupAdminAprroved: true,
                                 'subroleDetails.name': {
                                     $ne: "ADMIN"
                                 }
@@ -639,6 +642,7 @@ module.exports = {
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
                                 email: { $ne: null },
+                                isSignupAdminAprroved: true
                             }
                         },
                         {
@@ -716,7 +720,12 @@ module.exports = {
                         $filter: {
                             input: "$members",
                             as: "member",
-                            cond: { $eq: ["$$member.isDeleted", false] }
+                            cond: {
+                                $and: [
+                                    { $eq: ["$$member.isDeleted", false] },
+                                    { $eq: ["$$member.isSignupAdminAprroved", true] }
+                                ]
+                            }
                         }
                     }
                 }
@@ -778,6 +787,7 @@ module.exports = {
                             vesselStatus: status,
                             firstName: { $ne: null },
                             email: { $ne: null },
+                            isSignupAdminAprroved: true
                         }
                     },
                     {
@@ -843,7 +853,8 @@ module.exports = {
                                 $expr: { $in: ["$_id", "$$userIds"] },
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
-                                email: { $ne: null }
+                                email: { $ne: null },
+                                isSignupAdminAprroved: true
                             }
                         },
                         {
@@ -875,7 +886,7 @@ module.exports = {
 
         const ownerGroups = await Vessel.aggregate([
             {
-                
+
                 $match: {
                     ownerName: { $ne: null }
                 }
@@ -916,7 +927,8 @@ module.exports = {
                                 $expr: { $in: ["$_id", "$$userIds"] },
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
-                                email: { $ne: null }
+                                email: { $ne: null },
+                                isSignupAdminAprroved: true
                             }
                         },
                         {
