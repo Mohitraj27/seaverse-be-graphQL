@@ -273,9 +273,11 @@ module.exports = {
             }
 
             const trainingRegistrations = overallDocs.map(doc => doc.trainingRegistration);
+            const trainigIds = overallDocs.map(doc => doc.training);
 
             const existingCertificates = await TrainingCertificate.find({
                 trainingRegistration: { $in: trainingRegistrations },
+                training: { $in: trainigIds },
                 user: userId
             }).session(session).lean();
 
@@ -345,6 +347,9 @@ module.exports = {
 
                 if (!training) continue;
 
+                if(!overallDoc.isCertificateGenerated) {
+                    continue;
+                }
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = CurrentDateTime().utcDateTime;

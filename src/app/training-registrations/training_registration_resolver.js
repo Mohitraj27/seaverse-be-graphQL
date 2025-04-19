@@ -1859,6 +1859,7 @@ module.exports.mutations = {
                     if (overallTrainingProgress.isCertificatePresent) {
                         const existingCertificate = await TrainingCertificate.findOne({
                             trainingRegistration: progressUser.trainingRegistration,
+                            training: progressUser.training,
                             user: progressUser.user,
                         });
 
