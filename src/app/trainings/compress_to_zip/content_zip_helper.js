@@ -11,6 +11,10 @@ const AwsHelper = require("../../../util/aws_helper");
 const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
 
+    if (userLanguages?.length === 0) {
+        userLanguages = ['en'];
+    }
+
     const matchedVideos = videos.filter(video => userLanguages.includes(video?.lang));
 
     if (matchedVideos?.length > 0) {
