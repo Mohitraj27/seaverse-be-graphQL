@@ -22,7 +22,7 @@ module.exports = {
             status: String
             lastAccessedItem: String
             lastAccessedAt: String
-            lastAccessedDuration: Int
+            lastAccessedDuration: Float
             
             quizAttempts: [QuizAttemptAttempt]
             

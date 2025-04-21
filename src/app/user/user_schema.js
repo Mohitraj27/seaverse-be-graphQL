@@ -122,6 +122,10 @@ module.exports = {
             downloadType: downloadTypeEnum!
             id: ID!
         }
+        input contentLanguageInput {
+            languagecode : [String!]
+            userId: ID!
+        }
         type downloadResponse {
             status: String!
             message: String!
@@ -161,6 +165,10 @@ module.exports = {
             email: String!
             country: String!
         }
+        type contentLanguage{
+            status: String!
+            message: String!
+        }
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -176,5 +184,6 @@ module.exports = {
         appSignUp(input: AppSignUpInput!): downloadResponse!
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
         verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
+        updateProfileforCourseSetting(input: contentLanguageInput!): contentLanguage!
     `,
 };

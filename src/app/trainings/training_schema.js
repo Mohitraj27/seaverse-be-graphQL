@@ -246,8 +246,10 @@ module.exports = {
         }
         input UpdateContentDetailInput {
             contentId: ID!
+            videoId: ID
             contentStatus: String
-            duration: Int
+            duration: Float
+            videoDuration: Float
             progressPercentage: Float
             playerSettings: JSON
             questionAnswers: [QuestionAnswerInput!]

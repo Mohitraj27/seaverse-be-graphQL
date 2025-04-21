@@ -26,7 +26,7 @@ const trainingModuleContentSchema = new Schema(
         },
         title: {
             type: [LocalisedDataSchema],
-            required: true,
+            // required: true,
         },
         description: {
             type: [LocalisedDataSchema],
@@ -52,7 +52,15 @@ const trainingModuleContentSchema = new Schema(
                     type: Boolean,
                     default: false,
                 },
-                
+                title: {
+                    type: String,
+                },
+                duration:{
+                    type: Number,
+                },
+                description: {
+                    type: String,
+                },
             },
         ],
         audios: [
