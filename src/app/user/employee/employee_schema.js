@@ -261,8 +261,9 @@ type userVessels {
             civilIdOrPassport: String
         }
         input UserObjectIDs {
-            ids: [ID!]!
+            ids: [ID!]
             regType: Int!
+            filterInput: FilterEnabled
         }
         input ImportUserInput {
             firstName: String!
@@ -358,6 +359,14 @@ type FetchFileResponse {
         type deleteAndSignUpRequestCountResponse {
             deleteRequestCount: Int
             signUpRequestCount: Int
+        }
+        input FilterField {
+            field_name: [String!]!
+            field_values: [JSON!]!  # Using JSON type to handle both strings and booleans
+        }
+        input FilterEnabled {
+            flag: Boolean!
+            fields: [FilterField!]
         }
     `,
     queries: `
