@@ -35,6 +35,7 @@ const signupstatus = require('../signup-request/signup-status.json');
 const subscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationType = require('../notifications/notification_type.json');
 const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
+const  ContentLanguage  = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -640,6 +641,43 @@ module.exports.mutations = {
           
         } catch (error) {
             throw CustomError(ErrorName.OTP_VERIFICATION_FAILED, error.message);
+        }
+    },
+    updateProfileforCourseSetting:async({input},context)=>{
+        try {
+            const { languagecode, userId } = input;
+    
+            const user = await User.findOne({ _id: userId });
+            if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+    
+            let updatedLanguages = [];
+    
+            if (languagecode && languagecode?.length > 0) {
+                const validLanguages = await ContentLanguage.find({
+                    contentLanguageCode: { $in: languagecode }
+                }).select("contentLanguageCode");
+    
+                const foundCodes = validLanguages.map(lang => lang.contentLanguageCode);
+    
+                const invalidCodes = languagecode.filter(code => !foundCodes.includes(code));
+                if (invalidCodes?.length > 0) {
+                    throw CustomError(ErrorName.INVALID_LANGUAGES_CODES_SELECTED, `Invalid language codes: ${invalidCodes.join(", ")}`);
+                }
+                updatedLanguages = foundCodes;
+            } else {
+                updatedLanguages = user?.contentlanguages || [];
+            }
+            user.contentlanguages = updatedLanguages;
+            await user.save();
+    
+            return {
+                status: true,
+                message: languagecode && languagecode?.length > 0 
+                ? "Profile updated successfully with provided content languages."
+                : "Profile updated successfully with existing content languages.",
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_UPDATE_CONTENT_LANGUAGE, error.message);
         }
     },
 };

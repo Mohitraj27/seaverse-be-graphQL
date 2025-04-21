@@ -77,7 +77,9 @@ module.exports = {
             featuredInCourses: Int
             quizDetails: [QuizDetails]
             progressPercentage: String
-            lastAccessedDuration: Int
+            lastAccessedDuration: Float
+            videoDuration: Float
+            videoId: String
             playerSettings: [JSON]
             quizAttemptDetails: JSON
             quizAttempts: [String]
@@ -103,11 +105,12 @@ module.exports = {
             message: String!
             invalidDeletes: [InvalidUpdate]
         }
-        type UpdateContentResponse {
-            success: Boolean!
-            message: String!
+              type UpdateContentResponse {
+             success: Boolean!
+             message: String!
+             isUpdated: Boolean
             updatedContent: TrainingModuleContent
-        }
+           }
         type UpdateContentQuizResponse {
             success: Boolean!
             message: String!
@@ -176,6 +179,14 @@ module.exports = {
             courseCount: Int
             courseNames: [String]
         }
+        input VideoMetaInput {
+            isDefault: Boolean!
+            lang: String!
+            title: String
+            description: String
+            duration: String
+        }
+
     `,
     queries: `
         getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: [TrainingModuleContentType], useStatus: useStatusInput): TrainingModuleContentList
@@ -190,9 +201,9 @@ module.exports = {
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
         updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
         deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
-        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
-        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, video: Upload, audio: Upload, file: Upload): UpdateContentResponse!
+        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput],deletedVideos: [ID], audio: Upload, file: Upload): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
         pushLatestContent(ids: [ID!]): creationRes!
          `,
