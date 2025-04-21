@@ -1,4 +1,5 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../tools");
+const { type } = require("../../util/firebaseConfig");
 
 const StringNormalize = require("../../util/string_helper").stringNormalize;
 const Language = require("../../util/language.json");
@@ -157,7 +158,15 @@ const userSchema = new Schema(
         },
         roleAssignmentDate: {
             type: Date
-        }
+        },
+        contentlanguages:
+        [
+            { 
+                type: String,
+                ref:"ContentLanguage",
+                default: "en"
+            }
+        ]
     },
     { timestamps: true }
 );

@@ -756,7 +756,6 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const updateFields = {
             progressPercentage: average,
             totalDuration,
-            timeSpend,
             completedModules: completedCount
         };
 
@@ -782,94 +781,122 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     }
 };
 
-const calculateTimeSpend = async (overallIds, session) => {
-    try {
+// const calculateTimeSpend = async (overallIds, session) => {
+//     try {
 
-        const overallProgressData = await OverallTrainingProgress.find(
-            { _id: { $in: overallIds } },
-            '_id contentData attemptCount'
-        ).session(session);
+//         const overallProgressData = await OverallTrainingProgress.find(
+//             { _id: { $in: overallIds } },
+//             '_id contentData attemptCount'
+//         ).session(session);
 
-        if (!overallProgressData.length) {
-            return;
-        }
+//         if (!overallProgressData.length) {
+//             return;
+//         }
 
-        const contentIdToOverallIdMap = new Map();
-        const contentIdToAttemptCountMap = new Map();
-        const allContentIds = new Set();
-        const overallIdToAttemptCountMap = new Map();
+//         const contentIdToOverallIdMap = new Map();
+//         const contentIdToAttemptCountMap = new Map();
+//         const allContentIds = new Set();
+//         const overallIdToAttemptCountMap = new Map();
 
 
-        overallProgressData.forEach(({ _id: overallId, contentData, attemptCount }) => {
-            overallIdToAttemptCountMap.set(overallId.toString(), attemptCount);
+//         overallProgressData.forEach(({ _id: overallId, contentData, attemptCount }) => {
+//             overallIdToAttemptCountMap.set(overallId.toString(), attemptCount);
 
-            contentData.forEach(module => {
-                module.contentIds.forEach(content => {
-                    const contentId = content;
-                    allContentIds.add(contentId);
-                    contentIdToOverallIdMap.set(contentId, overallId);
-                    contentIdToAttemptCountMap.set(contentId, attemptCount);
-                });
+//             contentData.forEach(module => {
+//                 module.contentIds.forEach(content => {
+//                     const contentId = content;
+//                     allContentIds.add(contentId);
+//                     contentIdToOverallIdMap.set(contentId, overallId);
+//                     contentIdToAttemptCountMap.set(contentId, attemptCount);
+//                 });
+//             });
+//         });
+
+
+//         const contentDurations = await TrainingModuleContent.find(
+//             { _id: { $in: Array.from(allContentIds) } },
+//             '_id duration'
+//         ).session(session);
+
+//         const progressData = await TrainingProgress.find(
+//             {
+//                 $or: Array.from(allContentIds).map(trainingModuleContent => {
+//                     const overallTrainingProgress = contentIdToOverallIdMap.get(trainingModuleContent);
+//                     const attemptCount = overallIdToAttemptCountMap.get(overallTrainingProgress.toString());
+//                     return { trainingModuleContent, overallTrainingProgress, attemptCount };
+//                 })
+//             },
+//             'overallTrainingProgress trainingModuleContent progressPercentage'
+//         ).session(session).lean();
+
+
+//         const durationMap = new Map(contentDurations.map(content => [content._id.toString(), content.duration]));
+//         const progressMap = new Map(
+//             progressData.map(progress => [`${progress.overallTrainingProgress}-${progress.trainingModuleContent}`, progress.progressPercentage])
+//         );
+
+//         const timeSpendResults = {};
+
+//         const bulkOperations = [];
+
+//         overallProgressData.forEach(({ _id: overallId }) => {
+//             let totalTimeSpend = 0;
+
+//             Array.from(allContentIds).forEach(contentId => {
+//                 if (contentIdToOverallIdMap.get(contentId) === overallId) {
+
+//                     const duration = durationMap.get(String(contentId)) || 0;
+//                     const progressPercentage =
+//                         progressMap.get(`${overallId}-${contentId}`) || 0;
+//                     const contentTimeSpend = duration * (progressPercentage / 100);
+//                     totalTimeSpend += contentTimeSpend;
+//                 }
+//             });
+
+//             bulkOperations.push({
+//                 updateOne: {
+//                     filter: { _id: overallId },
+//                     update: { $set: { timeSpend: totalTimeSpend.toFixed(2) } }
+//                 }
+//             });
+
+//         });
+
+//         if (bulkOperations.length > 0) {
+//             bulkWriteResult = await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+//         }
+
+//     } catch (error) {
+//         console.error('Error calculating timeSpend for overallIds:', error.message);
+//     }
+// }
+const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
+
+    const overallDurationMap = new Map();
+
+    input.forEach(({ overallId, trainingModules }) => {
+        let totalDuration = 0;
+
+        trainingModules.forEach(module => {
+            module.contentDetails.forEach(content => {
+                if (typeof content.duration === 'number') {
+                    totalDuration += content.duration;
+                }
             });
         });
 
+        overallDurationMap.set(overallId, totalDuration);
+    });
 
-        const contentDurations = await TrainingModuleContent.find(
-            { _id: { $in: Array.from(allContentIds) } },
-            '_id duration'
-        ).session(session);
-
-        const progressData = await TrainingProgress.find(
-            {
-                $or: Array.from(allContentIds).map(trainingModuleContent => {
-                    const overallTrainingProgress = contentIdToOverallIdMap.get(trainingModuleContent);
-                    const attemptCount = overallIdToAttemptCountMap.get(overallTrainingProgress.toString());
-                    return { trainingModuleContent, overallTrainingProgress, attemptCount };
-                })
-            },
-            'overallTrainingProgress trainingModuleContent progressPercentage'
-        ).session(session).lean();
-
-
-        const durationMap = new Map(contentDurations.map(content => [content._id.toString(), content.duration]));
-        const progressMap = new Map(
-            progressData.map(progress => [`${progress.overallTrainingProgress}-${progress.trainingModuleContent}`, progress.progressPercentage])
-        );
-
-        const timeSpendResults = {};
-
-        const bulkOperations = [];
-
-        overallProgressData.forEach(({ _id: overallId }) => {
-            let totalTimeSpend = 0;
-
-            Array.from(allContentIds).forEach(contentId => {
-                if (contentIdToOverallIdMap.get(contentId) === overallId) {
-
-                    const duration = durationMap.get(String(contentId)) || 0;
-                    const progressPercentage =
-                        progressMap.get(`${overallId}-${contentId}`) || 0;
-                    const contentTimeSpend = duration * (progressPercentage / 100);
-                    totalTimeSpend += contentTimeSpend;
-                }
-            });
-
-            bulkOperations.push({
-                updateOne: {
-                    filter: { _id: overallId },
-                    update: { $set: { timeSpend: totalTimeSpend.toFixed(2) } }
-                }
-            });
-
-        });
-
-        if (bulkOperations.length > 0) {
-            bulkWriteResult = await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+    const bulkUpdates = Array.from(overallDurationMap.entries()).map(([overallId, totalDuration]) => ({
+        updateOne: {
+            filter: { _id: overallId },
+            update: { $inc: { timeSpend: totalDuration } }
         }
+    }));
 
-    } catch (error) {
-        console.error('Error calculating timeSpend for overallIds:', error.message);
-    }
+    await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+
 }
 
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
@@ -958,6 +985,15 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                     overallProgressPercentageMap.set(item.overallId, [content.progressPercentage]);
                 }
 
+                // if content.duration present, convert it to number
+                if (content.duration) {
+                    content.duration = parseFloat(content.duration);
+                }
+
+                if (content.videoDuration) {
+                    content.videoDuration = parseFloat(content.videoDuration);
+                }
+
                 if (existingProgress) {
 
                     bulkOps.push({
@@ -973,7 +1009,14 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                                 else: content.contentStatus
                                             }
                                         },
-                                        lastAccessedDuration: content.duration,
+                                        lastAccessedDuration: {
+                                            $cond: {
+                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                then: "$lastAccessedDuration",
+                                                else: content.duration ?? 0
+                                            }
+                                        },
+                                        videoDuration: content?.videoDuration || null,
                                         playerSettings: content.playerSettings,
                                         progressPercentage: {
                                             $cond: {
@@ -1164,7 +1207,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     if (overallIds) {
         await updateOverallProgressPercentage(overallDocs, session);
-        await calculateTimeSpend(overallIds, session)
+        await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 
     const generatedTrainingCertificate = await validateAndGenerateCertificate(overallIds, userId, subscriberId, session);

@@ -77,7 +77,9 @@ module.exports = {
             featuredInCourses: Int
             quizDetails: [QuizDetails]
             progressPercentage: String
-            lastAccessedDuration: Int
+            lastAccessedDuration: Float
+            videoDuration: Float
+            videoId: String
             playerSettings: [JSON]
             quizAttemptDetails: JSON
             quizAttempts: [String]
@@ -103,11 +105,12 @@ module.exports = {
             message: String!
             invalidDeletes: [InvalidUpdate]
         }
-        type UpdateContentResponse {
-            success: Boolean!
-            message: String!
+              type UpdateContentResponse {
+             success: Boolean!
+             message: String!
+             isUpdated: Boolean
             updatedContent: TrainingModuleContent
-        }
+           }
         type UpdateContentQuizResponse {
             success: Boolean!
             message: String!
@@ -181,7 +184,7 @@ module.exports = {
             lang: String!
             title: String
             description: String
-            duration: Int
+            duration: String
         }
 
     `,
@@ -200,7 +203,7 @@ module.exports = {
         deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
-        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): UpdateContentResponse!
+        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput],deletedVideos: [ID], audio: Upload, file: Upload): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
         pushLatestContent(ids: [ID!]): creationRes!
          `,

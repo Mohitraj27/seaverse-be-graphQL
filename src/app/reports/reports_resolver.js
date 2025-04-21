@@ -1058,8 +1058,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {
@@ -1235,7 +1238,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                                 then: "COMPLETED",
                                                 else: "NOT_STARTED"
                                             }
-                                        }
+                                        },
+                                        timeSpendInContent : "$lastAccessedDuration",
                                     }
                                 },
                                 {
@@ -1446,7 +1450,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                             updatedAt:
                                                 "$quizEvaluations.updatedAt",
                                             quizStatus:
-                                                "$quizEvaluations.contentStatus"
+                                                "$quizEvaluations.contentStatus",
+                                            timeSpendInContent : 
+                                                "$quizEvaluations.timeSpendInContent",
                                         },
                                         else: {
                                             moduleName:
@@ -1463,7 +1469,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                             updatedAt:
                                                 "$quizEvaluations.updatedAt",
                                             quizStatus:
-                                                "$quizEvaluations.contentStatus"
+                                                "$quizEvaluations.contentStatus",
+                                            timeSpendInContent :
+                                                "$quizEvaluations.timeSpendInContent",
                                         }
                                     }
                                 }
@@ -1630,7 +1638,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 const contentName = content?.contentName[0]?.value || 'Unnamed Content';
                                 const contentType = content?.contentType || 'NOT APPLICABLE';
                                 const quizScore = content?.percentage || 'NOT APPLICABLE';
-
+                                const timeSpendInContent = content?.timeSpendInContent? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : '00:00:00';
 
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
@@ -1650,6 +1658,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     'Content Name': `${contentName}`,
                                     'Content Type': contentType,
                                     'Quiz Score': quizScore,
+                                    'Time Spent': timeSpendInContent,
                                 });
                             });
                         });
@@ -1670,32 +1679,6 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     let worksheet;
                     if (learnersData.length === 0) {
-                        /* 
-                        const message = "NO DATA AVAILABLE FOR SELECTED LEARNER REPORTS";
-                        worksheet = XLSX.utils.aoa_to_sheet([
-                            [message]
-                        ]);
-
-                        const columnSpan = 20;
-
-                        const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
-                        if (!worksheet['!merges']) worksheet['!merges'] = [];
-                        worksheet['!merges'].push(range);
-
-
-                        worksheet['A1'].s = {
-                            font: {
-                                bold: true,
-                                size: 14,
-                            },
-                            alignment: {
-                                horizontal: 'center',
-                                vertical: 'center',
-                            }
-                        };
-
-                        worksheet['!rows'] = [{ hpt: 30 }]; 
-                        */
 
                         worksheet = XLSX.utils.aoa_to_sheet([
                             [
@@ -1716,6 +1699,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 "Content Name",
                                 "Content Type",
                                 "Quiz Score",
+                                "Time Spent",
                             ]
                         ]);
                     }
@@ -4652,7 +4636,8 @@ const generateCustomReport = async ({ input }, context) => {
                                                 then: "COMPLETED",
                                                 else: "NOT_STARTED"
                                             }
-                                        }
+                                        },
+                                        timeSpendInContent : "$lastAccessedDuration",
                                     }
                                 },
                                 {
@@ -4863,7 +4848,9 @@ const generateCustomReport = async ({ input }, context) => {
                                             updatedAt:
                                                 "$quizEvaluations.updatedAt",
                                             quizStatus:
-                                                "$quizEvaluations.contentStatus"
+                                                "$quizEvaluations.contentStatus",
+                                            timeSpendInContent : 
+                                                "$quizEvaluations.timeSpendInContent",
                                         },
                                         else: {
                                             moduleName:
@@ -4880,7 +4867,9 @@ const generateCustomReport = async ({ input }, context) => {
                                             updatedAt:
                                                 "$quizEvaluations.updatedAt",
                                             quizStatus:
-                                                "$quizEvaluations.contentStatus"
+                                                "$quizEvaluations.contentStatus",
+                                            timeSpendInContent :
+                                                "$quizEvaluations.timeSpendInContent",
                                         }
                                     }
                                 }
@@ -5045,6 +5034,7 @@ const generateCustomReport = async ({ input }, context) => {
                             const contentName = content?.contentName[0]?.value || 'Unnamed Content';
                             const contentType = content?.contentType || 'Not Applicable';
                             const quizScore = content?.percentage || 'Not Applicable';
+                            const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
                             if (learner.contentType === 'QUIZ') {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
@@ -5064,6 +5054,7 @@ const generateCustomReport = async ({ input }, context) => {
                                     'Content Name': `${contentName}`,
                                     // 'Content Type': contentType,
                                     'Quiz Score': quizScore,
+                                    'Time Spent': timeSpendInContent,
                                 });
                             }
                         });
@@ -5092,31 +5083,6 @@ const generateCustomReport = async ({ input }, context) => {
         const workbook = XLSX.utils.book_new();
         let worksheet;
         if (dataToExport.length === 0) {
-           /*  const message = "NO DATA AVAILABLE FOR CUSTOM REPORTS";
-            worksheet = XLSX.utils.aoa_to_sheet([
-                [message]
-            ]);
-
-            const columnSpan = 20;
-
-            const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
-            if (!worksheet['!merges']) worksheet['!merges'] = [];
-            worksheet['!merges'].push(range);
-
-
-            worksheet['A1'].s = {
-                font: {
-                    bold: true,
-                    size: 14,
-                },
-                alignment: {
-                    horizontal: 'center',
-                    vertical: 'center',
-                }
-            };
-
-            worksheet['!rows'] = [{ hpt: 30 }]; */
-
             
             const enrollmentReportHeaders = [
                 "Name",
@@ -5155,6 +5121,7 @@ const generateCustomReport = async ({ input }, context) => {
                 "Content Name",
                 "Content Type",
                 "Quiz Score",
+                "Time Spent",
             ]
 
             const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;

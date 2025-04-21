@@ -149,7 +149,7 @@ module.exports = GqlHelper(`
         url: String
         s3Path: String
         isDefault: Boolean
-        duration: Int
+        duration: String
     }
     input LocalisedDataInput {
         lang: String
@@ -160,7 +160,7 @@ module.exports = GqlHelper(`
         lang: Language
         url: Upload 
         isDefault: Boolean
-        duration: Int
+        duration: String
     }
     input PageInput {
         skip: Int
