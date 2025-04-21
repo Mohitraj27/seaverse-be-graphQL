@@ -695,6 +695,7 @@ module.exports.queries = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         try {
+            input.fromUserCount = true;
             const { userIds, count } = await getUsersAndCount(input);
             return {
                 userIds,

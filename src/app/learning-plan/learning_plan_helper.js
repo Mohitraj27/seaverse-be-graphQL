@@ -120,7 +120,7 @@ const getValidObjectIds = async (type_of_Field, valueOfField) => {
 
         case typeOfConditionalCustomFieldEnum.VESSEL_TYPE:
             return await VesselType.find({ _id: { $in: valueOfField }, isDeleted: false, isActive: true });
-            
+
         case typeOfConditionalCustomFieldEnum.CURRENT_STATUS:
             return valueOfField.map(value => ({ currentStatus: value }));
         default:
@@ -255,12 +255,14 @@ const createLearningPlanHelper = async (input, context) => {
         else {
             newLearningPlan = await createNewLearningPlan(input);
 
+            const fromCreateLP = true;
             const { userIds } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
                 audienceSelection: input.audienceSelection,
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields,
-                groupIDs: input.groupIDs
+                groupIDs: input.groupIDs,
+                fromCreateLP
             });
             if (userIds?.length > 0) {
                 const assignments = userIds.map(userId => ({
@@ -370,18 +372,12 @@ const updateLearningPlanHelper = async (id, input, context) => {
         await existingLearningPlan.save();
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
-        await LearningPlanAssignment.deleteMany({
-            learningPlanId: existingLearningPlan._id
-        });
+        const unRegisteredRemovedLearners = await User.find({ _id: { $in: removedLearnerIdsArray }, isRegistered: { $ne: true } }).select('_id');
+        const unRegisteredRemovedLearnerIds = unRegisteredRemovedLearners.map(user => user._id.toString());
 
-        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-            { user: { $in: removedLearnerIdsArray }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
-            {
-                $pull: {
-                    learningPlan: existingLearningPlan._id
-                }
-            }
-        );
+        let remainingRemovedLearnerIds = [];
+
+        let filteredUserIds = [];
 
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
@@ -399,30 +395,77 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            learnersToAssign = userIds;
+
+            // Get the learner IDs not in userIds and removedLearnerIdsArray
+            const userIdsToString = userIds.map(userId => userId.toString());
+            const filteredUnRegisteredRemovedLearnerIds = unRegisteredRemovedLearnerIds.filter(userId => userIdsToString.includes(userId.toString()));
+            remainingRemovedLearnerIds = removedLearnerIdsArray.filter(userId => !filteredUnRegisteredRemovedLearnerIds.includes(userId.toString()));
+
+            const registeredUsers = await User.find({ _id: { $in: userIds }, isRegistered: { $ne: false } }).select('_id');
+            const registeredUserIds = registeredUsers.map(user => user._id);
+            learnersToAssign = registeredUserIds;
+            
         }
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
-        if (learnersToAssign?.length > 0) {
-            const learningPlanAssignments = learnersToAssign.map(learnerId => ({
-                learningPlanId: existingLearningPlan._id,
-                assignedLearnerId: learnerId,
-                isManuallyAdded: input.audienceSelection === audienceSelection.MANUAL,
-                createdBy: existingLearningPlan.createdBy,
-                updatedBy: existingLearningPlan.updatedBy,
-            }));
 
-            await OverallTrainingProgress.updateMany(
-                { user: { $in: learnersToAssign }, isDeleted: { $ne: true }, training: { $in: existingLearningPlan?.selectCourses } },
+        if (remainingRemovedLearnerIds?.length > 0) {
+
+            await LearningPlanAssignment.deleteMany({
+                learningPlanId: existingLearningPlan._id,
+                assignedLearnerId: { $in: remainingRemovedLearnerIds },
+            });
+
+            const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                { user: { $in: remainingRemovedLearnerIds }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
                 {
-                    $addToSet: { learningPlan: existingLearningPlan._id }
+                    $pull: {
+                        learningPlan: existingLearningPlan._id
+                    }
                 }
             );
 
-            await LearningPlanAssignment.insertMany(learningPlanAssignments);
         }
 
+        if (learnersToAssign?.length > 0) {
+            // Find existing assignments to prevent duplicates
+            const existingAssignments = await LearningPlanAssignment.find({
+                learningPlanId: existingLearningPlan._id,
+                assignedLearnerId: { $in: learnersToAssign },
+                isDeleted: false,
+            }).select('assignedLearnerId');
+
+            const existingLearnerIds = new Set(existingAssignments.map(doc => doc.assignedLearnerId.toString()));
+
+            // Filter learners that are not already assigned
+            const newAssignments = learnersToAssign
+                .filter(learnerId => !existingLearnerIds.has(learnerId.toString()))
+                .map(learnerId => ({
+                    learningPlanId: existingLearningPlan._id,
+                    assignedLearnerId: learnerId,
+                    isManuallyAdded: input.audienceSelection === audienceSelection.MANUAL,
+                    createdBy: existingLearningPlan.createdBy,
+                    updatedBy: existingLearningPlan.updatedBy,
+                }));
+
+            // Update OverallTrainingProgress
+            await OverallTrainingProgress.updateMany(
+                {
+                    user: { $in: learnersToAssign },
+                    isDeleted: { $ne: true },
+                    training: { $in: existingLearningPlan?.selectCourses },
+                },
+                {
+                    $addToSet: { learningPlan: existingLearningPlan._id },
+                }
+            );
+
+            // Insert only non-existing assignments
+            if (newAssignments.length > 0) {
+                await LearningPlanAssignment.insertMany(newAssignments);
+            }
+        }
 
 
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
@@ -469,7 +512,9 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isSignupAdminAprroved = true;
         filter.isActive = true;
-        filter.isRegistered = true;
+        if (input?.fromCreateLP || input?.fromUserCount) {
+            filter.isRegistered = true;
+        }
 
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
