@@ -371,20 +371,41 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                     return orderA - orderB;
                 });
 
+                // bulkOperations.push({
+                //     updateOne: {
+                //         filter: { _id: doc._id },
+                //         update: {
+                //             $set: {
+                //                 status: "IN_PROGRESS",
+                //                 contentData, startDate: new Date(),
+                //                 totalTrainingModules: contentData?.length,
+                //                 isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
+                //                 assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout,
+                //                 certificateExpiry: trainingDataById[doc.training.toString()]?.certificateValidity,
+                //                 assignedCertificateLayoutId: trainingDataById[doc.training.toString()]?.layoutId,
+                //             }
+                //         },
+                //     },
+                // });
+
+                const updateFields = {
+                    status: "IN_PROGRESS",
+                    contentData,
+                    startDate: new Date(),
+                    totalTrainingModules: contentData?.length,
+                };
+
+                if (doc.status !== "COMPLETED") {
+                    updateFields.isCertificatePresent = trainingDataById[doc.training.toString()]?.isCertificate;
+                    updateFields.assignedCertificateLayout = trainingDataById[doc.training.toString()]?.currentCertificateLayout;
+                    updateFields.certificateExpiry = trainingDataById[doc.training.toString()]?.certificateValidity;
+                    updateFields.assignedCertificateLayoutId = trainingDataById[doc.training.toString()]?.layoutId;
+                }
+
                 bulkOperations.push({
                     updateOne: {
                         filter: { _id: doc._id },
-                        update: {
-                            $set: {
-                                status: "IN_PROGRESS",
-                                contentData, startDate: new Date(),
-                                totalTrainingModules: contentData?.length,
-                                isCertificatePresent: trainingDataById[doc.training.toString()]?.isCertificate,
-                                assignedCertificateLayout: trainingDataById[doc.training.toString()]?.currentCertificateLayout,
-                                certificateExpiry: trainingDataById[doc.training.toString()]?.certificateValidity,
-                                assignedCertificateLayoutId: trainingDataById[doc.training.toString()]?.layoutId,
-                            }
-                        },
+                        update: { $set: updateFields },
                     },
                 });
 
