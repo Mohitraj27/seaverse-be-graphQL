@@ -186,6 +186,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
     throw CustomError(ErrorName.INVALID_FILE);
 };
 
+
 const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) => {
     fileName = `${fileName}.json`;
 

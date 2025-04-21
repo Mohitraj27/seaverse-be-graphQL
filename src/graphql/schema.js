@@ -149,16 +149,18 @@ module.exports = GqlHelper(`
         url: String
         s3Path: String
         isDefault: Boolean
+        duration: String
     }
     input LocalisedDataInput {
-        lang: Language!
-        value: String!
+        lang: String
+        value: String
     }
     input MultiMediaInfoInput {
         _id: ID
         lang: Language
         url: Upload 
         isDefault: Boolean
+        duration: String
     }
     input PageInput {
         skip: Int
