@@ -347,7 +347,7 @@ module.exports = {
 
                 if (!training) continue;
 
-                if(!overallDoc.isCertificateGenerated) {
+                if(overallDoc.isCertificateGenerated) {
                     continue;
                 }
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
