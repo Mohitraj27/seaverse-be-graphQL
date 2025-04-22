@@ -740,7 +740,35 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, ses
         return 0;
     }
 };
-
+    
+  const checkCustomGroupsInActiveLearningPlans = async (activeLearningPlans, customGroupIds) => {
+    const customGroupIdStrings = new Set(customGroupIds.map(id => id.toString()))
+  
+    const isCustomGroupMatch = (groupEntry) => {
+      return ( groupEntry.groupType === groupTypes?.custom && Array.isArray(groupEntry.groupIDs) && groupEntry.groupIDs.some(groupId => {
+          const idToCompare = groupId?.$oid || groupId?.toString();
+          return customGroupIdStrings.has(idToCompare)
+        })
+      )
+    }
+  
+    const isAssociated = activeLearningPlans.some(plan => {
+      if (plan?.targetAudience === targetAudience.GROUP_BASED) {
+        return Array.isArray(plan.groupIDs) && plan.groupIDs.some(isCustomGroupMatch)
+      }
+  
+      if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION) {
+        return Array.isArray(plan?.conditionalCustomFields) &&
+          plan?.conditionalCustomFields.some(field => field?.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field?.groupIDs) &&
+            field?.groupIDs.some(isCustomGroupMatch)
+          )
+      }
+      return false;
+    })
+  
+    return { isAssociated };
+  }
+  
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
 
@@ -1142,9 +1170,15 @@ module.exports.mutations = {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
+    try{
         let failedDeletions = [];
-
+        const activeLearningPlans = await LearningPlan.find({status: LearningPlanStatus.ACTIVE,isDeleted: false});
+        if(activeLearningPlans?.length > 0){
+            const { isAssociated } = await checkCustomGroupsInActiveLearningPlans(activeLearningPlans, ids);
+        if (isAssociated) {
+            throw CustomError(ErrorName.CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN, "This group is associated with an active Learning Plan. Deletion is restricted.");
+        }
+        }
         const getGroups = await Group.find({
             _id: { $in: ids },
             subscriber: subscriberId,
@@ -1179,6 +1213,9 @@ module.exports.mutations = {
             }
         } else {
             throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
+        }}
+        catch(error){
+         throw CustomError(ErrorName.FAILED_TO_DELETE_CUSTOM_GROUP, error.message);
         }
     },
 };

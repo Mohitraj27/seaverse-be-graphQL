@@ -122,7 +122,9 @@ const errorName = {
     FAILED_TO_DOWNLOAD_ZIP: "FAILED_TO_DOWNLOAD_ZIP",
     COURSE_NOT_FOUND: "COURSE_NOT_FOUND",
     LESSON_NOT_FOUND: "LESSON_NOT_FOUND",
-    FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV"
+    FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV",
+    FAILED_TO_DELETE_CUSTOM_GROUP:"FAILED_TO_DELETE_CUSTOM_GROUP",
+    CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:"CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN"
 };
 
 const errorType = {
@@ -740,6 +742,16 @@ const errorType = {
         message: 'Failed to export users to CSV',
         statusCode: 400,    
         type: "FAILED_TO_EXPORT_USERS_TO_CSV"
+    },
+    FAILED_TO_DELETE_CUSTOM_GROUP:{
+        message: 'Failed to delete custom group',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_CUSTOM_GROUP"
+    },
+    CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:{
+        message: 'Custom group exist for learning plan',
+        statusCode: 400,    
+        type: "CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN"
     }
 };
 
