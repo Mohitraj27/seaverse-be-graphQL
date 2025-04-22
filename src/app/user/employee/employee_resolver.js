@@ -80,6 +80,7 @@ const audienceSelectionEnum = require('../../learning-plan/enumFields/audienceSe
 const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
+const {processFilters} = require('./user_exportCSV_filter');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -3284,13 +3285,17 @@ module.exports.mutations = {
                 const employees = await Employee.find(employeeQuery).select('user');
                 userIds = employees.map(emp => emp.user);
             }
+            const initialMatchStage = {
+                $match: {
+                    _id: { $in: userIds },
+                    isDeleted: false
+                }
+            };
+            if(userObjectIds?.filterInput){
+                await processFilters(userObjectIds.filterInput, initialMatchStage);
+            }       
             const pipeline = [
-                {
-                    $match: {
-                        _id: { $in: userIds },
-                        isDeleted: false
-                    },
-                },
+                initialMatchStage,
                 {
                     $lookup: {
                         from: 'employees',
