@@ -82,15 +82,14 @@ const processVesselStatusFilter = async (vesselStatusValues, initialMatchStage) 
 }
 
 
-const processVesselNameFilter = async (vesselNames, initialMatchStage) => {
+const processVesselNameFilter = async (vesselIDS, initialMatchStage) => {
 
   const vessels = await Vessel.find({
-    name: { $in: vesselNames },
+    _id: { $in: vesselIDS },
     isDeleted: false,
-  }).select("_id")
-
-  if (vessels && vessels?.length > 0) {
-    const vesselIds = vessels.map((v) => v._id)
+  }).select("_id");
+  if (vessels?.length > 0) {
+    const vesselIds = vessels.map((v) => v._id);
     initialMatchStage.$match.currentVessel = { $in: vesselIds }
   } else {
     initialMatchStage.$match.currentVessel = { $in: [] }
@@ -161,7 +160,7 @@ const processActivityTimelineFilter = async (timelineValues, initialMatchStage) 
 }
 const processDesignationFilter = async (designationValues, initialMatchStage ) => {
     const employees = await Employee.find({
-      designation: { $in: designationValues },
+      empDesignation: { $in: designationValues },
       isDeleted: false,
     }).select("user")
   
