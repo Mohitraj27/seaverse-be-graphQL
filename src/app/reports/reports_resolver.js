@@ -846,6 +846,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "isRegistered": "$userInfo.isRegistered",
                             'vesselName': '$vesselInfo.name',
                             'vesselTypeName': '$vesselTypeInfo.name',
+                            'courseId': '$training',
                             'courseName': {
                                 '$arrayElemAt': [
                                     '$trainingInfo.title.value', 0
