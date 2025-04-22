@@ -1153,7 +1153,7 @@ module.exports = {
                     );
                 await NotificationHelper.createNotificationhelper(...notifications);
                 } else {
-                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have memebers enrollment is not possible");
+                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have members enrollment is not possible");
                 }
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
 
