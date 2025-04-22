@@ -2936,9 +2936,9 @@ module.exports = {
 
 
         });
-        if (insertedUsers.length > 0 /* || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0 */) {
-            console.log("hello there")
-            
+
+        if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
+
             await sendNotificationOnBULK({
                 subscriber: subscriberId,
                 action: "Bulk Import Success",
@@ -2950,7 +2950,7 @@ module.exports = {
                 notificationType: 'BULK_IMPORT_SUCCESS',
                 status: "SUCCESS",
                 icon: notificationiconEnum.SUCCESS,
-                creatorId : userInfo._id,
+                creatorId: userInfo._id,
             })
 
             const createImportLog = await ImportLog.create({
@@ -2960,9 +2960,66 @@ module.exports = {
                 fileName: newFileName,
                 filePath: { url: saveCSV },
                 importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`
+                description: `Successfully created ${insertedUsers.length} user(s)`
             })
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
+
+        if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
+
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "Bulk Import Success",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
+                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                creatorId: userInfo._id,
+            })
+
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: userCount,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+            })
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
+
+        if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
+
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "Bulk Import Success",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                creatorId: userInfo._id,
+            })
+
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: userCount,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
+            })
+
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
         }
 
     },
