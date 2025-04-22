@@ -157,6 +157,7 @@ module.exports = {
         }
         type singleLearnersReport {
             courseName : [String]
+            courseId : ID
             firstName : String
             lastName : String
             duration : [Int]
