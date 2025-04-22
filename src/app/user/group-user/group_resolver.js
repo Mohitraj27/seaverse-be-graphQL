@@ -1176,7 +1176,7 @@ module.exports.mutations = {
         if(activeLearningPlans?.length > 0){
             const { isAssociated } = await checkCustomGroupsInActiveLearningPlans(activeLearningPlans, ids);
         if (isAssociated) {
-            throw CustomError(ErrorName.VALIDATION_ERROR, "This group is associated with an active Learning Plan. Deletion is restricted.");
+            throw CustomError(ErrorName.CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN, "This group is associated with an active Learning Plan. Deletion is restricted.");
         }
         }
         const getGroups = await Group.find({
