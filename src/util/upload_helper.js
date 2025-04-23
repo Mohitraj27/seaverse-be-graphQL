@@ -9,6 +9,13 @@ const fileType = {
     audios: ["audio/mpeg"],
     images: ["image/png", "image/jpeg", "image/bmp", "image/jpg"],
     allImages: "image/",
+    subtitles: [
+        "text/vtt",
+        "text/srt",
+        "application/srt",
+        "application/octet-stream",
+        "text/plain"
+    ],
     documents: [
         "application/pdf",
         "application/vnd.ms-powerpoint",
@@ -28,6 +35,7 @@ const uploadType = {
     trainingContentVideo: "trainingContentVideo",
     trainingContentAudio: "trainingContentAudio",
     trainingContentImage: "trainingContentImage",
+    trainingContentSubtitle: "trainingContentSubtitle",
     quizContentImage: "quizContentImage",
     introVideo: "introVideo",
     organizationImage: "organizationImage",
@@ -58,6 +66,8 @@ const getPathFromType = ({ type, folder, filename }) => {
         return `${rootFolder}/training-contents/${folder}/videos/${filename}`;
     else if (type === uploadType.trainingContentAudio)
         return `${rootFolder}/training-contents/${folder}/audios/${filename}`;
+    else if (type === uploadType.trainingContentSubtitle)
+        return `${rootFolder}/training-contents/${folder}/subtitles/${filename}`;
     else if (type === uploadType.trainingContentImage)
         return `${rootFolder}/training-contents/${folder}/images/${filename}`;
     else if (type === uploadType.quizContentImage)
@@ -96,6 +106,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
             acceptedTypes?.includes(mimetype)
         ) {
             let extension = PathHelper.extname(fileName) || PathHelper.extname(fileNameCurrent);
+            console.log(extension, "ext");
             if (!extension) {
                 const ext = MimeHelper.extension(mimetype);
                 if (ext) extension = `.${ext}`;
@@ -108,6 +119,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 folder: folderName,
                 filename: fileNameCurrent,
             });
+            console.log(filePath, "fpath");
 
             if (filePath) {
                 const stream = createReadStream();
@@ -232,6 +244,19 @@ module.exports = {
                 fileName: fileName,
                 uploadType: uploadType,
                 acceptedTypes: fileType.videos,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+    uploadSubtitle: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.all,
             });
 
             if (filePath) return filePath;

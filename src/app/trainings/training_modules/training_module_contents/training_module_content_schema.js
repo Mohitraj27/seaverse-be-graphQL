@@ -185,6 +185,12 @@ module.exports = {
             title: String
             description: String
             duration: String
+            isShowSubtitle: Boolean
+            subtitles: [SubtitleInput]
+        }
+        input SubtitleInput {
+            lang: String
+            index: Int
         }
 
     `,
@@ -201,7 +207,7 @@ module.exports = {
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
         updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
         deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
-        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],subtitles: [Upload], videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],videoMetas: [VideoMetaInput],deletedVideos: [ID], audio: Upload, file: Upload): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!

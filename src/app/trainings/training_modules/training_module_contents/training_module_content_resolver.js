@@ -645,8 +645,7 @@ module.exports.mutations = {
         };
     },
 
-    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file }, context) => {
-
+    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, subtitles, audio, file }, context) => {
 
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
@@ -682,8 +681,9 @@ module.exports.mutations = {
             const videoFile = videos ? await videos : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
+            const subtitlesFile = subtitles ? await subtitles : null;
 
-            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip', 'srt', 'vtt'];
 
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
@@ -747,9 +747,43 @@ module.exports.mutations = {
                     });
                     return videoUrl;
                 }));
-                input.videos = videoUrls.map((v, i) => ({ url: v, lang: videoMetas[i]?.lang, isDefault: videoMetas[i]?.isDefault, title: videoMetas[i]?.title, description: videoMetas[i]?.description, duration: videoMetas[i]?.duration }));
+
+                const subtitleUrls = await Promise.all((subtitles || []).map(async (s, i) => {
+                    const subtitleUrl = await UploadHelper.uploadSubtitle({
+                        data: s,
+                        folderName: `subtitle-content`,
+                        fileName: `subtitle_${Date.now()}_${s?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentSubtitle,
+                    });
+                    return subtitleUrl;
+                }));
+
+                const vData = videoUrls.map((v, i) => {
+                    const meta = videoMetas?.[i] || {};
+                    const subtitleRefs = meta.subtitles || [];
+
+                    const mappedSubtitles = subtitleRefs.map(ref => {
+                        const subtitleUrl = subtitleUrls[ref.index];
+                        return subtitleUrl ? { lang: ref.lang, url: subtitleUrl } : null;
+                    }).filter(Boolean);
+
+                    return {
+                        url: v,
+                        lang: meta.lang,
+                        isDefault: meta.isDefault,
+                        title: meta.title,
+                        description: meta.description,
+                        duration: meta.duration,
+                        isShowSubtitle: meta.isShowSubtitle,
+                        subtitles: mappedSubtitles
+                    };
+                });
+
+                input.videos = vData;
+
                 contentTypeNotification = 'Videos';
             }
+
 
             if (audio) {
                 const audioUrl = await UploadHelper.uploadAudio({
