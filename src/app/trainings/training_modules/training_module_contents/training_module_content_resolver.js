@@ -1100,7 +1100,6 @@ module.exports.mutations = {
 
                 // Find the video with the same language
                 const existingVideo = updateData.videos.find(video => video.lang === videoMeta.lang);
-                console.log(existingVideo, "existingVideo");
                 if (existingVideo) {
                     // Update metadata
                     existingVideo.title = videoMeta.title ?? existingVideo.title;
