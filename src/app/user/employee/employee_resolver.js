@@ -1558,7 +1558,7 @@ module.exports.queries = {
     sendWelcomeMails: async ({ emailInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
+    try{
         const emails = emailInput.email;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         let messages = [];
@@ -1570,10 +1570,9 @@ module.exports.queries = {
                     return;
                 }
 
-                let currentUserData = await User.findOne({ email: email });
+                let currentUserData = await User.findOne({ email: email, isDeleted: false ,isRegistered: true});
                 if (!currentUserData) {
-                    messages.push(`No user data found for Email: ${email}`);
-                    return;
+                    throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL,`One or more User are Unregistered`);
                 }
 
                 let html = ``;
@@ -1675,6 +1674,9 @@ module.exports.queries = {
             }
         } */
         return messages;
+    }catch(error){
+        throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
+    }
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
         const { role } = AuthUser(context);
@@ -2722,6 +2724,7 @@ module.exports.mutations = {
             //     };
             // });
 
+            if(savedUser?.isRegistered === true){
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
@@ -2729,6 +2732,7 @@ module.exports.mutations = {
             });
 
             await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+            }
 
             return savedEmployees;
         });
