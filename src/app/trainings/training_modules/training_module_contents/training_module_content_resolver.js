@@ -1019,7 +1019,7 @@ module.exports.mutations = {
         }
     },
 
-    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos }, context) => {
+    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos,deletedSubtitles,subtitles }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
 
         const existingContent = await TrainingModuleContent.findOne({
@@ -1133,6 +1133,20 @@ module.exports.mutations = {
             isMediaUpdated = true;
         }
 
+        if (deletedSubtitles?.length > 0) {
+            for (const subtitleId of deletedSubtitles) {
+                for (const video of updateData.videos) {
+                    const index = video.subtitles?.findIndex(s => s._id?.toString() === subtitleId.toString());
+                    if (index >= 0) {
+                        video.subtitles.splice(index, 1);
+                        isUpdated = true;
+                        // isMediaUpdated = true;
+                    }
+                }
+            }
+        }
+
+
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
             // try {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
@@ -1179,6 +1193,41 @@ module.exports.mutations = {
             //     throw CustomError(ErrorName.FAILED, `Error uploading one or more videos`);
             // }
         }
+
+        if (subtitles?.length > 0 && videoMetas?.length > 0) {
+            for (let i = 0; i < videoMetas.length; i++) {
+                const videoMeta = videoMetas[i];
+                const video = updateData.videos.find(v => v.lang === videoMeta.lang);
+                if (!video) continue;
+
+                video.subtitles = video.subtitles || [];
+
+                if (videoMeta.subtitles?.length > 0) {
+                    for (let j = 0; j < videoMeta.subtitles.length; j++) {
+                        const meta = videoMeta.subtitles[j];
+                        const subtitleFile = subtitles[j];
+                        if (!meta?.lang || !subtitleFile) continue;
+
+                        const subtitleUrl = await UploadHelper.uploadSubtitle({
+                            data: subtitleFile,
+                            folderName: `subtitle-content-${existingContent._id}`,
+                            fileName: `subtitle_${Date.now()}_${subtitleFile?.filename?.split('.')?.[0]}`,
+                            uploadType: UploadHelper.uploadType.trainingContentSubtitle,
+                        });
+
+                        // Push only new subtitles (you could check ID existence here)
+                        video.subtitles.push({
+                            url: subtitleUrl,
+                            lang: meta.lang,
+                        });
+                        
+
+                        isUpdated = true;
+                    }
+                }
+            }
+        }
+
 
 
         if (thumbnail === null) {

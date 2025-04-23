@@ -150,6 +150,8 @@ module.exports = GqlHelper(`
         s3Path: String
         isDefault: Boolean
         duration: String
+        isShowSubtitle: Boolean
+        subtitles: [MultiMediaInfo]
     }
     input LocalisedDataInput {
         lang: String
