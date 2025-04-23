@@ -392,33 +392,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             const workbook = XLSX.utils.book_new();
             let worksheet;
             if (data.length === 0) {
-/**  
-                #Ticket : SEAV-90 
-                const message = `NO DATA AVAILABLE FOR ${selectVesselOrLearner.toUpperCase()} REPORTS`;
-                worksheet = XLSX.utils.aoa_to_sheet([
-                    [message]
-                ]);
-    
-                const columnSpan = 20;
-    
-                const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
-                if (!worksheet['!merges']) worksheet['!merges'] = [];
-                worksheet['!merges'].push(range);
-    
-    
-                worksheet['A1'].s = {
-                    font: {
-                        bold: true,
-                        size: 14,
-                    },
-                    alignment: {
-                        horizontal: 'center',
-                        vertical: 'center',
-                    }
-                };
-    
-                worksheet['!rows'] = [{ hpt: 30 }];
-                 */
+
                 worksheet = XLSX.utils.aoa_to_sheet([['Name', 'EmployeeId', 'Designation', 'VesselName', 'RegistrationStatus','LastSeen','IsDeleted','vesselTypeName','CoursesCount','AverageProgressPercentage']]);
             }
             else {
@@ -492,20 +466,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
     try {
         const matchStage = [];
         let learnerData = [];
-        /* Ticket No: SEAV-117
-        if (input?.export) {
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: ` Learner's report export In Progress`,
-                messageValue: `The learner's report export has been initiated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
-                status: 'SENT',
-                createdBy: userInfo,
-                icon: notificationiconEnum.PROGRESS
-            });
-        }
-        */
+        let deteledUsersStage = [];
+        let matchUsersFromTrainingProgresses = [];
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
@@ -572,6 +534,91 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 });
             }
 
+            //on select all and export from main learner funciton use export with this filter
+            // is Registered
+            if (filterInput?.isRegistered !== undefined) {
+                matchStage.push({
+                    $match: { 'userInfo.isRegistered': filterInput.isRegistered },
+                });
+            }
+
+            //current vessel type
+            if (filterInput.vesselTypes && Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselInfo.typeOfVessel': { $in: filterInput.vesselTypes },
+                    },
+                });
+            }
+            //current vessel 
+            if (filterInput.vesselIds && Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'vesselInfo._id': { $in: filterInput.vesselIds },
+                    },
+                });
+            }
+            //employee designation
+            if (filterInput.designations && Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'designationInfo._id': { $in: filterInput.designations },
+                    },
+                });
+            }
+            // one users vesselStatus
+            if (filterInput.vesselStatus && Array.isArray(filterInput.vesselStatus) && filterInput.vesselStatus.length > 0) {
+                matchStage.push({
+                    $match: {
+                        'userInfo.vesselStatus': { $in: filterInput.vesselStatus },
+                    },
+                });
+            }
+
+            if (input?.filterInput?.includeDeletedUsers) {
+                deteledUsersStage = [
+                    {
+                        $lookup: {
+                            from: 'deletedusers',
+                            localField: 'user',
+                            foreignField: '_id',
+                            as: 'deletedUserInfo',
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: '$deletedUserInfo',
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $addFields: {
+                            userInfo: {
+                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
+                            }
+                        },
+                    },
+                ];
+            } else {
+                deteledUsersStage = [
+                    {
+                        $match: {
+                            $and: [
+                                {
+                                    "userInfo.isDeleted": {
+                                        $ne: true
+                                    }
+                                },
+                                {
+                                    "employeeInfo.isDeleted": {
+                                        $ne: true
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                ];
+            }
 
         }
 
@@ -632,7 +679,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
         }
-        const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : [input.learnerIds];
+        const learnerIds = Array.isArray(input.learnerIds) ? input.learnerIds : input.learnerIds ? [input.learnerIds] : [];
 
         let matchUsers = [];
         if (learnerIds.length > 0) {
@@ -643,8 +690,24 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
                 }
             );
-        }
 
+            matchUsersFromTrainingProgresses.push(
+                {
+                    "$match": {
+                        "user": { $in: learnerIds.map(id => ObjectId(id)) },
+                        "status": "COMPLETED"
+                    }
+                }
+            );
+        }else{
+            matchUsersFromTrainingProgresses.push(
+                {
+                    "$match": {
+                        "status": "COMPLETED"
+                    }
+                }
+            )
+        }
 
         if (input.reportType === "ENROLLMENT") {
             const learnersReports = await OverallTrainingProgress.aggregate(
@@ -759,6 +822,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "preserveNullAndEmptyArrays": true
                         }
                     },
+                    ...deteledUsersStage,
                     {
                         "$lookup":
                         {
@@ -807,12 +871,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             "foreignField": "training",
                             "as": "trainingProgressInfo",
                             "pipeline": [
-                                {
-                                    "$match": {
-                                        "user": { $in: learnerIds.map(id => ObjectId(id)) },
-                                        "status": "COMPLETED"
-                                    }
-                                },
+                                ...matchUsersFromTrainingProgresses,
                                 {
                                     "$lookup": {
                                         "from": "trainingmodulecontents",
@@ -955,31 +1014,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                 let worksheet;
                 if (combinedData.length === 0) {
-                   /*  
-                    #TICKET - SEAV-90
-                   const message = "NO DATA AVAILABLE FOR SELECTED USER REPORTS";
-                    worksheet = XLSX.utils.aoa_to_sheet([
-                        [message]
-                    ]);
 
-                    const columnSpan = 20;
-
-                    const range = { s: { r: 0, c: 0 }, e: { r: 0, c: columnSpan - 1 } };
-                    if (!worksheet['!merges']) worksheet['!merges'] = [];
-                    worksheet['!merges'].push(range);
-
-                    worksheet['A1'].s = {
-                        font: {
-                            bold: true,
-                            size: 14,
-                        },
-                        alignment: {
-                            horizontal: 'center',
-                            vertical: 'center',
-                        }
-                    };
-
-                    worksheet['!rows'] = [{ hpt: 30 }]; */
                     const headers = [
                         "Name",
                         "Email",
@@ -1164,6 +1199,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             preserveNullAndEmptyArrays: true
                         }
                     },
+                    ...deteledUsersStage,
                     {
                         $lookup: {
                             from: "trainingprogresses",
