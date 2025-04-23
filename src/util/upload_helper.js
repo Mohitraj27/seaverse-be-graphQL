@@ -106,7 +106,6 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
             acceptedTypes?.includes(mimetype)
         ) {
             let extension = PathHelper.extname(fileName) || PathHelper.extname(fileNameCurrent);
-            console.log(extension, "ext");
             if (!extension) {
                 const ext = MimeHelper.extension(mimetype);
                 if (ext) extension = `.${ext}`;
@@ -119,7 +118,6 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 folder: folderName,
                 filename: fileNameCurrent,
             });
-            console.log(filePath, "fpath");
 
             if (filePath) {
                 const stream = createReadStream();

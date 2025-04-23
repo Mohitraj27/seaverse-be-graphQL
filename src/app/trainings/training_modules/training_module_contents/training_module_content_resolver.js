@@ -1091,9 +1091,6 @@ module.exports.mutations = {
             }
         }
 
-
-
-
         if ((!videoFiles || videoFiles.length === 0) && videoMetas?.length > 0) {
             let videoUpdated = false;
 
@@ -1151,7 +1148,7 @@ module.exports.mutations = {
             // try {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
 
-            const uploadedVideos = await Promise.all(
+            const uploadedVideos = (await Promise.all(
                 videoFiles.map(async (videoFile, i) => {
                     const videoMeta = videoMetas[i];
                     if (!videoFile || !videoMeta?.lang) return null;
@@ -1172,7 +1169,7 @@ module.exports.mutations = {
                         duration: videoMeta.duration
                     };
                 })
-            );
+            )).filter(Boolean);
 
             // Filter out any nulls (in case some were skipped)
             for (const newVideo of uploadedVideos.filter(Boolean)) {
