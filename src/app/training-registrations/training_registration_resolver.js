@@ -360,7 +360,23 @@ module.exports.queries = {
                 {
                     $addFields: {
                         totalDuration: {
-                            $toInt: { $sum: "$trainingContentsFallback.duration" },
+                            $toInt: {
+                                $sum: {
+                                    $map: {
+                                        input: "$trainingContentsFallback",
+                                        as: "content",
+                                        in: {
+                                            $cond: {
+                                                if: {
+                                                    $in: ["$content.status", ["IN_PROGRESS", "COMPLETED"]],
+                                                },
+                                                then: "$content.timeSpend",
+                                                else: 0,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
                         },
                     },
                 },
