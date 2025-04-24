@@ -137,7 +137,7 @@ module.exports = {
             userVesselStatus : [String]
         } 
         input singleLearnerReportInput {
-            learnerIds : [ID]!
+            learnerIds : [ID]
             reportType : reportTypeEnum!
             selectVesselOrLearner : selectVesselOrLearnerEnum
             pageInput: PageInput
@@ -150,6 +150,12 @@ module.exports = {
             dateRange : filterDateRange
             title :String
             courseIds : [ID]
+            isRegistered : Boolean
+            includeDeletedUsers : Boolean
+            vesselIds : [ID]
+            vesselTypes : [ID]
+            designations : [ID]
+            vesselStatus : [String]
         }
         input filterDateRange {
             startDate: String
