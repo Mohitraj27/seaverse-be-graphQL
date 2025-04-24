@@ -1094,23 +1094,23 @@ module.exports.mutations = {
         if ((!videoFiles || videoFiles.length === 0) && videoMetas?.length > 0) {
             let videoUpdated = false;
 
-            for (let i = 0; i < videoMetas.length; i++) {
+            for (let i = videoMetas.length - 1; i >= 0; i--) {
                 const videoMeta = videoMetas[i];
                 if (!videoMeta?.lang) continue;
 
-                // Find the video with the same language
                 const existingVideo = updateData.videos.find(video => video.lang === videoMeta.lang);
                 if (existingVideo) {
-                    // Update metadata
                     existingVideo.title = videoMeta.title ?? existingVideo.title;
                     existingVideo.description = videoMeta.description ?? existingVideo.description;
                     existingVideo.isDefault = videoMeta.isDefault ?? existingVideo.isDefault;
                     existingVideo.isShowSubtitle = videoMeta.isShowSubtitle ?? existingVideo.isShowSubtitle;
-                    existingVideo.duration = videoMeta.duration ?? existingVideo.duration
+                    existingVideo.duration = videoMeta.duration ?? existingVideo.duration;
+
+                    videoMetas.splice(i, 1);
+
                     videoUpdated = true;
-                }
-                else {
-                    throw CustomError(ErrorName.FAILED, "VIDEO META NOT FOUND")
+                } else {
+                    throw CustomError(ErrorName.FAILED, "VIDEO META NOT FOUND");
                 }
             }
 
@@ -1118,7 +1118,6 @@ module.exports.mutations = {
                 isUpdated = true;
             }
         }
-
 
         if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
             const deletedIds = deletedVideos.map(id => id.toString());
