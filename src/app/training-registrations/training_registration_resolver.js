@@ -2076,59 +2076,6 @@ module.exports.mutations = {
                 { $match: { _id: input.training } },
                 { $project: { title: 1 } }
             ]);
-            /*
-            users.forEach(user => {
-                trainings.forEach(training => {
-                    const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
-                    const emailContent = moduleResetNotificationEmail({
-                        firstName: user.firstName,
-                        email: user.email,
-                        courseTitle: trainingTitle,
-                    });
-                    sendEmail({
-                        receiverEmail: user.email,
-                        subject: `Module Reset Notification`,
-                        htmlContent: emailContent,
-                    });
-                });
-            });
-            */
-            await Promise.all(userIds.map(async (userId) => {
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Your Course has been reset`,
-                    messageValue: `Your progress for the course ${trainingData?.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName ?? ""}. Please start again.`,
-                    notificationType: NotificationType.COURSE_MODULES_RESET,
-                    notifyAllAdmin: false,
-                    notifiers: [input.userIds],
-                    employeeNotifiers: [input.userIds],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-            }));
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Course Reset Notification`,
-                messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
-                notificationType: NotificationType.COURSE_MODULES_RESET,
-                notifyAllAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                affected: [],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await sendNotifications({
-                userIds: userIds,
-                title: 'Course Reset Notification',
-                body: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
-                content: "Dummy content",
-                webLink: ""
-            });
             return {
                 status: true,
                 message: `${trainingTitle} reset successfully`
