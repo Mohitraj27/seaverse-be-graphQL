@@ -1105,6 +1105,7 @@ module.exports.mutations = {
                     existingVideo.title = videoMeta.title ?? existingVideo.title;
                     existingVideo.description = videoMeta.description ?? existingVideo.description;
                     existingVideo.isDefault = videoMeta.isDefault ?? existingVideo.isDefault;
+                    existingVideo.isShowSubtitle = videoMeta.isShowSubtitle ?? existingVideo.isShowSubtitle;
                     existingVideo.duration = videoMeta.duration ?? existingVideo.duration
                     videoUpdated = true;
                 }
