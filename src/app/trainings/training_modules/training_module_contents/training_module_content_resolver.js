@@ -1019,7 +1019,7 @@ module.exports.mutations = {
         }
     },
 
-    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos,deletedSubtitles,subtitles }, context) => {
+    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos, deletedSubtitles, subtitles }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
 
         const existingContent = await TrainingModuleContent.findOne({
@@ -1144,13 +1144,31 @@ module.exports.mutations = {
 
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
-            // try {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
+            console.log(videoMetas, "videoMetas");
 
             const uploadedVideos = (await Promise.all(
-                videoFiles.map(async (videoFile, i) => {
-                    const videoMeta = videoMetas[i];
-                    if (!videoFile || !videoMeta?.lang) return null;
+                videoMetas.map(async (videoMeta) => {
+                    const videoIndex = videoMeta.index;
+                         console.log(videoIndex, "videoIndex")
+                    // Only process the video if videoIndex is valid 
+                    if (!videoIndex) {
+                        console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)},`);
+                        return null;
+                    }
+                     // videos;[=<0th index] videometa;[{metaupdate},{videoupdate}]];
+                     // videos [null], videometas[{},{}] videos[i]
+                    const videoFile = videoFiles[videoIndex];  
+                    // deltedarray=[];
+                    //version 1 =deeltedarray[0] = videoFiles[0]
+                    //new pass version2 = new entry 
+
+                   
+
+                    if (!videoFile) {
+                        console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)}, no  video file`);
+                        return null;
+                    }
 
                     const videoUrl = await UploadHelper.uploadVideo({
                         data: videoFile,
@@ -1161,34 +1179,44 @@ module.exports.mutations = {
 
                     return {
                         url: videoUrl,
-                        lang: videoMeta.lang,
-                        title: videoMeta.title,
-                        description: videoMeta.description,
-                        isDefault: videoMeta.isDefault,
-                        duration: videoMeta.duration
+                        meta: videoMeta
                     };
                 })
-            )).filter(Boolean);
+            )).filter(Boolean);  
 
-            // Filter out any nulls (in case some were skipped)
-            for (const newVideo of uploadedVideos.filter(Boolean)) {
-                const existingIndex = updateData.videos.findIndex(video => video.lang === newVideo.lang);
-                if (existingIndex !== -1) {
-                    updateData.videos[existingIndex] = { ...updateData.videos[existingIndex], ...newVideo };
+            console.log(uploadedVideos, "uploadedVideos");
+
+            for (const uploaded of uploadedVideos) {
+                const { url, meta } = uploaded;
+                const existingVideo = updateData.videos.find(v => v.lang === meta.lang);
+
+                if (existingVideo) {
+                    existingVideo.url = url;
                 } else {
-                    updateData.videos.push(newVideo);
+                    //only push if not exists
+                    updateData.videos.push({
+                        url,
+                        lang: meta.lang,
+                        title: meta.title,
+                        description: meta.description,
+                        isDefault: meta.isDefault,
+                        isShowSubtitle: meta.isShowSubtitle,
+                        duration: meta.duration
+                    });
                 }
             }
 
             isUpdated = true;
-            isMediaUpdated = true;
             updateData.audios = [];
             updateData.images = [];
             updateData.files = [];
-            // } catch (err) {
-            //     throw CustomError(ErrorName.FAILED, `Error uploading one or more videos`);
-            // }
         }
+
+
+        console.log(updateData.videos, "updateData.videos")
+
+
+
 
         if (subtitles?.length > 0 && videoMetas?.length > 0) {
             for (let i = 0; i < videoMetas.length; i++) {
@@ -1216,7 +1244,7 @@ module.exports.mutations = {
                             url: subtitleUrl,
                             lang: meta.lang,
                         });
-                        
+
 
                         isUpdated = true;
                     }
