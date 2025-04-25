@@ -1106,7 +1106,7 @@ module.exports.mutations = {
                     existingVideo.isShowSubtitle = videoMeta.isShowSubtitle ?? existingVideo.isShowSubtitle;
                     existingVideo.duration = videoMeta.duration ?? existingVideo.duration;
 
-                    videoMetas.splice(i, 1);
+                    // videoMetas.splice(i, 1);
 
                     videoUpdated = true;
                 } else {
@@ -1152,10 +1152,10 @@ module.exports.mutations = {
                     const videoIndex = videoMeta.index;
                          console.log(videoIndex, "videoIndex")
                     // Only process the video if videoIndex is valid 
-                    if (!videoIndex) {
-                        console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)},`);
-                        return null;
-                    }
+                    // if (!videoIndex) {
+                    //     console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)},`);
+                    //     return null;
+                    // }
                      // videos;[=<0th index] videometa;[{metaupdate},{videoupdate}]];
                      // videos [null], videometas[{},{}] videos[i]
                     const videoFile = videoFiles[videoIndex];  
