@@ -331,54 +331,14 @@ module.exports.queries = {
                 },
                 { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
-                    $lookup: {
-                        from: "trainingcontentbridges",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $project: {
-                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
-                                },
-                            },
-                        ],
-                        as: "trainingContentsFallback",
-                    },
+                    $addFields: {
+                        totalDuration: { $ifNull: ["$totalDuration", 0] }
+                    }
                 },
                 {
                     $addFields: {
-                        totalDuration: {
-                            $toInt: {
-                                $sum: {
-                                    $map: {
-                                        input: "$trainingContentsFallback",
-                                        as: "content",
-                                        in: {
-                                            $cond: {
-                                                if: {
-                                                    $in: ["$content.status", ["IN_PROGRESS", "COMPLETED"]],
-                                                },
-                                                then: "$content.timeSpend",
-                                                else: 0,
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
+                        timeSpend: { $ifNull: ["$timeSpend", 0] }
+                    }
                 },
                 { $sort: { createdAt: -1 } }
             ]);
