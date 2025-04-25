@@ -1145,24 +1145,14 @@ module.exports.mutations = {
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
-            console.log(videoMetas, "videoMetas");
+           
 
             const uploadedVideos = (await Promise.all(
                 videoMetas.map(async (videoMeta) => {
                     const videoIndex = videoMeta.index;
                          console.log(videoIndex, "videoIndex")
-                    // Only process the video if videoIndex is valid 
-                    // if (!videoIndex) {
-                    //     console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)},`);
-                    //     return null;
-                    // }
-                     // videos;[=<0th index] videometa;[{metaupdate},{videoupdate}]];
-                     // videos [null], videometas[{},{}] videos[i]
+                   
                     const videoFile = videoFiles[videoIndex];  
-                    // deltedarray=[];
-                    //version 1 =deeltedarray[0] = videoFiles[0]
-                    //new pass version2 = new entry 
-
                    
 
                     if (!videoFile) {
@@ -1184,7 +1174,7 @@ module.exports.mutations = {
                 })
             )).filter(Boolean);  
 
-            console.log(uploadedVideos, "uploadedVideos");
+         
 
             for (const uploaded of uploadedVideos) {
                 const { url, meta } = uploaded;
@@ -1211,10 +1201,6 @@ module.exports.mutations = {
             updateData.images = [];
             updateData.files = [];
         }
-
-
-        console.log(updateData.videos, "updateData.videos")
-
 
 
 
