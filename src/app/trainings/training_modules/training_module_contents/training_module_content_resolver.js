@@ -1182,6 +1182,12 @@ module.exports.mutations = {
 
                 if (existingVideo) {
                     existingVideo.url = url;
+                    existingVideo.title = meta.title;
+                    existingVideo.description = meta.description;
+                    existingVideo.isDefault = meta.isDefault;
+                    existingVideo.isShowSubtitle = meta.isShowSubtitle;
+                    existingVideo.duration = meta.duration;
+                    
                 } else {
                     //only push if not exists
                     updateData.videos.push({
@@ -1197,6 +1203,7 @@ module.exports.mutations = {
             }
 
             isUpdated = true;
+            isMediaUpdated = true;
             updateData.audios = [];
             updateData.images = [];
             updateData.files = [];
