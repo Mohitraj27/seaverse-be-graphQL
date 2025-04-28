@@ -467,7 +467,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
 
         }
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate').session(session).lean();
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate durationHours').session(session).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -483,6 +483,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
                 const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
+                const durationHours = trainingDataById[training.toString()]?.durationHours ?? 0;
 
                 if (existingProgressSet.has(progressKey)) {
                     if (learningPlanId) {
@@ -491,7 +492,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                                 filter: { training, user: user._id },
                                 update: {
                                     $addToSet: { learningPlan: learningPlanId },
-                                    $set: { isEnrolled: true, unenrollmentDate: null },
+                                    $set: { isEnrolled: true, unenrollmentDate: null, totalDuration: durationHours },
                                 },
                             },
                         };
@@ -502,7 +503,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             updateOne: {
                                 filter: { training, user: user._id },
                                 update: {
-                                    $set: { directEnrollment: true, unenrollmentDate: null },
+                                    $set: { directEnrollment: true, unenrollmentDate: null, totalDuration: durationHours },
                                 },
                             },
                         };
@@ -525,6 +526,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                             progressPercentage: 0.0,
                             completedModules: 0,
                             contentData: [],
+                            totalDuration: durationHours,
                             totalTrainingModules: trainingIdToModuleCount[training] || 0,
                             startDate: null,
                             endDate: null,
@@ -1077,10 +1079,8 @@ module.exports = {
                 //         input.trainings.map(async (trainingId) => {
                 //             try {
                 //                 const trainingtitle = await Training.find({ _id: trainingId }).select('title -_id');
-
                 //                 const key = `${userId.toString()}_${trainingId.toString()}`;
                 //                 const trainingProgressId = trainingProgressMap.get(key);
-
                 //                 const notificationData = {
                 //                     subscriber: subscriberId,
                 //                     titleValue: `${trainingtitle[0]?.title?.[0]?.value} has been enrolled to you`,
@@ -1103,15 +1103,15 @@ module.exports = {
                 //                         },
                 //                     ]
                 //                 }
-
                 //                 await NotificationHelper.createNotificationhelper(notificationData);
-
                 //             } catch (error) {
                 //                 throw Error(error.message);
                 //             }
                 //         })
                 //     );
                 // }
+
+                
                 // Batch fetch all training titles and store in a Map for quick lookup
                 const trainingTitlesMap = new Map(
                     (await Training.find({ _id: { $in: input.trainings } }).select('title'))
