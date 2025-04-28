@@ -14,6 +14,9 @@ module.exports = {
             sortingField: SortingFieldHistorySignupRequest
             sortingOrder: Int
         }
+        input HistorySignupRequestFilter {
+            signupStatus: historysignupStatusEnum
+        }
         type HistorySignupRequest {
             _id: ID
             firstName: String
@@ -31,12 +34,17 @@ module.exports = {
         }
         type HistorySignupRequestList {
             items: [HistorySignupRequest]
+            totalCount: Int
+        }
+        type deleteRejectedUserRequestOutput {
+            success: Boolean
+            message: String
         }
     `,
     queries: `
-        getHistorySignupRequest(id:ID, search: String,pageInput: HistorySignupRequestPageInput): HistorySignupRequestList!
-        
+        getHistorySignupRequest(id:ID, search: String,filterInput : HistorySignupRequestFilter,pageInput: HistorySignupRequestPageInput): HistorySignupRequestList!
     `,
     mutations: ` 
+        deleteRejectedUserRequests: deleteRejectedUserRequestOutput
       `
 };
