@@ -52,6 +52,10 @@ const trainingModuleContentSchema = new Schema(
                     type: Boolean,
                     default: false,
                 },
+                isShowSubtitle: {
+                    type: Boolean,
+                    default: false,
+                },
                 title: {
                     type: String,
                 },
@@ -61,6 +65,17 @@ const trainingModuleContentSchema = new Schema(
                 description: {
                     type: String,
                 },
+                subtitles: [
+                    {
+                        lang: {
+                            type: String,
+                            lowercase: true,
+                        },
+                        url: {
+                            type: String,
+                        },
+                    },
+                ],
             },
         ],
         audios: [
