@@ -71,6 +71,13 @@ module.exports = {
             country: String
             password: String!
             confirmPassword: String!
+            TermsAndConditions: [TermsAndConditionsInput!]
+        }
+        input TermsAndConditionsInput {
+            message: String!
+            title: String!
+            status:Boolean!
+            timestamp: String
         }
         enum vesselStatusEnum {
             ASSIGNED

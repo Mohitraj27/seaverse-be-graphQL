@@ -213,22 +213,41 @@ module.exports.mutations = {
 
                 const subscriber = await Subscriber.findOne().session(session);
                 let subscriberId = subscriber ? subscriber._id : null;
-
-                const createUser = await User.create([
-                    {
-                        subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
-                        password: encryptedPassword,
-                        email: lowerCaseEmail,
-                        dummyPassword: dummyPassword,
-                        isRegistered: false,
-                        directSignup: true,
-                        isSignupAdminAprroved: false,
-                        isResetPasswordDialog: true,
-                        UID: await EmployeeHelper.generateUserUID({ session }),
-                    }
-                ], { session });
+                let createUser;
+                if(input?.TermsAndConditions){
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            TermsAndConditions: input?.TermsAndConditions,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }else {
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }
                 if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
 
                 let employeeUpdate = {

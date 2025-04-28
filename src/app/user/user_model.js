@@ -166,6 +166,14 @@ const userSchema = new Schema(
                 ref:"ContentLanguage",
                 default: "en"
             }
+        ],
+        TermsAndConditions: [
+            {
+            message: {type:String, required:true},
+            title: {type:String,required:true},
+            status: { type: Boolean, required: true },
+            timestamps: { type: Date, default: Date.now}
+            }
         ]
     },
     { timestamps: true }
