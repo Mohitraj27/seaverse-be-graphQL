@@ -213,22 +213,41 @@ module.exports.mutations = {
 
                 const subscriber = await Subscriber.findOne().session(session);
                 let subscriberId = subscriber ? subscriber._id : null;
-
-                const createUser = await User.create([
-                    {
-                        subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
-                        password: encryptedPassword,
-                        email: lowerCaseEmail,
-                        dummyPassword: dummyPassword,
-                        isRegistered: false,
-                        directSignup: true,
-                        isSignupAdminAprroved: false,
-                        isResetPasswordDialog: true,
-                        UID: await EmployeeHelper.generateUserUID({ session }),
-                    }
-                ], { session });
+                let createUser;
+                if(input?.TermsAndConditions){
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            TermsAndConditions: input?.TermsAndConditions,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }else {
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }
                 if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
 
                 let employeeUpdate = {
@@ -396,8 +415,33 @@ module.exports.mutations = {
                     if (!existingUser) {
                         return CustomError(ErrorName.USER_NOT_FOUND);
                     }
-
-
+                    if (input?.TermsAndConditions?.length > 0) {
+                        const termsAndConditionsInput = input.TermsAndConditions;
+                        const existingConditionsMap = new Map(
+                          existingUser.TermsAndConditions.map(tc => [tc._id.toString(), tc])
+                        );
+                        termsAndConditionsInput.forEach(condition => {
+                          const inputConditionId = condition._id ? condition._id.toString() : null;
+                      
+                          if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
+                            // Update existing condition
+                            const existingCondition = existingConditionsMap.get(inputConditionId);
+                            existingCondition.message = condition.message;
+                            existingCondition.title = condition.title;
+                            existingCondition.status = condition.status;
+                            existingCondition.timestamp = condition.timestamp || new Date().toISOString();
+                          } else {
+                            existingUser.TermsAndConditions.push({
+                              _id: new mongoose.Types.ObjectId(), 
+                              message: condition.message,
+                              title: condition.title,
+                              status: condition.status,
+                              timestamp: condition.timestamp || new Date().toISOString(),
+                            });
+                          }
+                        });
+                        await existingUser.save({ session });
+                      }                    
                     const processValidUser = async () => {
                         if (input.firebaseToken) {
                             existingUser.firebaseTokens = [input.firebaseToken];
