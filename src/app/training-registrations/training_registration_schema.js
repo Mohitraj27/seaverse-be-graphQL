@@ -74,7 +74,7 @@ module.exports = {
             isEnrolled: Boolean
             moduleCount: Int
             totalTrainingModules: Int
-            totalDuration: Int
+            totalDuration: Float
             status: String
             timeSpend: Float
             lastConsumedContent: lastConsumedContent
