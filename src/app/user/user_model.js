@@ -169,9 +169,9 @@ const userSchema = new Schema(
         ],
         TermsAndConditions: [
             {
-            message: {type:String, required:true},
-            title: {type:String,required:true},
-            status: { type: Boolean, required: true },
+            message: {type:String},
+            title: {type:String},
+            status: { type: Boolean},
             timestamps: { type: Date, default: Date.now}
             }
         ]

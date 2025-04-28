@@ -45,6 +45,14 @@ module.exports = {
             isDeleted: Boolean
             designation: String
             contentlanguages: [String]
+            TermsAndConditions: [TermsAndConditions!]
+        }
+        type TermsAndConditions {
+            _id: ID
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         type UserList {
             users: [User]
@@ -105,6 +113,13 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
+            TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
+        }
+        input TermsAndConditionsforUpdateEmployee {
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         input SignInInput {
             countryCode: String
@@ -112,12 +127,13 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
-            TermsAndConditions: [TermsAndConditionsInputforSignIn!]
+            TermsAndConditions: [TermsAndConditionsInputforSignIn]
         }
         input TermsAndConditionsInputforSignIn {
-            message: String!
-            title: String!
-            status:Boolean!
+            _id: ID   
+            message: String
+            title: String
+            status:Boolean
             timestamp: String
         }
         input SignOutInput {
