@@ -415,8 +415,17 @@ module.exports.mutations = {
                     if (!existingUser) {
                         return CustomError(ErrorName.USER_NOT_FOUND);
                     }
+                    if(input?.TermsAndConditions?.length > 0){
 
-
+                        const TermsAndConditions = input?.TermsAndConditions;
+                        existingUser.TermsAndConditions = TermsAndConditions.map(condition => ({
+                          message: condition.message,
+                          title: condition.title,
+                          status: condition.status,
+                          timestamp: condition.timestamp || new Date().toISOString(), 
+                        }));
+                        await existingUser.save({session});
+                    }
                     const processValidUser = async () => {
                         if (input.firebaseToken) {
                             existingUser.firebaseTokens = [input.firebaseToken];

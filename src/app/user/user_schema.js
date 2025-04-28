@@ -112,6 +112,13 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
+            TermsAndConditions: [TermsAndConditionsInputforSignIn!]
+        }
+        input TermsAndConditionsInputforSignIn {
+            message: String!
+            title: String!
+            status:Boolean!
+            timestamp: String
         }
         input SignOutInput {
             firebaseToken: String
