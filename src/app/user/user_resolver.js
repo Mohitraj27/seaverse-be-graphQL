@@ -36,6 +36,7 @@ const subscriptionHelper = require("../saas/subscriber/subscription/subscription
 const NotificationType = require('../notifications/notification_type.json');
 const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
 const  ContentLanguage  = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
+const mongoose = require('mongoose');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -214,7 +215,7 @@ module.exports.mutations = {
                 const subscriber = await Subscriber.findOne().session(session);
                 let subscriberId = subscriber ? subscriber._id : null;
                 let createUser;
-                if(input?.TermsAndConditions){
+                if(input?.consents){
                      createUser = await User.create([
                         {
                             subscriber: subscriberId,
@@ -227,7 +228,7 @@ module.exports.mutations = {
                             directSignup: true,
                             isSignupAdminAprroved: false,
                             isResetPasswordDialog: true,
-                            TermsAndConditions: input?.TermsAndConditions,
+                            consents: input?.consents,
                             UID: await EmployeeHelper.generateUserUID({ session }),
                         }
                     ], { session });
@@ -415,10 +416,10 @@ module.exports.mutations = {
                     if (!existingUser) {
                         return CustomError(ErrorName.USER_NOT_FOUND);
                     }
-                    if (input?.TermsAndConditions?.length > 0) {
-                        const termsAndConditionsInput = input.TermsAndConditions;
+                    if (input?.consents?.length > 0) {
+                        const termsAndConditionsInput = input.consents;
                         const existingConditionsMap = new Map(
-                          existingUser.TermsAndConditions.map(tc => [tc._id.toString(), tc])
+                          existingUser.consents.map(tc => [tc._id.toString(), tc])
                         );
                         termsAndConditionsInput.forEach(condition => {
                           const inputConditionId = condition._id ? condition._id.toString() : null;
@@ -431,7 +432,7 @@ module.exports.mutations = {
                             existingCondition.status = condition.status;
                             existingCondition.timestamp = condition.timestamp || new Date().toISOString();
                           } else {
-                            existingUser.TermsAndConditions.push({
+                            existingUser.consents.push({
                               _id: new mongoose.Types.ObjectId(), 
                               message: condition.message,
                               title: condition.title,

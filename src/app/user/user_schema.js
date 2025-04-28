@@ -45,7 +45,7 @@ module.exports = {
             isDeleted: Boolean
             designation: String
             contentlanguages: [String]
-            TermsAndConditions: [TermsAndConditions!]
+            consents: [TermsAndConditions!]
         }
         type TermsAndConditions {
             _id: ID
@@ -79,7 +79,7 @@ module.exports = {
             country: String
             password: String!
             confirmPassword: String!
-            TermsAndConditions: [TermsAndConditionsInput!]
+            consents: [TermsAndConditionsInput!]
         }
         input TermsAndConditionsInput {
             message: String!
@@ -113,7 +113,7 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
-            TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
+            consents:[TermsAndConditionsforUpdateEmployee!]
         }
         input TermsAndConditionsforUpdateEmployee {
             message: String
@@ -127,7 +127,7 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
-            TermsAndConditions: [TermsAndConditionsInputforSignIn]
+            consents: [TermsAndConditionsInputforSignIn]
         }
         input TermsAndConditionsInputforSignIn {
             _id: ID   

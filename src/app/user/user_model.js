@@ -167,7 +167,7 @@ const userSchema = new Schema(
                 default: "en"
             }
         ],
-        TermsAndConditions: [
+        consents: [
             {
             message: {type:String},
             title: {type:String},
