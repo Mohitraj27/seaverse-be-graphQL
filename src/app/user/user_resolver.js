@@ -226,6 +226,7 @@ module.exports.mutations = {
                         directSignup: true,
                         isSignupAdminAprroved: false,
                         isResetPasswordDialog: true,
+                        country: country ?? null,
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
                 ], { session });
@@ -235,9 +236,7 @@ module.exports.mutations = {
                     subscriber: subscriberId,
                     user: createUser[0],
                     regType: 1,
-                    country: country,
                     designation: 'null'
-
                 };
 
                 const savedEmployee = await Employee.create({

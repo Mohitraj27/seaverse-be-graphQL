@@ -98,6 +98,7 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
+            country: String
         }
         input SignInInput {
             countryCode: String

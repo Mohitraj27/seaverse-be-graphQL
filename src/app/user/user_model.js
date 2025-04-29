@@ -166,7 +166,11 @@ const userSchema = new Schema(
                 ref:"ContentLanguage",
                 default: "en"
             }
-        ]
+        ],
+        country: {
+            type: String,
+            default: null,
+        },
     },
     { timestamps: true }
 );
