@@ -1115,8 +1115,6 @@ module.exports.queries = {
             ...sortingStage,
                 ]);
 
-                console.log(JSON.stringify(results.employees, null, 2));
-
                 return {
                     employees: results.employees,
                     totalCount: results?.employees.length ?? 0,
