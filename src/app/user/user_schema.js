@@ -45,6 +45,14 @@ module.exports = {
             isDeleted: Boolean
             designation: String
             contentlanguages: [String]
+            TermsAndConditions: [TermsAndConditions!]
+        }
+        type TermsAndConditions {
+            _id: ID
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         type UserList {
             users: [User]
@@ -71,6 +79,13 @@ module.exports = {
             country: String
             password: String!
             confirmPassword: String!
+            TermsAndConditions: [TermsAndConditionsInput!]
+        }
+        input TermsAndConditionsInput {
+            message: String!
+            title: String!
+            status:Boolean!
+            timestamp: String
         }
         enum vesselStatusEnum {
             ASSIGNED
@@ -99,6 +114,13 @@ module.exports = {
             address: UserAddressInput
             designation: String
             country: String
+            TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
+        }
+        input TermsAndConditionsforUpdateEmployee {
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         input SignInInput {
             countryCode: String
@@ -106,6 +128,14 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
+            TermsAndConditions: [TermsAndConditionsInputforSignIn]
+        }
+        input TermsAndConditionsInputforSignIn {
+            _id: ID   
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         input SignOutInput {
             firebaseToken: String

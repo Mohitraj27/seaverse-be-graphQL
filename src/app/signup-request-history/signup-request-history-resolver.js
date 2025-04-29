@@ -3,7 +3,7 @@ const { CustomError } = require('../../util/error_helper');
 const { AuthUser,ErrorName } = require('../../util');
 const sortingFieldJSONData = require('../signup-request/sortingField.json');
 module.exports.queries = {
-    getHistorySignupRequest: async ({ id, search, pageInput },context) => {
+    getHistorySignupRequest: async ({ id, search, filterInput, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
@@ -11,6 +11,7 @@ module.exports.queries = {
             const limit = pageInput?.limit || 100;
             const sortingField = pageInput?.sortingField || sortingFieldJSONData?.requestDate;
             const sortingOrder = pageInput?.sortingOrder || -1;
+            const signupStatus = filterInput?.signupStatus.trim() || null;
             if (id) {
                 const item = await HistorySignupRequest.findById(id);
                 if (!item) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'Signup request data not found');
@@ -28,6 +29,9 @@ module.exports.queries = {
                 ];
             }
 
+            if (signupStatus) {
+                query.signupStatus = signupStatus;
+            }
             const sortObj = {};
             if (sortingField === sortingFieldJSONData?.signupStatus) {
                 sortObj[sortingField] = sortingOrder;
@@ -39,12 +43,34 @@ module.exports.queries = {
                 .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
-
+            const totalCount = await HistorySignupRequest.countDocuments(query);
             return {
-                items
+                items,
+                totalCount
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST, error.message);
+        }
+    }
+};
+
+module.exports.mutations = {
+    deleteRejectedUserRequests: async (_, context) => {
+        const { userId } = AuthUser(context);
+        if (!userId) throw CustomError(ErrorName.FORBIDDEN);
+        try {
+            const result = await HistorySignupRequest.deleteMany({
+                signupStatus: 'REJECTED'
+            });
+            if (result.deletedCount === 0) {
+                throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'No rejected signup requests found');
+            }
+            return {
+                success: true,
+                message: 'Deleted successfully'
+            };
+        } catch (error) {
+            throw Error(error.message);
         }
     }
 };

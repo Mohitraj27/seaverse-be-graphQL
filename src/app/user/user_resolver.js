@@ -183,7 +183,7 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { firstName, lastName, password, confirmPassword, email, country } = input;
+                const { firstName, lastName, password, confirmPassword, email, country, TermsAndConditions } = input;
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
@@ -227,6 +227,7 @@ module.exports.mutations = {
                         isSignupAdminAprroved: false,
                         isResetPasswordDialog: true,
                         country: country ?? null,
+                        TermsAndConditions: TermsAndConditions ?? null,
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
                 ], { session });
@@ -395,8 +396,33 @@ module.exports.mutations = {
                     if (!existingUser) {
                         return CustomError(ErrorName.USER_NOT_FOUND);
                     }
-
-
+                    if (input?.TermsAndConditions?.length > 0) {
+                        const termsAndConditionsInput = input.TermsAndConditions;
+                        const existingConditionsMap = new Map(
+                          existingUser.TermsAndConditions.map(tc => [tc._id.toString(), tc])
+                        );
+                        termsAndConditionsInput.forEach(condition => {
+                          const inputConditionId = condition._id ? condition._id.toString() : null;
+                      
+                          if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
+                            // Update existing condition
+                            const existingCondition = existingConditionsMap.get(inputConditionId);
+                            existingCondition.message = condition.message;
+                            existingCondition.title = condition.title;
+                            existingCondition.status = condition.status;
+                            existingCondition.timestamp = condition.timestamp || new Date().toISOString();
+                          } else {
+                            existingUser.TermsAndConditions.push({
+                              _id: new mongoose.Types.ObjectId(), 
+                              message: condition.message,
+                              title: condition.title,
+                              status: condition.status,
+                              timestamp: condition.timestamp || new Date().toISOString(),
+                            });
+                          }
+                        });
+                        await existingUser.save({ session });
+                      }                    
                     const processValidUser = async () => {
                         if (input.firebaseToken) {
                             existingUser.firebaseTokens = [input.firebaseToken];

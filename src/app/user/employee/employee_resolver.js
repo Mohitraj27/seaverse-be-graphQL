@@ -1755,7 +1755,7 @@ module.exports.queries = {
             };
         }
     },
-    getDeleteHistory: async ({ pageInput, search }, context) => {
+    getDeleteHistory: async ({ pageInput, search, filterInput }, context) => {
 
         const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
 
@@ -1779,8 +1779,9 @@ module.exports.queries = {
 
             const searchInput = search?.trim();
             const searchRegex = new RegExp(searchInput, "i");
+            const requestStatus = filterInput?.deleteRequestStatus?.trim() || null;
             let searchCriteria;
-
+            let requestStatusFilter;
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
                 const fullNameSearch =
@@ -1803,9 +1804,16 @@ module.exports.queries = {
                 };
             }
 
+            const isApproveOrReject = requestStatus === "APPROVED" ? true : requestStatus === "REJECTED" ? false : null;
+            if (isApproveOrReject != null) {
+                requestStatusFilter = {
+                    isDeleted: isApproveOrReject
+                }
+            }
+
             const sortOptions = { [sortFieldValue]: sortOrderValue };
 
-            const result = await DeleteRequestHistory.find({ ...searchCriteria })
+            const result = await DeleteRequestHistory.find({ ...searchCriteria,...requestStatusFilter })
                 .skip(skip)
                 .limit(limit)
                 .sort(sortOptions);
@@ -1814,7 +1822,7 @@ module.exports.queries = {
                 return { totalCount: 0 };
             }
 
-            const totalCount = await DeleteRequestHistory.countDocuments();
+            const totalCount = await DeleteRequestHistory.countDocuments(requestStatusFilter);
 
             return {
                 data: result,
@@ -2219,7 +2227,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
 
         const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
-        console.log('getUsers',getUsers);
+
         if (!getUsers) {
             throw CustomError(ErrorName.USER_NOT_FOUND);
         }
@@ -2403,7 +2411,29 @@ const checkUserRegType = async (userIds, regType) => {
         }
     }
 };
+
+const clearApprovedDeletionRequestHistory = async (_, context) => {
+    try {
+        const { userId } = AuthUser(context);
+        if (!userId) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const result = await DeleteRequestHistory.deleteMany({ isDeleted: true });
+        if (result.deletedCount === 0) {
+            throw CustomError(ErrorName.NOT_FOUND, "No deletion requests found to clear.");
+        }
+        return {
+            status: true,
+            message: `${result.deletedCount} deletion requests cleared successfully.`,
+        };
+    } catch (error) {
+        throw Error(error.message);
+    }
+}
+
+
 module.exports.mutations = {
+    clearApprovedDeletionRequestHistory,
     respondToDeleteRequest,
     manageRole,
     changeRegisterEmployees,
