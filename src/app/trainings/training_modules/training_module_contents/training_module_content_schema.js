@@ -184,6 +184,7 @@ module.exports = {
             lang: String!
             title: String
             description: String
+            index: Int
             duration: String
             isShowSubtitle: Boolean
             subtitles: [SubtitleInput]

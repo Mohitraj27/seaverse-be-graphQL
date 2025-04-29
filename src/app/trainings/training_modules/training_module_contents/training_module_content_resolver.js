@@ -1019,7 +1019,7 @@ module.exports.mutations = {
         }
     },
 
-    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos,deletedSubtitles,subtitles }, context) => {
+    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos, deletedSubtitles, subtitles }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
 
         const existingContent = await TrainingModuleContent.findOne({
@@ -1094,23 +1094,23 @@ module.exports.mutations = {
         if ((!videoFiles || videoFiles.length === 0) && videoMetas?.length > 0) {
             let videoUpdated = false;
 
-            for (let i = 0; i < videoMetas.length; i++) {
+            for (let i = videoMetas.length - 1; i >= 0; i--) {
                 const videoMeta = videoMetas[i];
                 if (!videoMeta?.lang) continue;
 
-                // Find the video with the same language
                 const existingVideo = updateData.videos.find(video => video.lang === videoMeta.lang);
                 if (existingVideo) {
-                    // Update metadata
                     existingVideo.title = videoMeta.title ?? existingVideo.title;
                     existingVideo.description = videoMeta.description ?? existingVideo.description;
                     existingVideo.isDefault = videoMeta.isDefault ?? existingVideo.isDefault;
                     existingVideo.isShowSubtitle = videoMeta.isShowSubtitle ?? existingVideo.isShowSubtitle;
-                    existingVideo.duration = videoMeta.duration ?? existingVideo.duration
+                    existingVideo.duration = videoMeta.duration ?? existingVideo.duration;
+
+                    // videoMetas.splice(i, 1);
+
                     videoUpdated = true;
-                }
-                else {
-                    throw CustomError(ErrorName.FAILED, "VIDEO META NOT FOUND")
+                } else {
+                    throw CustomError(ErrorName.FAILED, "VIDEO META NOT FOUND");
                 }
             }
 
@@ -1118,7 +1118,6 @@ module.exports.mutations = {
                 isUpdated = true;
             }
         }
-
 
         if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
             const deletedIds = deletedVideos.map(id => id.toString());
@@ -1145,13 +1144,21 @@ module.exports.mutations = {
 
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
-            // try {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
+           
 
             const uploadedVideos = (await Promise.all(
-                videoFiles.map(async (videoFile, i) => {
-                    const videoMeta = videoMetas[i];
-                    if (!videoFile || !videoMeta?.lang) return null;
+                videoMetas.map(async (videoMeta) => {
+                    const videoIndex = videoMeta.index;
+                         console.log(videoIndex, "videoIndex")
+                   
+                    const videoFile = videoFiles[videoIndex];  
+                   
+
+                    if (!videoFile) {
+                        console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)}, no  video file`);
+                        return null;
+                    }
 
                     const videoUrl = await UploadHelper.uploadVideo({
                         data: videoFile,
@@ -1162,22 +1169,36 @@ module.exports.mutations = {
 
                     return {
                         url: videoUrl,
-                        lang: videoMeta.lang,
-                        title: videoMeta.title,
-                        description: videoMeta.description,
-                        isDefault: videoMeta.isDefault,
-                        duration: videoMeta.duration
+                        meta: videoMeta
                     };
                 })
-            )).filter(Boolean);
+            )).filter(Boolean);  
 
-            // Filter out any nulls (in case some were skipped)
-            for (const newVideo of uploadedVideos.filter(Boolean)) {
-                const existingIndex = updateData.videos.findIndex(video => video.lang === newVideo.lang);
-                if (existingIndex !== -1) {
-                    updateData.videos[existingIndex] = { ...updateData.videos[existingIndex], ...newVideo };
+         
+
+            for (const uploaded of uploadedVideos) {
+                const { url, meta } = uploaded;
+                const existingVideo = updateData.videos.find(v => v.lang === meta.lang);
+
+                if (existingVideo) {
+                    existingVideo.url = url;
+                    existingVideo.title = meta.title;
+                    existingVideo.description = meta.description;
+                    existingVideo.isDefault = meta.isDefault;
+                    existingVideo.isShowSubtitle = meta.isShowSubtitle;
+                    existingVideo.duration = meta.duration;
+                    
                 } else {
-                    updateData.videos.push(newVideo);
+                    //only push if not exists
+                    updateData.videos.push({
+                        url,
+                        lang: meta.lang,
+                        title: meta.title,
+                        description: meta.description,
+                        isDefault: meta.isDefault,
+                        isShowSubtitle: meta.isShowSubtitle,
+                        duration: meta.duration
+                    });
                 }
             }
 
@@ -1186,10 +1207,9 @@ module.exports.mutations = {
             updateData.audios = [];
             updateData.images = [];
             updateData.files = [];
-            // } catch (err) {
-            //     throw CustomError(ErrorName.FAILED, `Error uploading one or more videos`);
-            // }
         }
+
+
 
         if (subtitles?.length > 0 && videoMetas?.length > 0) {
             for (let i = 0; i < videoMetas.length; i++) {
@@ -1217,7 +1237,7 @@ module.exports.mutations = {
                             url: subtitleUrl,
                             lang: meta.lang,
                         });
-                        
+
 
                         isUpdated = true;
                     }
