@@ -205,6 +205,8 @@ module.exports = {
         ...AuthHelper.requiresEmployee(NotificationResolver.mutations),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.mutations),
         ...AuthHelper.requiresAdmin(contentLanguageResolver.mutations),
+
+        ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.mutations),
     },
     Subscription: {
         ...NotificationResolver.subscriptions,

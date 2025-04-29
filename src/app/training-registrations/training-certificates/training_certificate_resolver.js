@@ -363,6 +363,11 @@ module.exports.queries = {
                         'layoutInfo.signature':1,
                     },
                 },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
             ];
 
             const certificates = await TrainingCertificate.aggregate(certificatesQuery);

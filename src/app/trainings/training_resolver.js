@@ -269,6 +269,14 @@ module.exports.mutations = {
                 context
             );
 
+
+            // Update the training duration in overall training progress if any
+            await OverallTrainingProgress.updateMany(
+                { training: savedTraining._id, status: "NOT_STARTED" },
+                { totalDuration: savedTraining.durationHours },
+                { session }
+            );
+
             savedTraining.trainingModules = [];
             let savedTrainingModule;
             if (input.trainingModules?.length) {

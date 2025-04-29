@@ -1032,7 +1032,12 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
                                         },
                                         lastAccessedDuration: {
                                             $cond: {
-                                                if: { $eq: ["$status", "COMPLETED"] },
+                                                if: {
+                                                    $and: [
+                                                        { $eq: ["$status", "COMPLETED"] },
+                                                        { $ne: ["$lastAccessedDuration", 0] }
+                                                    ]
+                                                },
                                                 then: "$lastAccessedDuration",
                                                 else: content.duration ?? 0
                                             }
