@@ -250,8 +250,7 @@ type userVessels {
             sortOrder : Int
         }
         input deleteRequestFilterInput {
-            search: String
-            isDeleted: Boolean
+            deleteRequestStatus : String
         }
         input ManagerFilterInput {
             search: String
@@ -368,6 +367,7 @@ type FetchFileResponse {
             flag: Boolean!
             fields: [FilterField!]
         }
+        
     `,
     queries: `
         getDeleteAndSignUpRequestCounts: deleteAndSignUpRequestCountResponse!
@@ -382,7 +382,7 @@ type FetchFileResponse {
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
         fetchSampleFile: FetchFileResponse!
         getDynamicData(userId: ID!): DynamicDataResponse!
-        getDeleteHistory(pageInput: deleteRequestPageInput, search: String): deleteReqResponse!
+        getDeleteHistory(pageInput: deleteRequestPageInput, search: String, filterInput: deleteRequestFilterInput): deleteReqResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
@@ -397,5 +397,6 @@ type FetchFileResponse {
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
         exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
         createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
+        clearApprovedDeletionRequestHistory:createEmployeeRes
     `,
 };

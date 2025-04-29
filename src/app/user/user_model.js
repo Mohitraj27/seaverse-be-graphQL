@@ -174,7 +174,11 @@ const userSchema = new Schema(
             status: { type: Boolean},
             timestamps: { type: Date, default: Date.now}
             }
-        ]
+        ],
+        country: {
+            type: String,
+            default: null,
+        },
     },
     { timestamps: true }
 );
