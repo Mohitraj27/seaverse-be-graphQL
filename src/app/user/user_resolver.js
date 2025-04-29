@@ -37,6 +37,9 @@ const NotificationType = require('../notifications/notification_type.json');
 const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
 const  ContentLanguage  = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
 const mongoose = require('mongoose');
+const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
+const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
+const { SubRole } = require("../user/sub-roles/sub_role_model");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -441,6 +444,21 @@ module.exports.mutations = {
                             });
                           }
                         });
+                        if(input?.consents?.some(consent => consent.status === false)) {
+                           await AwsHelper.sendEmail({
+                                receiverEmail: existingUser?.email,
+                                subject: `Your Sign-Up Was Not Complete`,
+                                htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
+                            });
+                            const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
+                            const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
+                            const adminUsers = adminUserEmails.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
+                            await Promise.all(adminUsers.map(async user => await AwsHelper.sendEmail({
+                                receiverEmail: user?.email,
+                                subject: `Alert: Learner Rejected Terms and Conditions`,
+                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email } ),
+                            }))); 
+                        }
                         await existingUser.save({ session });
                       }                    
                     const processValidUser = async () => {
