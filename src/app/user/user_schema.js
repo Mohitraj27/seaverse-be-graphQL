@@ -113,6 +113,7 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
+            country: String
             TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
         }
         input TermsAndConditionsforUpdateEmployee {

@@ -682,13 +682,14 @@ module.exports.queries = {
                 "STATUS": "user.vesselStatus",
                 "USER_ROLE": "user.role",
                 "LAST_SEEN": "user.lastLoginAt",
-                "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name"
+                "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name",
+                "COUNTRY": "user.country",
             };
 
             const field = sortInput?.field ?? "FIRST_NAME";
             const fieldPath = fieldMapping[field];
 
-            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE") {
+            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
 
                 sortingStage.push({
                     $addFields: {
