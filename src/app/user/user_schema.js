@@ -46,6 +46,7 @@ module.exports = {
             designation: String
             contentlanguages: [String]
             TermsAndConditions: [TermsAndConditions!]
+            country: String
         }
         type TermsAndConditions {
             _id: ID
