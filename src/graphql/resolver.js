@@ -157,7 +157,7 @@ module.exports = {
         ...AuthHelper.simplify(migrationcoursesResolver.queries),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.queries),
         ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.queries),
-        ...AuthHelper.requiresAdmin(contentLanguageResolver.queries),
+        ...AuthHelper.requiresEmployee(contentLanguageResolver.queries),
     },
     Mutation: {
         ...AuthHelper.requiresSaasAdmin(AppSettingsResolver.mutations),
@@ -204,7 +204,7 @@ module.exports = {
         
         ...AuthHelper.requiresEmployee(NotificationResolver.mutations),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.mutations),
-        ...AuthHelper.requiresAdmin(contentLanguageResolver.mutations),
+        ...AuthHelper.requiresEmployee(contentLanguageResolver.mutations),
 
         ...AuthHelper.requiresAdmin(SignupRequestHistoryResolver.mutations),
     },
