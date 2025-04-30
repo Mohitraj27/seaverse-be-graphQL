@@ -135,6 +135,10 @@ module.exports = {
 
             if (input.lastName) existingUser.lastName = input.lastName;
 
+            if (input.country) existingUser.country = input.country;
+
+            if(input.country === '') existingUser.country = null;
+
             if (input.lastName === '') existingUser.lastName = null;
 
             if (
@@ -215,7 +219,6 @@ module.exports = {
                 if (input.isActive != null) existingUser.isActive = input.isActive;
             }
 
-            console.log(existingUser);
             const savedUser = await existingUser.save();
             if (!savedUser) throw CustomError(ErrorName.FAILED);
             return savedUser;
