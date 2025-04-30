@@ -905,7 +905,7 @@ const sendNotificationOnBULK = async notificationData => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `${notificationData.action}` }],
             notifyAllAdmin: false,
-            isNotificatonForAdmin : true,
+            isNotificatonForAdmin: true,
             notifiers: [notificationData.creatorId],
             employeeNotifiers: [],
             createdBy: notificationData.adminUser?._id,
@@ -1287,21 +1287,21 @@ const softDeleteUsers = async (users, errors) => {
         const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
 
         const adminsNotBeingDeleted = await User.find({
-            _id: { $nin: users }, 
+            _id: { $nin: users },
             isDeleted: false
         })
             .populate("subRoles", "name")
             .lean();
 
         const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
-           console.log("remainingAdmins",remainingAdmins.length)
+        console.log("remainingAdmins", remainingAdmins.length)
         if (remainingAdmins.length === 1) {
             console.log("At least one admin must remain in the system.");
             throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
 
-        
-        
+
+
         const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
 
 
@@ -1612,6 +1612,10 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         row["Vessel IMO Number"] = '';
     }
 
+    if (!row["Country"]) {
+        row["Country"] = null
+    }
+
     return errors;
 }
 
@@ -1638,6 +1642,7 @@ function mapCSVRowToUser(row) {
         designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
         vesselStatus: row["Vessel Status"],
+        country: row["Country"] ?? null,
     };
 
     return result;
@@ -2469,6 +2474,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                        country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -2503,6 +2509,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email?.toLowerCase(),
+                                    country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -2547,6 +2554,7 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email?.toLowerCase(),
+                                        country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -2581,6 +2589,7 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                    country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -2624,6 +2633,7 @@ module.exports = {
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email?.toLowerCase(),
+                        country: user.country ?? null,
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),

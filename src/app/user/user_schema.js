@@ -46,6 +46,7 @@ module.exports = {
             designation: String
             contentlanguages: [String]
             TermsAndConditions: [TermsAndConditions!]
+            country: String
         }
         type TermsAndConditions {
             _id: ID
@@ -113,6 +114,7 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
+            country: String
             TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
         }
         input TermsAndConditionsforUpdateEmployee {
