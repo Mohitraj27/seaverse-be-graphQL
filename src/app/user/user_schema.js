@@ -46,6 +46,8 @@ module.exports = {
             designation: String
             contentlanguages: [String]
             TermsAndConditions: [TermsAndConditions!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
         }
         type TermsAndConditions {
             _id: ID
@@ -115,6 +117,8 @@ module.exports = {
             designation: String
             country: String
             TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
         }
         input TermsAndConditionsforUpdateEmployee {
             message: String

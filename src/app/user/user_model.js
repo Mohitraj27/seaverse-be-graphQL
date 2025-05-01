@@ -179,6 +179,14 @@ const userSchema = new Schema(
             type: String,
             default: null,
         },
+        isEmailNotification:{
+            type: Boolean,
+            default: true
+        },
+        isPushNotification: {
+            type: Boolean,
+            default: true
+        }
     },
     { timestamps: true }
 );

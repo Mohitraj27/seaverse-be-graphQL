@@ -1611,6 +1611,8 @@ module.exports.queries = {
                         buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
+                    console.log('htmlContent',htmlContent);
+                    console.log('html',html);
                     await SendEmail({
                         receiverEmail: currentUserData?.email,
                         subject: "Registration Invitation",
@@ -1674,6 +1676,7 @@ module.exports.queries = {
                 messages.push(`Failed to create notifications.`);
             }
         } */
+       console.log('messages',messages);
         return messages;
     }catch(error){
         throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
@@ -2286,15 +2289,18 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     }
 
                     if (updateDeleteRequestHistory) {
-                        const sendmailforApproval = await aws_helper.sendEmail({
-                            receiverEmail: userHistoryData[0]?.email,
-                            subject: 'Delete request REJECTED',
-                            htmlContent: DeleteRequestRejected({
-                                firstName: userHistoryData[0]?.firstName,
-                            })
-                        });
-                        if (!sendmailforApproval) {
-                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        if (userHistoryData[0]?.isEmailNotification) {
+                            const sendmailforApproval = await aws_helper.sendEmail({
+                                receiverEmail: userHistoryData[0]?.email,
+                                subject: 'Delete request REJECTED',
+                                htmlContent: DeleteRequestRejected({
+                                    firstName: userHistoryData[0]?.firstName,
+                                })
+                            });
+
+                            if (!sendmailforApproval) {
+                                throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                            }
                         }
                     }
                 }
@@ -2355,13 +2361,15 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
                 if (updateDeleteRequestHistory) {
-                    const sendmailforApproval = await aws_helper.sendEmail({
-                        receiverEmail: userHistoryData[0]?.email,
-                        subject: 'Delete request APPROVED',
-                        htmlContent: DeleteRequestApproved({
-                            firstName: userHistoryData[0]?.firstName,
-                        })
-                    });
+                    if (userHistoryData[0]?.isEmailNotification) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: 'Delete request APPROVED',
+                            htmlContent: DeleteRequestApproved({
+                                firstName: userHistoryData[0]?.firstName,
+                            })
+                        });
+                    }
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
@@ -2755,7 +2763,7 @@ module.exports.mutations = {
             //     };
             // });
 
-            if(savedUser?.isRegistered === true){
+            if(savedUser?.isRegistered === true && savedUser?.isEmailNotification){
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,
