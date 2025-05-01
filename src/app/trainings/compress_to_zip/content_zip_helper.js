@@ -110,6 +110,11 @@ const fetchFiles = async (contents, userLanguages = []) => {
                     if (video?.url) {
                         fileUrlMap.set(`${content?._id}_video_${video?._id}_${video?.lang}`, video?.url);
                     }
+                    video?.subtitles?.forEach((subtitle) => {
+                        if (subtitle?.url) {
+                            fileUrlMap.set(`${content?._id}_subtitle_${video?._id}_${video?.lang}_${subtitle?._id}_${subtitle?.lang}`, subtitle?.url);
+                        }
+                    });
                 });
                 break;
             case contentTypes.IMAGE:
