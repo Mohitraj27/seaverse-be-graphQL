@@ -557,54 +557,46 @@ module.exports.subscriptions = {
 
                 const notification = payload.onNotification;
 
-                // if (isAuthenticated && userId && subscriberId) {
-                const notificationSubscriberId = ObjectId.isValid(notification.subscriber)
-                    ? notification.subscriber
-                    : notification.subscriber?._id;
+                const isTargetedNotifier = notification.notifiers
+                    ?.map(x => x.toString())
+                    ?.includes(userId.toString());
 
-                // if (notificationSubscriberId?.toString() === subscriberId.toString()) {
-               /*  if (role === Role.ADMIN && notification.notifyAllAdmin === true) return true;
-                if (
-                    notification.notifiers
-                        ?.map(x => x.toString())
-                        ?.includes(userId.toString()) ||
-                    notification.employeeNotifiers
-                        ?.map(x => x.toString())
-                        ?.includes(employeeId.toString())
-                ) {
-                    return true;
-                } */
-                // }
-                // }
+                const isAdminNotification =
+                    notification.notifyAllAdmin === true ||
+                    (notification.isNotificatonForAdmin === true && isTargetedNotifier);
 
+                const isLearnerNotification =
+                    isTargetedNotifier &&
+                    !notification.isNotificatonForAdmin &&
+                    !notification.notifyAllAdmin;
 
-                switch (role) {
-                    case Role.ADMIN:
-                        if (
-                            notification.notifyAllAdmin === true ||
-                            (notification.isNotificatonForAdmin === true &&
-                                notification.notifiers
-                                    ?.map(x => x.toString())
-                                    ?.includes(userId.toString()))
-                        ) {
-                            return true;
-                        }
-                        return false;
+                if (role === Role.ADMIN && isAdminNotification) return true;
+                if (isLearnerNotification) return true;
 
-                    case Role.LEARNER:
+                return false;
+
+                /* 
+                //OLD CODE FOR REFERENCE
+                if (isAuthenticated && userId && subscriberId) {
+                    const notificationSubscriberId = ObjectId.isValid(notification.subscriber)
+                        ? notification.subscriber
+                        : notification.subscriber?._id;
+
+                    if (notificationSubscriberId?.toString() === subscriberId.toString()) {
+                        if (role === Role.ADMIN && notification.notifyAllAdmin === true) return true;
                         if (
                             notification.notifiers
                                 ?.map(x => x.toString())
-                                ?.includes(userId.toString()) &&
-                            notification.isNotificatonForAdmin !== true &&
-                            notification.notifyAllAdmin !== true
+                                ?.includes(userId.toString()) ||
+                            notification.employeeNotifiers
+                                ?.map(x => x.toString())
+                                ?.includes(employeeId.toString())
                         ) {
                             return true;
                         }
-                        return false;
-                    default:
-                        return false;
-                }
+                    }
+                } */
+                
 
             }
         ),
