@@ -5181,7 +5181,7 @@ const generateCustomReport = async ({ input }, context) => {
         });
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-            const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to downlaod`:`Quiz report is ready to download`
+            const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to download`:`Quiz report is ready to download`
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: notificationMessage,
