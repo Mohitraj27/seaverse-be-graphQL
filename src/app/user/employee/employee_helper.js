@@ -1419,6 +1419,177 @@ const softDeleteUsers = async (users, errors) => {
 
 }
 
+const deleteUsersAfterGDPR = async (users, errors) => {
+
+    try {
+
+        const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
+            .populate("subRoles", "name")
+            .lean();
+
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+        }
+
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: users },
+            isDeleted: false
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+        console.log("remainingAdmins", remainingAdmins.length)
+        if (remainingAdmins.length === 1) {
+            console.log("At least one admin must remain in the system.");
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+        }
+
+
+
+        const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+
+
+            // const deletedUsers = getUsers.map(user => {
+            //     return {
+            //         ...user,
+            //         isDeleted: true
+            //     };
+            // });
+
+            const markAsDeleted = await User.updateMany({ _id: { $in: users } }, {
+                $set: {
+                    isDeleted: true, email: '', dummyPassword: '',
+                    languagePreference: null,
+                    subRoles: [],
+                    isRegistered: false,
+                    currentVesse: null,
+                    vesselStatus: null,
+                    deleteRequest: false,
+                    password: null,
+                    email: '',
+                    isSignupAdminAprroved: null,
+                    UID: '',
+                    lastLoginAt: null,
+                    civilIdOrPassport: null,
+                    roleAssignmentDate: null,
+                    contentlanguages: null,
+                    deleteRequestDate: null,
+                    reasonForDelete: null,
+                    deleteRequest: null
+                }
+            }, { session })
+            // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            if (markAsDeleted) {
+
+                // let deleteUsers = await User.deleteMany(
+                //     { _id: { $in: users } },
+                //     { session }
+                // );
+
+                await Employee.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                // await LearningPlanAssignment.updateMany(
+                //     { assignedLearnerId: { $in: users } },
+                //     { $set: { isDeleted: true } },
+                //     { session }
+                // );
+
+                // await OverallTrainingProgress.updateMany(
+                //     { user: { $in: users } },
+                //     { $set: { isDeleted: true } },
+                //     { session }
+                // );
+
+                // if (deleteUsers) {
+
+                const getAdminGroups = await Group.find({ groupAdmin: { $in: users } }).session(session);
+
+                if (getAdminGroups.length > 0) {
+                    const deletedGroups = getAdminGroups.map(group => ({
+                        ...group.toObject(),
+                        isDeleted: true
+                    }));
+
+                    await DeletedGroup.insertMany(deletedGroups, { session });
+                }
+
+                let updateGroup;
+
+                updateGroup = await Group.updateMany(
+                    { members: { $in: users } },
+                    [
+                        {
+                            $set: {
+                                members: {
+                                    $filter: {
+                                        input: "$members",
+                                        as: "member",
+                                        cond: { $not: { $in: ["$$member", users] } }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                memberCount: { $size: "$members" }
+                            }
+                        }
+                    ],
+                    { session }
+                );
+
+                const updateGroupMember = await GroupMember.updateMany(
+                    { member: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                if (updateGroupMember) {
+                    /*
+                    for (const user of getUsers) {
+                        const htmlContent = sendDeleteEmailToLearner(user.firstName);
+                        await SendEmail({
+                            receiverEmail: user.email,
+                            subject: "Your account has been deleted",
+                            htmlContent: htmlContent,
+                        });
+                    }
+                    */
+                    return true;
+                }
+
+                return true;
+
+                // } else {
+                //     errors.push("Error while deleting users");
+                //     return;
+                // }
+
+            } else {
+                errors.push("Error while deleting users");
+                return;
+            }
+
+        });
+
+        console.log('reached here 1');
+        return deleteUsers;
+
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
+
+    }
+
+}
+
 const restoreUsers = async (users, errors) => {
     try {
         const savedUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
@@ -1778,6 +1949,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
 module.exports = {
     deleteUsers,
     softDeleteUsers,
+    deleteUsersAfterGDPR,
     restoreUsers,
     sendInvitationMail,
     sendCourseInvitationMail,

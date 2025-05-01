@@ -2344,13 +2344,16 @@ const respondToDeleteRequest = async ({ input }, context) => {
             }));
 
             let errors = [];
-            const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // Soft delete users keeping only the first name, last name and course details
+            const deleteUsers = await EmployeeHelper.deleteUsersAfterGDPR(input.users, errors);
+            console.log('reached here 2');
 
             if (errors.length > 0) {
                 throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
             }
 
-            if (deleteUsers.deletedCount > 0) {
+            if (deleteUsers) {
 
                 const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
