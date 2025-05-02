@@ -903,6 +903,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'designation': '$designationInfo.name',
                             "isRegistered": "$userInfo.isRegistered",
+                            "country": "$userInfo.country",
                             'vesselName': '$vesselInfo.name',
                             'vesselTypeName': '$vesselTypeInfo.name',
                             'courseId': '$training',
@@ -967,6 +968,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
                         Email: item.email || null,
+                        'Country': item.country || 'Not Applicable',
                         'User Id': item.employeeId || null,
                         Designation: item.designation || null,
                         'Current Vessel': item.vesselName || 'Not Applicable',
@@ -1018,6 +1020,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const headers = [
                         "Name",
                         "Email",
+                        "Country",
                         "User Id",
                         "Designation",
                         "Current Vessel",
@@ -1438,6 +1441,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             email: {
                                 $first: "$userInfo.email"
                             },
+                            country: {
+                                $first: "$userInfo.country"
+                            },
                             empId: {
                                 $first: "$userInfo.civilIdOrPassport"
                             },
@@ -1533,6 +1539,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             email: {
                                 $first: "$email"
                             },
+                            country: {
+                                $first: "$country"
+                            },
                             empId: {
                                 $first: "$empId"
                             },
@@ -1604,6 +1613,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             user: "$_id.userId",
                             firstName: 1,
                             lastName: 1,
+                            country: 1,
                             currentVessel: 1,
                             vesselType: 1,
                             email: 1,
@@ -1653,6 +1663,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const designation = learner?.designation || '';
                         const firstName = learner?.firstName || '';
                         const lastName = learner?.lastName || '';
+                        const country = learner?.country || 'Not Applicable';
                         const currentVessel = learner?.currentVessel || 'Not Applicable';
                         const vesselType = learner?.vesselType || 'Not Applicable';
                         const status = learner?.status || 'Not Applicable';
@@ -1680,6 +1691,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
+                                    Country: country,
                                     'User Id': learner?.empId || 'Not Applicable',
                                     Designation: designation,
                                     'Current Vessel': currentVessel,
@@ -1721,6 +1733,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                             [
                                 "Name",
                                 "Email",
+                                "Country",
                                 "User Id",
                                 "Designation",
                                 "Current Vessel",
@@ -4420,6 +4433,7 @@ const generateCustomReport = async ({ input }, context) => {
                             'currentVessel': '$vesselDetails.name',
                             'vesselType': '$vesselTypeInfo.name',
                             'email': '$userInfo.email',
+                            'country' : '$userInfo.country',
                             'employeeId': '$userInfo.civilIdOrPassport',
                             'isRegistered': '$userInfo.isRegistered',
                             'designation': '$designationInfo.name',
@@ -4463,6 +4477,7 @@ const generateCustomReport = async ({ input }, context) => {
                 const startDate = item?.startDate && item.startDate !== 'startDate'
                     ? ReportsHelper.formatDate(item.startDate)
                     : "Not Applicable";
+                const country = item?.country || "Not Applicable";
                 const vesselType = item?.vesselType || "Not Applicable";
                 const currentVessel = item?.currentVessel || "Not Applicable";
                 const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
@@ -4474,6 +4489,7 @@ const generateCustomReport = async ({ input }, context) => {
                 dataToExport.push({
                     Name: learnerName ?? "-",
                     Email: item.email || null,
+                    Country: country,
                     employeeId: item.employeeId || null,
                     Designation: item.designation || null,
                     'Current Vessel': currentVessel,
@@ -4836,6 +4852,9 @@ const generateCustomReport = async ({ input }, context) => {
                             email: {
                                 $first: "$userInfo.email"
                             },
+                            country: {
+                                $first: "$userInfo.country"
+                            },
                             empId: {
                                 $first: "$userInfo.civilIdOrPassport"
                             },
@@ -4925,6 +4944,9 @@ const generateCustomReport = async ({ input }, context) => {
                             lastName: {
                                 $first: "$lastName"
                             },
+                            country: {
+                                $first: "$country"
+                            },
                             trainingTitle: {
                                 $first: "$trainingTitle"
                             },
@@ -5004,6 +5026,7 @@ const generateCustomReport = async ({ input }, context) => {
                             lowercaseFirstName: { 
                                 $toLower: "$firstName"
                             },
+                            country: 1,
                             currentVessel: 1,
                             vesselType: 1,
                             lastName: 1,
@@ -5046,6 +5069,7 @@ const generateCustomReport = async ({ input }, context) => {
                 if (learner) {
                     const email = learner?.email || '';
                     const designation = learner?.designation || '';
+                    const country = learner?.country || 'Not Applicable';
                     const firstName = learner?.firstName || '';
                     const lastName = learner?.lastName || '';
                     const empId = learner?.empId || '';
@@ -5076,6 +5100,7 @@ const generateCustomReport = async ({ input }, context) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
+                                    Country: country,
                                     'User Id': empId,
                                     Designation: designation,
                                     'Current Vessel': currentVessel,
@@ -5124,6 +5149,7 @@ const generateCustomReport = async ({ input }, context) => {
             const enrollmentReportHeaders = [
                 "Name",
                 "Email",
+                "Country",
                 "User Id",
                 "Designation",
                 "Current Vessel",
@@ -5143,6 +5169,7 @@ const generateCustomReport = async ({ input }, context) => {
             const quizReportHeaders = [
                 "Name",
                 "Email",
+                "Country",
                 "User Id",
                 "Designation",
                 "Current Vessel",
