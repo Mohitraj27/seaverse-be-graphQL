@@ -29,6 +29,7 @@ const AWS_HELPER = require("../../util/aws_helper");
 const { sendEmail } = require("../../util/aws_helper");
 
 const levenshtein = require('fast-levenshtein');
+const { fork } = require("child_process");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -1528,6 +1529,12 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
     }
 };
 
+const dataMigrationBackground = () => {
+
+    
+
+}
+
 module.exports = {
     uploadTrainingImages,
     updateTrainingProgress,
@@ -1535,6 +1542,7 @@ module.exports = {
     validateSyncOfflineData,
     generateTrainingUID,
     uploadCertificateTrainingImages,
+    dataMigrationBackground,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
@@ -1670,6 +1678,18 @@ module.exports = {
         ).populate('targetAudienceId')
             .populate('ClassroomModule');
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
+
+        // Do the enrollment of migration courses if any in background as child process
+        if (input.migrationcoursesId) {
+            const child = fork("./src/app/trainings/migration_enrollment.js");
+
+            child.send({
+                migrationcourseId: input.migrationcoursesId,
+                trainingId: savedTraining._id,
+            });
+
+        }
+
         return savedTraining;
     },
     sendNotificationOnCRUD: async notificationData => {
