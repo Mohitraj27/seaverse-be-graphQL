@@ -11,6 +11,7 @@ module.exports = {
             firstName: String
             lastName: String
             email: String
+            country: String
             phone: PhoneInput
             languagePreference: Language,
             address: UserAddressInput,
