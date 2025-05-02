@@ -671,7 +671,9 @@ module.exports.mutations = {
     updateProfileforCourseSetting:async({input},context)=>{
         try {
             const { languagecode, userId } = input;
-    
+
+            if (!languagecode && !userId) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
+
             const user = await User.findOne({ _id: userId });
             if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
     
@@ -679,14 +681,12 @@ module.exports.mutations = {
     
             if (languagecode && languagecode?.length > 0) {
                 const validLanguages = await ContentLanguage.find({
-                    contentLanguageCode: { $in: languagecode }
-                }).select("contentLanguageCode");
-    
-                const foundCodes = validLanguages.map(lang => lang.contentLanguageCode);
-    
-                const invalidCodes = languagecode.filter(code => !foundCodes.includes(code));
-                if (invalidCodes?.length > 0) {
-                    throw CustomError(ErrorName.INVALID_LANGUAGES_CODES_SELECTED, `Invalid language codes: ${invalidCodes.join(", ")}`);
+                    title: { $in: languagecode }
+                }).select("title");
+
+                const foundCodes = validLanguages.map(lang => lang.title);
+                if (foundCodes.length !== languagecode.length) {
+                    throw CustomError(ErrorName.INVALID_CONTENT_LANGUAGE, "Invalid content languages provided");
                 }
                 updatedLanguages = foundCodes;
             } else {
@@ -697,9 +697,9 @@ module.exports.mutations = {
     
             return {
                 status: true,
-                message: languagecode && languagecode?.length > 0 
-                ? "Profile updated successfully with provided content languages."
-                : "Profile updated successfully with existing content languages.",
+                message: languagecode && languagecode?.length > 0
+                    ? "Profile updated successfully with provided content languages."
+                    : "Profile updated successfully with existing content languages.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_UPDATE_CONTENT_LANGUAGE, error.message);
