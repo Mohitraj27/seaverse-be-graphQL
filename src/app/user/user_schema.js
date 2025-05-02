@@ -48,6 +48,7 @@ module.exports = {
             TermsAndConditions: [TermsAndConditions!]
             isEmailNotification: Boolean
             isPushNotification: Boolean
+            country: String
         }
         type TermsAndConditions {
             _id: ID
