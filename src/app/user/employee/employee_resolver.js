@@ -1611,8 +1611,6 @@ module.exports.queries = {
                         buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                     });
                     html = htmlContent;
-                    console.log('htmlContent',htmlContent);
-                    console.log('html',html);
                     await SendEmail({
                         receiverEmail: currentUserData?.email,
                         subject: "Registration Invitation",
@@ -1676,7 +1674,6 @@ module.exports.queries = {
                 messages.push(`Failed to create notifications.`);
             }
         } */
-       console.log('messages',messages);
         return messages;
     }catch(error){
         throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
