@@ -12,7 +12,7 @@ const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
 
     if (userLanguages?.length === 0) {
-        userLanguages = ['en'];
+        userLanguages = ['english'];
     }
 
     const matchedVideos = videos.filter(video => userLanguages.includes(video?.lang));
