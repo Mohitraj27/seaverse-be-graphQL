@@ -125,7 +125,8 @@ const errorName = {
     FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV",
     FAILED_TO_DELETE_CUSTOM_GROUP:"FAILED_TO_DELETE_CUSTOM_GROUP",
     CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:"CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN",
-    FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL"
+    FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL",
+    INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT"
 };
 
 const errorType = {
@@ -758,6 +759,11 @@ const errorType = {
         message: 'Failed to sent welcome mail',
         statusCode: 400,    
         type: "FAILED_TO_SENT_WELCOME_MAIL"
+    },
+    INVALID_CONSENT_FORMAT:{
+        message: 'Invalid consent format',
+        statusCode: 400,    
+        type: "INVALID_CONSENT_FORMAT"
     }
 };
 
