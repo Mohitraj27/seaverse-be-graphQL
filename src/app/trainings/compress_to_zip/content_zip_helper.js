@@ -12,7 +12,7 @@ const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
 
     if (userLanguages?.length === 0) {
-        userLanguages = ['en'];
+        userLanguages = ['english'];
     }
 
     const matchedVideos = videos.filter(video => userLanguages.includes(video?.lang));
@@ -110,6 +110,11 @@ const fetchFiles = async (contents, userLanguages = []) => {
                     if (video?.url) {
                         fileUrlMap.set(`${content?._id}_video_${video?._id}_${video?.lang}`, video?.url);
                     }
+                    video?.subtitles?.forEach((subtitle) => {
+                        if (subtitle?.url) {
+                            fileUrlMap.set(`${content?._id}_subtitle_${video?._id}_${video?.lang}_${subtitle?._id}_${subtitle?.lang}`, subtitle?.url);
+                        }
+                    });
                 });
                 break;
             case contentTypes.IMAGE:
