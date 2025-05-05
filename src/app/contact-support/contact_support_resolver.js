@@ -6,7 +6,7 @@ const { sendUserSupportAcknowledgment, sendAdminSupportNotification } = require(
 module.exports.mutations = {
     contactSupport: async ({ input }) => {
         try {
-            const { email, subject, message } = input;
+            const { email, subject, message, consents } = input;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
             // const useremail = await User.findOne({ email: email });
             // if (!useremail) {
@@ -31,6 +31,23 @@ module.exports.mutations = {
                     message: "Message cannot be more than 200 characters",
                 };
             }
+            if (!consents || !Array.isArray(consents) || consents.length === 0) {
+                return {
+                    success: false,
+                    message: "Consents are required",
+                };
+            }
+            const invalidConsent = consents.find(consent => !consent.message || !consent.title || consent.status === undefined);
+            if (invalidConsent) {
+                return {
+                    success: false,
+                    message: "Each consent must have message, title and status fields",
+                };
+            }
+            const processedConsents = consents.map(consent => ({
+                ...consent,
+                timestamp: new Date().toISOString()
+            }));
             await AWSHelper.sendEmail({
                 receiverEmail: process.env.SUPER_ADMIN_EMAIL,
                 subject: `New Support Request`,
@@ -44,13 +61,15 @@ module.exports.mutations = {
             const contactSupportData = new ContactSupportUser({
                 email,
                 subject,
-                message
+                message,
+                consents: processedConsents
             });
 
             await contactSupportData.save();  
             return {
                 success: true,
                 message: "Message sent successfully.We’ll get back to you shortly.",
+                consents: processedConsents
             };
         } catch (error) {
             return {

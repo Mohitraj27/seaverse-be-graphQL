@@ -1894,17 +1894,20 @@ module.exports.mutations = {
             );
             const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-            const emailContent = courseCompletion({
-                firstName: overallTrainingProgressUsers[0].user.firstName,
-                trainingTitle: trainingData[0].title[0]?.value,
-                durationHours: trainingData[0].durationHours,
-                courseId: trainingData[0]._id,
-            });
-            sendEmail({
-                receiverEmail: overallTrainingProgressUsers[0].user.email,
-                subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
-                htmlContent: emailContent,
-            });
+            if(overallTrainingProgressUsers[0].user.isEmailNotification){
+                const emailContent = courseCompletion({
+                    firstName: overallTrainingProgressUsers[0].user.firstName,
+                    trainingTitle: trainingData[0].title[0]?.value,
+                    durationHours: trainingData[0].durationHours,
+                    courseId: trainingData[0]._id,
+                    courseImage: courseImages,
+                });
+                sendEmail({
+                    receiverEmail: overallTrainingProgressUsers[0].user.email,
+                    subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
+                    htmlContent: emailContent,
+                });
+            }            
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
