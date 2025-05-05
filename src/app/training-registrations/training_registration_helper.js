@@ -1040,12 +1040,12 @@ module.exports = {
                         }));
 
                         // Prepare email data for insertion into SQLite queue
-                        const emailData = notEnrolledUsers.map(user => ({
-                            receiverEmail: user.email,
-                            firstName: user.firstName,
-                            courses: coursesDataMap,
-                            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                        }));
+                        const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+                                receiverEmail: user.email,
+                                firstName: user.firstName,
+                                courses: coursesDataMap,
+                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                            }));
                         
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);

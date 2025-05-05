@@ -46,6 +46,8 @@ module.exports = {
             designation: String
             contentlanguages: [String]
             consents: [TermsAndConditions!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
             country: String
         }
         type TermsAndConditions {
@@ -116,6 +118,8 @@ module.exports = {
             designation: String
             country: String
             consents:[TermsAndConditionsforUpdateEmployee!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
         }
         input TermsAndConditionsforUpdateEmployee {
             message: String
@@ -201,6 +205,15 @@ module.exports = {
             status: String!
             message: String!
         }
+        type switchEmailNotifcationResponse {   
+            status: Boolean!
+            message: String!
+            currentNotificationStatus: Boolean
+        }
+        input SwitchEmailNotificationInput {
+            userId: ID!
+        }
+
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -217,5 +230,6 @@ module.exports = {
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
         verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
         updateProfileforCourseSetting(input: contentLanguageInput!): contentLanguage!
+        switchEmailNotifcation(input: SwitchEmailNotificationInput!): switchEmailNotifcationResponse!
     `,
 };

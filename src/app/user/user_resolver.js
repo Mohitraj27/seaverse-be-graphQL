@@ -741,4 +741,32 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED_TO_UPDATE_CONTENT_LANGUAGE, error.message);
         }
     },
+    switchEmailNotifcation: async ({input}, context) => {
+        console.log('reached');
+        try {
+            const { userId } = input;
+            console.log('input', input);
+            
+            const user = await User.findOne({ _id: userId });
+            if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+            
+            if (user.isEmailNotification === undefined) {
+                user.isEmailNotification = true;
+            }
+            
+            user.isEmailNotification = !user.isEmailNotification;
+        
+            await user.save();
+            
+            return {
+                status: true,
+                message: user.isEmailNotification 
+                    ? "Email notifications have been turned on" 
+                    : "Email notifications have been turned off",
+                currentNotificationStatus: user.isEmailNotification
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_SWITCH_EMAIL_NOTIFICATION, error.message);
+        }
+    }
 };
