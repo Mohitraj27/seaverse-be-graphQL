@@ -205,6 +205,15 @@ module.exports = {
             status: String!
             message: String!
         }
+        type switchEmailNotifcationResponse {   
+            status: Boolean!
+            message: String!
+            currentNotificationStatus: Boolean
+        }
+        input SwitchEmailNotificationInput {
+            userId: ID!
+        }
+
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -221,5 +230,6 @@ module.exports = {
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
         verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
         updateProfileforCourseSetting(input: contentLanguageInput!): contentLanguage!
+        switchEmailNotifcation(input: SwitchEmailNotificationInput!): switchEmailNotifcationResponse!
     `,
 };

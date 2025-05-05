@@ -125,7 +125,8 @@ const errorName = {
     FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV",
     FAILED_TO_DELETE_CUSTOM_GROUP:"FAILED_TO_DELETE_CUSTOM_GROUP",
     CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:"CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN",
-    FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL"
+    FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL",
+    FAILED_TO_SWITCH_EMAIL_NOTIFICATION:"FAILED_TO_SWITCH_EMAIL_NOTIFICATION",
 };
 
 const errorType = {
@@ -758,6 +759,11 @@ const errorType = {
         message: 'Failed to sent welcome mail',
         statusCode: 400,    
         type: "FAILED_TO_SENT_WELCOME_MAIL"
+    },
+    FAILED_TO_SWITCH_EMAIL_NOTIFICATION:{
+        message: 'Failed to switch email notification',
+        statusCode: 400,    
+        type: "FAILED_TO_SWITCH_EMAIL_NOTIFICATION"
     }
 };
 
