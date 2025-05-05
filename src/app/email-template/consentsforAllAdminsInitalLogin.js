@@ -18,7 +18,7 @@ function sendConsentsforAllAdminsInitalLogin(data) {
         <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 20px;">
           <tr>
             <td align="center" style="padding-bottom: 20px;">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" style="height: 50px;" />
+              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo" style="height: 50px;" />
             </td>
           </tr>
           <tr>

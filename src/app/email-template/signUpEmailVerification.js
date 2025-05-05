@@ -90,7 +90,7 @@ function signUpVerifyEmailTemplate(data) {
 <body>
     <div class="container">
         <div class="logo-container">
-            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo">
         </div>
         <div class="content">
             <div class="message">
