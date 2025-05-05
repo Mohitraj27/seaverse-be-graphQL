@@ -169,6 +169,21 @@ module.exports = {
 
                 existingUser.email = input.email;
             }
+            if (input?.consents?.length > 0 ) {
+                const validConsents = input.consents.every(consent =>
+                    typeof consent.title === 'string' &&
+                    typeof consent.message === 'string' &&
+                    typeof consent.status === 'boolean'
+                );
+                if (!validConsents) {
+                     throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
+                }
+               await User.findByIdAndUpdate(
+                    input?._id,
+                    { $set: { consents: input.consents } },
+                    { new: true }
+                );
+            }
 
             if (input.phone) existingUser.phone = input.phone;
 

@@ -127,6 +127,7 @@ const errorName = {
     CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:"CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN",
     FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL",
     FAILED_TO_SWITCH_EMAIL_NOTIFICATION:"FAILED_TO_SWITCH_EMAIL_NOTIFICATION",
+    INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT"
 };
 
 const errorType = {
@@ -764,6 +765,11 @@ const errorType = {
         message: 'Failed to switch email notification',
         statusCode: 400,    
         type: "FAILED_TO_SWITCH_EMAIL_NOTIFICATION"
+    },
+    INVALID_CONSENT_FORMAT:{
+        message: 'Invalid consent format',
+        statusCode: 400,    
+        type: "INVALID_CONSENT_FORMAT"
     }
 };
 
