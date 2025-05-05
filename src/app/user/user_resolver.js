@@ -741,32 +741,30 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED_TO_UPDATE_CONTENT_LANGUAGE, error.message);
         }
     },
-    switchEmailNotifcation: async ({input}, context) => {
-        console.log('reached');
+    switchNotifcation: async ({ input }, context) => {
         try {
-            const { userId } = input;
-            console.log('input', input);
-            
+            const { userInfo,userId } = AuthUser(context); 
+            const { isEmailNotification, isPushNotification } = input;
             const user = await User.findOne({ _id: userId });
             if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
-            
-            if (user.isEmailNotification === undefined) {
-                user.isEmailNotification = true;
+            if (typeof isEmailNotification === 'boolean') {
+                user.isEmailNotification = isEmailNotification;
             }
-            
-            user.isEmailNotification = !user.isEmailNotification;
-        
+            if (typeof isPushNotification === 'boolean') {
+                user.isPushNotification = isPushNotification;
+            }
             await user.save();
             
             return {
                 status: true,
-                message: user.isEmailNotification 
-                    ? "Email notifications have been turned on" 
-                    : "Email notifications have been turned off",
-                currentNotificationStatus: user.isEmailNotification
+                message: "Notification preferences updated successfully",
+                currentNotificationStatus: {
+                    isEmailNotification: user.isEmailNotification,
+                    isPushNotification: user.isPushNotification
+                }
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED_TO_SWITCH_EMAIL_NOTIFICATION, error.message);
+            throw CustomError(ErrorName.FAILED_TO_SWITCH_NOTIFICATION, error.message);
         }
     }
 };
