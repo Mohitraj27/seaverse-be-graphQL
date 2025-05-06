@@ -2307,9 +2307,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         if (input.type === "APPROVE") {
             
-                    if (!getUsers || getUsers?.length === 0) {
-                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
-                    }
+                    // if (!getUsers || getUsers?.length === 0) {
+                    //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    // }
             
                     const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
             
@@ -2363,9 +2363,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
                                 firstName: userHistoryData[0]?.firstName,
                             })
                         });
-                    }
-                    if (!sendmailforApproval) {
-                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
 
                 }
