@@ -66,7 +66,7 @@ function signUpVerifyEmailTemplate(data) {
         .verify-button {
             display: inline-block;
             background-color: #233570;
-            color: white;
+            color: #ffffff !important;
             font-size: 14px;
             font-weight: 500;
             text-decoration: none;
