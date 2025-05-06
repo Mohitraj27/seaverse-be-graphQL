@@ -1145,29 +1145,14 @@ module.exports.mutations = {
             isMediaUpdated = true;
         }
 
-        if (Array.isArray(deletedSubtitles) &&
-            deletedSubtitles.some(id => mongoose.Types.ObjectId.isValid(id))) {
-            const existingSubtitleIds = new Set();
-            for (const video of existingContent.videos || []) {
-                for (const subtitle of video.subtitles || []) {
-                    if (subtitle._id) {
-                        existingSubtitleIds.add(subtitle._id.toString());
-                    }
-                }
-            }
-
-            const validDeletedSubtitles = deletedSubtitles.filter(id =>
-                existingSubtitleIds.has(id.toString())
-            );
-
-            for (const subtitleId of validDeletedSubtitles) {
+        if (deletedSubtitles?.length > 0) {
+            for (const subtitleId of deletedSubtitles) {
                 for (const video of updateData.videos) {
-                    const index = video.subtitles?.findIndex(
-                        s => s._id?.toString() === subtitleId.toString()
-                    );
+                    const index = video.subtitles?.findIndex(s => s._id?.toString() === subtitleId.toString());
                     if (index >= 0) {
                         video.subtitles.splice(index, 1);
                         isUpdated = true;
+                        // isMediaUpdated = true;
                     }
                 }
             }
