@@ -63,6 +63,8 @@ const { TrainingProgress } = require('../../training-registrations/training-prog
 const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
 const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
 const { groupTypes } = require('../../../util');
+const { DeleteRequestHistory } = require("./delete_request_history_model");
+const  HistorySignupRequest  = require("../../signup-request-history/signup-request-history-model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -1667,6 +1669,36 @@ const validateName = (name) => {
     return nameRegex.test(trimmedName);
 };
 
+const clear7dayOldRequests = async () => {
+    try {
+        const currentDate = new Date();
+        const sevenDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 7));
+
+        const query = { createdAt: { $lte: sevenDaysAgo } }; 
+
+        await DeleteRequestHistory.deleteMany({isDeleted: true, ...query});
+        await HistorySignupRequest.deleteMany({signupStatus: 'REJECTED', ...query});
+    }
+    catch (error) {
+        throw new Error(error.message);
+    }
+}
+
+
+const scheduledForEveryDayMidnight = async () => {
+    try {
+        // Schedule the task to run every day at midnight
+        CronHelper.schedule("0 0 * * *", async () => {
+
+            //clear 7 day old user requests for userprofile deletion and signup requests
+            await clear7dayOldRequests();
+
+        });
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 // const moveExpiredDeletedUsers = async () => {
 //     CronHelper.schedule("0 0 * * *", async () => {
 //         try {
@@ -1776,6 +1808,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
 };
 */
 module.exports = {
+    scheduledForEveryDayMidnight,
     deleteUsers,
     softDeleteUsers,
     restoreUsers,
