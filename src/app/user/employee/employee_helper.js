@@ -1452,6 +1452,51 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
 
+        const trainingProgressesToBeDeleted = await OverallTrainingProgress.find({
+            user: { $in: users },
+            status:{$ne:"COMPLETED"}
+        }).select("user _id trainingRegistration learningPlan training").lean();
+       
+        const trainingProgressesNotToBeDeleted = await OverallTrainingProgress.find({
+            user: { $in: users },
+            status: "COMPLETED"
+        }).select("user _id learningPlan ").lean();
+
+
+        const trainingProgressesToBeDeletedIds = trainingProgressesToBeDeleted.map(({ _id }) => _id);
+        const removeIncompleteUserDataFromTrainingReg = trainingProgressesToBeDeleted.map(({ user, trainingRegistration }) => ({
+            updateOne: {
+                filter: { _id: trainingRegistration },
+                update: { $pull: { users: user } }
+            }
+        }));
+
+        const userlearningPlanIdMap = trainingProgressesNotToBeDeleted.reduce((acc, curr) => {
+            const userId = curr.user.toString();
+            const plans = Array.isArray(curr.learningPlan) ? curr.learningPlan : [curr.learningPlan];
+        
+            if (!acc[userId]) {
+                acc[userId] = [];
+            }
+        
+            acc[userId].push(...plans);
+            return acc;
+        }, {});
+
+        // for removing duplicate learningplan ids
+        for (const userId in userlearningPlanIdMap) {
+            userlearningPlanIdMap[userId] = [...new Set(userlearningPlanIdMap[userId])];
+        }
+
+        const bulkDeleteOpsLPAssignments = Object.entries(userlearningPlanIdMap).map(([userId, allowedPlanIds]) => ({
+            deleteMany: {
+                filter: {
+                    assignedLearnerId: userId,
+                    learningPlanId: { $nin: allowedPlanIds }
+                }
+            }
+        }));
+
 
 
         const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
@@ -1464,6 +1509,12 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             //     };
             // });
 
+            if (removeIncompleteUserDataFromTrainingReg.length > 0) {
+                await TrainingRegistration.bulkWrite(removeIncompleteUserDataFromTrainingReg, { session });
+            }
+            if (bulkDeleteOpsLPAssignments.length > 0) {
+                await LearningPlanAssignment.bulkWrite(bulkDeleteOpsLPAssignments, { session });
+            }
             const markAsDeleted = await User.updateMany(
                 { _id: { $in: users } },
                 {
@@ -1494,6 +1545,14 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                 { session }
             );
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            await OverallTrainingProgress.deleteMany(
+                {
+                    user: { $in: users },
+                    status: { $ne: "COMPLETED" },
+                },
+                { session }
+            );
 
             if (markAsDeleted) {
 
@@ -1595,6 +1654,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
         return deleteUsers;
 
     } catch (error) {
+        console.log(error);
         throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
 
     }

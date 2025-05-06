@@ -75,14 +75,14 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline: [
+                   /*  pipeline: [
                         {
                             $match: {
                                 isDeleted: false,
                                 isSignupAdminAprroved: { $ne: false },
                             }
                         }
-                    ]
+                    ] */
                 }
             },
             {
@@ -133,9 +133,14 @@ module.exports.queries = {
             },
             {
                 $match: {
-                    'userInfo': { $ne: null },
-                    'userInfo.isDeleted': { $ne: true },
-                    'userInfo.isSignupAdminAprroved': { $ne: false }
+                    $or: [
+                        { status: "COMPLETED" },
+                        {
+                            'userInfo': { $ne: null },
+                            'userInfo.isDeleted': { $ne: true },
+                            'userInfo.isSignupAdminAprroved': { $ne: false }
+                        }
+                    ]
                 }
             },
             {
@@ -168,7 +173,7 @@ module.exports.queries = {
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
-            email: user.email,
+            email: user.email ?? "",
             isRegistered: user.isRegistered,
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
