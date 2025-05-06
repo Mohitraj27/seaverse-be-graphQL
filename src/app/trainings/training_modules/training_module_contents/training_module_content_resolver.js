@@ -24,6 +24,7 @@ const notificationiconEnum = require("../../../notifications/notification_icon.j
 
 const { TrainingProgress } = require("../../../training-registrations/training-progress/training_progress_model");
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
+const { default: mongoose } = require("mongoose");
 
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
