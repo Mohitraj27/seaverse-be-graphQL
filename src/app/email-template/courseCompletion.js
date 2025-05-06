@@ -32,7 +32,7 @@ function courseCompletion(user) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr>
             <td style="text-align: center;">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo"
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo"
                     style="padding: 40px 48px; margin: auto;">
             </td>
         </tr>
