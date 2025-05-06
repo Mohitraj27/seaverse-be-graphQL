@@ -346,7 +346,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             isDeleted: false
         });
         const existingCourses = existingLearningPlan?.selectCourses || [];
-        const existingCoursesToString = existingCourses.map(course => course.toString());
+        const existingCoursesToString = existingCourses?.map(course => course.toString());
         if (!existingLearningPlan) {
             errorList.push(errorMessages.LEARNING_PLAN_NOT_FOUND);
         }
@@ -367,7 +367,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             groupIDs: input.groupIDs || existingLearningPlan.groupIDs
         });
         if (input.audienceSelection === audienceSelection.EVERYONE_IN_ORGANIZATION) {
-            existingLearningPlan.groupIDs = []; // Clear group IDs if not needed
+            existingLearningPlan.groupIDs = []; 
         }
         await existingLearningPlan.save();
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
@@ -387,7 +387,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 isSignupAdminAprroved: { $ne: false }
             }).select('_id');
         } else {
-            // Automatic or other selections
             const { userIds } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
                 audienceSelection: input.audienceSelection,
@@ -395,15 +394,15 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
+            if(userIds?.length > 0 ){
+                const userIdsToString = userIds?.map(userId => userId.toString());
+                const filteredUnRegisteredRemovedLearnerIds = unRegisteredRemovedLearnerIds.filter(userId => userIdsToString.includes(userId.toString()));
+                remainingRemovedLearnerIds = removedLearnerIdsArray.filter(userId => !filteredUnRegisteredRemovedLearnerIds.includes(userId.toString()));
 
-            // Get the learner IDs not in userIds and removedLearnerIdsArray
-            const userIdsToString = userIds.map(userId => userId.toString());
-            const filteredUnRegisteredRemovedLearnerIds = unRegisteredRemovedLearnerIds.filter(userId => userIdsToString.includes(userId.toString()));
-            remainingRemovedLearnerIds = removedLearnerIdsArray.filter(userId => !filteredUnRegisteredRemovedLearnerIds.includes(userId.toString()));
-
-            const registeredUsers = await User.find({ _id: { $in: userIds }, isRegistered: { $ne: false } }).select('_id');
-            const registeredUserIds = registeredUsers.map(user => user._id);
-            learnersToAssign = registeredUserIds;
+                const registeredUsers = await User.find({ _id: { $in: userIds }, isRegistered: { $ne: false } }).select('_id');
+                const registeredUserIds = registeredUsers.map(user => user._id);
+                learnersToAssign = registeredUserIds;
+            }
             
         }
         if (errorList?.length > 0) {
@@ -429,8 +428,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
         }
 
         if (learnersToAssign?.length > 0) {
-            // Find existing assignments to prevent duplicates
-            const existingAssignments = await LearningPlanAssignment.find({
+               const existingAssignments = await LearningPlanAssignment.find({
                 learningPlanId: existingLearningPlan._id,
                 assignedLearnerId: { $in: learnersToAssign },
                 isDeleted: false,
@@ -438,7 +436,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
             const existingLearnerIds = new Set(existingAssignments.map(doc => doc.assignedLearnerId.toString()));
 
-            // Filter learners that are not already assigned
             const newAssignments = learnersToAssign
                 .filter(learnerId => !existingLearnerIds.has(learnerId.toString()))
                 .map(learnerId => ({
@@ -449,7 +446,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     updatedBy: existingLearningPlan.updatedBy,
                 }));
 
-            // Update OverallTrainingProgress
             await OverallTrainingProgress.updateMany(
                 {
                     user: { $in: learnersToAssign },
@@ -460,8 +456,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     $addToSet: { learningPlan: existingLearningPlan._id },
                 }
             );
-
-            // Insert only non-existing assignments
             if (newAssignments.length > 0) {
                 await LearningPlanAssignment.insertMany(newAssignments);
             }
