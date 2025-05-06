@@ -1,5 +1,5 @@
 const { ObjectId } = require("../../tools");
-const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper, contentTypes } = require("../../util");
+const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper, contentTypes, Role } = require("../../util");
 const mongoose = require('mongoose');
 
 const { Training } = require("./training_model");
@@ -29,7 +29,10 @@ const AWS_HELPER = require("../../util/aws_helper");
 const { sendEmail } = require("../../util/aws_helper");
 
 const levenshtein = require('fast-levenshtein');
-const { fork } = require("child_process");
+const { MigrationUser } = require("./migrationcourses/migrationUser/migration_user_model");
+const { Subscriber } = require("../saas/subscriber/subscriber_model");
+const { Employee } = require("../user/employee/employee_model");
+const employeeHelper = require("../user/employee/employee_helper");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -1529,9 +1532,166 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
     }
 };
 
-const dataMigrationBackground = () => {
+const dataMigrationBackground = async (migrationcourseId, trainingId) => {
+
+    const completedMigrationUsers = await MigrationUser.find({ migrationcoursesId: migrationcourseId })
+        .populate("user")
+        .populate("course");
+
+    if (completedMigrationUsers.length === 0) return;
+
+    // User creation start
+    const userBulkOps = [];
+    const employeeBulkOps = [];
+
+    const emails = completedMigrationUsers.map(({ user }) => user.email);
+    const ids = completedMigrationUsers.map(({ user }) => user.civilIdOrPassport);
+
+    const existingUsers = await User.find({
+        $or: [
+            { email: { $in: emails } },
+            { civilIdOrPassport: { $in: ids } }
+        ]
+    }).lean();
+
+    const existingEmails = new Set(existingUsers.map(u => u.email));
+    const existingIds = new Set(existingUsers.map(u => u.civilIdOrPassport));
+
+    const subscriber = await Subscriber.findOne().lean();
+    let subscriberId;
+
+    if (subscriber) subscriberId = subscriber._id;
+
+    let userIds = [];
+    completedMigrationUsers.forEach(async ({ user }) => {
+        const { firstName, lastName, email, civilIdOrPassport } = user;
+
+        let userPasswordInfo = {};
+        let generatePassword = input?.user?.password || generateRandomString(10);
+        const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+
+        userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+        userPasswordInfo.password = dummyPasswordHash;
+
+        if (existingEmails.has(email) || existingIds.has(civilIdOrPassport)) {
+            return;
+        }
+
+        const userId = ObjectId();
+        userIds.push(userId);
+        userBulkOps.push({
+            insertOne: {
+                document: {
+                    _id: userId,
+                    subscriber: subscriberId,
+                    firstName,
+                    lastName,
+                    email,
+                    civilIdOrPassport: civilIdOrPassport?.toUpperCase(),
+                    isRegistered: false,
+                    ...userPasswordInfo,
+                    role: Role.LEARNER,
+                    UID: await employeeHelper.generateUserUID({ subscriberId }),
+                },
+            },
+        });
+
+        employeeBulkOps.push({
+            insertOne: {
+                document: {
+                    user: userId,
+                    subscriber: subscriberId,
+                    regType: 1,
+                    designation: null,
+                    UID: await employeeHelper.generateEmployeeUID({ subscriberId }),
+                },
+            },
+        });
+
+    });
+    // User creation end
+
+    // Course enrollment start
+
+    let existingTrainingRegistration;
+    let existingTrainingRegId;
+    if (trainingId) {
+        existingTrainingRegistration = await TrainingRegistration.findOne({ training: trainingId });
+
+        if (existingTrainingRegistration) {
+            existingTrainingRegId = existingTrainingRegistration._id;
+        }
+    }
 
     
+    const batchUID = await BatchHelper.generateBatchUID({ subscriberId, session });
+    
+    const updateFields = { subscriber: subscriberId, $addToSet: {} };
+    if (userObjectIds?.length) {
+        updateFields.$addToSet.users = { $each: userIds };
+    }
+
+    let savedTrainingRegistration;
+    let trainingRegistrationIds = [];
+    let notEnrolledUsers = [];
+    
+    if (existingTrainingRegistration) {
+        
+        let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } });
+    
+        userIds = userIds.filter(userId =>
+            !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
+        );
+
+        savedTrainingRegistration = await TrainingRegistration.updateMany(
+            { _id: existingTrainingRegId },
+            updateFields,
+            { session }
+        );
+
+        const updatedRegistrations = await TrainingRegistration.find({
+            training: { trainingId }
+        }).session(session);
+        trainingRegistrationIds = updatedRegistrations && updatedRegistrations.map(({ _id, training }) => ({ _id, training }));
+
+    } else {
+
+        savedTrainingRegistration = await TrainingRegistration.insertOne({ training: trainingId, users: userIds }, { session });
+        trainingRegistrationIds = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
+
+    }
+
+
+    if (savedTrainingRegistration) {
+
+        let trainingProgressData;
+
+        trainingProgressData = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationIds, session);
+
+    }
+
+    const trainingsData = await Training.find({ _id: { $in: input.trainings } });
+
+    return savedTrainingRegistration;
+
+    return {
+        message: "Course enrollment successful!",
+    };
+    // Course enrollment end
+
+
+    const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
+
+        if (userBulkOps.length > 0) {
+            await User.bulkWrite(userBulkOps);
+        }
+
+        if (employeeBulkOps.length > 0) {
+            await Employee.bulkWrite(employeeBulkOps);
+        }
+
+    });
+
 
 }
 
@@ -1678,17 +1838,6 @@ module.exports = {
         ).populate('targetAudienceId')
             .populate('ClassroomModule');
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
-
-        // Do the enrollment of migration courses if any in background as child process
-        if (input.migrationcoursesId) {
-            const child = fork("./src/app/trainings/migration_enrollment.js");
-
-            child.send({
-                migrationcourseId: input.migrationcoursesId,
-                trainingId: savedTraining._id,
-            });
-
-        }
 
         return savedTraining;
     },

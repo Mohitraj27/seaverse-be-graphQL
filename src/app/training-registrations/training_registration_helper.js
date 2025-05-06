@@ -434,6 +434,104 @@ const extractTrainingContentData = async (trainings) => {
     return { trainingModulesMap, trainingTotalModules };
 };
 
+const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, latestRegistrationId, session) => {
+
+    let trainingProgressData;
+    try {
+
+        if (userIds.length == 0 || !trainingId || !latestRegistrationId) {
+            return;
+        }
+
+        if (trainingId) {
+
+            trainingIds = trainings.map(training => training._id);
+            trainingModuleCounts = await TrainingModule.aggregate([
+                {
+                    $match: { training: { $in: trainingIds } }
+                },
+                {
+                    $group: {
+                        _id: "$training",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]).session(session);
+
+            trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
+                acc[_id] = count;
+                return acc;
+            }, {});
+
+        }
+
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate durationHours').session(session).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
+            users.map(user => {
+                const progressKey = `${training.toString()}-${user._id.toString()}`;
+
+                const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
+                const durationHours = trainingDataById[training.toString()]?.durationHours ?? 0;
+
+                return {
+                    insertOne: {
+                        document: {
+                            learningPlan: learningPlanId ? [learningPlanId] : [],
+                            directEnrollment: learningPlanId ? false : true,
+                            training: training,
+                            user: user._id,
+                            trainingRegistration: registrationId,
+                            subscriberId: subscriberId.toString(),
+                            status: 'NOT_STARTED',
+                            isEnrolled: true,
+                            progressPercentage: 0.0,
+                            completedModules: 0,
+                            contentData: [],
+                            totalDuration: durationHours,
+                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                            startDate: null,
+                            endDate: null,
+                            unenrollmentDate: null,
+                            isCertificatePresent: isCertificatePresent,
+                        },
+                    },
+                };
+                // return {
+                //     learningPlan: learningPlanId ? [learningPlanId] : [],
+                //     directEnrollment: learningPlanId ? false : true,
+                //     training: training,
+                //     user: user._id,
+                //     trainingRegistration: registrationId,
+                //     subscriberId: subscriberId.toString(),
+                //     status: 'NOT_STARTED',
+                //     isEnrolled: true,
+                //     progressPercentage: 0.0,
+                //     completedModules: 0,
+                //     contentData: [],
+                //     totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                //     startDate: null,
+                //     endDate: null,
+                //     unenrollmentDate: null,
+                // };
+            })
+        ).filter(entry => entry !== null);
+
+        if (newProgressEntries.length > 0) {
+            await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
+        }
+    } catch (error) {
+        throw Error(error.message);
+    }
+
+    return true;
+};
+
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId, session) => {
 
     let trainingProgressData;
@@ -779,6 +877,7 @@ const summarizeResults = (results) => {
 
 module.exports = {
     enrolUserVerificationHelper,
+    createTrainingProgressForMigrationUsersHelper,
     createTrainingProgressHelper,
     getAutoSyncUsers,
     getCustomGroupUsers,
@@ -1046,7 +1145,7 @@ module.exports = {
                             courses: coursesDataMap,
                             isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         }));
-                        
+
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
@@ -1111,7 +1210,7 @@ module.exports = {
                 //     );
                 // }
 
-                
+
                 // Batch fetch all training titles and store in a Map for quick lookup
                 const trainingTitlesMap = new Map(
                     (await Training.find({ _id: { $in: input.trainings } }).select('title'))
@@ -1128,10 +1227,10 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                if(userObjectIds?.length > 0 ){
+                if (userObjectIds?.length > 0) {
                     const notifications = userObjectIds.flatMap(userId =>
                         input.trainings.map(trainingId => ({
-                             subscriber: subscriberId,
+                            subscriber: subscriberId,
                             titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
                             messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
                             notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
@@ -1151,9 +1250,9 @@ module.exports = {
                             }]
                         }))
                     );
-                await NotificationHelper.createNotificationhelper(...notifications);
+                    await NotificationHelper.createNotificationhelper(...notifications);
                 } else {
-                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER,"Selected Group doesn't have members enrollment is not possible");
+                    throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER, "Selected Group doesn't have members enrollment is not possible");
                 }
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
 

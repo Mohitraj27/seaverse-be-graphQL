@@ -39,6 +39,9 @@ const { populate, validate } = require("../contact-support/contact_support_model
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
+
+const { fork } = require("child_process");
+
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -342,9 +345,17 @@ module.exports.mutations = {
                 input._id = savedTraining._id;
             }
             if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
-                let errors = [];
-                await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
-                if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
+                // let errors = [];
+                // await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
+                // if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
+
+                const child = fork("./src/app/trainings/migration_enrollment.js");
+
+                child.send({
+                    migrationcourseId: input.migrationcoursesId,
+                    trainingId: savedTraining._id,
+                });
+
             } else {
                 if (input.migrationcoursesId) {
                     const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
