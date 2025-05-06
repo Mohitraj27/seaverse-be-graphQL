@@ -32,7 +32,7 @@ const { Subscriber } = require("../../saas/subscriber/subscriber_model");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
-
+const mongoose = require('mongoose');
 
 
 module.exports.queries = {
@@ -433,13 +433,36 @@ module.exports.mutations = {
         }
     },
 
-    forgetPassword: async ({ email }, context) => {
+    forgetPassword: async ({ email, consentsInput }, context) => {
         try {
             const existingUser = await User.findOne({ email });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
-
+            if (consentsInput?.length > 0) {
+                const existingConsentsMap = new Map(
+                  (existingUser.consents || []).map(consent => [consent._id.toString(), consent])
+                );
+          
+                consentsInput.forEach(consent => {
+                  const consentId = consent._id ? consent._id.toString() : null;
+          
+                  if (consentId && existingConsentsMap.has(consentId)) {
+                    
+                    const existingConsent = existingConsentsMap.get(consentId);
+                    existingConsent.title = consent.title;
+                    existingConsent.message = consent.message;
+                    existingConsent.status = consent.status;
+                  } else {
+                    existingUser.consents.push({
+                      _id: new mongoose.Types.ObjectId(), 
+                      title: consent.title,
+                      message: consent.message,
+                      status: consent.status,
+                    });
+                  }
+                });
+              }
             const token = generateRandomString(10);
 
             existingUser.resetPasswordToken = token;
@@ -459,6 +482,7 @@ module.exports.mutations = {
                 return {
                     success: true,
                     message: "Email sent. Please check your email for reset link.",
+                    consents: updatedUser.consents || [],
                 };
             } else {
                 throw CustomError(ErrorName.FAILED, "Failed to send reset link. Please try again.");

@@ -28,7 +28,7 @@ function roleUpdateNotifyLearner(user) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo">
             </td>
         </tr>
         <tr>
@@ -125,7 +125,7 @@ function roleUpdateNotifyAdmin(user) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo">
             </td>
         </tr>
         <tr>

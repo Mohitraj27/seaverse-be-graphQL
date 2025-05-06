@@ -36,6 +36,10 @@ const subscriptionHelper = require("../saas/subscriber/subscription/subscription
 const NotificationType = require('../notifications/notification_type.json');
 const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
 const  ContentLanguage  = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
+const mongoose = require('mongoose');
+const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
+const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
+const { SubRole } = require("../user/sub-roles/sub_role_model");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -213,24 +217,41 @@ module.exports.mutations = {
 
                 const subscriber = await Subscriber.findOne().session(session);
                 let subscriberId = subscriber ? subscriber._id : null;
-
-                const createUser = await User.create([
-                    {
-                        subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
-                        password: encryptedPassword,
-                        email: lowerCaseEmail,
-                        dummyPassword: dummyPassword,
-                        isRegistered: false,
-                        directSignup: true,
-                        isSignupAdminAprroved: false,
-                        isResetPasswordDialog: true,
-                        country: country ?? null,
-                        TermsAndConditions: TermsAndConditions ?? null,
-                        UID: await EmployeeHelper.generateUserUID({ session }),
-                    }
-                ], { session });
+                let createUser;
+                if(input?.consents){
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            consents: input?.consents,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }else {
+                     createUser = await User.create([
+                        {
+                            subscriber: subscriberId,
+                            firstName: firstName,
+                            lastName: lastName ?? null,
+                            password: encryptedPassword,
+                            email: lowerCaseEmail,
+                            dummyPassword: dummyPassword,
+                            isRegistered: false,
+                            directSignup: true,
+                            isSignupAdminAprroved: false,
+                            isResetPasswordDialog: true,
+                            UID: await EmployeeHelper.generateUserUID({ session }),
+                        }
+                    ], { session });
+                }
                 if (!createUser) throw CustomError(ErrorName.FAILED, "User creation failed!");
 
                 let employeeUpdate = {
@@ -396,10 +417,10 @@ module.exports.mutations = {
                     if (!existingUser) {
                         return CustomError(ErrorName.USER_NOT_FOUND);
                     }
-                    if (input?.TermsAndConditions?.length > 0) {
-                        const termsAndConditionsInput = input.TermsAndConditions;
+                    if (input?.consents?.length > 0) {
+                        const termsAndConditionsInput = input.consents;
                         const existingConditionsMap = new Map(
-                          existingUser.TermsAndConditions.map(tc => [tc._id.toString(), tc])
+                          existingUser.consents.map(tc => [tc._id.toString(), tc])
                         );
                         termsAndConditionsInput.forEach(condition => {
                           const inputConditionId = condition._id ? condition._id.toString() : null;
@@ -412,7 +433,7 @@ module.exports.mutations = {
                             existingCondition.status = condition.status;
                             existingCondition.timestamp = condition.timestamp || new Date().toISOString();
                           } else {
-                            existingUser.TermsAndConditions.push({
+                            existingUser.consents.push({
                               _id: new mongoose.Types.ObjectId(), 
                               message: condition.message,
                               title: condition.title,
@@ -421,6 +442,21 @@ module.exports.mutations = {
                             });
                           }
                         });
+                        if(input?.consents?.some(consent => consent.status === false)) {
+                           await AwsHelper.sendEmail({
+                                receiverEmail: existingUser?.email,
+                                subject: `Your Sign-Up Was Not Complete`,
+                                htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
+                            });
+                            const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
+                            const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
+                            const adminUsers = adminUserEmails.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
+                            await Promise.all(adminUsers.map(async user => await AwsHelper.sendEmail({
+                                receiverEmail: user?.email,
+                                subject: `Alert: Learner Rejected Terms and Conditions`,
+                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email } ),
+                            }))); 
+                        }
                         await existingUser.save({ session });
                       }                    
                     const processValidUser = async () => {
@@ -671,7 +707,9 @@ module.exports.mutations = {
     updateProfileforCourseSetting:async({input},context)=>{
         try {
             const { languagecode, userId } = input;
-    
+
+            if (!languagecode && !userId) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
+
             const user = await User.findOne({ _id: userId });
             if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
     
@@ -679,14 +717,12 @@ module.exports.mutations = {
     
             if (languagecode && languagecode?.length > 0) {
                 const validLanguages = await ContentLanguage.find({
-                    contentLanguageCode: { $in: languagecode }
-                }).select("contentLanguageCode");
-    
-                const foundCodes = validLanguages.map(lang => lang.contentLanguageCode);
-    
-                const invalidCodes = languagecode.filter(code => !foundCodes.includes(code));
-                if (invalidCodes?.length > 0) {
-                    throw CustomError(ErrorName.INVALID_LANGUAGES_CODES_SELECTED, `Invalid language codes: ${invalidCodes.join(", ")}`);
+                    title: { $in: languagecode }
+                }).select("title");
+
+                const foundCodes = validLanguages.map(lang => lang.title);
+                if (foundCodes.length !== languagecode.length) {
+                    throw CustomError(ErrorName.INVALID_CONTENT_LANGUAGE, "Invalid content languages provided");
                 }
                 updatedLanguages = foundCodes;
             } else {
@@ -697,12 +733,38 @@ module.exports.mutations = {
     
             return {
                 status: true,
-                message: languagecode && languagecode?.length > 0 
-                ? "Profile updated successfully with provided content languages."
-                : "Profile updated successfully with existing content languages.",
+                message: languagecode && languagecode?.length > 0
+                    ? "Profile updated successfully with provided content languages."
+                    : "Profile updated successfully with existing content languages.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_UPDATE_CONTENT_LANGUAGE, error.message);
         }
     },
+    switchNotifcation: async ({ input }, context) => {
+        try {
+            const { userInfo,userId } = AuthUser(context); 
+            const { isEmailNotification, isPushNotification } = input;
+            const user = await User.findOne({ _id: userId });
+            if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+            if (typeof isEmailNotification === 'boolean') {
+                user.isEmailNotification = isEmailNotification;
+            }
+            if (typeof isPushNotification === 'boolean') {
+                user.isPushNotification = isPushNotification;
+            }
+            await user.save();
+            
+            return {
+                status: true,
+                message: "Notification preferences updated successfully",
+                currentNotificationStatus: {
+                    isEmailNotification: user.isEmailNotification,
+                    isPushNotification: user.isPushNotification
+                }
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_SWITCH_NOTIFICATION, error.message);
+        }
+    }
 };

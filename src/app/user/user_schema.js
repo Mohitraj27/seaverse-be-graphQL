@@ -45,7 +45,9 @@ module.exports = {
             isDeleted: Boolean
             designation: String
             contentlanguages: [String]
-            TermsAndConditions: [TermsAndConditions!]
+            consents: [TermsAndConditions!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
             country: String
         }
         type TermsAndConditions {
@@ -80,7 +82,7 @@ module.exports = {
             country: String
             password: String!
             confirmPassword: String!
-            TermsAndConditions: [TermsAndConditionsInput!]
+            consents: [TermsAndConditionsInput!]
         }
         input TermsAndConditionsInput {
             message: String!
@@ -115,7 +117,9 @@ module.exports = {
             address: UserAddressInput
             designation: String
             country: String
-            TermsAndConditions:[TermsAndConditionsforUpdateEmployee!]
+            consents:[TermsAndConditionsforUpdateEmployee!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
         }
         input TermsAndConditionsforUpdateEmployee {
             message: String
@@ -129,7 +133,7 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
-            TermsAndConditions: [TermsAndConditionsInputforSignIn]
+            consents: [TermsAndConditionsInputforSignIn]
         }
         input TermsAndConditionsInputforSignIn {
             _id: ID   
@@ -201,6 +205,20 @@ module.exports = {
             status: String!
             message: String!
         }
+        input SwitchNotificationInput {
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+        }
+        type NotificationStatus {
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+        }
+        type switchNotifcationResponse {
+            status: Boolean!
+            message: String!
+            currentNotificationStatus: NotificationStatus
+        }
+
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -217,5 +235,6 @@ module.exports = {
         signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
         verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
         updateProfileforCourseSetting(input: contentLanguageInput!): contentLanguage!
+        switchNotifcation(input: SwitchNotificationInput!): switchNotifcationResponse!
     `,
 };
