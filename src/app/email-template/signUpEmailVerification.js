@@ -25,8 +25,16 @@ function signUpVerifyEmailTemplate(data) {
             padding: 24px;
             background-color: #ffffff;
         }
+        .logo-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+            text-align: center;
+        }
         .logo {
-            height: 36px;
+            max-width: 200px;
+            height: auto;
         }
         .content {
             padding: 32px;
@@ -89,9 +97,9 @@ function signUpVerifyEmailTemplate(data) {
 </head>
 <body>
     <div class="container">
-        <div class="logo-container">
-            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo">
-        </div>
+          <div class="logo-section">
+        <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
+         </div>
         <div class="content">
             <div class="message">
                 Welcome to Seaverse! To complete your signup process,
