@@ -1033,10 +1033,10 @@ module.exports.mutations = {
      
 
         const existingTitle = await TrainingModuleContent.findOne({
-           "title.value":input.title?.[0].value,
-            // isDeleted: { $ne: true }
+            "title.value": input.title?.[0].value,
+            _id: { $ne: input._id }, 
+            isDeleted: { $ne: true }
         }).lean();
-
 
         if (existingTitle) {
             throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
@@ -1144,7 +1144,8 @@ module.exports.mutations = {
             isMediaUpdated = true;
         }
 
-        if (deletedSubtitles?.length > 0) {
+        if (Array.isArray(deletedSubtitles) &&
+            deletedSubtitles.some(id => mongoose.Types.ObjectId.isValid(id))) {
             const existingSubtitleIds = new Set();
             for (const video of existingContent.videos || []) {
                 for (const subtitle of video.subtitles || []) {
