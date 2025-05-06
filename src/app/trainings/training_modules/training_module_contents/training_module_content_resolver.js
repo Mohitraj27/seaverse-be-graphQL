@@ -1144,7 +1144,8 @@ module.exports.mutations = {
             isMediaUpdated = true;
         }
 
-        if (deletedSubtitles?.length > 0) {
+        if (Array.isArray(deletedSubtitles) &&
+            deletedSubtitles.some(id => mongoose.Types.ObjectId.isValid(id))) {
             const existingSubtitleIds = new Set();
             for (const video of existingContent.videos || []) {
                 for (const subtitle of video.subtitles || []) {
