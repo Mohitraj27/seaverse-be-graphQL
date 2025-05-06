@@ -2350,7 +2350,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
             // const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
             // Soft delete users keeping only the first name, last name and course details
             const deleteUsers = await EmployeeHelper.deleteUsersAfterGDPR(input.users, errors);
-            console.log('reached here 2');
 
             if (errors.length > 0) {
                 throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
@@ -2369,9 +2368,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
                                 firstName: userHistoryData[0]?.firstName,
                             })
                         });
-                    }
-                    if (!sendmailforApproval) {
-                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
 
                 }

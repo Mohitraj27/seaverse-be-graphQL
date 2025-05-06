@@ -186,7 +186,11 @@ const userSchema = new Schema(
         isPushNotification: {
             type: Boolean,
             default: true
-        }
+        },
+        deletionDate: {
+            type: Date,
+            default: null
+        },
     },
     { timestamps: true }
 );

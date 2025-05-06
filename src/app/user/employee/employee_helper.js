@@ -65,6 +65,9 @@ const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelec
 const { groupTypes } = require('../../../util');
 const { DeleteRequestHistory } = require("./delete_request_history_model");
 const  HistorySignupRequest  = require("../../signup-request-history/signup-request-history-model");
+const { reject30DayOldSignupRequests } = require("../../signup-request/signup-request-helper");
+const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -1461,28 +1464,35 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             //     };
             // });
 
-            const markAsDeleted = await User.updateMany({ _id: { $in: users } }, {
-                $set: {
-                    isDeleted: true, email: '', dummyPassword: '',
-                    languagePreference: null,
-                    subRoles: [],
-                    isRegistered: false,
-                    currentVesse: null,
-                    vesselStatus: null,
-                    deleteRequest: false,
-                    password: null,
-                    email: '',
-                    isSignupAdminAprroved: null,
-                    UID: '',
-                    lastLoginAt: null,
-                    civilIdOrPassport: null,
-                    roleAssignmentDate: null,
-                    contentlanguages: null,
-                    deleteRequestDate: null,
-                    reasonForDelete: null,
-                    deleteRequest: null
-                }
-            }, { session })
+            const markAsDeleted = await User.updateMany(
+                { _id: { $in: users } },
+                {
+                    $set: {
+                        isDeleted: true,
+                        isRegistered: false,
+                        subRoles: [],
+                        deleteRequest: false,
+                        deletionDate: new Date(),
+                    },
+                    $unset: {
+                        email: "",
+                        dummyPassword: "",
+                        languagePreference: "",
+                        currentVessel: "",
+                        vesselStatus: "",
+                        password: "",
+                        isSignupAdminApproved: "",
+                        UID: "",
+                        lastLoginAt: "",
+                        civilIdOrPassport: "",
+                        roleAssignmentDate: "",
+                        contentlanguages: "",
+                        deleteRequestDate: "",
+                        reasonForDelete: "",
+                    },
+                },
+                { session }
+            );
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
 
             if (markAsDeleted) {
@@ -1582,7 +1592,6 @@ const deleteUsersAfterGDPR = async (users, errors) => {
 
         });
 
-        console.log('reached here 1');
         return deleteUsers;
 
     } catch (error) {
@@ -1864,7 +1873,107 @@ const scheduledForEveryDayMidnight = async () => {
             //clear 7 day old user requests for userprofile deletion and signup requests
             await clear7dayOldRequests();
 
+            //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
+            await reject30DayOldSignupRequests();
+            await approve30DayOldDeleteRequests();
+
+            //delete 5 year old course completion data
+            await deleteCourseDataForUserDeleted5yearsAgo();
         });
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+
+const approve30DayOldDeleteRequests = async () => {
+    try {
+        const currentDate = new Date();
+        const thirtyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 30));
+
+        const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
+
+        const usersWhoRaisedDeleteRequest = await User.find({ deleteRequest: true, ...query });
+
+        await approveDeleteRequests(usersWhoRaisedDeleteRequest);
+    }
+    catch (error) {
+        throw new Error(error.message);
+    }
+}
+
+const approveDeleteRequests = async (getUsers) => {
+    try {
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+        }
+
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: input?.users },
+            isDeleted: false,
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted?.filter(isAdmin);
+
+        if (remainingAdmins?.length === 1) {
+            console.log("At least one admin must remain in the system.");
+            throw CustomError(
+                ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
+                "At least one admin must remain in the system."
+            );
+        }
+
+        const userHistoryData = getUsers?.map(user => ({
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+            email: user?.email,
+            isDeleted: true,
+            civilIdOrPassport: user?.civilIdOrPassport,
+            lastLoginAt: user?.lastLoginAt,
+            reasonForDelete: user?.reasonForDelete,
+            directSignup: user?.directSignup,
+            deleteRequestDate: user?.deleteRequestDate,
+            decisionDate: new Date(),
+            isRegistered: user?.isRegistered,
+        }));
+
+        let errors = [];
+
+        const deleteUsers = await deleteUsersAfterGDPR(getUsers, errors);
+
+        if (errors.length > 0) {
+            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+        }
+
+        if (deleteUsers) {
+            const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(
+                userHistoryData
+            );
+
+            if (updateDeleteRequestHistory) {
+                if (userHistoryData[0]?.isEmailNotification) {
+                    const sendmailforApproval = await aws_helper.sendEmail({
+                        receiverEmail: userHistoryData[0]?.email,
+                        subject: "Delete request APPROVED",
+                        htmlContent: DeleteRequestApproved({
+                            firstName: userHistoryData[0]?.firstName,
+                        }),
+                    });
+                    if (!sendmailforApproval) {
+                        throw CustomError(
+                            ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL,
+                            "Failed to send approval email"
+                        );
+                    }
+                }
+            }
+
+            return "Successfully deleted";
+        }
     } catch (error) {
         throw new Error(error.message);
     }
