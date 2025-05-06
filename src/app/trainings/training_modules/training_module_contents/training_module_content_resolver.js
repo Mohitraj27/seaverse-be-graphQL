@@ -1030,6 +1030,19 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
         }
 
+     
+
+        const existingTitle = await TrainingModuleContent.findOne({
+           "title.value":input.title?.[0].value,
+            // isDeleted: { $ne: true }
+        }).lean();
+
+
+        if (existingTitle) {
+            throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+        }
+
+
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
         const scormFile = scorm ? await scorm : null;
