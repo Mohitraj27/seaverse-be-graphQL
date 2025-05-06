@@ -24,9 +24,17 @@ function DeleteRequestApproved(data) {
               padding: 20px;
             
           }
-          .logo {
-              height: 36px;
-          }
+          .logo-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+            text-align: center;
+            }
+            .logo {
+            max-width: 200px;
+            height: auto;
+            }
           .content {
               padding: 30px;
           }
@@ -91,9 +99,9 @@ function DeleteRequestApproved(data) {
       </style>
   </head>
   <body>
-        <div class="logo-container">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/f74ed9245e02b9e569df95efe7aab6b3f57014b0+(1).png" alt="Seaverse Logo" class="logo">
-          </div>
+         <div class="logo-section">
+        <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
+         </div>
       <div class="container">
           
           <div class="content">
