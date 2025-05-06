@@ -1034,6 +1034,7 @@ module.exports.mutations = {
      
 
         const existingTitle = await TrainingModuleContent.findOne({
+            "title.lang": "english",
             "title.value": input.title?.[0].value,
             _id: { $ne: input._id }, 
             isDeleted: { $ne: true }
