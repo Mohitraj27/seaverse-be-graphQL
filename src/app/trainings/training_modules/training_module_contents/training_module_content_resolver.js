@@ -1133,6 +1133,8 @@ module.exports.mutations = {
         }
 
         if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
+
+            
             const deletedIds = deletedVideos.map(id => id.toString());
             updateData.videos = updateData.videos.filter(video => {
                 const videoIdStr = video._id?.toString?.();
@@ -1143,17 +1145,32 @@ module.exports.mutations = {
         }
 
         if (deletedSubtitles?.length > 0) {
-            for (const subtitleId of deletedSubtitles) {
+            const existingSubtitleIds = new Set();
+            for (const video of existingContent.videos || []) {
+                for (const subtitle of video.subtitles || []) {
+                    if (subtitle._id) {
+                        existingSubtitleIds.add(subtitle._id.toString());
+                    }
+                }
+            }
+
+            const validDeletedSubtitles = deletedSubtitles.filter(id =>
+                existingSubtitleIds.has(id.toString())
+            );
+
+            for (const subtitleId of validDeletedSubtitles) {
                 for (const video of updateData.videos) {
-                    const index = video.subtitles?.findIndex(s => s._id?.toString() === subtitleId.toString());
+                    const index = video.subtitles?.findIndex(
+                        s => s._id?.toString() === subtitleId.toString()
+                    );
                     if (index >= 0) {
                         video.subtitles.splice(index, 1);
                         isUpdated = true;
-                        // isMediaUpdated = true;
                     }
                 }
             }
         }
+
 
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
