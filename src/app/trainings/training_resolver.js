@@ -344,26 +344,40 @@ module.exports.mutations = {
             if (!input._id) {
                 input._id = savedTraining._id;
             }
-            if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
-                // let errors = [];
-                // await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
-                // if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
 
-                const child = fork("./src/app/trainings/migration_enrollment.js");
-
-                child.send({
-                    migrationcourseId: input.migrationcoursesId,
-                    trainingId: savedTraining._id,
-                });
-
-            } else {
-                if (input.migrationcoursesId) {
-                    const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
-                    savedTraining.migrationcoursesId = migrationcoursesIdObjectId;
-                }
-            }
+            // else {
+            //     if (input.migrationcoursesId) {
+            //         const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
+            //         savedTraining.migrationcoursesId = migrationcoursesIdObjectId;
+            //     }
+            // }
             return savedTraining;
         });
+
+        if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
+            // let errors = [];
+            // await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
+            // if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
+
+            console.log('reached here!');
+
+            const child = fork("./src/app/trainings/migration_enrollment.js");
+
+            child.send({
+                migrationcourseId: input.migrationcoursesId,
+                trainingId: savedTraining._id,
+            });
+
+            child.on("message", async message => {
+                console.log('message');
+                console.log(message);
+            });
+
+            child.on("error", error => {
+                console.error("Error in child process:", error);
+            });
+
+        }
 
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
         if (!isUpdate) {

@@ -434,7 +434,7 @@ const extractTrainingContentData = async (trainings) => {
     return { trainingModulesMap, trainingTotalModules };
 };
 
-const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, latestRegistrationId, session) => {
+const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, latestRegistrationId, overallIds, session) => {
 
     let trainingProgressData;
     try {
@@ -443,10 +443,9 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             return;
         }
 
+        let trainingIdToModuleCount;
         if (trainingId) {
-
-            trainingIds = trainings.map(training => training._id);
-            trainingModuleCounts = await TrainingModule.aggregate([
+            const trainingModuleCounts = await TrainingModule.aggregate([
                 {
                     $match: { training: { $in: trainingIds } }
                 },
@@ -457,15 +456,14 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                     }
                 }
             ]).session(session);
-
             trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
                 acc[_id] = count;
                 return acc;
             }, {});
-
         }
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate durationHours').session(session).lean();
+        const trainingData = await Training.find({ _id: trainingId })
+            .select('_id isCertificate durationHours').session(session).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -473,24 +471,26 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
         }, {});
 
         const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
-            users.map(user => {
+            userIds.map(user => {
                 const progressKey = `${training.toString()}-${user._id.toString()}`;
 
                 const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
                 const durationHours = trainingDataById[training.toString()]?.durationHours ?? 0;
+                const overallId = ObjectId();
+                overallIds.push(overallId);
 
                 return {
                     insertOne: {
                         document: {
-                            learningPlan: learningPlanId ? [learningPlanId] : [],
-                            directEnrollment: learningPlanId ? false : true,
+                            _id: overallId,
+                            directEnrollment: true,
                             training: training,
                             user: user._id,
                             trainingRegistration: registrationId,
                             subscriberId: subscriberId.toString(),
-                            status: 'NOT_STARTED',
+                            status: 'COMPLETED',
                             isEnrolled: true,
-                            progressPercentage: 0.0,
+                            progressPercentage: 100,
                             completedModules: 0,
                             contentData: [],
                             totalDuration: durationHours,
@@ -499,31 +499,16 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                             endDate: null,
                             unenrollmentDate: null,
                             isCertificatePresent: isCertificatePresent,
+                            isFromMigration: true
                         },
                     },
                 };
-                // return {
-                //     learningPlan: learningPlanId ? [learningPlanId] : [],
-                //     directEnrollment: learningPlanId ? false : true,
-                //     training: training,
-                //     user: user._id,
-                //     trainingRegistration: registrationId,
-                //     subscriberId: subscriberId.toString(),
-                //     status: 'NOT_STARTED',
-                //     isEnrolled: true,
-                //     progressPercentage: 0.0,
-                //     completedModules: 0,
-                //     contentData: [],
-                //     totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                //     startDate: null,
-                //     endDate: null,
-                //     unenrollmentDate: null,
-                // };
             })
         ).filter(entry => entry !== null);
 
         if (newProgressEntries.length > 0) {
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
+            return overallIds;
         }
     } catch (error) {
         throw Error(error.message);
