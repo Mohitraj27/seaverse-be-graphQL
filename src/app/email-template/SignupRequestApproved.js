@@ -110,7 +110,7 @@ function approvalEmailTemplate(data) {
               <p class="greeting">Hello ${data?.firstName},</p>
               
               <p class="message">
-                  Welcome to Seaverse! 🎉 We're excited to have you on board. Your signup request has been approved, and you can now access your account.
+                  Welcome to Seaverse! We're excited to have you on board. Your signup request has been approved, and you can now access your account.
               </p>
               
               <p class="message">

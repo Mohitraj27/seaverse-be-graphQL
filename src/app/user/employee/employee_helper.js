@@ -65,6 +65,9 @@ const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelec
 const { groupTypes } = require('../../../util');
 const { DeleteRequestHistory } = require("./delete_request_history_model");
 const  HistorySignupRequest  = require("../../signup-request-history/signup-request-history-model");
+const { reject30DayOldSignupRequests } = require("../../signup-request/signup-request-helper");
+const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -1421,6 +1424,243 @@ const softDeleteUsers = async (users, errors) => {
 
 }
 
+const deleteUsersAfterGDPR = async (users, errors) => {
+
+    try {
+
+        const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
+            .populate("subRoles", "name")
+            .lean();
+
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+        }
+
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: users },
+            isDeleted: false
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+        console.log("remainingAdmins", remainingAdmins.length)
+        if (remainingAdmins.length === 1) {
+            console.log("At least one admin must remain in the system.");
+            throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+        }
+
+        const trainingProgressesToBeDeleted = await OverallTrainingProgress.find({
+            user: { $in: users },
+            status:{$ne:"COMPLETED"}
+        }).select("user _id trainingRegistration learningPlan training").lean();
+       
+        const trainingProgressesNotToBeDeleted = await OverallTrainingProgress.find({
+            user: { $in: users },
+            status: "COMPLETED"
+        }).select("user _id learningPlan ").lean();
+
+
+        const trainingProgressesToBeDeletedIds = trainingProgressesToBeDeleted.map(({ _id }) => _id);
+        const removeIncompleteUserDataFromTrainingReg = trainingProgressesToBeDeleted.map(({ user, trainingRegistration }) => ({
+            updateOne: {
+                filter: { _id: trainingRegistration },
+                update: { $pull: { users: user } }
+            }
+        }));
+
+        const userlearningPlanIdMap = trainingProgressesNotToBeDeleted.reduce((acc, curr) => {
+            const userId = curr.user.toString();
+            const plans = Array.isArray(curr.learningPlan) ? curr.learningPlan : [curr.learningPlan];
+        
+            if (!acc[userId]) {
+                acc[userId] = [];
+            }
+        
+            acc[userId].push(...plans);
+            return acc;
+        }, {});
+
+        // for removing duplicate learningplan ids
+        for (const userId in userlearningPlanIdMap) {
+            userlearningPlanIdMap[userId] = [...new Set(userlearningPlanIdMap[userId])];
+        }
+
+        const bulkDeleteOpsLPAssignments = Object.entries(userlearningPlanIdMap).map(([userId, allowedPlanIds]) => ({
+            deleteMany: {
+                filter: {
+                    assignedLearnerId: userId,
+                    learningPlanId: { $nin: allowedPlanIds }
+                }
+            }
+        }));
+
+
+
+        const deleteUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+
+
+            // const deletedUsers = getUsers.map(user => {
+            //     return {
+            //         ...user,
+            //         isDeleted: true
+            //     };
+            // });
+
+            if (removeIncompleteUserDataFromTrainingReg.length > 0) {
+                await TrainingRegistration.bulkWrite(removeIncompleteUserDataFromTrainingReg, { session });
+            }
+            if (bulkDeleteOpsLPAssignments.length > 0) {
+                await LearningPlanAssignment.bulkWrite(bulkDeleteOpsLPAssignments, { session });
+            }
+            const markAsDeleted = await User.updateMany(
+                { _id: { $in: users } },
+                {
+                    $set: {
+                        isDeleted: true,
+                        isRegistered: false,
+                        subRoles: [],
+                        deleteRequest: false,
+                        deletionDate: new Date(),
+                    },
+                    $unset: {
+                        email: "",
+                        dummyPassword: "",
+                        languagePreference: "",
+                        currentVessel: "",
+                        vesselStatus: "",
+                        password: "",
+                        isSignupAdminApproved: "",
+                        UID: "",
+                        lastLoginAt: "",
+                        civilIdOrPassport: "",
+                        roleAssignmentDate: "",
+                        contentlanguages: "",
+                        deleteRequestDate: "",
+                        reasonForDelete: "",
+                    },
+                },
+                { session }
+            );
+            // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            await OverallTrainingProgress.deleteMany(
+                {
+                    user: { $in: users },
+                    status: { $ne: "COMPLETED" },
+                },
+                { session }
+            );
+
+            if (markAsDeleted) {
+
+                // let deleteUsers = await User.deleteMany(
+                //     { _id: { $in: users } },
+                //     { session }
+                // );
+
+                await Employee.updateMany(
+                    { user: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                // await LearningPlanAssignment.updateMany(
+                //     { assignedLearnerId: { $in: users } },
+                //     { $set: { isDeleted: true } },
+                //     { session }
+                // );
+
+                // await OverallTrainingProgress.updateMany(
+                //     { user: { $in: users } },
+                //     { $set: { isDeleted: true } },
+                //     { session }
+                // );
+
+                // if (deleteUsers) {
+
+                const getAdminGroups = await Group.find({ groupAdmin: { $in: users } }).session(session);
+
+                if (getAdminGroups.length > 0) {
+                    const deletedGroups = getAdminGroups.map(group => ({
+                        ...group.toObject(),
+                        isDeleted: true
+                    }));
+
+                    await DeletedGroup.insertMany(deletedGroups, { session });
+                }
+
+                let updateGroup;
+
+                updateGroup = await Group.updateMany(
+                    { members: { $in: users } },
+                    [
+                        {
+                            $set: {
+                                members: {
+                                    $filter: {
+                                        input: "$members",
+                                        as: "member",
+                                        cond: { $not: { $in: ["$$member", users] } }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $set: {
+                                memberCount: { $size: "$members" }
+                            }
+                        }
+                    ],
+                    { session }
+                );
+
+                const updateGroupMember = await GroupMember.updateMany(
+                    { member: { $in: users } },
+                    { $set: { isDeleted: true } },
+                    { session }
+                );
+
+                if (updateGroupMember) {
+                    /*
+                    for (const user of getUsers) {
+                        const htmlContent = sendDeleteEmailToLearner(user.firstName);
+                        await SendEmail({
+                            receiverEmail: user.email,
+                            subject: "Your account has been deleted",
+                            htmlContent: htmlContent,
+                        });
+                    }
+                    */
+                    return true;
+                }
+
+                return true;
+
+                // } else {
+                //     errors.push("Error while deleting users");
+                //     return;
+                // }
+
+            } else {
+                errors.push("Error while deleting users");
+                return;
+            }
+
+        });
+
+        return deleteUsers;
+
+    } catch (error) {
+        console.log(error);
+        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
+
+    }
+
+}
+
 const restoreUsers = async (users, errors) => {
     try {
         const savedUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
@@ -1693,7 +1933,107 @@ const scheduledForEveryDayMidnight = async () => {
             //clear 7 day old user requests for userprofile deletion and signup requests
             await clear7dayOldRequests();
 
+            //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
+            await reject30DayOldSignupRequests();
+            await approve30DayOldDeleteRequests();
+
+            //delete 5 year old course completion data
+            await deleteCourseDataForUserDeleted5yearsAgo();
         });
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+
+const approve30DayOldDeleteRequests = async () => {
+    try {
+        const currentDate = new Date();
+        const thirtyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 30));
+
+        const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
+
+        const usersWhoRaisedDeleteRequest = await User.find({ deleteRequest: true, ...query });
+
+        await approveDeleteRequests(usersWhoRaisedDeleteRequest);
+    }
+    catch (error) {
+        throw new Error(error.message);
+    }
+}
+
+const approveDeleteRequests = async (getUsers) => {
+    try {
+        if (!getUsers || getUsers.length === 0) {
+            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+        }
+
+        const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+        const adminsNotBeingDeleted = await User.find({
+            _id: { $nin: input?.users },
+            isDeleted: false,
+        })
+            .populate("subRoles", "name")
+            .lean();
+
+        const remainingAdmins = adminsNotBeingDeleted?.filter(isAdmin);
+
+        if (remainingAdmins?.length === 1) {
+            console.log("At least one admin must remain in the system.");
+            throw CustomError(
+                ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
+                "At least one admin must remain in the system."
+            );
+        }
+
+        const userHistoryData = getUsers?.map(user => ({
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+            email: user?.email,
+            isDeleted: true,
+            civilIdOrPassport: user?.civilIdOrPassport,
+            lastLoginAt: user?.lastLoginAt,
+            reasonForDelete: user?.reasonForDelete,
+            directSignup: user?.directSignup,
+            deleteRequestDate: user?.deleteRequestDate,
+            decisionDate: new Date(),
+            isRegistered: user?.isRegistered,
+        }));
+
+        let errors = [];
+
+        const deleteUsers = await deleteUsersAfterGDPR(getUsers, errors);
+
+        if (errors.length > 0) {
+            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+        }
+
+        if (deleteUsers) {
+            const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(
+                userHistoryData
+            );
+
+            if (updateDeleteRequestHistory) {
+                if (userHistoryData[0]?.isEmailNotification) {
+                    const sendmailforApproval = await aws_helper.sendEmail({
+                        receiverEmail: userHistoryData[0]?.email,
+                        subject: "Delete request APPROVED",
+                        htmlContent: DeleteRequestApproved({
+                            firstName: userHistoryData[0]?.firstName,
+                        }),
+                    });
+                    if (!sendmailforApproval) {
+                        throw CustomError(
+                            ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL,
+                            "Failed to send approval email"
+                        );
+                    }
+                }
+            }
+
+            return "Successfully deleted";
+        }
     } catch (error) {
         throw new Error(error.message);
     }
@@ -1811,6 +2151,7 @@ module.exports = {
     scheduledForEveryDayMidnight,
     deleteUsers,
     softDeleteUsers,
+    deleteUsersAfterGDPR,
     restoreUsers,
     sendInvitationMail,
     sendCourseInvitationMail,
