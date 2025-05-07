@@ -860,6 +860,15 @@ module.exports.queries = {
                             },
                         ]
                         : []),
+                    ...(filterInput?.country !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.country": {$in : filterInput?.country},
+                                },
+                            },
+                        ]
+                        : []),
                     ...(filterInput?.lastSeen
                         ? [
                             {
