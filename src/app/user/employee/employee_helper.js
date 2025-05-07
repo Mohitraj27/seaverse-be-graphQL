@@ -1928,17 +1928,24 @@ const clear7dayOldRequests = async () => {
 const scheduledForEveryDayMidnight = async () => {
     try {
         // Schedule the task to run every day at midnight
-        CronHelper.schedule("0 0 * * *", async () => {
+        CronHelper.schedule("* * * * *", async () => {
+
+            console.log("running in every one min");
 
             //clear 7 day old user requests for userprofile deletion and signup requests
+            console.log(1);
             await clear7dayOldRequests();
-
+            console.log(2);
+            
             //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
             await reject30DayOldSignupRequests();
+            console.log(3);
             await approve30DayOldDeleteRequests();
-
+            console.log(4);
+            
             //delete 5 year old course completion data
             await deleteCourseDataForUserDeleted5yearsAgo();
+            console.log(5);
         });
     } catch (error) {
         throw new Error(error.message);
@@ -1949,7 +1956,7 @@ const scheduledForEveryDayMidnight = async () => {
 const approve30DayOldDeleteRequests = async () => {
     try {
         const currentDate = new Date();
-        const thirtyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 30));
+        const thirtyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - - 1 * 60 * 1000)); //30 days ago
 
         const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
 
@@ -1965,7 +1972,7 @@ const approve30DayOldDeleteRequests = async () => {
 const approveDeleteRequests = async (getUsers) => {
     try {
         if (!getUsers || getUsers.length === 0) {
-            throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+           return "no users to delete";
         }
 
         const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
