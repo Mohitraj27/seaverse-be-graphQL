@@ -1033,16 +1033,7 @@ module.exports.mutations = {
 
      
 
-        const existingTitle = await TrainingModuleContent.findOne({
-            "title.lang": "english",
-            "title.value": input.title?.[0].value,
-            _id: { $ne: input._id }, 
-            isDeleted: { $ne: true }
-        }).lean();
-
-        if (existingTitle) {
-            throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
-        }
+     
 
 
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
