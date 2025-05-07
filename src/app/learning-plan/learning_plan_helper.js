@@ -255,14 +255,12 @@ const createLearningPlanHelper = async (input, context) => {
         else {
             newLearningPlan = await createNewLearningPlan(input);
 
-            const fromCreateLP = true;
             const { userIds } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
                 audienceSelection: input.audienceSelection,
                 conditionType: input.conditionType,
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs,
-                fromCreateLP
             });
             if (userIds?.length > 0) {
                 const assignments = userIds.map(userId => ({
@@ -372,13 +370,17 @@ const updateLearningPlanHelper = async (id, input, context) => {
         await existingLearningPlan.save();
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
-        const unRegisteredRemovedLearners = await User.find({ _id: { $in: removedLearnerIdsArray }, isRegistered: { $ne: true } }).select('_id');
-        const unRegisteredRemovedLearnerIds = unRegisteredRemovedLearners.map(user => user._id.toString());
-
-        let remainingRemovedLearnerIds = [];
-
-        let filteredUserIds = [];
-
+        await LearningPlanAssignment.deleteMany({
+            learningPlanId: existingLearningPlan._id
+        });
+        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { user: { $in: removedLearnerIdsArray }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        );
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
             learnersToAssign = await User.find({
@@ -394,37 +396,11 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 conditionalCustomFields: input.conditionalCustomFields,
                 groupIDs: input.groupIDs
             });
-            if(userIds?.length > 0 ){
-                const userIdsToString = userIds?.map(userId => userId.toString());
-                const filteredUnRegisteredRemovedLearnerIds = unRegisteredRemovedLearnerIds.filter(userId => userIdsToString.includes(userId.toString()));
-                remainingRemovedLearnerIds = removedLearnerIdsArray.filter(userId => !filteredUnRegisteredRemovedLearnerIds.includes(userId.toString()));
-
-                const registeredUsers = await User.find({ _id: { $in: userIds }, isRegistered: { $ne: false } }).select('_id');
-                const registeredUserIds = registeredUsers.map(user => user._id);
-                learnersToAssign = registeredUserIds;
-            }
+            learnersToAssign = userIds;
             
         }
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
-        }
-
-        if (remainingRemovedLearnerIds?.length > 0) {
-
-            await LearningPlanAssignment.deleteMany({
-                learningPlanId: existingLearningPlan._id,
-                assignedLearnerId: { $in: remainingRemovedLearnerIds },
-            });
-
-            const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-                { user: { $in: remainingRemovedLearnerIds }, learningPlan: { $in: existingLearningPlan._id }, isDeleted: { $ne: true } },
-                {
-                    $pull: {
-                        learningPlan: existingLearningPlan._id
-                    }
-                }
-            );
-
         }
 
         if (learnersToAssign?.length > 0) {
@@ -506,9 +482,7 @@ const getUsersAndCount = async (input) => {
         filter.isDeleted = false;
         filter.isSignupAdminAprroved = true;
         filter.isActive = true;
-        if (input?.fromCreateLP || input?.fromUserCount) {
-            filter.isRegistered = true;
-        }
+        filter.isRegistered = true;
 
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
