@@ -140,7 +140,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 deteledUsersStage = [
                     {
                         $match: {
-                            $and: [
+                            $or: [
                                 {
                                     "userInfo.isDeleted": {
                                         $ne: true
