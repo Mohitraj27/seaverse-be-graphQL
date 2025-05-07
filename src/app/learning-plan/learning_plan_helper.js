@@ -1178,13 +1178,14 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     users: {
                         $map: {
                             input: "$users",
-                            input: {
+                            //COMENTED OUT FOR SHOWING COURSE COMPLETED DETELETED USERS DATA
+                            /* input: {
                                 $filter: {
                                     input: "$users",
                                     as: "user",
                                     cond: { $eq: ["$$user.userDetails.isDeleted", false] }
                                 }
-                            },
+                            }, */
                             as: "user",
                             in: {
                                 _id: "$$user.userId",
