@@ -427,7 +427,7 @@ module.exports.mutations = {
                         if(input?.consents?.some(consent => consent.status === false)) {
                            await AwsHelper.sendEmail({
                                 receiverEmail: existingUser?.email,
-                                subject: `Your Sign-Up Was Not Complete`,
+                                subject: `Your Sign In Was Not Complete`,
                                 htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
                             });
                             const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
