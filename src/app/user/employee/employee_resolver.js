@@ -2307,9 +2307,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         if (input.type === "APPROVE") {
             
-                    if (!getUsers || getUsers?.length === 0) {
-                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
-                    }
+                    // if (!getUsers || getUsers?.length === 0) {
+                    //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    // }
             
                     const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
             
@@ -2344,13 +2344,15 @@ const respondToDeleteRequest = async ({ input }, context) => {
             }));
 
             let errors = [];
-            const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // Soft delete users keeping only the first name, last name and course details
+            const deleteUsers = await EmployeeHelper.deleteUsersAfterGDPR(input.users, errors);
 
             if (errors.length > 0) {
                 throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
             }
 
-            if (deleteUsers.deletedCount > 0) {
+            if (deleteUsers) {
 
                 const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
@@ -2363,9 +2365,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
                                 firstName: userHistoryData[0]?.firstName,
                             })
                         });
-                    }
-                    if (!sendmailforApproval) {
-                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
 
                 }

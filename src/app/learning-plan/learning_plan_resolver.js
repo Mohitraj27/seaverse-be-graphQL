@@ -624,9 +624,9 @@ module.exports.queries = {
                         foreignField: "_id",
                         as: "userDetails",
                         pipeline: [
-                            {
-                                $match: { isDeleted: { $ne: true } }
-                            },
+                            /* {
+                                $match: { isDeleted: { $ne: true } }    //for gdpr change of keeping users name only 
+                            }, */
                             {
                                 $project: {
                                     _id: 1,
