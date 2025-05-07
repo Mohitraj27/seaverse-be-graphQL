@@ -2226,9 +2226,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
 
-        if (!getUsers) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
 
 
         if (input.type === "REJECT") {
@@ -2310,9 +2307,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         if (input.type === "APPROVE") {
             
-                    if (!getUsers || getUsers.length === 0) {
-                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
-                    }
+                    // if (!getUsers || getUsers?.length === 0) {
+                    //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    // }
             
                     const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
             

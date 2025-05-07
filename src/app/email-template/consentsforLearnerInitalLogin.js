@@ -7,12 +7,11 @@ function consentsforLearnerInitalLogin(data) {
   </head>
   <body style="margin: 0; padding: 0;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-      <tr>
-        <td align="center" style="padding: 30px 0;">
-          <!-- Dummy logo URL - replace this with your actual S3 link -->
-          <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" style="height: 50px;"/>
-        </td>
-      </tr>
+      <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+            <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
+            </td>
+        </tr>
       <tr>
         <td align="center">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05);">

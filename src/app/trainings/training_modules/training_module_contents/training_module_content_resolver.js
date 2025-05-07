@@ -24,6 +24,7 @@ const notificationiconEnum = require("../../../notifications/notification_icon.j
 
 const { TrainingProgress } = require("../../../training-registrations/training-progress/training_progress_model");
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
+const { default: mongoose } = require("mongoose");
 
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
@@ -1030,6 +1031,20 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
         }
 
+     
+
+        const existingTitle = await TrainingModuleContent.findOne({
+            "title.lang": "english",
+            "title.value": input.title?.[0].value,
+            _id: { $ne: input._id }, 
+            isDeleted: { $ne: true }
+        }).lean();
+
+        if (existingTitle) {
+            throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+        }
+
+
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
         const scormFile = scorm ? await scorm : null;
@@ -1120,6 +1135,8 @@ module.exports.mutations = {
         }
 
         if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
+
+            
             const deletedIds = deletedVideos.map(id => id.toString());
             updateData.videos = updateData.videos.filter(video => {
                 const videoIdStr = video._id?.toString?.();
@@ -1141,6 +1158,7 @@ module.exports.mutations = {
                 }
             }
         }
+
 
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
