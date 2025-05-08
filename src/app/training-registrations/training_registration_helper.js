@@ -434,33 +434,102 @@ const extractTrainingContentData = async (trainings) => {
     return { trainingModulesMap, trainingTotalModules };
 };
 
-const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, latestRegistrationId, overallIds, session) => {
+const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, trainingRegistrationId, errors, session) => {
 
-    let trainingProgressData;
     try {
 
-        if (userIds.length == 0 || !trainingId || !latestRegistrationId) {
+        if (userIds.length == 0 || !trainingId || !trainingRegistrationId) {
             return;
         }
 
-        let trainingIdToModuleCount;
+        let trainingModuleCount;
+
+        let contentData = [];
+        let moduleCount = 0;
+        let overallIds = [];
         if (trainingId) {
-            const trainingModuleCounts = await TrainingModule.aggregate([
-                {
-                    $match: { training: { $in: trainingIds } }
-                },
-                {
-                    $group: {
-                        _id: "$training",
-                        count: { $sum: 1 }
-                    }
+
+            console.log('inside first if');
+
+            const trainingModules = await TrainingModule.find({ training: trainingId, isDeleted: { $ne: true } }).session(session).lean();
+
+            trainingModuleCount = trainingModules.length;
+
+            // const training = await Training.aggregate([
+            //     { $match: { _id: trainingId } },
+            //     {
+            //         $lookup: {
+            //             from: "certificatelayouts",
+            //             localField: "_id",
+            //             foreignField: "training",
+            //             as: "certificateLayouts",
+            //             let: { currentCertificateLayout: "$$ROOT.currentCertificateLayout" },
+            //             pipeline: [
+            //                 { $match: { $expr: { $eq: ["$layout", "$$currentCertificateLayout"] } } },
+            //                 { $project: { _id: 1, certificateExpiry: 1, version: 1 } },
+            //                 { $sort: { version: -1 } },
+            //                 { $limit: 1 }
+            //             ]
+            //         }
+            //     },
+            //     { $unwind: { path: "$certificateLayouts", preserveNullAndEmptyArrays: true } },
+            //     {
+            //         $project: {
+            //             _id: 1,
+            //             isCertificate: 1,
+            //             currentCertificateLayout: 1,
+            //             layoutId: "$certificateLayouts._id",
+            //             certificateValidity: "$certificateLayouts.certificateExpiry",
+            //         }
+            //     }
+            // ]);
+
+            // if (!training.length) {
+            //     errors.push(`Training not found`);
+            //     return;
+            // }
+
+            // const trainingInfo = training[0];
+
+            const contents = await TrainingContentBridge.find({
+                training: trainingId,
+                isDeleted: { $ne: true },
+            })
+                .sort({ order: 1 })
+                .lean();
+
+            if (!contents.length) {
+                errors.push(`Training content not found`);
+                return;
+            }
+
+            const contentDataMap = new Map();
+
+            for (const content of contents) {
+                const moduleId = content.trainingModule.toString();
+                const contentId = content.trainingContent.toString();
+                if (!contentDataMap.has(moduleId)) {
+                    contentDataMap.set(moduleId, []);
                 }
-            ]).session(session);
-            trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
-                acc[_id] = count;
-                return acc;
-            }, {});
+                contentDataMap.get(moduleId).push(contentId);
+            }
+
+            const moduleIds = Array.from(contentDataMap.keys());
+
+            const modules = await TrainingModule.find({ _id: { $in: moduleIds } })
+                .select("_id order")
+                .lean();
+
+            moduleCount = modules.length;
+
+            const moduleOrderMap = new Map(modules.map((m) => [m._id.toString(), m.order]));
+
+            contentData = Array.from(contentDataMap.entries())
+                .map(([moduleId, contentIds]) => ({ moduleId, contentIds }))
+                .sort((a, b) => (moduleOrderMap.get(a.moduleId) || 0) - (moduleOrderMap.get(b.moduleId) || 0));
+
         }
+
 
         const trainingData = await Training.find({ _id: trainingId })
             .select('_id isCertificate durationHours').session(session).lean();
@@ -470,52 +539,86 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             return acc;
         }, {});
 
-        const newProgressEntries = latestRegistrationId.flatMap(({ _id: registrationId, training }) =>
-            userIds.map(user => {
-                const progressKey = `${training.toString()}-${user._id.toString()}`;
+        console.log('reached here before newProgressEntries!');
 
-                const isCertificatePresent = trainingDataById[training.toString()]?.isCertificate ?? false;
-                const durationHours = trainingDataById[training.toString()]?.durationHours ?? 0;
-                const overallId = ObjectId();
-                overallIds.push(overallId);
+        const newProgressEntries = userIds.map(user => {
+            // const progressKey = `${trainingId.toString()}-${user._id.toString()}`;
 
-                return {
-                    insertOne: {
-                        document: {
-                            _id: overallId,
-                            directEnrollment: true,
-                            training: training,
-                            user: user._id,
-                            trainingRegistration: registrationId,
-                            subscriberId: subscriberId.toString(),
-                            status: 'COMPLETED',
-                            isEnrolled: true,
-                            progressPercentage: 100,
-                            completedModules: 0,
-                            contentData: [],
-                            totalDuration: durationHours,
-                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                            startDate: null,
-                            endDate: null,
-                            unenrollmentDate: null,
-                            isCertificatePresent: isCertificatePresent,
-                            isFromMigration: true
-                        },
+            const isCertificatePresent = trainingDataById[trainingId.toString()]?.isCertificate ?? false;
+            const durationHours = trainingDataById[trainingId.toString()]?.durationHours ?? 0;
+            const overallId = ObjectId();
+            overallIds.push(overallId);
+
+            return {
+                insertOne: {
+                    document: {
+                        _id: overallId,
+                        directEnrollment: true,
+                        training: trainingId,
+                        user: user,
+                        trainingRegistration: trainingRegistrationId,
+                        subscriberId: subscriberId,
+                        status: 'COMPLETED',
+                        isEnrolled: true,
+                        progressPercentage: 100,
+                        completedModules: trainingModuleCount || 0,
+                        contentData: contentData || [],
+                        totalDuration: durationHours,
+                        totalTrainingModules: trainingModuleCount || 0,
+                        startDate: null,
+                        endDate: null,
+                        unenrollmentDate: null,
+                        isCertificatePresent: isCertificatePresent,
+                        isFromMigration: true
                     },
-                };
-            })
-        ).filter(entry => entry !== null);
+                },
+            };
+        });
+
+        console.log('newProgressEntries')
+        console.log(newProgressEntries)
 
         if (newProgressEntries.length > 0) {
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
+
+            const contentInsertDocs = [];
+
+            for (const overallId of overallIds) {
+                for (const { moduleId, contentIds } of contentData) {
+                    for (const contentId of contentIds) {
+                        contentInsertDocs.push({
+                            trainingRegistration: trainingRegistrationId,
+                            trainingModule: moduleId,
+                            trainingModuleContent: contentId,
+                            overallTrainingProgress: overallId,
+                            attemptCount: 1,
+                            status: "COMPLETED",
+                            lastAccessedDuration: 0,
+                            progressPercentage: 100,
+                            playerSettings: null,
+                            videoId: null,
+                        });
+                    }
+                }
+            }
+
+            if (contentInsertDocs.length > 0) {
+                await TrainingProgress.insertMany(contentInsertDocs, { session });
+            }
+            console.log(overallIds)
             return overallIds;
         }
+
     } catch (error) {
         throw Error(error.message);
     }
-
-    return true;
 };
+
+const updateTrainingProgressesForMigrationUsersHelper = async (trainingProgressIds, userIds, subscriberId, session) => {
+
+
+
+}
 
 const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId, session) => {
 
@@ -863,6 +966,7 @@ const summarizeResults = (results) => {
 module.exports = {
     enrolUserVerificationHelper,
     createTrainingProgressForMigrationUsersHelper,
+    updateTrainingProgressesForMigrationUsersHelper,
     createTrainingProgressHelper,
     getAutoSyncUsers,
     getCustomGroupUsers,
@@ -1495,7 +1599,7 @@ module.exports = {
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
-
+ 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
@@ -1509,9 +1613,9 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
-
+ 
                 } else {
-
+ 
                     const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,

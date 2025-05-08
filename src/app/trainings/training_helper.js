@@ -37,6 +37,7 @@ const employeeHelper = require("../user/employee/employee_helper");
 const { UserCourseMap } = require("./migrationcourses/userCourseMap/user_course_map_model");
 const { generateRandomString } = require("../user/user-profile/user_profile_helper");
 const { BatchHelper } = require("../batches/batch_helper");
+const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -1538,8 +1539,6 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
 
 const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
-    console.log(`migrationcourseId`, typeof migrationcourseId);
-
     // Convert migrationcourseId to ObjectId if it's a string
     if (typeof migrationcourseId === 'string') {
         migrationcourseId = ObjectId(migrationcourseId);
@@ -1554,6 +1553,8 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
+
+        console.log('inside transaction');
 
         const userBulkOps = [];
         const employeeBulkOps = [];
@@ -1627,9 +1628,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         };
 
-        console.log('userBulkOps');
-        console.log(userBulkOps);
-
         if (userBulkOps.length > 0) {
             await User.bulkWrite(userBulkOps, { session });
         }
@@ -1639,7 +1637,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         }
         // User creation end
 
-        console.log('user creation happened');
+        console.log('user creation end');
 
         // Course enrollment start
         let existingTrainingRegistration;
@@ -1652,7 +1650,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             }
         }
 
-
         const batchUID = await BatchHelper.generateBatchUID({ subscriberId });
 
         const updateFields = { subscriber: subscriberId, $addToSet: {} };
@@ -1661,7 +1658,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         }
 
         let savedTrainingRegistration;
-        let trainingRegistrationIds = [];
+        let trainingRegistrationId;
         let notEnrolledUsers = [];
 
         if (existingTrainingRegistration) {
@@ -1672,7 +1669,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
                 !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
             );
 
-            savedTrainingRegistration = await TrainingRegistration.updateMany(
+            savedTrainingRegistration = await TrainingRegistration.updateOne(
                 { _id: existingTrainingRegId },
                 updateFields,
                 { session }
@@ -1681,26 +1678,37 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             const updatedRegistrations = await TrainingRegistration.find({
                 training: { trainingId }
             }).session(session);
-            trainingRegistrationIds = updatedRegistrations && updatedRegistrations.map(({ _id, training }) => ({ _id, training }));
+            trainingRegistrationId = existingTrainingRegId;
 
         } else {
 
             savedTrainingRegistration = await TrainingRegistration.create([{ training: trainingId, users: userIds, subscriber: subscriberId }], { session });
-            trainingRegistrationIds = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
+            // trainingRegistrationId = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
+            trainingRegistrationId = savedTrainingRegistration[0]._id;
 
         }
 
-        console.log('savedTrainingRegistration', savedTrainingRegistration);
+        if (savedTrainingRegistration) {
 
+            let trainingProgressIds;
 
-        // if (savedTrainingRegistration) {
+            let overallIds = [];
+            console.log('userIds')
+            console.log(userIds)
+            console.log('trainingId')
+            console.log(trainingId)
+            console.log('trainingRegistrationId')
+            console.log(trainingRegistrationId)
+            trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
 
-        //     let trainingProgressData;
+            console.log('trainingProgressIds');
+            console.log(trainingProgressIds);
+            // Create the training progress for the users
+            // if (trainingProgressIds && trainingProgressIds.length > 0) {
+            //     await updateTrainingProgressesForMigrationUsersHelper(trainingProgressIds, userIds, subscriberId, session);
+            // }
 
-        //     let overallIds = [];
-        //     trainingProgressData = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationIds, overallIds, session);
-
-        // }
+        }
 
         // const trainingsData = await Training.find({ _id: { $in: input.trainings } });
 
