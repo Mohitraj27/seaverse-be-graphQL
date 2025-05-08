@@ -1,4 +1,4 @@
-const { Schema, Model, mongoose, ObjectId } = require("../../../tools");
+const { Schema, Model, ObjectId } = require("../../../tools");
 const { LocalisedDataSchema } = require("../../../util/localised_data_schema");
 
 const migrationCourse = new Schema(
