@@ -455,42 +455,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
             trainingModuleCount = trainingModules.length;
 
-            // const training = await Training.aggregate([
-            //     { $match: { _id: trainingId } },
-            //     {
-            //         $lookup: {
-            //             from: "certificatelayouts",
-            //             localField: "_id",
-            //             foreignField: "training",
-            //             as: "certificateLayouts",
-            //             let: { currentCertificateLayout: "$$ROOT.currentCertificateLayout" },
-            //             pipeline: [
-            //                 { $match: { $expr: { $eq: ["$layout", "$$currentCertificateLayout"] } } },
-            //                 { $project: { _id: 1, certificateExpiry: 1, version: 1 } },
-            //                 { $sort: { version: -1 } },
-            //                 { $limit: 1 }
-            //             ]
-            //         }
-            //     },
-            //     { $unwind: { path: "$certificateLayouts", preserveNullAndEmptyArrays: true } },
-            //     {
-            //         $project: {
-            //             _id: 1,
-            //             isCertificate: 1,
-            //             currentCertificateLayout: 1,
-            //             layoutId: "$certificateLayouts._id",
-            //             certificateValidity: "$certificateLayouts.certificateExpiry",
-            //         }
-            //     }
-            // ]);
-
-            // if (!training.length) {
-            //     errors.push(`Training not found`);
-            //     return;
-            // }
-
-            // const trainingInfo = training[0];
-
             const contents = await TrainingContentBridge.find({
                 training: trainingId,
                 isDeleted: { $ne: true },
