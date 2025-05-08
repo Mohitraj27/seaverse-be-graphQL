@@ -24,9 +24,6 @@ function approvalEmailTemplate(data) {
               padding: 20px;
             
           }
-          .logo {
-              height: 36px;
-          }
           .content {
               padding: 30px;
           }
@@ -60,6 +57,17 @@ function approvalEmailTemplate(data) {
               padding: 10px 24px;
               border-radius: 4px;
           }
+            .logo-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .logo {
+            max-width: 200px;
+            height: auto;
+        }
           .support-box {
               background-color: #F3F4F6;
               padding: 16px;
@@ -91,9 +99,9 @@ function approvalEmailTemplate(data) {
       </style>
   </head>
   <body>
-        <div class="logo-container">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" class="logo">
-          </div>
+          <div class="logo-section">
+        <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
+         </div>
       <div class="container">
           
           <div class="content">
@@ -102,7 +110,7 @@ function approvalEmailTemplate(data) {
               <p class="greeting">Hello ${data?.firstName},</p>
               
               <p class="message">
-                  Welcome to Seaverse! 🎉 We're excited to have you on board. Your signup request has been approved, and you can now access your account.
+                  Welcome to Seaverse! We're excited to have you on board. Your signup request has been approved, and you can now access your account.
               </p>
               
               <p class="message">

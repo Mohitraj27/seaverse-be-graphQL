@@ -75,14 +75,14 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline: [
+                   /*  pipeline: [
                         {
                             $match: {
                                 isDeleted: false,
                                 isSignupAdminAprroved: { $ne: false },
                             }
                         }
-                    ]
+                    ] */
                 }
             },
             {
@@ -133,9 +133,17 @@ module.exports.queries = {
             },
             {
                 $match: {
-                    'userInfo': { $ne: null },
-                    'userInfo.isDeleted': { $ne: true },
-                    'userInfo.isSignupAdminAprroved': { $ne: false }
+                    $or: [
+                        {
+                            status: "COMPLETED",
+                            'userInfo': { $ne: null },
+                        },
+                        {
+                            'userInfo': { $ne: null },
+                            'userInfo.isDeleted': { $ne: true },
+                            'userInfo.isSignupAdminAprroved': { $ne: false }
+                        }
+                    ]
                 }
             },
             {
@@ -168,7 +176,7 @@ module.exports.queries = {
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
-            email: user.email,
+            email: user.email ?? "",
             isRegistered: user.isRegistered,
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
@@ -1894,17 +1902,20 @@ module.exports.mutations = {
             );
             const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-            const emailContent = courseCompletion({
-                firstName: overallTrainingProgressUsers[0].user.firstName,
-                trainingTitle: trainingData[0].title[0]?.value,
-                durationHours: trainingData[0].durationHours,
-                courseId: trainingData[0]._id,
-            });
-            sendEmail({
-                receiverEmail: overallTrainingProgressUsers[0].user.email,
-                subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
-                htmlContent: emailContent,
-            });
+            if(overallTrainingProgressUsers[0].user.isEmailNotification){
+                const emailContent = courseCompletion({
+                    firstName: overallTrainingProgressUsers[0].user.firstName,
+                    trainingTitle: trainingData[0].title[0]?.value,
+                    durationHours: trainingData[0].durationHours,
+                    courseId: trainingData[0]._id,
+                    courseImage: courseImages,
+                });
+                sendEmail({
+                    receiverEmail: overallTrainingProgressUsers[0].user.email,
+                    subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
+                    htmlContent: emailContent,
+                });
+            }            
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,

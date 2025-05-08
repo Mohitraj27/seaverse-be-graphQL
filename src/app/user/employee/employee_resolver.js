@@ -860,6 +860,15 @@ module.exports.queries = {
                             },
                         ]
                         : []),
+                    ...(filterInput?.country !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.country": {$in : filterInput?.country},
+                                },
+                            },
+                        ]
+                        : []),
                     ...(filterInput?.lastSeen
                         ? [
                             {
@@ -2226,9 +2235,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
 
-        if (!getUsers) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
 
 
         if (input.type === "REJECT") {
@@ -2286,15 +2292,18 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     }
 
                     if (updateDeleteRequestHistory) {
-                        const sendmailforApproval = await aws_helper.sendEmail({
-                            receiverEmail: userHistoryData[0]?.email,
-                            subject: 'Delete request REJECTED',
-                            htmlContent: DeleteRequestRejected({
-                                firstName: userHistoryData[0]?.firstName,
-                            })
-                        });
-                        if (!sendmailforApproval) {
-                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        if (userHistoryData[0]?.isEmailNotification) {
+                            const sendmailforApproval = await aws_helper.sendEmail({
+                                receiverEmail: userHistoryData[0]?.email,
+                                subject: 'Delete request REJECTED',
+                                htmlContent: DeleteRequestRejected({
+                                    firstName: userHistoryData[0]?.firstName,
+                                })
+                            });
+
+                            if (!sendmailforApproval) {
+                                throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                            }
                         }
                     }
                 }
@@ -2307,9 +2316,9 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
         if (input.type === "APPROVE") {
             
-                    if (!getUsers || getUsers.length === 0) {
-                        throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
-                    }
+                    // if (!getUsers || getUsers?.length === 0) {
+                    //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+                    // }
             
                     const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
             
@@ -2344,26 +2353,30 @@ const respondToDeleteRequest = async ({ input }, context) => {
             }));
 
             let errors = [];
-            const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // Soft delete users keeping only the first name, last name and course details
+            const deleteUsers = await EmployeeHelper.deleteUsersAfterGDPR(input.users, errors);
 
             if (errors.length > 0) {
                 throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
             }
 
-            if (deleteUsers.deletedCount > 0) {
+            if (deleteUsers) {
 
                 const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
                 if (updateDeleteRequestHistory) {
-                    const sendmailforApproval = await aws_helper.sendEmail({
-                        receiverEmail: userHistoryData[0]?.email,
-                        subject: 'Delete request APPROVED',
-                        htmlContent: DeleteRequestApproved({
-                            firstName: userHistoryData[0]?.firstName,
-                        })
-                    });
-                    if (!sendmailforApproval) {
-                        throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                    if (userHistoryData[0]?.isEmailNotification) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: 'Delete request APPROVED',
+                            htmlContent: DeleteRequestApproved({
+                                firstName: userHistoryData[0]?.firstName,
+                            })
+                        });
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
 
                 }
@@ -2755,7 +2768,7 @@ module.exports.mutations = {
             //     };
             // });
 
-            if(savedUser?.isRegistered === true){
+            if(savedUser?.isRegistered === true && savedUser?.isEmailNotification){
             const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                 firstName: savedUser.firstName,
                 email: savedUser.email,

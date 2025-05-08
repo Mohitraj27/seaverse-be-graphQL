@@ -167,7 +167,7 @@ const userSchema = new Schema(
                 default: "en"
             }
         ],
-        TermsAndConditions: [
+        consents: [
             {
             message: {type:String},
             title: {type:String},
@@ -178,6 +178,18 @@ const userSchema = new Schema(
         country: {
             type: String,
             default: null,
+        },
+        isEmailNotification:{
+            type: Boolean,
+            default: true
+        },
+        isPushNotification: {
+            type: Boolean,
+            default: true
+        },
+        deletionDate: {
+            type: Date,
+            default: null
         },
     },
     { timestamps: true }

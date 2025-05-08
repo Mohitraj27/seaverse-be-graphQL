@@ -629,22 +629,23 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
                 const courseImages = await AWS_HELPER.fetchFile(item?.training?.coverImage?.url) ||
                     'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-
-                emailContent = courseCompletion({
-                    firstName: item.user.firstName,
-                    trainingTitle: trainingName,
-                    durationHours: item?.training?.durationHours,
-                    courseId: item._id,
-                    courseImage: courseImages,
-                    certificatePresent: item.isCertificatePresent,
-                    userId: item?.user?._id,
-                });
-
-                emails.push({
-                    email: item.user.email,
-                    trainingTitle: trainingName,
-                    emailContent
-                })
+                if(item.user.isEmailNotification){
+                    emailContent = courseCompletion({
+                        firstName: item.user.firstName,
+                        trainingTitle: trainingName,
+                        durationHours: item?.training?.durationHours,
+                        courseId: item._id,
+                        courseImage: courseImages,
+                        certificatePresent: item.isCertificatePresent,
+                        userId: item?.user?._id,
+                    });
+    
+                    emails.push({
+                        email: item.user.email,
+                        trainingTitle: trainingName,
+                        emailContent
+                    })
+                }
 
             }
 
@@ -1923,7 +1924,7 @@ module.exports = {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy?.firstName ?? ""}" ${notificationData.action} "${trainingTitle ?? ""}" training`,
+                        value: `A new course "${trainingTitle ?? ""}" has been ${notificationData.action} by "${notificationData.createdBy?.firstName ?? ""}"`,
                     },
                 ];
             }

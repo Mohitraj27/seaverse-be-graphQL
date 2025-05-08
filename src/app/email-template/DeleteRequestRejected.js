@@ -24,9 +24,6 @@ function DeleteRequestRejected(data) {
               padding: 20px;
             
           }
-          .logo {
-              height: 36px;
-          }
           .content {
               padding: 30px;
           }
@@ -66,6 +63,17 @@ function DeleteRequestRejected(data) {
               border-radius: 8px;
               margin-top: 30px;
           }
+            .logo-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+            text-align: center;
+            }
+            .logo {
+            max-width: 200px;
+            height: auto;
+            }
           .support-title {
               font-size: 16px;
               font-weight: 500;
@@ -91,9 +99,9 @@ function DeleteRequestRejected(data) {
       </style>
   </head>
   <body>
-        <div class="logo-container">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo" class="logo">
-          </div>
+        <div class="logo-section">
+        <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
+         </div>
       <div class="container">
           
           <div class="content">
