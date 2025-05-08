@@ -183,32 +183,32 @@ const validateSyncOfflineData = async (data) => {
         }
     }
 
-    if (moduleContentPairs.size > 0) {
+    // if (moduleContentPairs.size > 0) {
 
-        const queries = Array.from(moduleContentPairs.values());
+    //     const queries = Array.from(moduleContentPairs.values());
 
-        const trainingContentBridges = await TrainingContentBridge.find({
-            $or: queries.map(({ moduleId, contentId }) => ({
-                trainingModule: moduleId,
-                trainingContent: contentId,
-            })),
-        }).lean();
+    //     const trainingContentBridges = await TrainingContentBridge.find({
+    //         $or: queries.map(({ moduleId, contentId }) => ({
+    //             trainingModule: moduleId,
+    //             trainingContent: contentId,
+    //         })),
+    //     }).lean();
 
-        const foundPairs = new Set(
-            trainingContentBridges.map(
-                (doc) => `${doc.trainingModule}-${doc.trainingContent}`
-            )
-        );
+    //     const foundPairs = new Set(
+    //         trainingContentBridges.map(
+    //             (doc) => `${doc.trainingModule}-${doc.trainingContent}`
+    //         )
+    //     );
 
-        for (const [key, { moduleId, contentId }] of moduleContentPairs) {
+    //     for (const [key, { moduleId, contentId }] of moduleContentPairs) {
 
-            if (!foundPairs.has(key)) {
-                errors.push(
-                    `Missing content ID ${contentId} for module ${moduleId}`
-                );
-            }
-        }
-    }
+    //         if (!foundPairs.has(key)) {
+    //             errors.push(
+    //                 `Missing content ID ${contentId} for module ${moduleId}`
+    //             );
+    //         }
+    //     }
+    // }
 
     return errors;
 
@@ -719,6 +719,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         $or: trainingProgressInput.map((input) => ({
             overallTrainingProgress: input.overallTrainingProgress,
             attemptCount: input.attemptCount,
+            status: { $ne: "NOT_STARTED" },
         }))
     };
 
