@@ -80,7 +80,7 @@ const audienceSelectionEnum = require('../../learning-plan/enumFields/audienceSe
 const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
-const {processFilters} = require('./user_exportCSV_filter');
+const { processFilters } = require('./user_exportCSV_filter');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -763,391 +763,63 @@ module.exports.queries = {
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
                 filterConditions.empDesignation = { $in: filterInput.empDesignation };
             }
-                const fetchResult = async pipeline => {
-                    const empData = await Employee.aggregate(pipeline);
-                    const empCount = empData.length;
-                    const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
-                        offset: skip,
-                        limit,
-                        customLabels: {
-                            docs: "employees",
-                            totalDocs: "totalCount",
-                            offset: "skip",
-                        },
-                        pagination: limit !== 0,
-                    });
-
-                    return {
-                        ...result,
-                        totalCount: empCount ?? 0,
-                    }
-                };
-
-                let sanitizedSearch;
-                if (filterInput?.search) {
-                    sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
-                }
-            const results = await fetchResult([
-                    {
-                        $match: filterConditions,
+            const fetchResult = async pipeline => {
+                const empData = await Employee.aggregate(pipeline);
+                const empCount = empData.length;
+                const result = await Employee.aggregatePaginate(Employee.aggregate(pipeline), {
+                    offset: skip,
+                    limit,
+                    customLabels: {
+                        docs: "employees",
+                        totalDocs: "totalCount",
+                        offset: "skip",
                     },
-                    {
-                        $lookup: {
-                            from: "designations",
-                            localField: "empDesignation",
-                            foreignField: "_id",
-                            as: "empDesignation",
-                        },
-                    },
-                    { $unwind: "$empDesignation" },
-                    {
-                        $lookup: {
-                            from: "users",
-                            localField: "user",
-                            foreignField: "_id",
-                            as: "user",
-                        },
-                    },
-                    {
-                        $unwind: "$user",
-                    },
-                    {
-                        $match: {
-                            "user.isDeleted": { $ne: true },
-                            "user.role": { $in: ["LEARNER", "ADMIN"] },
-                            ...(filterInput?.vesselStatus?.length > 0 && {
-                                "user.vesselStatus": { $in: filterInput.vesselStatus },
-                            }),
-                        },
-                    },
-                    ...(filterInput?.search
-                        ? [
-                            {
-                                $match: {
-                                    $or: [
-                                        {
-                                            $expr: {
-                                                $regexMatch: {
-                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                    regex: ".*" + sanitizedSearch + ".*",
-                                                    options: "i",
-                                                },
-                                            },
-                                        },
-                                        {
-                                            "user.email": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            "user.civilIdOrPassport": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        }
-                                    ],
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.isRegistered !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.isRegistered": filterInput.isRegistered,
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.country !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.country": {$in : filterInput?.country},
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.lastSeen
-                        ? [
-                            {
-                                $match: {
-                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                    "user.isResetPasswordDialog": { $ne: false },
-                                },
-                            },
-                        ]
-                        : []),
-                    {
-                        $lookup: {
-                            from: "subroles",
-                            localField: "user.subRoles",
-                            foreignField: "_id",
-                            as: "user.subRoles",
-                        }
-                    },
-
-                    {
-                        $lookup: {
-                            from: "uservessels",
-                            localField: "user._id",
-                            foreignField: "user",
-                            as: "userVessels",
-                            pipeline: [
-                                {
-                                    $match: {
-                                        isActive: true,
-                                    },
-                                },
-                                {
-                                    $lookup: {
-                                        from: "vessels",
-                                        localField: "vessel",
-                                        foreignField: "_id",
-                                        as: "vesselDetails",
-                                        pipeline: [
-                                            {
-                                                $match: {
-                                                    name: { $exists: true, $ne: null },
-                                                },
-                                            },
-                                            {
-                                                $project: {
-                                                    _id: 1,
-                                                    name: 1,
-                                                    typeOfVessel: 1,
-                                                    imoNumber: 1,
-                                                    isActive: 1,
-
-                                                },
-                                            },
-                                            {
-                                                $lookup: {
-                                                    from: "vesseltypes",
-                                                    localField: "typeOfVessel",
-                                                    foreignField: "_id",
-                                                    as: "typeOfVesselDetails",
-                                                    pipeline: [
-                                                        {
-                                                            $match: {
-                                                                _id: { $ne: null },
-                                                            },
-                                                        },
-                                                        {
-                                                            $project: {
-                                                                _id: 1,
-                                                                name: 1,
-                                                                isActive: 1,
-
-                                                            },
-                                                        },
-                                                    ],
-                                                },
-                                            },
-                                            {
-                                                $unwind: {
-                                                    path: "$typeOfVesselDetails",
-                                                    preserveNullAndEmptyArrays: true,
-                                                },
-                                            },
-                                        ],
-                                    },
-                                },
-                                {
-                                    $unwind: {
-                                        path: "$vesselDetails",
-                                        preserveNullAndEmptyArrays: true,
-                                    },
-                                },
-                                {
-                                    $sort: {
-                                        updatedAt: -1,
-                                    },
-                                },
-                                {
-                                    $limit: 1,
-                                },
-                            ],
-                        },
-                    },
-                    {
-                        $unwind: {
-                            path: "$userVessels",
-                            preserveNullAndEmptyArrays: true,
-                        },
-                    },
-                    {
-                        $addFields: {
-                            latestUpdatedAt: {
-                                $max: ["$updatedAt", "$user.updatedAt"],
-                            },
-                        },
-                    },
-                    {
-                        $sort: {
-                            latestUpdatedAt: -1,
-                        },
-                    },
-                    {
-                        $sort: {
-                            "user.firstName": 1
-                        }
-                    },
-                    ...(filterInput?.vesselName?.length > 0
-                        ? [
-                            {
-                                $match: {
-                                    "userVessels.vesselDetails._id": {
-                                        $in: filterInput.vesselName.map(
-                                            id => ObjectId(id)
-                                        ),
-                                    },
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.vesselType?.length > 0
-                        ? [
-                            {
-                                $match: {
-                                    "userVessels.vesselDetails.typeOfVesselDetails._id": {
-                                        $in: filterInput.vesselType.map(id => ObjectId(id)),
-                                    },
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.search
-                        ? [
-                            {
-                                $match: {
-                                    $or: [
-                                        {
-                                            $expr: {
-                                                $regexMatch: {
-                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                    regex: ".*" + sanitizedSearch + ".*",
-                                                    options: "i",
-                                                },
-                                            },
-                                        },
-                                        {
-                                            "user.email": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            "user.civilIdOrPassport": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        /* {
-                                            "user.companyEmail": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            "user.phone.number": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            employeeNo: {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            "userVessels.vesselDetails.name": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        },
-                                        {
-                                            "empDesignation.name": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        }, */
-                                    ],
-                                },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.role?.length > 0
-                        ? [
-                            {
-                                $match:
-                                    filterInput.role.includes("LEARNER") &&
-                                        filterInput.role.includes("ADMIN")
-                                        ? {}
-                                        : filterInput.role.includes("LEARNER")
-                                            ? {
-                                                "user.role": "LEARNER",
-                                                "user.subRoles.name": { $ne: "ADMIN" },
-                                            }
-                                            : filterInput.role.includes("ADMIN")
-                                                ? { "user.subRoles.name": "ADMIN" }
-                                                : { "user.role": { $in: filterInput.role } },
-                            },
-                        ]
-                        : []),
-                    ...(filterInput?.isRegistered !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.isRegistered": filterInput.isRegistered,
-                                },
-                            },
-                        ]
-                        : []),
-                        /*
-                    ...(filterInput?.lastSeen
-                        ? [
-                            {
-                                $match: {
-                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                    "user.isResetPasswordDialog": { $ne: false },
-                                },
-                            },
-                        ]
-                        : []),
-                        */
-                    ...(filterInput?.showInvited ? [
-                            { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
-                        ] : []),
-            ...sortingStage,
-                ]);
+                    pagination: limit !== 0,
+                });
 
                 return {
-                    employees: results.employees,
-                    totalCount: results?.employees.length ?? 0,
-                    totalEmployees: results?.totalCount ?? 0
+                    ...result,
+                    totalCount: empCount ?? 0,
                 }
-                /*
-            const optimizedPipeline = [
-                // Initial match on subscriber
-                { $match: filterConditions },
+            };
 
-                // Lookup users with early filtering
+            let sanitizedSearch;
+            if (filterInput?.search) {
+                sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+            }
+            const results = await fetchResult([
+                {
+                    $match: filterConditions,
+                },
+                {
+                    $lookup: {
+                        from: "designations",
+                        localField: "empDesignation",
+                        foreignField: "_id",
+                        as: "empDesignation",
+                    },
+                },
+                { $unwind: "$empDesignation" },
                 {
                     $lookup: {
                         from: "users",
-                        let: { userId: "$user" },
-                        pipeline: [
-                            { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
-                            { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 , currentVessel:1} }
-                        ],
-                        as: "user"
-                    }
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "user",
+                    },
                 },
-                { $unwind: "$user" },
-
+                {
+                    $unwind: "$user",
+                },
+                {
+                    $match: {
+                        "user.isDeleted": { $ne: true },
+                        "user.role": { $in: ["LEARNER", "ADMIN"] },
+                        ...(filterInput?.vesselStatus?.length > 0 && {
+                            "user.vesselStatus": { $in: filterInput.vesselStatus },
+                        }),
+                    },
+                },
                 ...(filterInput?.search
                     ? [
                         {
@@ -1179,60 +851,234 @@ module.exports.queries = {
                         },
                     ]
                     : []),
-                    { 
-                        $unwind: {
-                            path: "$user.currentVessel", 
-                            preserveNullAndEmptyArrays: true
-                        }
-                    },
-
-                    ...(filterInput?.vesselName?.length > 0 ? [
-                        { 
-                            $match: { 
-                                "user.currentVessel": { 
-                                    $in: filterInput.vesselName 
-                                } 
-                            } 
-                        }
-                    ] : []),
-                    { $unwind: "$user.currentVessel" , preserveNullAndEmptyArrays: true},
-                ...(filterInput?.vesselStatus?.length > 0 ? [
-                    { $match: { "user.vesselStatus": { $in: filterInput.vesselStatus } } }
-                ] : []),
-
-                ...(filterInput?.isRegistered !== undefined ? [
-                    { $match: { "user.isRegistered": filterInput.isRegistered } }
-                ] : []),
-
-                ...(filterInput?.lastSeen ? [
-                    { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate } } }
-                ] : []),
-
-                ...(filterInput?.showInvited ? [
-                    { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
-                ] : []),
-                {
-                    $lookup: {
-                        from: "designations",
-                        localField: "empDesignation",
-                        foreignField: "_id",
-                        as: "empDesignation",
-                        pipeline: [{ $project: { name: 1, _id: 1 } }]
-                    }
-                },
-                { $unwind: "$empDesignation" },
-
-                // Handle search with text index
-
-                // Lookup subroles
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.country !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.country": { $in: filterInput?.country },
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
+                            },
+                        },
+                    ]
+                    : []),
                 {
                     $lookup: {
                         from: "subroles",
                         localField: "user.subRoles",
                         foreignField: "_id",
-                        as: "user.subRoles"
+                        as: "user.subRoles",
                     }
                 },
+
+                {
+                    $lookup: {
+                        from: "uservessels",
+                        localField: "user._id",
+                        foreignField: "user",
+                        as: "userVessels",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isActive: true,
+                                },
+                            },
+                            {
+                                $lookup: {
+                                    from: "vessels",
+                                    localField: "vessel",
+                                    foreignField: "_id",
+                                    as: "vesselDetails",
+                                    pipeline: [
+                                        {
+                                            $match: {
+                                                name: { $exists: true, $ne: null },
+                                            },
+                                        },
+                                        {
+                                            $project: {
+                                                _id: 1,
+                                                name: 1,
+                                                typeOfVessel: 1,
+                                                imoNumber: 1,
+                                                isActive: 1,
+
+                                            },
+                                        },
+                                        {
+                                            $lookup: {
+                                                from: "vesseltypes",
+                                                localField: "typeOfVessel",
+                                                foreignField: "_id",
+                                                as: "typeOfVesselDetails",
+                                                pipeline: [
+                                                    {
+                                                        $match: {
+                                                            _id: { $ne: null },
+                                                        },
+                                                    },
+                                                    {
+                                                        $project: {
+                                                            _id: 1,
+                                                            name: 1,
+                                                            isActive: 1,
+
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                        {
+                                            $unwind: {
+                                                path: "$typeOfVesselDetails",
+                                                preserveNullAndEmptyArrays: true,
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                            {
+                                $unwind: {
+                                    path: "$vesselDetails",
+                                    preserveNullAndEmptyArrays: true,
+                                },
+                            },
+                            {
+                                $sort: {
+                                    updatedAt: -1,
+                                },
+                            },
+                            {
+                                $limit: 1,
+                            },
+                        ],
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$userVessels",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $addFields: {
+                        latestUpdatedAt: {
+                            $max: ["$updatedAt", "$user.updatedAt"],
+                        },
+                    },
+                },
+                {
+                    $sort: {
+                        latestUpdatedAt: -1,
+                    },
+                },
+                {
+                    $sort: {
+                        "user.firstName": 1
+                    }
+                },
+                ...(filterInput?.vesselName?.length > 0
+                    ? [
+                        {
+                            $match: {
+                                "userVessels.vesselDetails._id": {
+                                    $in: filterInput.vesselName.map(
+                                        id => ObjectId(id)
+                                    ),
+                                },
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.vesselType?.length > 0
+                    ? [
+                        {
+                            $match: {
+                                "userVessels.vesselDetails.typeOfVesselDetails._id": {
+                                    $in: filterInput.vesselType.map(id => ObjectId(id)),
+                                },
+                            },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
+                                            },
+                                        },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    /* {
+                                        "user.companyEmail": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "user.phone.number": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        employeeNo: {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "userVessels.vesselDetails.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "empDesignation.name": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }, */
+                                ],
+                            },
+                        },
+                    ]
+                    : []),
                 ...(filterInput?.role?.length > 0
                     ? [
                         {
@@ -1251,98 +1097,252 @@ module.exports.queries = {
                         },
                     ]
                     : []),
-
-
-                // Lookup user vessels
-                {
-                    $lookup: {
-                        from: "uservessels",
-                        localField: "user._id",
-                        foreignField: "user",
-                        as: "userVessels",
-                        pipeline: [
-                            { $match: { isActive: true } },
-                            {
-                                $lookup: {
-                                    from: "vessels",
-                                    localField: "vessel",
-                                    foreignField: "_id",
-                                    as: "vesselDetails",
-                                    pipeline: [
-                                        { $match: { name: { $exists: true } } },
-                                        { $project: { _id: 1, name: 1, vesselStatus: 1, typeOfVessel: 1, isActive: 1 } },
-                                        {
-                                            $lookup: {
-                                                from: "vesseltypes",
-                                                localField: "typeOfVessel",
-                                                foreignField: "_id",
-                                                as: "typeOfVesselDetails",
-                                                pipeline: [
-                                                    { $match: { _id: { $ne: null } } },
-                                                    { $project: { _id: 1, name: 1 } }
-                                                ]
-                                            }
-                                        },
-                                        { $unwind: { path: "$typeOfVesselDetails", preserveNullAndEmptyArrays: true } }
-                                    ]
-                                }
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
                             },
-                            { $unwind: { path: "$vesselDetails", preserveNullAndEmptyArrays: true } },
-                            { $sort: { updatedAt: -1 } },
-                            { $limit: 1 }
-                        ]
-                    }
-                },
-                { $unwind: { path: "$userVessels", preserveNullAndEmptyArrays: true } },
-
-                // Add latest update time
-                {
-                    $addFields: {
-                        latestUpdatedAt: { $max: ["$updatedAt", "$user.updatedAt"] }
-                    }
-                },
-                {
-                    $project: {
-                        _id: 1,
-                        user: 1,
-                        empDesignation: 1,
-                        userVessels: 1,
-                        latestUpdatedAt: 1
-                    }
-                },
-                {
-                    $skip: skip
-                },
-                {
-                    $limit: limit
-                },
-                // Apply sorting
-                ...sortingStage,
-
-                // Pagination with facet
-                // {
-                //     $facet: {
-                //         metadata: [
-                //             { $count: "total" },
-                //             { $project: { total: 1 } }
-                //         ],
-                //         data: [
-                //             { $skip: skip },
-                //             { $limit: limit },
-                //             {
-                //                 $project: {
-                //                     _id: 1,
-                //                     user: 1,
-                //                     empDesignation: 1,
-                //                     userVessels: 1,
-                //                     latestUpdatedAt: 1
-                //                 }
-                //             }
-                //         ]
-                //     }
-                // }
-            ];
+                        },
+                    ]
+                    : []),
+                /*
+            ...(filterInput?.lastSeen
+                ? [
+                    {
+                        $match: {
+                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                            "user.isResetPasswordDialog": { $ne: false },
+                        },
+                    },
+                ]
+                : []),
                 */
+                ...(filterInput?.showInvited ? [
+                    { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
+                ] : []),
+                ...sortingStage,
+            ]);
+
+            return {
+                employees: results.employees,
+                totalCount: results?.employees.length ?? 0,
+                totalEmployees: results?.totalCount ?? 0
+            }
+            /*
+        const optimizedPipeline = [
+            // Initial match on subscriber
+            { $match: filterConditions },
+
+            // Lookup users with early filtering
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
+                        { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 , currentVessel:1} }
+                    ],
+                    as: "user"
+                }
+            },
+            { $unwind: "$user" },
+
+            ...(filterInput?.search
+                ? [
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    $expr: {
+                                        $regexMatch: {
+                                            input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                            regex: ".*" + sanitizedSearch + ".*",
+                                            options: "i",
+                                        },
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + sanitizedSearch + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + sanitizedSearch + ".*",
+                                        $options: "i",
+                                    },
+                                }
+                            ],
+                        },
+                    },
+                ]
+                : []),
+                { 
+                    $unwind: {
+                        path: "$user.currentVessel", 
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+
+                ...(filterInput?.vesselName?.length > 0 ? [
+                    { 
+                        $match: { 
+                            "user.currentVessel": { 
+                                $in: filterInput.vesselName 
+                            } 
+                        } 
+                    }
+                ] : []),
+                { $unwind: "$user.currentVessel" , preserveNullAndEmptyArrays: true},
+            ...(filterInput?.vesselStatus?.length > 0 ? [
+                { $match: { "user.vesselStatus": { $in: filterInput.vesselStatus } } }
+            ] : []),
+
+            ...(filterInput?.isRegistered !== undefined ? [
+                { $match: { "user.isRegistered": filterInput.isRegistered } }
+            ] : []),
+
+            ...(filterInput?.lastSeen ? [
+                { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate } } }
+            ] : []),
+
+            ...(filterInput?.showInvited ? [
+                { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
+            ] : []),
+            {
+                $lookup: {
+                    from: "designations",
+                    localField: "empDesignation",
+                    foreignField: "_id",
+                    as: "empDesignation",
+                    pipeline: [{ $project: { name: 1, _id: 1 } }]
+                }
+            },
+            { $unwind: "$empDesignation" },
+
+            // Handle search with text index
+
+            // Lookup subroles
+            {
+                $lookup: {
+                    from: "subroles",
+                    localField: "user.subRoles",
+                    foreignField: "_id",
+                    as: "user.subRoles"
+                }
+            },
+            ...(filterInput?.role?.length > 0
+                ? [
+                    {
+                        $match:
+                            filterInput.role.includes("LEARNER") &&
+                                filterInput.role.includes("ADMIN")
+                                ? {}
+                                : filterInput.role.includes("LEARNER")
+                                    ? {
+                                        "user.role": "LEARNER",
+                                        "user.subRoles.name": { $ne: "ADMIN" },
+                                    }
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
+                    },
+                ]
+                : []),
+
+
+            // Lookup user vessels
+            {
+                $lookup: {
+                    from: "uservessels",
+                    localField: "user._id",
+                    foreignField: "user",
+                    as: "userVessels",
+                    pipeline: [
+                        { $match: { isActive: true } },
+                        {
+                            $lookup: {
+                                from: "vessels",
+                                localField: "vessel",
+                                foreignField: "_id",
+                                as: "vesselDetails",
+                                pipeline: [
+                                    { $match: { name: { $exists: true } } },
+                                    { $project: { _id: 1, name: 1, vesselStatus: 1, typeOfVessel: 1, isActive: 1 } },
+                                    {
+                                        $lookup: {
+                                            from: "vesseltypes",
+                                            localField: "typeOfVessel",
+                                            foreignField: "_id",
+                                            as: "typeOfVesselDetails",
+                                            pipeline: [
+                                                { $match: { _id: { $ne: null } } },
+                                                { $project: { _id: 1, name: 1 } }
+                                            ]
+                                        }
+                                    },
+                                    { $unwind: { path: "$typeOfVesselDetails", preserveNullAndEmptyArrays: true } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$vesselDetails", preserveNullAndEmptyArrays: true } },
+                        { $sort: { updatedAt: -1 } },
+                        { $limit: 1 }
+                    ]
+                }
+            },
+            { $unwind: { path: "$userVessels", preserveNullAndEmptyArrays: true } },
+
+            // Add latest update time
+            {
+                $addFields: {
+                    latestUpdatedAt: { $max: ["$updatedAt", "$user.updatedAt"] }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    user: 1,
+                    empDesignation: 1,
+                    userVessels: 1,
+                    latestUpdatedAt: 1
+                }
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
+            },
+            // Apply sorting
+            ...sortingStage,
+
+            // Pagination with facet
+            // {
+            //     $facet: {
+            //         metadata: [
+            //             { $count: "total" },
+            //             { $project: { total: 1 } }
+            //         ],
+            //         data: [
+            //             { $skip: skip },
+            //             { $limit: limit },
+            //             {
+            //                 $project: {
+            //                     _id: 1,
+            //                     user: 1,
+            //                     empDesignation: 1,
+            //                     userVessels: 1,
+            //                     latestUpdatedAt: 1
+            //                 }
+            //             }
+            //         ]
+            //     }
+            // }
+        ];
+            */
             // Execute the aggregation
             // const resultsw = await Employee.aggregate(results);
             // // const { metadata, data } = results[0] || { metadata: [], data: [] };
@@ -1568,125 +1568,125 @@ module.exports.queries = {
     sendWelcomeMails: async ({ emailInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-    try{
-        const emails = emailInput.email;
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        let messages = [];
-        const notifications = [];
-        await Promise.all(
-            emails.map(async (email) => {
-                if (!emailRegex.test(email)) {
-                    messages.push(`Invalid Email format: ${email}`);
-                    return;
-                }
-
-                let currentUserData = await User.findOne({ email: email, isDeleted: false ,isRegistered: true});
-                if (!currentUserData) {
-                    throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL,`One or more User are Unregistered`);
-                }
-
-                let html = ``;
-                if (currentUserData.isResetPasswordDialog) {
-                    const htmlContent = sendWelcomeEmailsToLearner({
-                        firstName: currentUserData.firstName,
-                        buttonLink: `${process.env.APP_URL}/login`,
-                    });
-                    html = htmlContent;
-                } else {
-                    let generatePassword
-
-                    if (!currentUserData.dummyPassword) {
-                        generatePassword = generateRandomString(10);
-                        const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
-                        currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
-                        currentUserData.password = dummyPasswordHash;
-                    } else {
-                        const parts = currentUserData.dummyPassword.split('~~~');
-                        const newDummyPassword = parts[1];
-                        generatePassword = newDummyPassword;
-                        currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
-                    }
-
-                    try {
-                        await currentUserData.save();
-                    } catch {
-                        messages.push(`Failed to create new dummy password for ${email}`);
+        try {
+            const emails = emailInput.email;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            let messages = [];
+            const notifications = [];
+            await Promise.all(
+                emails.map(async (email) => {
+                    if (!emailRegex.test(email)) {
+                        messages.push(`Invalid Email format: ${email}`);
                         return;
                     }
-                    const htmlContent = sendEmailToLearner({
-                        firstName: currentUserData.firstName,
-                        email: currentUserData.email,
-                        temp_password: generatePassword,
-                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
-                    });
-                    html = htmlContent;
-                    await SendEmail({
-                        receiverEmail: currentUserData?.email,
-                        subject: "Registration Invitation",
-                        htmlContent: html,
-                    });
+
+                    let currentUserData = await User.findOne({ email: email, isDeleted: false, isRegistered: true });
+                    if (!currentUserData) {
+                        throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `One or more User are Unregistered`);
+                    }
+
+                    let html = ``;
+                    if (currentUserData.isResetPasswordDialog) {
+                        const htmlContent = sendWelcomeEmailsToLearner({
+                            firstName: currentUserData.firstName,
+                            buttonLink: `${process.env.APP_URL}/login`,
+                        });
+                        html = htmlContent;
+                    } else {
+                        let generatePassword
+
+                        if (!currentUserData.dummyPassword) {
+                            generatePassword = generateRandomString(10);
+                            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+                            currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+                            currentUserData.password = dummyPasswordHash;
+                        } else {
+                            const parts = currentUserData.dummyPassword.split('~~~');
+                            const newDummyPassword = parts[1];
+                            generatePassword = newDummyPassword;
+                            currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
+                        }
+
+                        try {
+                            await currentUserData.save();
+                        } catch {
+                            messages.push(`Failed to create new dummy password for ${email}`);
+                            return;
+                        }
+                        const htmlContent = sendEmailToLearner({
+                            firstName: currentUserData.firstName,
+                            email: currentUserData.email,
+                            temp_password: generatePassword,
+                            buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
+                        });
+                        html = htmlContent;
+                        await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
+                        /*
+                        await SendEmail({
+                            receiverEmail: userInfo.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        })
+                        */
+                    }
                     /*
-                    await SendEmail({
-                        receiverEmail: userInfo.email,
-                        subject: "Registration Invitation",
-                        htmlContent: html,
-                    })
+                    try {
+                       const data = await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
+                        console.log('data',data);
+                        messages.push(`Welcome Email sent to ${email}`);
+                        console.log('message',messages);
+                    }
+                    catch (error) { 
+                        console.log('error',error);
+                        messages.push(`Unable to send Welcome Email to ${email}`);
+                    }
                     */
-                }
-                /*
-                try {
-                   const data = await SendEmail({
-                        receiverEmail: currentUserData?.email,
-                        subject: "Registration Invitation",
-                        htmlContent: html,
-                    });
-                    console.log('data',data);
-                    messages.push(`Welcome Email sent to ${email}`);
-                    console.log('message',messages);
-                }
-                catch (error) { 
-                    console.log('error',error);
-                    messages.push(`Unable to send Welcome Email to ${email}`);
-                }
-                */
-                /* 
-                                notifications.push({
-                                    subscriber: subscriberId,
-                                    title: [{ lang: "en", value: `Welcome Email Sent` }],
-                                    message: [
-                                        {
-                                            lang: "en",
-                                            value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                                        },
-                                    ],
-                                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                                    notifyAllAdmin: true,
-                                    notifiers: [],
-                                    employeeNotifiers: [],
-                                    affected: [
-                                        {
-                                            targetRef: "User",
-                                            target: currentUserData._id,
-                                        },
-                                    ],
-                                    icon: notificationiconEnum.SUCCESS,
-                                    createdBy: userInfo,
-                                    status: "SENT"
-                                });
-                 */
-            })
-        );
-       /*  if (notifications.length > 0) {
-            try {
-                // await NotificationHelper.createNotification(notifications);
-            } catch (error) {
-                messages.push(`Failed to create notifications.`);
-            }
-        } */
-        return messages;
-    }catch(error){
-        throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
-    }
+                    /* 
+                                    notifications.push({
+                                        subscriber: subscriberId,
+                                        title: [{ lang: "en", value: `Welcome Email Sent` }],
+                                        message: [
+                                            {
+                                                lang: "en",
+                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                            },
+                                        ],
+                                        notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                                        notifyAllAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [
+                                            {
+                                                targetRef: "User",
+                                                target: currentUserData._id,
+                                            },
+                                        ],
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                        status: "SENT"
+                                    });
+                     */
+                })
+            );
+            /*  if (notifications.length > 0) {
+                 try {
+                     // await NotificationHelper.createNotification(notifications);
+                 } catch (error) {
+                     messages.push(`Failed to create notifications.`);
+                 }
+             } */
+            return messages;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
+        }
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
         const { role } = AuthUser(context);
@@ -1820,7 +1820,7 @@ module.exports.queries = {
 
             const sortOptions = { [sortFieldValue]: sortOrderValue };
 
-            const result = await DeleteRequestHistory.find({ ...searchCriteria,...requestStatusFilter })
+            const result = await DeleteRequestHistory.find({ ...searchCriteria, ...requestStatusFilter })
                 .skip(skip)
                 .limit(limit)
                 .sort(sortOptions);
@@ -2315,28 +2315,28 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
         if (input.type === "APPROVE") {
-            
-                    // if (!getUsers || getUsers?.length === 0) {
-                    //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
-                    // }
-            
-                    const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
-            
-                    const adminsNotBeingDeleted = await User.find({
-                        _id: { $nin: input?.users }, 
-                        isDeleted: false
-                    })
-                        .populate("subRoles", "name")
-                        .lean();
-            
-                    const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
-                       console.log("remainingAdmins",remainingAdmins.length)
-                    if (remainingAdmins.length === 1) {
-                        console.log("At least one admin must remain in the system.");
-                        throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
-                    }
-            
-                    
+
+            // if (!getUsers || getUsers?.length === 0) {
+            //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+            // }
+
+            const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+            const adminsNotBeingDeleted = await User.find({
+                _id: { $nin: input?.users },
+                isDeleted: false
+            })
+                .populate("subRoles", "name")
+                .lean();
+
+            const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+            console.log("remainingAdmins", remainingAdmins.length)
+            if (remainingAdmins.length === 1) {
+                console.log("At least one admin must remain in the system.");
+                throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+            }
+
+
 
             const userHistoryData = getUsers.map(user => ({
                 firstName: user?.firstName,
@@ -2388,7 +2388,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
         }
 
     } catch (error) {
-        throw CustomError(ErrorName.FAILED,error.message);
+        throw CustomError(ErrorName.FAILED, error.message);
     }
 };
 
@@ -2510,6 +2510,30 @@ module.exports.mutations = {
                 VesselStatus.ASSIGNED,
             ];
 
+            const countriesListed = [
+                'afghanistan', 'albania', 'algeria', 'andorra', 'angola', 'antigua and barbuda', 'argentina', 'armenia', 'australia', 'austria',
+                'azerbaijan', 'bahamas', 'bahrain', 'bangladesh', 'barbados', 'belarus', 'belgium', 'belize', 'benin', 'bhutan',
+                'bolivia', 'bosnia and herzegovina', 'botswana', 'brazil', 'brunei', 'bulgaria', 'burkina faso', 'burundi', 'cabo verde', 'cambodia',
+                'cameroon', 'canada', 'central african republic', 'chad', 'chile', 'china', 'colombia', 'comoros', 'congo', 'congo (democratic republic)',
+                'costa rica', 'croatia', 'cuba', 'cyprus', 'czech republic', 'denmark', 'djibouti', 'dominica', 'dominican republic', 'east timor',
+                'ecuador', 'egypt', 'el salvador', 'equatorial guinea', 'eritrea', 'estonia', 'eswatini', 'ethiopia', 'fiji', 'finland',
+                'france', 'gabon', 'gambia', 'georgia', 'germany', 'ghana', 'greece', 'grenada', 'guatemala', 'guinea', 'guinea-bissau',
+                'guyana', 'haiti', 'honduras', 'hungary', 'iceland', 'india', 'indonesia', 'iran', 'iraq', 'ireland',
+                'israel', 'italy', 'ivory coast', 'jamaica', 'japan', 'jordan', 'kazakhstan', 'kenya', 'kiribati', 'korea (north)',
+                'korea (south)', 'north korea', 'south korea', 'korea', 'kuwait', 'kyrgyzstan', 'laos', 'latvia', 'lebanon', 'lesotho', 'liberia', 'libya', 'liechtenstein',
+                'lithuania', 'luxembourg', 'madagascar', 'malawi', 'malaysia', 'maldives', 'mali', 'malta', 'marshall islands', 'mauritania',
+                'mauritius', 'mexico', 'micronesia', 'moldova', 'monaco', 'mongolia', 'montenegro', 'morocco', 'mozambique', 'myanmar',
+                'namibia', 'nauru', 'nepal', 'netherlands', 'new zealand', 'nicaragua', 'niger', 'nigeria', 'north macedonia', 'norway',
+                'oman', 'pakistan', 'palau', 'panama', 'papua new guinea', 'paraguay', 'peru', 'philippines', 'poland', 'portugal',
+                'qatar', 'romania', 'russia', 'rwanda', 'saint kitts and nevis', 'saint lucia', 'saint vincent and the grenadines', 'samoa', 'san marino', 'sao tome and principe',
+                'saudi arabia', 'senegal', 'serbia', 'seychelles', 'sierra leone', 'singapore', 'slovakia', 'slovenia', 'solomon islands', 'somalia',
+                'south africa', 'south sudan', 'spain', 'sri lanka', 'sudan', 'suriname', 'sweden', 'switzerland', 'syria', 'taiwan',
+                'tajikistan', 'tanzania', 'thailand', 'togo', 'tonga', 'trinidad and tobago', 'tunisia', 'turkmenistan', 'turkey', 'tuvalu',
+                'uganda', 'ukraine', 'united arab emirates', 'united kingdom', 'united states', 'uruguay', 'uzbekistan', 'vanuatu', 'vatican city',
+                'venezuela', 'vietnam', 'yemen', 'zambia', 'zimbabwe'
+            ];
+
+
             const errors = await EmployeeHelper.bulkValidationHelper(
                 createReadStream,
                 empIds,
@@ -2523,6 +2547,7 @@ module.exports.mutations = {
                 userId,
                 subscriberId,
                 newFileName,
+                countriesListed,
                 saveCSV
             );
 
@@ -2589,7 +2614,7 @@ module.exports.mutations = {
                     if (notification?.createdAt) {
                         notification.createdAt = new Date(notification.createdAt).getTime().toString();
                     }
-                    
+
                     if (notification?.updatedAt) {
                         notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
                     }
@@ -2778,14 +2803,14 @@ module.exports.mutations = {
             //     };
             // });
 
-            if(savedUser?.isRegistered === true && savedUser?.isEmailNotification){
-            const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
-                firstName: savedUser.firstName,
-                email: savedUser.email,
-                templategeneratePassword: generatePassword,
-            });
+            if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
+                const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
+                    firstName: savedUser.firstName,
+                    email: savedUser.email,
+                    templategeneratePassword: generatePassword,
+                });
 
-            await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+                await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
             }
 
             return savedEmployees;
@@ -3212,7 +3237,7 @@ module.exports.mutations = {
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
                 notifyAllAdmin: true,
-                isNotificatonForAdmin :true,
+                isNotificatonForAdmin: true,
                 notifiers: [userId],
                 employeeNotifiers: [],
                 affected: users.map(user => ({
@@ -3349,9 +3374,9 @@ module.exports.mutations = {
                     isDeleted: false
                 }
             };
-            if(userObjectIds?.filterInput){
+            if (userObjectIds?.filterInput) {
                 await processFilters(userObjectIds.filterInput, initialMatchStage);
-            }       
+            }
             const pipeline = [
                 initialMatchStage,
                 {
@@ -3418,7 +3443,7 @@ module.exports.mutations = {
                 {
                     $lookup: {
                         from: 'subroles',
-                        localField: 'subRoles', 
+                        localField: 'subRoles',
                         foreignField: '_id',
                         as: 'subRoleDetails',
                     },
@@ -3482,34 +3507,36 @@ module.exports.mutations = {
                     // 'User Roles': '$role',
                     'User Roles': {
                         $concat: [
-                        '$role',
-                        {
-                            $cond: {
-                            if: { $and: [
-                                { $isArray: '$subRoleDetails' },
-                                { $gt: [{ $size: '$subRoleDetails' }, 0] }
-                            ]},
-                            then: {
-                                $concat: [
-                                '  ', 
-                                {
-                                    $reduce: {
-                                    input: '$subRoleDetails',
-                                    initialValue: '',
-                                    in: {
-                                        $concat: [
-                                        '$$value',
-                                        { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
-                                        '$$this.name' 
+                            '$role',
+                            {
+                                $cond: {
+                                    if: {
+                                        $and: [
+                                            { $isArray: '$subRoleDetails' },
+                                            { $gt: [{ $size: '$subRoleDetails' }, 0] }
                                         ]
-                                    }
-                                    }
+                                    },
+                                    then: {
+                                        $concat: [
+                                            '  ',
+                                            {
+                                                $reduce: {
+                                                    input: '$subRoleDetails',
+                                                    initialValue: '',
+                                                    in: {
+                                                        $concat: [
+                                                            '$$value',
+                                                            { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
+                                                            '$$this.name'
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    else: ' '
                                 }
-                                ]
-                            },
-                            else: ' '
                             }
-                        }
                         ]
                     },
                     'Vessel Type': '$vesselType',
@@ -3621,7 +3648,7 @@ module.exports.mutations = {
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
                     notifyAllAdmin: false,
-                    isNotificatonForAdmin :true,
+                    isNotificatonForAdmin: true,
                     notifiers: [userId],
                     additionalInfo: [
                         {
