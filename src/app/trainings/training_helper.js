@@ -629,7 +629,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
                 const courseImages = await AWS_HELPER.fetchFile(item?.training?.coverImage?.url) ||
                     'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-                if(item.user.isEmailNotification){
+                if (item.user.isEmailNotification) {
                     emailContent = courseCompletion({
                         firstName: item.user.firstName,
                         trainingTitle: trainingName,
@@ -639,7 +639,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         certificatePresent: item.isCertificatePresent,
                         userId: item?.user?._id,
                     });
-    
+
                     emails.push({
                         email: item.user.email,
                         trainingTitle: trainingName,
@@ -1555,8 +1555,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
 
-        console.log('inside transaction');
-
         const userBulkOps = [];
         const employeeBulkOps = [];
 
@@ -1580,6 +1578,10 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         let userIds = [];
 
+        existingUsers.forEach(user => {
+            userIds.push(user._id);
+        });
+
         for (const { user } of completedMigrationUsers) {
 
             const { firstName, lastName, email, civilIdOrPassport } = user;
@@ -1592,7 +1594,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             userPasswordInfo.password = dummyPasswordHash;
 
             if (existingEmails.has(email) || existingIds.has(civilIdOrPassport)) {
-                return;
+                continue;
             }
 
             const userId = ObjectId();
@@ -1638,8 +1640,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         }
         // User creation end
 
-        console.log('user creation end');
-
         // Course enrollment start
         let existingTrainingRegistration;
         let existingTrainingRegId;
@@ -1664,7 +1664,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         if (existingTrainingRegistration) {
 
-            let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } });
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } }).session(session).lean();
 
             userIds = userIds.filter(userId =>
                 !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
@@ -1684,7 +1684,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         } else {
 
             savedTrainingRegistration = await TrainingRegistration.create([{ training: trainingId, users: userIds, subscriber: subscriberId }], { session });
-            // trainingRegistrationId = savedTrainingRegistration && savedTrainingRegistration.map(({ _id, training }) => ({ _id, training }));
             trainingRegistrationId = savedTrainingRegistration[0]._id;
 
         }
@@ -1694,26 +1693,9 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             let trainingProgressIds;
 
             let overallIds = [];
-            console.log('userIds')
-            console.log(userIds)
-            console.log('trainingId')
-            console.log(trainingId)
-            console.log('trainingRegistrationId')
-            console.log(trainingRegistrationId)
             trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
 
-            console.log('trainingProgressIds');
-            console.log(trainingProgressIds);
-            // Create the training progress for the users
-            // if (trainingProgressIds && trainingProgressIds.length > 0) {
-            //     await updateTrainingProgressesForMigrationUsersHelper(trainingProgressIds, userIds, subscriberId, session);
-            // }
-
         }
-
-        // const trainingsData = await Training.find({ _id: { $in: input.trainings } });
-
-        // return savedTrainingRegistration;
 
         return {
             message: "Course enrollment successful!",

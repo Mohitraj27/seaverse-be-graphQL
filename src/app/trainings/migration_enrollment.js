@@ -15,10 +15,8 @@ process.on('message', async (data) => {
         process.exit(0);
 
     } catch (error) {
-        console.log(error);
         process.send({ error: error.message });
         process.exit(1);
-
     }
 
 });

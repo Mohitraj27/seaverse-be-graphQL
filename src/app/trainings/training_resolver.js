@@ -355,22 +355,12 @@ module.exports.mutations = {
         });
 
         if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
-            // let errors = [];
-            // await createOrUpdateTrainingMigrationCourses({ input }, session, context, errors);
-            // if (errors.length > 0) throw CustomError(ErrorName.FAILED, errors);
-
-            console.log('reached here!');
 
             const child = fork("./src/app/trainings/migration_enrollment.js");
 
             child.send({
                 migrationcourseId: input.migrationcoursesId,
                 trainingId: savedTraining._id,
-            });
-
-            child.on("message", async message => {
-                console.log('message');
-                console.log(message);
             });
 
             child.on("error", error => {
