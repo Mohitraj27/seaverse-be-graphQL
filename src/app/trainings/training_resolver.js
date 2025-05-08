@@ -345,12 +345,6 @@ module.exports.mutations = {
                 input._id = savedTraining._id;
             }
 
-            // else {
-            //     if (input.migrationcoursesId) {
-            //         const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
-            //         savedTraining.migrationcoursesId = migrationcoursesIdObjectId;
-            //     }
-            // }
             return savedTraining;
         });
 
