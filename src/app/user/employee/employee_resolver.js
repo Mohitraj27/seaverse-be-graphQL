@@ -788,105 +788,111 @@ module.exports.queries = {
                 sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
             }
             const results = await fetchResult([
-                {
-                    $match: filterConditions,
-                },
-                {
-                    $lookup: {
-                        from: "designations",
-                        localField: "empDesignation",
-                        foreignField: "_id",
-                        as: "empDesignation",
+                    {
+                        $match: filterConditions,
                     },
-                },
-                { $unwind: "$empDesignation" },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "user",
-                        foreignField: "_id",
-                        as: "user",
+                    {
+                        $lookup: {
+                            from: "designations",
+                            localField: "empDesignation",
+                            foreignField: "_id",
+                            as: "empDesignation",
+                        },
                     },
-                },
-                {
-                    $unwind: "$user",
-                },
-                {
-                    $match: {
-                        "user.isDeleted": { $ne: true },
-                        "user.role": { $in: ["LEARNER", "ADMIN"] },
-                        ...(filterInput?.vesselStatus?.length > 0 && {
-                            "user.vesselStatus": { $in: filterInput.vesselStatus },
-                        }),
+                    {
+                        $unwind: {
+                            path: "$empDesignation",
+                            preserveNullAndEmptyArrays: true
+                        },
                     },
-                },
-                ...(filterInput?.search
-                    ? [
-                        {
-                            $match: {
-                                $or: [
-                                    {
-                                        $expr: {
-                                            $regexMatch: {
-                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                regex: ".*" + sanitizedSearch + ".*",
-                                                options: "i",
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "user",
+                            foreignField: "_id",
+                            as: "user",
+                        },
+                    },
+                    {
+                        $unwind: "$user",
+                    },
+                    {
+                        $match: {
+                            "user.isDeleted": { $ne: true },
+                            "user.role": { $in: ["LEARNER", "ADMIN"] },
+                            "user.isSignupAdminAprroved": { $ne: false },
+                            ...(filterInput?.vesselStatus?.length > 0 && {
+                                "user.vesselStatus": { $in: filterInput.vesselStatus },
+                            }),
+                        },
+                    },
+                    ...(filterInput?.search
+                        ? [
+                            {
+                                $match: {
+                                    $or: [
+                                        {
+                                            $expr: {
+                                                $regexMatch: {
+                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                    regex: ".*" + sanitizedSearch + ".*",
+                                                    options: "i",
+                                                },
                                             },
                                         },
-                                    },
-                                    {
-                                        "user.email": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
+                                        {
+                                            "user.email": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
                                         },
-                                    },
-                                    {
-                                        "user.civilIdOrPassport": {
-                                            $regex: ".*" + sanitizedSearch + ".*",
-                                            $options: "i",
-                                        },
-                                    }
-                                ],
+                                        {
+                                            "user.civilIdOrPassport": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        }
+                                    ],
+                                },
                             },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.isRegistered !== undefined
-                    ? [
-                        {
-                            $match: {
-                                "user.isRegistered": filterInput.isRegistered,
+                        ]
+                        : []),
+                    ...(filterInput?.isRegistered !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.isRegistered": filterInput.isRegistered,
+                                },
                             },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.country !== undefined
-                    ? [
-                        {
-                            $match: {
-                                "user.country": { $in: filterInput?.country },
+                        ]
+                        : []),
+                    ...(filterInput?.country !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.country": {$in : filterInput?.country},
+                                },
                             },
-                        },
-                    ]
-                    : []),
-                ...(filterInput?.lastSeen
-                    ? [
-                        {
-                            $match: {
-                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                "user.isResetPasswordDialog": { $ne: false },
+                        ]
+                        : []),
+                    ...(filterInput?.lastSeen
+                        ? [
+                            {
+                                $match: {
+                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                    "user.isResetPasswordDialog": { $ne: false },
+                                },
                             },
-                        },
-                    ]
-                    : []),
-                {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "user.subRoles",
-                        foreignField: "_id",
-                        as: "user.subRoles",
-                    }
-                },
+                        ]
+                        : []),
+                    {
+                        $lookup: {
+                            from: "subroles",
+                            localField: "user.subRoles",
+                            foreignField: "_id",
+                            as: "user.subRoles",
+                        }
+                    },
 
                 {
                     $lookup: {
