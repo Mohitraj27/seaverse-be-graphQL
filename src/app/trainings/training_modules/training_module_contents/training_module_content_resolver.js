@@ -87,13 +87,12 @@ module.exports.queries = {
                         localField: "createdBy",
                         foreignField: "_id",
                         as: "createdBy",
-
                         pipeline: [
                             { $project: { _id: 1, firstName: 1, lastName: 1 } }
                         ]
                     },
                 },
-                { $unwind: "$createdBy",preserveNullAndEmptyArrays: true },
+                { $unwind: "$createdBy" },
                 {
                     $lookup: {
                         from: "users",
@@ -105,7 +104,7 @@ module.exports.queries = {
                         ]
                     },
                 },
-                { $unwind: "$updatedBy",preserveNullAndEmptyArrays: true },
+                { $unwind: "$updatedBy" },
                 {
                     $lookup: {
                         from: "trainingcontentbridges",
