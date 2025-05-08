@@ -2583,6 +2583,16 @@ module.exports.mutations = {
 
             child.on("message", async message => {
                 if (message.type === 'NOTIFICATION') {
+                    // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
+                    const notification = message?.data?.onNotification;
+
+                    if (notification?.createdAt) {
+                        notification.createdAt = new Date(notification.createdAt).getTime().toString();
+                    }
+                    
+                    if (notification?.updatedAt) {
+                        notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
+                    }
                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
                 }
 
