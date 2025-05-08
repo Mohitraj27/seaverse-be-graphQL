@@ -3,7 +3,7 @@ function consentsforLearnerInitalLogin(data) {
 <html lang="en" style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f2f4f6;">
   <head>
     <meta charset="UTF-8" />
-    <title>Your Sign-Up Was Not Complete</title>
+    <title>Your Sign In Was Not Complete</title>
   </head>
   <body style="margin: 0; padding: 0;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -17,7 +17,7 @@ function consentsforLearnerInitalLogin(data) {
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05);">
             <tr>
               <td>
-                <h2 style="color: #000000; margin-bottom: 20px;">Your Sign-Up Was Not Complete</h2>
+                <h2 style="color: #000000; margin-bottom: 20px;">Your Sign In Was Not Complete</h2>
                 <p style="font-size: 16px; color: #333;">Hello ${data?.firstName}👋,</p>
                 <p style="font-size: 16px; color: #333;">
                   We noticed that you have rejected the Terms and Conditions during the sign-up process.

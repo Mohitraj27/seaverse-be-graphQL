@@ -134,7 +134,10 @@ module.exports.queries = {
             {
                 $match: {
                     $or: [
-                        { status: "COMPLETED" },
+                        {
+                            status: "COMPLETED",
+                            'userInfo': { $ne: null },
+                        },
                         {
                             'userInfo': { $ne: null },
                             'userInfo.isDeleted': { $ne: true },

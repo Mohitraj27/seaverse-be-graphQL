@@ -6,9 +6,10 @@ const db_transaction_helper = require("../../util/db_transaction_helper");
 const { DbTransactionHelper } = require("../../util");
 const signupStatus = require("./signup-status");
 const { rejectionEmailTemplate } = require('../email-template/SignupRequestRejected');
+const aws_helper = require("../../util/aws_helper");
 const reject30DayOldSignupRequests = async () => {
     try {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(Date.now() - 5 * 60 * 1000 /* - 30 * 24 * 60 * 60 * 1000 */); //5 mins (for testing)
         const oldSignupRequests = await SignupRequest.find({
             requestDate: { $lt: thirtyDaysAgo },
             signupStatus: "PENDING",
