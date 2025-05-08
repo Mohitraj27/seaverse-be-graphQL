@@ -82,29 +82,61 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $addFields: {
+                        creatorId: "$createdBy",
+                        updaterId: "$updatedBy"
+                    }
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
-                        as: "createdBy",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
+                        as: "createdByUser"
                     },
                 },
-                { $unwind: "$createdBy" },
                 {
                     $lookup: {
                         from: "users",
                         localField: "updatedBy",
                         foreignField: "_id",
-                        as: "updatedBy",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
+                        as: "updatedByUser"
                     },
                 },
-                { $unwind: "$updatedBy" },
+                {
+                    $addFields: {
+                        createdBy: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$createdByUser" }, 0] },
+                                then: {
+                                    _id: "$creatorId",
+                                    firstName: "Unknown",
+                                    lastName: "User"
+                                },
+                                else: { $arrayElemAt: ["$createdByUser", 0] }
+                            }
+                        },
+                        updatedBy: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$updatedByUser" }, 0] },
+                                then: {
+                                    _id: "$updaterId",
+                                    firstName: "Unknown",
+                                    lastName: "User"
+                                },
+                                else: { $arrayElemAt: ["$updatedByUser", 0] }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        createdByUser: 0,
+                        updatedByUser: 0,
+                        creatorId: 0,
+                        updaterId: 0
+                    }
+                },
                 {
                     $lookup: {
                         from: "trainingcontentbridges",
