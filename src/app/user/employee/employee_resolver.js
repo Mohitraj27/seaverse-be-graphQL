@@ -799,7 +799,12 @@ module.exports.queries = {
                             as: "empDesignation",
                         },
                     },
-                    { $unwind: "$empDesignation" },
+                    {
+                        $unwind: {
+                            path: "$empDesignation",
+                            preserveNullAndEmptyArrays: true
+                        },
+                    },
                     {
                         $lookup: {
                             from: "users",
@@ -815,6 +820,7 @@ module.exports.queries = {
                         $match: {
                             "user.isDeleted": { $ne: true },
                             "user.role": { $in: ["LEARNER", "ADMIN"] },
+                            "user.isSignupAdminAprroved": { $ne: false },
                             ...(filterInput?.vesselStatus?.length > 0 && {
                                 "user.vesselStatus": { $in: filterInput.vesselStatus },
                             }),

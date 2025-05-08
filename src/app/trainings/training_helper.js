@@ -1,7 +1,8 @@
-const { ObjectId } = require("../../tools");
-const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper, contentTypes } = require("../../util");
-const mongoose = require('mongoose');
+const { CustomError, ErrorName, AuthUser, UploadHelper, DbTransactionHelper, contentTypes, Role } = require("../../util");
+// const mongoose = require('mongoose');
+const { ObjectId, CryptoHelper } = require("../../tools");
 
+const { MigrationCourse } = require('./migrationcourses/migration_courses_model');
 const { Training } = require("./training_model");
 
 const NotificationHelper = require("../notifications/notification_helper");
@@ -29,6 +30,14 @@ const AWS_HELPER = require("../../util/aws_helper");
 const { sendEmail } = require("../../util/aws_helper");
 
 const levenshtein = require('fast-levenshtein');
+const { MigrationUser } = require("./migrationcourses/migrationUser/migration_user_model");
+const { Subscriber } = require("../saas/subscriber/subscriber_model");
+const { Employee } = require("../user/employee/employee_model");
+const employeeHelper = require("../user/employee/employee_helper");
+const { UserCourseMap } = require("./migrationcourses/userCourseMap/user_course_map_model");
+const { generateRandomString } = require("../user/user-profile/user_profile_helper");
+const { BatchHelper } = require("../batches/batch_helper");
+const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
@@ -620,7 +629,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
                 const courseImages = await AWS_HELPER.fetchFile(item?.training?.coverImage?.url) ||
                     'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-                if(item.user.isEmailNotification){
+                if (item.user.isEmailNotification) {
                     emailContent = courseCompletion({
                         firstName: item.user.firstName,
                         trainingTitle: trainingName,
@@ -630,7 +639,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         certificatePresent: item.isCertificatePresent,
                         userId: item?.user?._id,
                     });
-    
+
                     emails.push({
                         email: item.user.email,
                         trainingTitle: trainingName,
@@ -1530,6 +1539,175 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
     }
 };
 
+const dataMigrationBackground = async (migrationcourseId, trainingId) => {
+
+    // Convert migrationcourseId to ObjectId if it's a string
+    if (typeof migrationcourseId === 'string') {
+        migrationcourseId = ObjectId(migrationcourseId);
+    }
+
+    const completedMigrationUsers = await UserCourseMap.find({ course: migrationcourseId })
+        .populate("user")
+        .populate("course");
+
+
+    if (completedMigrationUsers.length === 0) return;
+
+    // User creation start
+    const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
+
+        const userBulkOps = [];
+        const employeeBulkOps = [];
+
+        const emails = completedMigrationUsers.map(({ user }) => user.email);
+        const ids = completedMigrationUsers.map(({ user }) => user.civilIdOrPassport);
+
+        const existingUsers = await User.find({
+            $or: [
+                { email: { $in: emails } },
+                { civilIdOrPassport: { $in: ids } }
+            ]
+        }).session(session).lean();
+
+        const existingEmails = new Set(existingUsers.map(u => u.email));
+        const existingIds = new Set(existingUsers.map(u => u.civilIdOrPassport));
+
+        const subscriber = await Subscriber.findOne().session(session).lean();
+        let subscriberId;
+
+        if (subscriber) subscriberId = subscriber._id;
+
+        let userIds = [];
+
+        existingUsers.forEach(user => {
+            userIds.push(user._id);
+        });
+
+        for (const { user } of completedMigrationUsers) {
+
+            const { firstName, lastName, email, civilIdOrPassport } = user;
+
+            let userPasswordInfo = {};
+            let generatePassword = generateRandomString(10);
+            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+
+            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+            userPasswordInfo.password = dummyPasswordHash;
+
+            if (existingEmails.has(email) || existingIds.has(civilIdOrPassport)) {
+                continue;
+            }
+
+            const userId = ObjectId();
+
+            userIds.push(userId);
+            userBulkOps.push({
+                insertOne: {
+                    document: {
+                        _id: userId,
+                        subscriber: subscriberId,
+                        firstName,
+                        lastName,
+                        email,
+                        civilIdOrPassport: civilIdOrPassport?.toUpperCase(),
+                        isRegistered: false,
+                        ...userPasswordInfo,
+                        role: Role.LEARNER,
+                        UID: await employeeHelper.generateUserUID({ subscriberId }),
+                    },
+                },
+            });
+
+            employeeBulkOps.push({
+                insertOne: {
+                    document: {
+                        user: userId,
+                        subscriber: subscriberId,
+                        regType: 1,
+                        designation: 'null',
+                        UID: await employeeHelper.generateEmployeeUID({ subscriberId }),
+                    },
+                },
+            });
+
+        };
+
+        if (userBulkOps.length > 0) {
+            await User.bulkWrite(userBulkOps, { session });
+        }
+
+        if (employeeBulkOps.length > 0) {
+            await Employee.bulkWrite(employeeBulkOps, { session });
+        }
+        // User creation end
+
+        // Course enrollment start
+        let existingTrainingRegistration;
+        let existingTrainingRegId;
+        if (trainingId) {
+            existingTrainingRegistration = await TrainingRegistration.findOne({ training: trainingId });
+
+            if (existingTrainingRegistration) {
+                existingTrainingRegId = existingTrainingRegistration._id;
+            }
+        }
+
+        const batchUID = await BatchHelper.generateBatchUID({ subscriberId });
+
+        const updateFields = { subscriber: subscriberId, $addToSet: {} };
+        if (userIds?.length) {
+            updateFields.$addToSet.users = { $each: userIds };
+        }
+
+        let savedTrainingRegistration;
+        let trainingRegistrationId;
+        let notEnrolledUsers = [];
+
+        if (existingTrainingRegistration) {
+
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } }).session(session).lean();
+
+            userIds = userIds.filter(userId =>
+                !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
+            );
+
+            savedTrainingRegistration = await TrainingRegistration.updateOne(
+                { _id: existingTrainingRegId },
+                updateFields,
+                { session }
+            );
+
+            const updatedRegistrations = await TrainingRegistration.find({
+                training: { trainingId }
+            }).session(session);
+            trainingRegistrationId = existingTrainingRegId;
+
+        } else {
+
+            savedTrainingRegistration = await TrainingRegistration.create([{ training: trainingId, users: userIds, subscriber: subscriberId }], { session });
+            trainingRegistrationId = savedTrainingRegistration[0]._id;
+
+        }
+
+        if (savedTrainingRegistration) {
+
+            let trainingProgressIds;
+
+            let overallIds = [];
+            trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
+
+        }
+
+        return {
+            message: "Course enrollment successful!",
+        };
+        // Course enrollment end
+
+    });
+
+
+}
+
 module.exports = {
     uploadTrainingImages,
     updateTrainingProgress,
@@ -1537,6 +1715,7 @@ module.exports = {
     validateSyncOfflineData,
     generateTrainingUID,
     uploadCertificateTrainingImages,
+    dataMigrationBackground,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
@@ -1672,6 +1851,7 @@ module.exports = {
         ).populate('targetAudienceId')
             .populate('ClassroomModule');
         if (!savedTraining) throw CustomError(ErrorName.FAILED);
+
         return savedTraining;
     },
     sendNotificationOnCRUD: async notificationData => {
