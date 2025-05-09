@@ -8,6 +8,7 @@ const {
     EmailTemplate,
     DbTransactionHelper,
     AuthUser,
+    consentTypes,
 } = require("../../util");
 
 const { User, DeletedUser, AppUser } = require("./user_model");
@@ -411,12 +412,14 @@ module.exports.mutations = {
                             // Update existing condition
                             const existingCondition = existingConditionsMap.get(inputConditionId);
                             existingCondition.message = condition.message;
+                            existingCondition.consentType = consentTypes.INITIAL_LOGIN;
                             existingCondition.title = condition.title;
                             existingCondition.status = condition.status;
                             existingCondition.timestamp = condition.timestamp || new Date().toISOString();
                           } else {
                             existingUser.consents.push({
-                              _id: new mongoose.Types.ObjectId(), 
+                              _id: new mongoose.Types.ObjectId(),
+                              consentType: consentTypes.INITIAL_LOGIN, 
                               message: condition.message,
                               title: condition.title,
                               status: condition.status,
