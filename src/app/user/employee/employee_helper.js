@@ -3126,8 +3126,9 @@ module.exports = {
                 notificationType: 'BULK_IMPORT_FAILED',
                 status: "FAILED",
                 icon: notificationiconEnum.ERROR,
+                creatorId: userInfo._id,
             });
-
+            
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
                 `${errors[0]}`
