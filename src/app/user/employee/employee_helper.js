@@ -1940,7 +1940,7 @@ const validateName = (name) => {
 const clear7dayOldRequests = async () => {
     try {
         const currentDate = new Date();
-        const sevenDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 7));
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
         const query = { createdAt: { $lte: sevenDaysAgo } };
 
@@ -1954,7 +1954,7 @@ const clear7dayOldRequests = async () => {
 const clear7dayOldUsersWhoRejectedTAndC = async () => {
     try {
         const currentDate = new Date();
-        const sevenDaysAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
         const usersWhoRejected = await User.find({
             consents: {
