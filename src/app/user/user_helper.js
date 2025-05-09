@@ -135,7 +135,7 @@ module.exports = {
 
             if (input.lastName) existingUser.lastName = input.lastName;
 
-            if (input.country) existingUser.country = input.country;
+            if (input.country) existingUser.country = input.country.toUpperCase();
 
             if(input.country === '') existingUser.country = null;
 
