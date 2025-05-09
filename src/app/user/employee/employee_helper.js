@@ -64,7 +64,7 @@ const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = requ
 const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
 const { groupTypes } = require('../../../util');
 const { DeleteRequestHistory } = require("./delete_request_history_model");
-const  HistorySignupRequest  = require("../../signup-request-history/signup-request-history-model");
+const HistorySignupRequest = require("../../signup-request-history/signup-request-history-model");
 const { reject30DayOldSignupRequests } = require("../../signup-request/signup-request-helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
@@ -1454,9 +1454,9 @@ const deleteUsersAfterGDPR = async (users, errors) => {
 
         const trainingProgressesToBeDeleted = await OverallTrainingProgress.find({
             user: { $in: users },
-            status:{$ne:"COMPLETED"}
+            status: { $ne: "COMPLETED" }
         }).select("user _id trainingRegistration learningPlan training").lean();
-       
+
         const trainingProgressesNotToBeDeleted = await OverallTrainingProgress.find({
             user: { $in: users },
             status: "COMPLETED"
@@ -1474,11 +1474,11 @@ const deleteUsersAfterGDPR = async (users, errors) => {
         const userlearningPlanIdMap = trainingProgressesNotToBeDeleted.reduce((acc, curr) => {
             const userId = curr.user.toString();
             const plans = Array.isArray(curr.learningPlan) ? curr.learningPlan : [curr.learningPlan];
-        
+
             if (!acc[userId]) {
                 acc[userId] = [];
             }
-        
+
             acc[userId].push(...plans);
             return acc;
         }, {});
@@ -1769,7 +1769,7 @@ const restoreUsers = async (users, errors) => {
     }
 };
 
-const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex) => {
+const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, countriesListed }, rowIndex) => {
 
     const errors = [];
 
@@ -1861,6 +1861,11 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         row["Vessel IMO Number"] = '';
     }
 
+    const country = row["Country"].toLowerCase();
+    if (row["Country"] && !countriesListed.includes(row["Country"].toLowerCase())) {
+        errors.push(`Invalid Country in row ${rowIndex + 1} as ${row["Country"]}`);
+    }
+
     if (!row["Country"]) {
         row["Country"] = null
     }
@@ -1921,10 +1926,10 @@ const clear7dayOldRequests = async () => {
         const currentDate = new Date();
         const sevenDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - 7));
 
-        const query = { createdAt: { $lte: sevenDaysAgo } }; 
+        const query = { createdAt: { $lte: sevenDaysAgo } };
 
-        await DeleteRequestHistory.deleteMany({isDeleted: true, ...query});
-        await HistorySignupRequest.deleteMany({signupStatus: 'REJECTED', ...query});
+        await DeleteRequestHistory.deleteMany({ isDeleted: true, ...query });
+        await HistorySignupRequest.deleteMany({ signupStatus: 'REJECTED', ...query });
     }
     catch (error) {
         throw new Error(error.message);
@@ -1941,11 +1946,11 @@ const scheduledForEveryDayMidnight = async () => {
 
             //clear 7 day old user requests for userprofile deletion and signup requests
             await clear7dayOldRequests();
-            
+
             //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
             await reject30DayOldSignupRequests();
             await approve30DayOldDeleteRequests();
-            
+
             //delete 5 year old course completion data
             await deleteCourseDataForUserDeleted5yearsAgo();
         });
@@ -1976,7 +1981,7 @@ const approveDeleteRequests = async (getUsers) => {
         const input = {};
         input.users = getUsers.map(user => user._id);
         if (!getUsers || getUsers.length === 0) {
-           return "no users to delete";
+            return "no users to delete";
         }
 
         const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
@@ -3325,7 +3330,7 @@ module.exports = {
             if (passwordEmailList.length > 0) {
 
 
-                // await sendBulkEmails(passwordEmailList);
+                await sendBulkEmails(passwordEmailList);
 
 
             }
@@ -3420,7 +3425,7 @@ module.exports = {
 
     },
 
-    bulkValidationHelper: async (createReadStream, empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, saveCSV) => {
+    bulkValidationHelper: async (createReadStream, empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, users, userId, subscriberId, newFileName, countriesListed, saveCSV) => {
 
         let validationErrors = [];
 
@@ -3449,7 +3454,7 @@ module.exports = {
 
                     isEmptyFile = false;
 
-                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus }, rowIndex));
+                    validationErrors.push(await validateUserRow(row, { empIds, emails, dbemployeeIds, dbEmails, designationNames, imoNumbers, vesselStatus, countriesListed }, rowIndex));
 
                     const hasNonEmptyArray = validationErrors.some(innerArray => innerArray.length > 0);
                     if (hasNonEmptyArray) {
