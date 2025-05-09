@@ -727,8 +727,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     const query = {
         $or: trainingProgressInput.map((input) => ({
             overallTrainingProgress: input.overallTrainingProgress,
-            attemptCount: input.attemptCount,
-            status: { $ne: "NOT_STARTED" },
+            attemptCount: input.attemptCount
         }))
     };
 
@@ -1152,33 +1151,14 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
         overallModuleMap[overallId] = trainingModuleMap[trainingId] || [];
     });
 
-    const trainingModuleContents = await TrainingContentBridge.find({
-        trainingModule: { $in: trainingModuleIds },
-        isDeleted: { $ne: true }
-    }).session(session);
-
-    const trainingModuleContentMap = trainingModuleContents.reduce((acc, doc) => {
-        const { trainingModule, trainingContent } = doc;
-
-        if (!acc[trainingModule]) {
-            acc[trainingModule] = [];
-        }
-        acc[trainingModule].push(trainingContent.toString());
-        return acc;
-    }, {});
-
-    const trainingModuleContentIds = trainingModuleContents.map((item) => item.trainingContent);
-
     const existingProgresses = await TrainingProgress.find({
         trainingRegistration: { $in: overallIds.map(id => trainingRegMap.get(id.toString())) },
         overallTrainingProgress: { $in: overallIds },
-        trainingModule: { $in: trainingModuleIds },
-        trainingModuleContent: { $in: Object.values(trainingModuleContentMap).flat() },
     }).session(session);
 
     const existingSet = new Set(
         existingProgresses.map(
-            prog => `${prog.overallTrainingProgress}_${prog.trainingModuleContent}_${prog.attemptCount || 1}`
+            prog => `${prog.overallTrainingProgress}_${prog.trainingModule}_${prog.trainingModuleContent}_${prog.attemptCount || 1}`
         )
     );
 
@@ -1198,9 +1178,17 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
             .map(mod => mod._id.toString());
 
         moduleIds.forEach(trainingModule => {
-            const contentIds = trainingModuleContentMap[trainingModule] || [];
+
+            const contentEntry = overallDoc.contentData.find(
+                (entry) => entry.moduleId._id.toString() === trainingModule.toString()
+            );
+
+            const contentIds = contentEntry
+                ? contentEntry.contentIds.map(id => id._id)
+                : [];
+
             contentIds.forEach(trainingModuleContent => {
-                const key = `${overallId}_${trainingModuleContent}_${attemptCount}`;
+                const key = `${overallId}_${trainingModule}_${trainingModuleContent}_${attemptCount}`;
                 if (!existingSet.has(key)) {
                     newProgresses.push({
                         training,
@@ -1229,7 +1217,10 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     let updatedTrainingProgress;
     if (newProgresses.length > 0) {
-        updatedTrainingProgress = await TrainingProgress.insertMany(newProgresses, { session });
+        await TrainingProgress.insertMany(newProgresses, {
+            ordered: false,
+            session
+        });
     }
 
     let quizErrors = [];
