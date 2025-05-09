@@ -120,6 +120,11 @@ trainingProgressSchema.index({ overallTrainingProgress: 1 });
 trainingProgressSchema.index({ trainingModuleContent: 1 });
 trainingProgressSchema.index({ training: 1 });
 
+trainingProgressSchema.index(
+  { overallTrainingProgress: 1, trainingModuleContent: 1 },
+  { unique: true }
+);
+
 trainingProgressSchema.plugin(AggregatePaginate);
 
 module.exports.TrainingProgress = Model("TrainingProgress", trainingProgressSchema);
