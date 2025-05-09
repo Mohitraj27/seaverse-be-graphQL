@@ -2355,7 +2355,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 directSignup: user?.directSignup,
                 deleteRequestDate: user?.deleteRequestDate,
                 decisionDate: new Date(),
-                isRegistered: user?.isRegistered
+                isRegistered: false
             }));
 
             let errors = [];
