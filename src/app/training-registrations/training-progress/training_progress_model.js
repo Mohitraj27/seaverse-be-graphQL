@@ -20,9 +20,9 @@ const trainingProgressSchema = new Schema(
             type: ObjectId,
             ref: "User",
         },
-        overallTrainingProgress : {
-            type : ObjectId,
-            ref : "OverallTrainingProgress"
+        overallTrainingProgress: {
+            type: ObjectId,
+            ref: "OverallTrainingProgress"
         },
         trainingRegistration: {
             type: ObjectId,
@@ -69,6 +69,13 @@ const trainingProgressSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        videoId: {
+            type: ObjectId,
+            default: null,
+        },
+        videoDuration: {
+            type: Number,
+        },
         lastAccessedItem: String,
         lastAccessedAt: Date,
         lastAccessedDuration: {
@@ -108,6 +115,10 @@ trainingProgressSchema.index({
     trainingRegistration: 1,
     trainingModuleContent: 1,
 });
+
+trainingProgressSchema.index({ overallTrainingProgress: 1 });
+trainingProgressSchema.index({ trainingModuleContent: 1 });
+trainingProgressSchema.index({ training: 1 });
 
 trainingProgressSchema.plugin(AggregatePaginate);
 

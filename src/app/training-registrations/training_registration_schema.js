@@ -74,7 +74,7 @@ module.exports = {
             isEnrolled: Boolean
             moduleCount: Int
             totalTrainingModules: Int
-            totalDuration: Int
+            totalDuration: Float
             status: String
             timeSpend: Float
             lastConsumedContent: lastConsumedContent
@@ -82,6 +82,9 @@ module.exports = {
             isFromMigration:Boolean
             createdAt: String
             attemptCount: Int
+            isCertificatePresent: Boolean
+            finishedCourseFirstTime: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
@@ -109,6 +112,7 @@ module.exports = {
             custom
             GROUP
             MEMBER
+            owner
         }
         input GroupInputForEnroll {
             groupType: groupTypeEnums!
@@ -188,7 +192,10 @@ module.exports = {
             firstName: String!
             lastName: String
             status: Status!
+            email: String!
+            isRegistered: Boolean!
             directEnrollment: Boolean
+            adminMarkedAsCompleted: Boolean
         }
         input getTrainingRegsInput {
             training: ID!
@@ -254,5 +261,6 @@ module.exports = {
         updateTrainingRegistrationFeedback(id: ID!, input: FeedbackAttemptInput!): TrainingRegistration!
         markAsCompleted(input: MarkAsCompleteInput!): MarkAsCompletedRes!
         resetModules(input: ResetModulesInput!): ResetModulesRes!
+        courseCompletionForFirstTime(input: ID!): MarkAsCompletedRes!
     `,
 };

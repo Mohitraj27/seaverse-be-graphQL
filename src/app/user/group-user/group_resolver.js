@@ -16,16 +16,108 @@ const { Designation } = require("../../designations/designation_model");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const { getAutoSyncedGroups, getCustomGroups, getAutoSyncUsersOfSingleGroup, getAutoSyncedGroupsOnly, getCustomGroupsOnly } = require("./group_helper");
 const error_helper = require("../../../util/error_helper");
-const { getCustomGroupUsers, getAutoSyncUsers } = require("../../training-registrations/training_registration_helper");
+const { getCustomGroupUsers, getAutoSyncUsers, fetchUserFromAutoSyncedGroups } = require("../../training-registrations/training_registration_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const NotificationHelper = require("../../notifications/notification_helper");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
-
 const xlsx = require('xlsx');
 const path = require('path');
 const Export = require('../exportUser/exportUser_model');
 const AwsHelper = require("../../../util/aws_helper");
 const { pipeline } = require("stream");
+const { formatDate } = require("../../reports/reports_helper");
+const { LearningPlan } = require('../../learning-plan/learning_plan_model');
+const LearningPlanStatus = require('../../learning-plan/enumFields/learning_plan_status.json')
+const targetAudience = require('../../learning-plan/enumFields/targetAudienceEnum.json');
+const audienceSelection = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const typeOfConditionalCustomFieldEnum = require('../../learning-plan/enumFields/typeOfConditionalCustomField.json');
+const groupTypes = require('../../../util/group_types.json');
+const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const { enrollUsers } = require('../employee/employee_helper');
+const { filterLearningPlans } = require("../employee/employee_helper");
+const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
+    if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
+    for (const field of plan?.conditionalCustomFields) {
+        if (field.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field.groupIDs)) {
+            for (const group of field.groupIDs) {
+                if (group.groupType === groupTypes.custom && group.groupIDs.includes(customGroupId)) {
+                    return { matchFound: true, learningPlanId: plan._id };
+                }
+            }
+        }
+    }
+    return { matchFound: false, learningPlanId: [] };
+}
+async function checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId) {
+    if (!plan?.groupIDs?.length) { return { matchFound: false, learningPlanId: [] }; }
+    const match = plan.groupIDs.find((group) => group?.groupType === groupTypes.custom && Array.isArray(group.groupIDs) &&
+        group.groupIDs.includes(customGroupId.toString()));
+    return match ? { matchFound: true, learningPlanId: plan._id } : { matchFound: false, learningPlanId: [] };
+}
+async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userIdToAutoenroll, context) {
+
+    const filteredPlans = await Promise.allSettled(
+        learningPlans.map(async (plan) => {
+            const usersToEnroll = [];
+            if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId);
+                if (matchFound) {
+                    const userIds = userIdToAutoenroll.map(id => id.toString());
+                    await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan?._id,
+                    });
+                    const newAssignments = userIds.map(userId => ({
+                        learningPlanId: plan?._id,
+                        assignedLearnerId: userId,
+                        isMannuallyAdded: false,
+                        createdBy: context?.user?._id,
+                        updatedBy: context?.user?._id
+                    }));
+                    if (newAssignments?.length > 0) {
+                        const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                    }
+                    usersToEnroll.push(...userIds);
+                }
+            }
+            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+
+                const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId);
+                if (matchFound) {
+                    const userIds = userIdToAutoenroll.map(id => id.toString());
+                    await LearningPlanAssignment.deleteMany({
+                        learningPlanId: plan?._id,
+                    });
+
+                    // 2. Create new assignments
+                    const newAssignments = userIdToAutoenroll.map(userId => ({
+                        learningPlanId: plan?._id,
+                        assignedLearnerId: userId,
+                        isMannuallyAdded: false,
+                        createdBy: context.user.userId,
+                        updatedBy: context.user.userId
+                    }));
+                    if (newAssignments?.length > 0) {
+                        const insertedAssignments = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                    }
+                    usersToEnroll.push(...userIdToAutoenroll);
+                }
+            }
+
+            if (usersToEnroll?.length > 0) {
+                const enrollData = {
+                    trainings: plan?.selectCourses,
+                    users: usersToEnroll,
+                    type: "ENROLL",
+                    learningPlan: plan?._id,
+                };
+                const data = await enrollUsers([enrollData]);
+                return true;
+            }
+            return false;
+        })
+    );
+}
 
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
@@ -35,20 +127,21 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
         const notifications = [];
-        const exportStartTime = new Date();
+        // const exportStartTime = new Date();
 
         try {
+            /* ticket No SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Group Export In Progress` }],
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected:[],
@@ -56,7 +149,8 @@ module.exports.queries = {
                 icon: notificationiconEnum.PROGRESS,
             };
             notifications.push(inProgressNotification);
-            await NotificationHelper.createNotification(notifications);
+            */
+            // await NotificationHelper.createNotification(notifications);
             let memberIds;
             let selectedGroup;
             let userDetails = [];
@@ -125,10 +219,10 @@ module.exports.queries = {
                 "First Name": user?.firstName,
                 "Last Name": user?.lastName,
                 "Email": user?.email,
-                "Date Added": user?.createdAt,
+                "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
-                "Last Login Date": user?.lastLoginAt,
-                "User State": user?.isRegistered ? "Registered" : "Unregistered",
+                "Last Login Date (UTC)": formatDate(user?.lastLoginAt),
+                "User Status": user?.isRegistered ? "Registered" : "Unregistered",
                 "Designation": user?.designation,
                 "Type Of Vessel": user?.vesselType,
             }));
@@ -159,12 +253,13 @@ module.exports.queries = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            value: `"User group Export" file is ready: `,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin : true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     additionalInfo: [
                         {
@@ -197,83 +292,91 @@ module.exports.queries = {
         if (!groupType) groupType = "all";
 
         const { subscriberId } = AuthUser(context);
+        try {
+            const skip = pageInput?.skip ?? 0;
+            const limit = pageInput?.limit ?? 200000;
 
-        const skip = pageInput?.skip ?? 0;
-        const limit = pageInput?.limit ?? 50;
+            let filterConditions = {
+                subscriber: subscriberId,
+                isDeleted: { $ne: true },
+                groupName: { $ne: null },
+            };
 
-        let filterConditions = {
-            subscriber: subscriberId,
-            isDeleted: { $ne: true },
-            groupName: { $ne: null },
-        };
+            if (groupFilter?.search) {
+                const searchRegex = new RegExp(groupFilter.search, "i");
+                filterConditions.groupName = {
+                    $regex: searchRegex,
+                };
+            }
 
-        if (groupFilter?.search) {
-            const searchRegex = new RegExp(groupFilter.search, "i");
-            filterConditions.groupName = {
-                $regex: searchRegex,
+            let groups = [];
+            let totalCount = 0;
+
+            switch (groupType) {
+                case "Autosyncedgroups":
+                    let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                    // console.log('this is new grp',allAutosyncedGroups);
+                    allAutosyncedGroups = allAutosyncedGroups.filter(group => group._id && group.groupName);
+
+                    let filteredAutosyncedGroups = allAutosyncedGroups;
+                    if (groupFilter?.search) {
+                        filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+                    const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
+                    groups = paginatedAutosyncedGroups;
+                    totalCount = filteredAutosyncedGroups.length || 0;
+
+                    break;
+
+                case "Customgroups":
+                    if (groupFilter && !groupFilter.customGroupId) {
+                        groupFilter.customGroupId = null;
+                    }
+
+                    const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
+
+                    let filteredCustomGroups = allCustomGroups;
+                    if (groupFilter?.search) {
+                        filteredCustomGroups = allCustomGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+
+                    const paginatedCustomGroups = filteredCustomGroups;
+                    groups = paginatedCustomGroups;
+                    totalCount = paginatedCustomGroups.length || 0;
+                    break;
+
+                default:
+                    let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
+                    let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
+
+                    let allGroups = [...allAutosynced, ...allCustom];
+                    allGroups = allGroups.filter(group => group._id && group.groupName);
+
+                    let filteredGroups = allGroups;
+                    if (groupFilter?.search) {
+                        filteredGroups = allGroups.filter(group =>
+                            filterConditions.groupName.$regex.test(group.groupName)
+                        );
+                    }
+                    const paginatedGroups = filteredGroups.slice(skip, skip + limit);
+                    groups = paginatedGroups;
+                    totalCount = paginatedGroups.length;
+                    break;
+            }
+
+            return {
+                status: "Success",
+                totalCount,
+                groups,
             };
         }
-
-        let groups = [];
-        let totalCount = 0;
-
-        switch (groupType) {
-            case "Autosyncedgroups":
-                const allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
-
-                let filteredAutosyncedGroups = allAutosyncedGroups;
-                if (groupFilter?.search) {
-                    filteredAutosyncedGroups = allAutosyncedGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-                const paginatedAutosyncedGroups = filteredAutosyncedGroups.slice(skip, skip + limit);
-                groups = paginatedAutosyncedGroups;
-                totalCount = filteredAutosyncedGroups.length;
-                break;
-
-            case "Customgroups":
-                if (groupFilter && !groupFilter.customGroupId) {
-                    groupFilter.customGroupId = null;
-                }
-
-                const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                let filteredCustomGroups = allCustomGroups;
-                if (groupFilter?.search) {
-                    filteredCustomGroups = allCustomGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-
-                const paginatedCustomGroups = filteredCustomGroups;
-                groups = paginatedCustomGroups;
-                totalCount = paginatedCustomGroups.length;
-                break;
-
-            default:
-                const allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
-                const allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                const allGroups = [...allAutosynced, ...allCustom];
-
-                let filteredGroups = allGroups;
-                if (groupFilter?.search) {
-                    filteredGroups = allGroups.filter(group =>
-                        filterConditions.groupName.$regex.test(group.groupName)
-                    );
-                }
-                const paginatedGroups = filteredGroups.slice(skip, skip + limit);
-                groups = paginatedGroups;
-                totalCount = paginatedGroups.length;
-                break;
+        catch (error) {
+            throw Error(error.message);
         }
-
-        return {
-            status: "Success",
-            totalCount,
-            groups,
-        };
     },
     getSingleAutoSyncGroupUsers: async ({ input }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -343,77 +446,82 @@ module.exports.queries = {
     },
     getGroupsOfUser: async ({ userId }, context) => {
         const { isAuthenticated, role, userId: loggedInUserId } = AuthUser(context);
+        try {
+            if (!userId) {
+                throw CustomError(ErrorName.USER_ID_REQUIRED);
+            }
 
-        if (!userId) {
-            throw CustomError(ErrorName.USER_ID_REQUIRED);
-        }
+            const existingUser = await User.findById(userId).populate({
+                path: 'currentVessel',
+                populate: {
+                    path: 'typeOfVessel',
+                },
+            });
 
-        const existingUser = await User.findById(userId);
+            if (!existingUser) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
 
-        if (!existingUser) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
+            const user = await Employee.findOne({ user: userId });
 
-        const user = await Employee.findOne({ user: userId });
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND);
+            }
 
-        if (!user) {
-            throw CustomError(ErrorName.USER_NOT_FOUND);
-        }
+            const designation = await Designation.findById(user.empDesignation);
 
-        const designation = await Designation.findById(user.empDesignation);
+            if (!designation) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
 
-        if (!designation) {
-            throw CustomError(ErrorName.NOT_FOUND);
-        }
+            const designationName = designation.name;
 
-        const designationName = designation.name;
+            const roleName = existingUser.role;
 
-        const roleName = existingUser.role;
+            const ownerName = await Vessel.find({ _id: existingUser.currentVessel }).select('ownerName -_id');
+            const owner = ownerName[0]?.ownerName || null;
+            let regStatusGroup;
 
-        let regStatusGroup;
+            if (existingUser.isRegistered) {
+                regStatusGroup = "Registered";
+            } else {
+                regStatusGroup = "Unregistered";
+            }
 
-        if (existingUser.isRegistered) {
-            regStatusGroup = "Registered";
-        } else {
-            regStatusGroup = "Unregistered";
-        }
+            const subRoleIds = existingUser.subRoles;
 
-        const subRoleIds = existingUser.subRoles;
+            const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
+            const subRoleNames = subRoles.map(subRole => subRole.name);
 
-        const subRoles = await SubRole.find({ _id: { $in: subRoleIds } });
-        const subRoleNames = subRoles.map(subRole => subRole.name);
+            const vesselName = existingUser?.currentVessel?.name;
+            const vesselStatus = existingUser?.vesselStatus;
+            const vesselType = existingUser?.currentVessel?.typeOfVessel?.name;
 
-        let vesseldetail, vesselName, vesselStatus, vesselTypeName;
-        const vessel = await UserVessel.findOne({ user: userId, isActive: true });
-
-        if (vessel !== null) {
-            vesseldetail = await Vessel.findById(vessel.vessel);
-            vesselName = vesseldetail.name;
-            vesselStatus = vessel.vesselStatus;
-            const vesselType = await VesselType.findById(vesseldetail.typeOfVessel);
-            vesselTypeName = vesselType.name;
-        }
-
-        let customGroupNames = null;
-        const  customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
-        const groupIds = customGroups.map(item => item.group);
-        if(groupIds && groupIds.length > 0){
-            const customGroup = await Group.find({ _id: { $in: groupIds } });
-            if(customGroup && customGroup.length > 0){
-                customGroupNames = customGroup.map(group => group.groupName);
+            let customGroupNames = null;
+            const customGroups = await GroupMember.find({ member: userId, isDeleted: false }).select('group');
+            const groupIds = customGroups.map(item => item.group);
+            if (groupIds && groupIds.length > 0) {
+                const customGroup = await Group.find({ _id: { $in: groupIds } });
+                if (customGroup && customGroup.length > 0) {
+                    customGroupNames = customGroup.map(group => group.groupName);
+                }
+            }
+            if (existingUser && user && designation) {
+                return {
+                    designation: designationName ?? null,
+                    role: roleName ?? null,
+                    vessel: vesselName ?? null,
+                    vesselStatus: vesselStatus ?? null,
+                    vesselType: vesselType ?? null,
+                    subRole: subRoleNames ?? null,
+                    regStatus: regStatusGroup ?? null,
+                    customGroups: customGroupNames ?? null,
+                    owner: owner ?? null
+                };
             }
         }
-        if (existingUser && user && designation) {
-            return {
-                designation: designationName ?? null,
-                role: roleName ?? null,
-                vessel: vesselName ?? null,
-                vesselStatus: vesselStatus ?? null,
-                vesselType: vesselTypeName ?? null,
-                subRole: subRoleNames ?? null,
-                regStatus: regStatusGroup ?? null,
-                customGroups: customGroupNames ?? null,
-            };
+        catch (error) {
+            throw new Error(error.message);
         }
     },
     getUsersAndAutoSyncedGroups: async ({ search }, context) => {
@@ -449,7 +557,6 @@ module.exports.queries = {
                 group.groupName && regex.test(group.groupName)
             );
         }
-
         return {
             users: users,
             autoSyncedGroups: filteredAutoSyncedGroups,
@@ -458,7 +565,6 @@ module.exports.queries = {
     },
     getAllGroupMembers: async ({ groupKind, groupId, pageInput, autosyncInput, groupFilter }, context) => {
         const { subscriberId } = AuthUser(context);
-
         const skip = pageInput?.skip ?? 0;
         const limit = pageInput?.limit ?? 50;
 
@@ -470,8 +576,11 @@ module.exports.queries = {
                 const selectedGroup = await Group.findOne({ _id: groupId }).select('groupType').lean();
                 if (!selectedGroup) throw CustomError(ErrorName.NOT_FOUND);
                 customGroupMembers = await getCustomGroupUsers([{ groupId: selectedGroup._id, groupType: selectedGroup.groupType }]);
-
-                members = await User.find({ _id: { $in: customGroupMembers.map(member => member._id) } })
+                const query = { _id: { $in: customGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
 
@@ -497,11 +606,16 @@ module.exports.queries = {
                                         localField: 'member',
                                         foreignField: '_id',
                                         as: 'memberDetails',
-                                        pipeline: [{ $match: { isDeleted: false } }]
+                                        pipeline: [
+                                            { $match: { isDeleted: false, isRegistered: groupFilter?.isRegistered } },
+                                        ]
                                     }
                                 },
                                 {
                                     $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: true }
+                                },
+                                {
+                                    $match: { 'memberDetails.isRegistered': groupFilter?.isRegistered }
                                 },
                                 {
                                     $project: {
@@ -517,7 +631,7 @@ module.exports.queries = {
                     },
 
                     {
-                        $unwind: { path: '$members', preserveNullAndEmptyArrays: true }
+                        $unwind: { path: '$members', preserveNullAndEmptyArrays: false }
                     },
                     {
                         $project: {
@@ -531,16 +645,19 @@ module.exports.queries = {
                 ]);
 
 
-                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false });
+                const totalMembers = await GroupMember.countDocuments({ group: groupId, isDeleted: false, });
                 members = groupData.slice(skip, skip + limit);
                 totalCount = totalMembers;
 
             } else {
-                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput.groupId, groupType: autosyncInput.groupType });
-                members = await User.find({ _id: { $in: autoSyncGroupMembers.map(member => member._id) } })
+                autoSyncGroupMembers = await getAutoSyncUsersOfSingleGroup({ groupId: autosyncInput?.groupId, groupType: autosyncInput?.groupType });
+                const query = { _id: { $in: autoSyncGroupMembers.map(member => member._id) } };
+                if (groupFilter && groupFilter.isRegistered !== undefined) {
+                    query.isRegistered = groupFilter.isRegistered;
+                }
+                members = await User.find(query)
                     .select('_id firstName lastName email isRegistered')
                     .lean();
-
                 totalCount = members.length;
             }
 
@@ -552,7 +669,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw new Error('Error fetching group members');
+            throw CustomError(error);
         }
     },
 
@@ -623,7 +740,35 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, ses
         return 0;
     }
 };
-
+    
+  const checkCustomGroupsInActiveLearningPlans = async (activeLearningPlans, customGroupIds) => {
+    const customGroupIdStrings = new Set(customGroupIds.map(id => id.toString()))
+  
+    const isCustomGroupMatch = (groupEntry) => {
+      return ( groupEntry.groupType === groupTypes?.custom && Array.isArray(groupEntry.groupIDs) && groupEntry.groupIDs.some(groupId => {
+          const idToCompare = groupId?.$oid || groupId?.toString();
+          return customGroupIdStrings.has(idToCompare)
+        })
+      )
+    }
+  
+    const isAssociated = activeLearningPlans.some(plan => {
+      if (plan?.targetAudience === targetAudience.GROUP_BASED) {
+        return Array.isArray(plan.groupIDs) && plan.groupIDs.some(isCustomGroupMatch)
+      }
+  
+      if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION) {
+        return Array.isArray(plan?.conditionalCustomFields) &&
+          plan?.conditionalCustomFields.some(field => field?.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field?.groupIDs) &&
+            field?.groupIDs.some(isCustomGroupMatch)
+          )
+      }
+      return false;
+    })
+  
+    return { isAssociated };
+  }
+  
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
 
@@ -632,6 +777,7 @@ module.exports.mutations = {
         if (!input.groupType) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
         }
+
 
         if (!input.list && !input.members) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Provide all the required fields");
@@ -643,9 +789,12 @@ module.exports.mutations = {
             isDeleted: false,
         };
 
+        let excludedMembers = [];
+        let membersToInsert = [];
+
         const savedGroup = await DbTransactionHelper.performDbTransaction(async session => {
 
-            let existingGroupMembers;
+            let existingGroupMembers = [];
             let existingGroup;
 
             if (input._id) {
@@ -670,7 +819,7 @@ module.exports.mutations = {
 
             if (existingGroup && input._id) {
                 let existingGroups = await GroupMember.find({ group: input._id, isDeleted: { $ne: true } }).select("member");
-                existingGroupMembers = existingGroups.map(groupMember => groupMember.member) || [];
+                existingGroupMembers = existingGroups.map(groupMember => groupMember?.member || groupMember?._id) || [];
             }
 
             const groupUpdateData = {};
@@ -749,10 +898,50 @@ module.exports.mutations = {
 
             if (!savedGroupName) throw CustomError(ErrorName.FAILED);
 
+            let deletedGroups = [];
+
             if (input.members && input.members.length > 0) {
                 const uniqueInputMembers = [...new Set(input.members)];
-                const existingMemberIds = existingGroupMembers?.map(member => member.toString());
-                const newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
+                let existingMemberIds = [];
+                let newMembers = [];
+                if (existingGroupMembers && existingGroupMembers.length > 0) {
+                    existingMemberIds = existingGroupMembers?.map(member => member.toString());
+                    const inputMembersString = uniqueInputMembers.map(member => member.toString());
+                    if (existingMemberIds.length > 0) {
+                        excludedMembers = existingMemberIds.filter(member => !inputMembersString?.includes(member.toString()));
+                    }
+                }
+
+                // While changing from group of groups to group of users
+                if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
+                    deletedGroups = await GroupMember.find({
+                        group: input._id,
+                        $or: [
+                            { member: { $in: input.deleteMembersOrGroups } },
+                            { _id: { $in: input.deleteMembersOrGroups } },
+                        ],
+                        isDeleted: { $ne: true }
+                    });
+
+                    if (deletedGroups.length > 0) {
+
+                        let groupArray = [];
+
+                        for (const group of deletedGroups) {
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                        }
+
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
+
+
+                    }
+                }
+
+                newMembers = uniqueInputMembers.filter(member => !(existingMemberIds?.includes(member.toString())));
                 if (newMembers.length > 0) {
                     const memberCount = await bulkInsertGroupMembers(subscriberId, savedGroupName._id, newMembers, session);
                     if (memberCount > 0) {
@@ -773,32 +962,96 @@ module.exports.mutations = {
                             { session }
                         );
                     }
+
                 }
             }
 
+            let includeMemberDatas = [];
+
             if (input.groupType === "GROUP") {
+
+                // If removed any autosynced group in custom group, find the users of that group.
+                if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
+                    deletedGroups = await GroupMember.find({
+                        group: input._id,
+                        $or: [
+                            { member: { $in: input.deleteMembersOrGroups } },
+                            { _id: { $in: input.deleteMembersOrGroups } },
+                        ],
+                        isDeleted: { $ne: true }
+                    });
+
+                    if (deletedGroups.length > 0) {
+
+                        let groupArray = [];
+
+                        for (const group of deletedGroups) {
+                            if (!group?.groupType || !group?.groupData) excludedMembers.push(group?.member);
+                            else groupArray = [{ groupType: group?.groupType, groupId: group?.groupData }];
+                        }
+
+                        if (groupArray.length > 0) {
+                            const excludedMemberDatas = await fetchUserFromAutoSyncedGroups(groupArray);
+                            excludedMembers = excludedMemberDatas.map(user => user._id);
+                        }
+
+
+                    }
+                }
+
                 if (getDesignationIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "designation", getDesignationIds, session);
+                    for (const designation of getDesignationIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "designation", groupId: designation.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
                 }
 
                 if (subRoleIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "subRole", subRoleIds, session);
+                    for (const subRole of subRoleIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "subRole", groupId: subRole.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vessel", vesselIds, session);
+                    for (const vessel of vesselIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vessel", groupId: vessel.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselTypeIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselType", vesselTypeIds, session);
+                    for (const vesselType of vesselTypeIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vesselType", groupId: vesselType.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+
                 }
 
                 if (vesselStatusIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "vesselStatus", vesselStatusIds, session);
+                    for (const vesselStatus of vesselStatusIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "vesselStatus", groupId: vesselStatus.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
                 }
 
                 if (roleIds.length > 0) {
                     await bulkInsertGroups(subscriberId, savedGroupName._id, "role", roleIds, session);
+                    for (const role of roleIds) {
+                        const getMembers = await fetchUserFromAutoSyncedGroups([{ groupType: "role", groupId: role.id }]);
+                        includeMemberDatas.push(...getMembers);
+                    }
+                }
+
+                if (includeMemberDatas.length > 0) {
+                    membersToInsert = includeMemberDatas.map(user => user._id);
                 }
             }
 
@@ -806,44 +1059,37 @@ module.exports.mutations = {
         });
 
         if (input.deleteMembersOrGroups && input.deleteMembersOrGroups.length > 0) {
-            if (input.groupType === "GROUP") {
-                await GroupMember.updateMany(
-                    {
-                        _id: { $in: input.deleteMembersOrGroups },
-                        group: savedGroup._id
+
+            await GroupMember.updateMany(
+                {
+                    $or: [
+                        { member: { $in: input.deleteMembersOrGroups } },
+                        { _id: { $in: input.deleteMembersOrGroups } },
+                    ],
+                    group: savedGroup._id
+                },
+                {
+                    $set: {
+                        isDeleted: true,
                     },
-                    {
-                        $set: {
-                            isDeleted: true,
-                        },
-                    }
-                );
-            }
+                }
+            );
 
             if (input.groupType === "MEMBER") {
-                await GroupMember.updateMany(
-                    {
-                        group: savedGroup._id,
-                        member: { $in: input.deleteMembersOrGroups },
-                    },
-                    {
-                        $set: {
-                            isDeleted: true,
-                        },
-                    }
-                );
-                await Group.updateOne(
+                const getCount = await GroupMember.countDocuments({ group: savedGroup._id, isDeleted: { $ne: true } });
+                const updateGroup = await Group.updateOne(
                     { _id: savedGroup._id },
                     {
                         $pull: {
                             members: { $in: input.deleteMembersOrGroups },
                         },
-                        $inc: {
-                            memberCount: -input.deleteMembersOrGroups.length,
+                        $set: {
+                            memberCount: getCount,
                         },
                     }
                 );
             }
+
         }
 
         LogHelper.logActivity({
@@ -866,6 +1112,52 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
 
+        if (input?._id) {
+
+            const groupIdInString = input?._id.toString();
+
+            const learningPlans = await LearningPlan.find({
+                status: LearningPlanStatus.ACTIVE,
+                isDeleted: false,
+                groupIDs: {
+                    $elemMatch: {
+                        groupIDs: Array.isArray(groupIdInString) ? { $in: groupIdInString } : groupIdInString
+                    }
+                },
+            });
+
+            if (excludedMembers.length > 0) {
+
+                const removedLearnersID = excludedMembers;
+
+                const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
+
+                const learningPlanIds = learningPlans.map(learningPlan => learningPlan._id);
+
+                await LearningPlanAssignment.deleteMany({
+                    learningPlanId: { $in: learningPlanIds },
+                    assignedLearnerId: { $in: removedLearnersIDToObject },
+                });
+
+                const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                    { user: { $in: removedLearnersIDToObject }, learningPlan: { $in: learningPlanIds }, isDeleted: { $ne: true } },
+                    {
+                        $pull: {
+                            learningPlan: { $in: learningPlanIds },
+                        }
+                    }
+                );
+
+            }
+
+            if (input?.groupType === "GROUP" && learningPlans?.length > 0 && membersToInsert?.length > 0) {
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, context);
+            }
+            if (input?.groupType === "MEMBER" && learningPlans?.length > 0 && input?.members?.length > 0) {
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
+            }
+        }
+
         return {
             message: input._id ? "Group updated successfully" : "Group created successfully",
             group: {
@@ -878,9 +1170,15 @@ module.exports.mutations = {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
+    try{
         let failedDeletions = [];
-
+        const activeLearningPlans = await LearningPlan.find({status: LearningPlanStatus.ACTIVE,isDeleted: false});
+        if(activeLearningPlans?.length > 0){
+            const { isAssociated } = await checkCustomGroupsInActiveLearningPlans(activeLearningPlans, ids);
+        if (isAssociated) {
+            throw CustomError(ErrorName.CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN, "This group is associated with an active Learning Plan. Deletion is restricted.");
+        }
+        }
         const getGroups = await Group.find({
             _id: { $in: ids },
             subscriber: subscriberId,
@@ -915,6 +1213,9 @@ module.exports.mutations = {
             }
         } else {
             throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
+        }}
+        catch(error){
+         throw CustomError(ErrorName.FAILED_TO_DELETE_CUSTOM_GROUP, error.message);
         }
     },
 };

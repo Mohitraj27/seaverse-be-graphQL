@@ -1,4 +1,5 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../tools");
+const { type } = require("../../util/firebaseConfig");
 
 const StringNormalize = require("../../util/string_helper").stringNormalize;
 const Language = require("../../util/language.json");
@@ -50,6 +51,10 @@ const userSchema = new Schema(
         avatar: String,
         password: {
             type: String,
+        },
+        dummyPassword: {
+            type: String,
+            default : null,
         },
         role: {
             type: String,
@@ -138,12 +143,54 @@ const userSchema = new Schema(
         currentVessel: {
             type: ObjectId,
             ref: "Vessel",
+            default: null,
         },
         vesselStatus: {
             type: String,
-            enum: ["ONBOARDED", "ONSHORE", "ASSIGNED"],
-            default: "ONSHORE",
-        }
+            default: null,
+        },
+        directSignup: {
+            type: Boolean,
+            default: false
+        },
+        isSignupAdminAprroved: {
+            type: Boolean
+        },
+        roleAssignmentDate: {
+            type: Date
+        },
+        contentlanguages:
+        [
+            { 
+                type: String,
+                ref:"ContentLanguage",
+                default: "en"
+            }
+        ],
+        consents: [
+            {
+                consentType: { type: String },
+                message: { type: String },
+                title: { type: String },
+                status: { type: Boolean },
+                timestamps: { type: Date, default: Date.now }
+            }
+        ],
+        country: {
+            type: String,
+        },
+        isEmailNotification:{
+            type: Boolean,
+            default: true
+        },
+        isPushNotification: {
+            type: Boolean,
+            default: true
+        },
+        deletionDate: {
+            type: Date,
+            default: null
+        },
     },
     { timestamps: true }
 );
@@ -164,18 +211,29 @@ userSchema.virtual("employee", {
 
 userSchema.index({ email: "text" });
 
-userSchema.index({ _id: 1, role: 1 });
-
+userSchema.index({ _id: 1, role: 1, currentVessel: 1 });
+userSchema.index({ isDeleted: 1, role: 1, vesselStatus: 1, lastLoginAt: 1 });
+userSchema.index({
+    "firstName": "text",
+    "lastName": "text",
+    "email": "text",
+    "civilIdOrPassport": "text"
+});
 userSchema.plugin(AggregatePaginate);
 
 const deletedUserSchema = userSchema.clone();
 deletedUserSchema.path('civilIdOrPassport').index(false);
 deletedUserSchema.path('email').index(false);
 
+// For app signup
+const appUserSchema = userSchema.clone();
+
 const User = Model("User", userSchema);
 const DeletedUser = Model("DeletedUser", deletedUserSchema);
+const AppUser = Model("AppUser", appUserSchema);
 
 module.exports = {
     User,
-    DeletedUser
+    DeletedUser,
+    AppUser,
 };

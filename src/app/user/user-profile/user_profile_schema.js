@@ -11,6 +11,7 @@ module.exports = {
             firstName: String
             lastName: String
             email: String
+            country: String
             phone: PhoneInput
             languagePreference: Language,
             address: UserAddressInput,
@@ -35,11 +36,24 @@ module.exports = {
         type forgetPasswordRes {
             success: Boolean
             message: String
+            consents: [consents!]
         }
         input newPasswordInput {
             token: String
             newPassword: String!
             confirmPassword: String!
+        }
+        input consentsInput {
+            _id: ID
+            title: String
+            status: Boolean
+            message: String
+        }
+        type consents {
+            _id: ID
+            title: String
+            status: Boolean
+            message: String
         }
     `,
     queries: `
@@ -51,7 +65,7 @@ module.exports = {
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
         changePassword(input: PasswordUpdateInput!): String!
-        forgetPassword(email: String!): forgetPasswordRes!
+        forgetPassword(email: String!,consentsInput: [consentsInput!]): forgetPasswordRes!
         verifyResetPassword(token: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest(input: DeleteRequestInput!): String!

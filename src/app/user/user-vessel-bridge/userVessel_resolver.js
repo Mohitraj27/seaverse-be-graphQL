@@ -12,6 +12,9 @@ const { vesselAssignmentEmail, vesselAssignmentEmailforAdmin } = require("../../
 const NotificationHelper = require("../../notifications/notification_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationEnum = require("../../notifications/notification_icon.json")
+const {filterLearningPlans} = require('../employee/employee_helper');
+const {LearningPlan} = require('../../learning-plan/learning_plan_model');
+const {Employee} = require('../employee/employee_model');
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -41,55 +44,59 @@ module.exports.mutations = {
             let updateUser;
             let newVessel;
 
-            if (input.vesselId) {
+            let vesselId = input.vesselId === "" ? null : input.vesselId;
+            let vesselStatus = input.vesselStatus === "" ? null : input.vesselStatus;
 
-                if (String(getUser?.currentVessel) === String(input.vesselId)) {
+            if (vesselId) {
 
-                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                if (String(getUser?.currentVessel) === String(vesselId)) {
+
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                         {
                             $set: {
-                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                                vesselStatus: vesselStatus,
+                                isActive: vesselId ? true : false,
+                                deletedAt: vesselId ? null : Date.now()
                             }
                         }
                     );
 
-                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
-                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    getUser.currentVessel = vesselId ?? null;
+                    getUser.vesselStatus = vesselStatus ?? null;
                     updateUser = await getUser.save();
 
                 } else {
 
-                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: input.vesselId },
+                    newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                         {
                             $set: {
-                                vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                                isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                                deletedAt: input.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                                vesselStatus: vesselStatus,
+                                isActive: vesselId ? false : true,
+                                deletedAt: vesselId ? null : Date.now()
                             }
                         }
                     );
 
                     newVessel = await UserVessel.create({
                         user: input.userId,
-                        vessel: input.vesselId,
-                        vesselStatus: input.vesselStatus || VesselStatus.ONSHORE,
-                        isActive: input.vesselStatus === VesselStatus.ONSHORE ? false : true,
+                        vessel: vesselId,
+                        vesselStatus: vesselStatus,
+                        isActive: vesselId ? true : false,
                     });
 
-                    getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId;
-                    getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                    getUser.currentVessel = vesselId;
+                    getUser.vesselStatus = vesselStatus;
                     updateUser = await getUser.save();
+
                 }
             } else {
 
-                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true },
+                newVesselUpdate = await UserVessel.findOneAndUpdate({ user: input.userId, isActive: true, vessel: getUser?.currentVessel },
                     {
                         $set: {
-                            vesselStatus: input?.vesselStatus || VesselStatus.ONSHORE,
-                            isActive: input?.vesselStatus === VesselStatus.ONSHORE ? false : true,
-                            deletedAt: input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : null
+                            vesselStatus: vesselStatus,
+                            isActive: vesselId ? true : false,
+                            deletedAt: vesselId ? null : Date.now()
                         }
                     }
                 );
@@ -97,19 +104,21 @@ module.exports.mutations = {
                 newVesselUpdate = await UserVessel.findOne({ user: input.userId })
                     .sort({ updatedAt: -1 });
 
-                newVesselUpdate.vesselStatus = input?.vesselStatus || VesselStatus.ONSHORE;
-                newVesselUpdate.isActive = input?.vesselStatus === VesselStatus.ONSHORE ? false : !input.vesselId ? false : true;
-                newVesselUpdate.deletedAt = input?.vesselStatus === VesselStatus.ONSHORE ? Date.now() : !input.vesselId ? Date.now() : null;
-                await newVesselUpdate.save();
+                if (newVesselUpdate) {
+                    newVesselUpdate.vesselStatus = vesselStatus || null;
+                    newVesselUpdate.isActive = vesselId ? true : false;
+                    newVesselUpdate.deletedAt = vesselId ? null : Date.now();
+                    await newVesselUpdate.save();
+                }
 
-                getUser.currentVessel = input.vesselStatus === VesselStatus.ONSHORE ? null : input.vesselId ? input.vesselId : null;
-                getUser.vesselStatus = input.vesselStatus || VesselStatus.ONSHORE;
+                getUser.currentVessel = vesselId;
+                getUser.vesselStatus = vesselStatus;
                 updateUser = await getUser.save();
 
             }
 
             if (updateUser) {
-
+                /*
                 const emailContent = vesselAssignmentEmail({
                     firstName: getUser.firstName,
                     vesselName: getVessel?.name || 'N/A',
@@ -119,26 +128,50 @@ module.exports.mutations = {
                     subject: `Vessel Assignment Notification`,
                     htmlContent: emailContent,
                 });
+                
                 const emailContentforAdmin = vesselAssignmentEmailforAdmin({
                     firstName: userInfo.firstName,
                     vesselName: getVessel?.name || 'N/A',
                     userName: getUser.firstName,
                 })
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `New Vessel Assigned: ${getVessel?.name}`,
-                    messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                    notificationType: NotificationType.VESSEL_CREATED,
-                    notifyAdmin: true,
-                    status: "SENT",
-                    icon: notificationEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
+                    */
+/*  
+                if (getVessel) {
+                    await NotificationHelper.createNotificationhelper({
+                        subscriber: subscriberId,
+                        titleValue: `New Vessel Assigned: ${getVessel?.name}`,
+                        messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        notificationType: NotificationType.VESSEL_CREATED,
+                        notifyAllAdmin: true,
+                        status: "SENT",
+                        icon: notificationEnum.SUCCESS,
+                        createdBy: userInfo,
+                    });
+                }
+  */
+                const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+                const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
+                let typeOfVessel;
+                if(input?.vesselId){
+                    typeOfVessel = await Vessel.find({_id: input?.vesselId}).select('typeOfVessel -_id');
+                }
+                const emailData = await User.find({_id: input?.userId}).select('email -_id');
+                const conditions = [{
+                    designationID: designation?.[0]?.empDesignation ?? null,
+                    vesselID: input?.vesselId ?? null, 
+                    vesselTypeID: typeOfVessel?.[0]?.typeOfVessel ?? null,
+                    currentStatus: input?.vesselStatus ?? null,
+                    email: emailData,
+                    _id: input?.userId ,
+                }];
+                const result = await filterLearningPlans(learningPlans, conditions, context);
+               /*
                 await SendEmail({
                     receiverEmail: userInfo.email,
                     subject: `User Vessel Assignment Notification`,
                     htmlContent: emailContentforAdmin,
                 })
+                */
                 return {
                     status: "Success",
                     message: "The vessel updated successfully!"

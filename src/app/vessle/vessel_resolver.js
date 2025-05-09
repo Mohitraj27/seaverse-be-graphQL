@@ -19,6 +19,8 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../email-template/vesselStatusUpdate");
 const { sendNotifications } = require("../../util/firebase_helper");
 
+const { Owner } = require("../vessle/owner/owner_model");
+
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -88,7 +90,19 @@ module.exports.queries = {
                         ],
                     },
                 },
-                { $unwind: { path: "$typeOfVessel", preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: "$typeOfVessel" } },
+                {
+                    $lookup: {
+                        from: "owners",
+                        localField: "ownerId",
+                        foreignField: "_id",
+                        as: "owner",
+                        pipeline: [
+                            { $project: { _id: 1, name: 1, address: 1 } },
+                        ],
+                    },
+                },
+                { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
             ];
 
             if (filterInput?.vesselType?.length > 0) {
@@ -173,9 +187,11 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createVessel: async ({ input }, context) => {
+
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
+
         try {
-            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerId, address } = input;
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
@@ -188,6 +204,23 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
+            let ownerName;
+
+            if (ownerId && ownerId !== '') {
+                const existingOwner = await Owner.findById(ownerId);
+                if (!existingOwner) throw CustomError(ErrorName.FAILED,'Owner does not exist');
+                if (address) {
+                    existingOwner.address = address;
+                    await existingOwner.save();
+                }
+
+                ownerName = existingOwner?.name;
+
+                if (!ownerName) {
+                    throw CustomError(ErrorName.FAILED,'Owner Name does not exist');
+                }
+            }
+
             const vessel = new Vessel({
                 subscriber: subscriberId,
                 name: name,
@@ -195,8 +228,9 @@ module.exports.mutations = {
                 imoNumber: imoNumber,
                 isActive: isActive,
                 companyName: companyName,
-                ownerName: ownerName,
-                address: address,
+                ownerId: ownerId ?? null,
+                ownerName: ownerName ?? null,
+                address: address ?? null,
                 createdBy: userId,
                 updatedBy: userId,
             });
@@ -226,9 +260,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `A New Vessel: ${vessel.name} has been created by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
@@ -246,7 +280,7 @@ module.exports.mutations = {
     updateVessel: async ({ id, input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
-            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerName, address } = input;
+            const { name, typeOfVessel, imoNumber, isActive, companyName, ownerId, address } = input;
 
             const vessel = await Vessel.findOne({ _id: id });
             if (!vessel) {
@@ -264,13 +298,27 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
+            let ownerName;
+            if (ownerId) {
+                const existingOwner = await Owner.findOne({ _id: ownerId });
+
+                if (!existingOwner) throw CustomError(ErrorName.FAILED);
+
+                if (address) {
+                    existingOwner.address = address;
+                    await existingOwner.save();
+                }
+
+                ownerName = existingOwner?.name;
+            }
+
             vessel.name = name;
             vessel.typeOfVessel = typeOfVessel;
             vessel.imoNumber = imoNumber;
             vessel.isActive = isActive;
             vessel.companyName = companyName;
-            vessel.ownerName = ownerName;
-            vessel.address = address;
+            vessel.ownerId = ownerId ?? vessel.ownerId;
+            vessel.ownerName = ownerName ?? vessel.ownerName;
             vessel.subscriber = subscriberId;
 
             const updatedVessel = await vessel.save();
@@ -279,18 +327,19 @@ module.exports.mutations = {
                 if (isActive === false) {
                     await UserVessel.updateMany(
                         { vessel: vessel._id, isActive: true },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null, isActive: false } }
                     );
 
                     await User.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null } }
                     );
 
                     await DeletedUser.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vesselStatus: "ONSHORE" } }
+                        { $set: { vessel: null } }
                     );
+
                 }
             }
 
@@ -318,9 +367,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `${vessel.name} has been Updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                messageValue: `Vessel "${vessel.name}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
                 notificationType: NotificationType.VESSEL_UPDATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
@@ -423,19 +472,19 @@ module.exports.mutations = {
                     if (!vessel.isActive) {
                         await UserVessel.updateMany(
                             { vessel: vessel._id, isActive: true },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { vessel: null, isActive: false } },
                             { session }
                         );
 
                         await User.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
 
                         await DeletedUser.updateMany(
                             { currentVessel: vessel._id },
-                            { $set: { vesselStatus: "ONSHORE" } },
+                            { $set: { currentVessel: null } },
                             { session }
                         );
                     }
@@ -462,14 +511,14 @@ module.exports.mutations = {
 
                 if (updatedVessels.length > 0) {
                     const vesselNames = updatedVessels.map(v => v.name).join(", ");
-                    const statusSummary = updatedVessels.map(v => `${v.name}: ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
+                    const statusSummary = updatedVessels.map(v => ` "${v.name}" : ${v.isActive ? 'Activated' : 'Deactivated'}`).join(", ");
 
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Vessel Status Updated Successfully`,
                         messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAdmin: true,
+                        notifyAllAdmin: true,
                         affected: updatedVessels.map(v => ({
                             targetRef: "Vessel",
                             target: v.id,
@@ -480,12 +529,12 @@ module.exports.mutations = {
                         session,
                     });
 
-                    await NotificationHelper.createNotificationhelper({
+                   /*  await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Your Vessels have been Updated`,
                         messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAdmin: false,
+                        notifyAllAdmin: false,
                         affected: updatedVessels.map(v => ({
                             targetRef: "Vessel",
                             target: v.id,
@@ -496,9 +545,10 @@ module.exports.mutations = {
                         status: "SENT",
                         createdBy: userInfo,
                         session,
-                    });
+                    }); */
 
                     const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
+                    /*
                     for (let user of assignedUsers) {
                         const emailContent = vesselStatusUpdateEmail({
                             firstName: user.firstName,
@@ -512,7 +562,7 @@ module.exports.mutations = {
                             session,
                         });
                     }
-
+                    
                     const emailContentforAdmin = vesselStatusUpdateEmailAdmin({
                         firstName: userInfo?.firstName,
                         vesselName: vesselNames,
@@ -524,7 +574,7 @@ module.exports.mutations = {
                         htmlContent: emailContentforAdmin,
                         session,
                     });
-
+                    */
                     const userVesselIdsToNotify = updatedVessels.map(v => v.id);
                     const matchingUsers = await User.find({ currentVessel: { $in: userVesselIdsToNotify } }).select('_id').session(session);
                     if (matchingUsers.length > 0) {

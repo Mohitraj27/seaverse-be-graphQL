@@ -9,6 +9,8 @@ const {
     DbTransactionHelper,
     UploadHelper,
     VesselStatus,
+    SqliteEmailHelper,
+    dummyPassword,
 } = require("../../../util");
 const { ObjectId } = require("../../../tools");
 
@@ -62,6 +64,23 @@ const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-
 const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
+const { DynamicData } = require("./employee_dynamicData_model");
+const { last } = require("lodash");
+const { DeleteRequestHistory } = require("./delete_request_history_model");
+const aws_helper = require("../../../util/aws_helper");
+const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
+const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
+const signupRequestModel = require("../../signup-request/signup-request-model");
+const { generateFileNameTimestamp } = require("../../reports/reports_helper");
+const LearningPlanStatus = require('../../learning-plan/enumFields/learning_plan_status.json');
+const LearningPlanAssignment = require('../../learning-plan/assignedLearner/assignedLearnerModel');
+const { OverallTrainingProgress } = require('../../training-registrations/overall-course-progress/overall_progress_model');
+const targetAudienceEnum = require('../../learning-plan/enumFields/targetAudienceEnum.json');
+const audienceSelectionEnum = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
+const groupTypes = require('../../../util/group_types.json');
+const { enrollUsers } = require('./employee_helper')
+const operationTypeRoleEnum = require('./operationType.json');
+const { processFilters } = require('./user_exportCSV_filter');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -79,19 +98,112 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
 }
+async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operationType, userInfo) {
+    const filterLearningPlans = await Promise.allSettled(learningPlans.map(async (plan) => {
+        const usersToEnroll = [];
+        if (plan?.targetAudience === targetAudienceEnum?.GROUP_BASED && plan?.audienceSelection === audienceSelectionEnum?.ALL_EMPLOYEES) {
+            const group = plan.groupIDs.find(group => group.groupType === groupTypes.role);
+            if (operationType === operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN) {
+                if (group && Array.isArray(group.groupIDs) && group.groupIDs.some(roleId => roles.includes(roleId.toString()))) {
+                    const assignments = userIdsToSend.map(userId => ({
+                        learningPlanId: new mongoose.Types.ObjectId(plan?._id),
+                        assignedLearnerId: new mongoose.Types.ObjectId(userId),
+                        isMannuallyAdded: false,
+                        createdBy: userInfo?._id,
+                        updatedBy: userInfo?._id
+                    }));
+                    if (assignments?.length > 0) {
+                        const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
+                    }
+                    usersToEnroll.push(...userIdsToSend);
+                }
+            }
+            if (operationType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
+                if (group && Array.isArray(group.groupIDs) && group.groupIDs.some(roleId => roles.includes(roleId.toString()))) {
+                    const findLearnerIds = await LearningPlanAssignment.find({ learningPlanId: new mongoose.Types.ObjectId(plan?._id), assignedLearnerId: { $in: userIdsToSend } });
+                    if (findLearnerIds?.length > 0) {
+                        const dataenrolled = await LearningPlanAssignment.deleteMany({ learningPlanId: new mongoose.Types.ObjectId(plan?._id), assignedLearnerId: { $in: userIdsToSend } });
+                        const updateResult = await OverallTrainingProgress.updateMany(
+                            {
+                                user: { $in: userIdsToSend.map(id => new mongoose.Types.ObjectId(id)) },
+                                learningPlan: { $elemMatch: { $eq: new mongoose.Types.ObjectId(plan?._id) } }
+                            },
+                            {
+                                $pull: { learningPlan: new mongoose.Types.ObjectId(plan?._id) }
+                            }
+                        );
+                    }
+                    //  usersToEnroll.push(...userIdsToSend);
+                }
+            }
+
+        }
+        if (usersToEnroll?.length > 0) {
+            const enrollData = {
+                trainings: plan?.selectCourses,
+                users: usersToEnroll,
+                type: "ENROLL",
+                learningPlan: plan?._id,
+            };
+            const datagoingtoenrollUsers = await enrollUsers([enrollData]);
+            return true;
+        }
+        return false;
+    }));
+
+}
 function formatDateWithSuffix(date) {
-    const day = date.getDate();
-    const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
-        (day % 10 === 2 && day !== 12) ? 'nd' :
-            (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+    /*  
+     const day = date.getDate();
+     const suffix = (day % 10 === 1 && day !== 11) ? 'st' :
+         (day % 10 === 2 && day !== 12) ? 'nd' :
+             (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+ 
+     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+     const month = monthNames[date.getMonth()];
+     const year = date.getFullYear();
+ 
+     return `${day}${suffix} ${month} ${year}`; 
+     */
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const month = monthNames[date.getMonth()];
-    const year = date.getFullYear();
+    if (date) {
+        const formattedDate = new Date(date);
+        return formattedDate.toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'UTC',
+        });
+    }
 
-    return `${day}${suffix} ${month} ${year}`;
+    return null;
 }
 module.exports.queries = {
+    getDeleteAndSignUpRequestCounts: async (_, context) => {
+        const { role, userPermissions, subscriberId } = AuthUser(context);
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredPermission: [
+                    Permission.GET_EMPLOYEES,
+                ],
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const deleteRequestCount = await User.countDocuments({ deleteRequest: true });
+        const signUpRequestCount = await signupRequestModel.countDocuments();
+        return {
+            deleteRequestCount,
+            signUpRequestCount,
+        };
+    },
     getEmployeeNotInGroup: async ({ pageInput, filterInput, group }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
             AuthUser(context);
@@ -528,7 +640,7 @@ module.exports.queries = {
             },
         ]);
     },
-    getEmployees: async ({ pageInput, filterInput }, context) => {
+    getEmployees: async ({ pageInput, filterInput, sortInput }, context) => {
         const {
             role,
             userPermissions,
@@ -558,39 +670,88 @@ module.exports.queries = {
 
             let startDate, endDate;
             let filterConditions = {
-                subscriber: subscriberId,
+                // subscriber: subscriberId,
             };
+
+            const sortingStage = [];
+            const sortOrder = sortInput?.sortOrder ?? 1;
+
+            const fieldMapping = {
+                "FIRST_NAME": "user.firstName",
+                "DESIGNATION": "empDesignation.name",
+                "STATUS": "user.vesselStatus",
+                "USER_ROLE": "user.role",
+                "LAST_SEEN": "user.lastLoginAt",
+                "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name",
+                "COUNTRY": "user.country",
+            };
+
+            const field = sortInput?.field ?? "FIRST_NAME";
+            const fieldPath = fieldMapping[field];
+
+            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
+
+                sortingStage.push({
+                    $addFields: {
+                        [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        [`lowercase${field}`]: sortOrder
+                    }
+                });
+            } else if (fieldPath) {
+                sortingStage.push({
+                    $sort: {
+                        [fieldPath]: sortOrder
+                    }
+                });
+            } else {
+
+                sortingStage.push({
+                    $addFields: {
+                        lowercaseFirstname: { $toLower: "$user.firstName" }
+                    }
+                });
+                sortingStage.push({
+                    $sort: {
+                        lowercaseFirstname: 1
+                    }
+                });
+            }
+
 
             if (filterInput?.lastSeen) {
                 const today = Moment();
                 switch (filterInput.lastSeen) {
                     case "TODAY":
-                        startDate = today.startOf("day").toDate();
-                        endDate = today.endOf("day").toDate();
+                        startDate = Moment().startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "YESTERDAY":
-                        startDate = today.subtract(1, "day").startOf("day").toDate();
-                        endDate = today;
+                        startDate = Moment().subtract(1, "day").startOf("day").toDate();
+                        endDate = Moment().subtract(1, "day").endOf("day").toDate();
                         break;
                     case "LAST_7_DAYS":
-                        startDate = today.subtract(7, "days").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(7, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_30_DAYS":
-                        startDate = today.subtract(30, "days").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(30, "days").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_3_MONTHS":
-                        startDate = today.subtract(3, "months").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(3, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_6_MONTHS":
-                        startDate = today.subtract(6, "months").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(6, "months").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     case "LAST_YEAR":
-                        startDate = today.subtract(1, "year").startOf("day").toDate();
-                        endDate = Moment().toDate();
+                        startDate = Moment().subtract(1, "year").startOf("day").toDate();
+                        endDate = Moment().endOf("day").toDate();
                         break;
                     default:
                         break;
@@ -602,7 +763,6 @@ module.exports.queries = {
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
                 filterConditions.empDesignation = { $in: filterInput.empDesignation };
             }
-
             const fetchResult = async pipeline => {
                 const empData = await Employee.aggregate(pipeline);
                 const empCount = empData.length;
@@ -627,47 +787,113 @@ module.exports.queries = {
             if (filterInput?.search) {
                 sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
             }
-            const result = await fetchResult([
-                {
-                    $match: filterConditions,
-                },
-                {
-                    $lookup: {
-                        from: "designations",
-                        localField: "empDesignation",
-                        foreignField: "_id",
-                        as: "empDesignation",
+            const results = await fetchResult([
+                    {
+                        $match: filterConditions,
                     },
-                },
-                { $unwind: "$empDesignation" },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "user",
-                        foreignField: "_id",
-                        as: "user",
+                    {
+                        $lookup: {
+                            from: "designations",
+                            localField: "empDesignation",
+                            foreignField: "_id",
+                            as: "empDesignation",
+                        },
                     },
-                },
-                {
-                    $unwind: "$user",
-                },
-                {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "user.subRoles",
-                        foreignField: "_id",
-                        as: "user.subRoles",
-                    }
-                },
-                {
-                    $match: {
-                        "user.isDeleted": { $ne: true },
-                        "user.role": { $in: ["LEARNER", "ADMIN"] },
-                        ...(filterInput?.vesselStatus?.length > 0 && {
-                            "user.vesselStatus": { $in: filterInput.vesselStatus },
-                        }),
+                    {
+                        $unwind: {
+                            path: "$empDesignation",
+                            preserveNullAndEmptyArrays: true
+                        },
                     },
-                },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "user",
+                            foreignField: "_id",
+                            as: "user",
+                        },
+                    },
+                    {
+                        $unwind: "$user",
+                    },
+                    {
+                        $match: {
+                            "user.isDeleted": { $ne: true },
+                            "user.role": { $in: ["LEARNER", "ADMIN"] },
+                            "user.isSignupAdminAprroved": { $ne: false },
+                            ...(filterInput?.vesselStatus?.length > 0 && {
+                                "user.vesselStatus": { $in: filterInput.vesselStatus },
+                            }),
+                        },
+                    },
+                    ...(filterInput?.search
+                        ? [
+                            {
+                                $match: {
+                                    $or: [
+                                        {
+                                            $expr: {
+                                                $regexMatch: {
+                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                    regex: ".*" + sanitizedSearch + ".*",
+                                                    options: "i",
+                                                },
+                                            },
+                                        },
+                                        {
+                                            "user.email": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        },
+                                        {
+                                            "user.civilIdOrPassport": {
+                                                $regex: ".*" + sanitizedSearch + ".*",
+                                                $options: "i",
+                                            },
+                                        }
+                                    ],
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.isRegistered !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.isRegistered": filterInput.isRegistered,
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.country !== undefined
+                        ? [
+                            {
+                                $match: {
+                                    "user.country": {$in : filterInput?.country},
+                                },
+                            },
+                        ]
+                        : []),
+                    ...(filterInput?.lastSeen
+                        ? [
+                            {
+                                $match: {
+                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                    "user.isResetPasswordDialog": { $ne: false },
+                                },
+                            },
+                        ]
+                        : []),
+                    {
+                        $lookup: {
+                            from: "subroles",
+                            localField: "user.subRoles",
+                            foreignField: "_id",
+                            as: "user.subRoles",
+                        }
+                    },
+
                 {
                     $lookup: {
                         from: "uservessels",
@@ -769,7 +995,11 @@ module.exports.queries = {
                         latestUpdatedAt: -1,
                     },
                 },
-
+                {
+                    $sort: {
+                        "user.firstName": 1
+                    }
+                },
                 ...(filterInput?.vesselName?.length > 0
                     ? [
                         {
@@ -814,12 +1044,12 @@ module.exports.queries = {
                                             $options: "i",
                                         },
                                     },
-                                    /* {
+                                    {
                                         "user.civilIdOrPassport": {
                                             $regex: ".*" + sanitizedSearch + ".*",
                                             $options: "i",
                                         },
-                                    }, */
+                                    },
                                     /* {
                                         "user.companyEmail": {
                                             $regex: ".*" + sanitizedSearch + ".*",
@@ -882,28 +1112,259 @@ module.exports.queries = {
                         },
                     ]
                     : []),
-                ...(filterInput?.lastSeen
-                    ? [
-                        {
-                            $match: {
-                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                "user.isResetPasswordDialog": { $ne: false },
-                            },
+                /*
+            ...(filterInput?.lastSeen
+                ? [
+                    {
+                        $match: {
+                            "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                            "user.isResetPasswordDialog": { $ne: false },
                         },
-                    ]
-                    : []),
+                    },
+                ]
+                : []),
+                */
+                ...(filterInput?.showInvited ? [
+                    { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
+                ] : []),
+                ...sortingStage,
             ]);
 
             return {
-                employees: result.employees,
-                totalCount: result?.employees.length ?? 0,
-                totalEmployees : result?.totalCount ?? 0
+                employees: results.employees,
+                totalCount: results?.employees.length ?? 0,
+                totalEmployees: results?.totalCount ?? 0
             }
+            /*
+        const optimizedPipeline = [
+            // Initial match on subscriber
+            { $match: filterConditions },
+
+            // Lookup users with early filtering
+            {
+                $lookup: {
+                    from: "users",
+                    let: { userId: "$user" },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ["$_id", "$$userId"] }, isDeleted: false, isSignupAdminAprroved: { $ne: false }, role: { $in: ["LEARNER", "ADMIN"] } } },
+                        { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, role: 1, lastLoginAt: 1, vesselStatus: 1, subRoles: 1, isRegistered: 1, civilIdOrPassport: 1, directSignup: 1, isSignupAdminAprroved: 1, isResetPasswordDialog: 1 , currentVessel:1} }
+                    ],
+                    as: "user"
+                }
+            },
+            { $unwind: "$user" },
+
+            ...(filterInput?.search
+                ? [
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    $expr: {
+                                        $regexMatch: {
+                                            input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                            regex: ".*" + sanitizedSearch + ".*",
+                                            options: "i",
+                                        },
+                                    },
+                                },
+                                {
+                                    "user.email": {
+                                        $regex: ".*" + sanitizedSearch + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "user.civilIdOrPassport": {
+                                        $regex: ".*" + sanitizedSearch + ".*",
+                                        $options: "i",
+                                    },
+                                }
+                            ],
+                        },
+                    },
+                ]
+                : []),
+                { 
+                    $unwind: {
+                        path: "$user.currentVessel", 
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+
+                ...(filterInput?.vesselName?.length > 0 ? [
+                    { 
+                        $match: { 
+                            "user.currentVessel": { 
+                                $in: filterInput.vesselName 
+                            } 
+                        } 
+                    }
+                ] : []),
+                { $unwind: "$user.currentVessel" , preserveNullAndEmptyArrays: true},
+            ...(filterInput?.vesselStatus?.length > 0 ? [
+                { $match: { "user.vesselStatus": { $in: filterInput.vesselStatus } } }
+            ] : []),
+
+            ...(filterInput?.isRegistered !== undefined ? [
+                { $match: { "user.isRegistered": filterInput.isRegistered } }
+            ] : []),
+
+            ...(filterInput?.lastSeen ? [
+                { $match: { "user.lastLoginAt": { $gte: startDate, $lte: endDate } } }
+            ] : []),
+
+            ...(filterInput?.showInvited ? [
+                { $match: { "user.isResetPasswordDialog": !filterInput.showInvited } }
+            ] : []),
+            {
+                $lookup: {
+                    from: "designations",
+                    localField: "empDesignation",
+                    foreignField: "_id",
+                    as: "empDesignation",
+                    pipeline: [{ $project: { name: 1, _id: 1 } }]
+                }
+            },
+            { $unwind: "$empDesignation" },
+
+            // Handle search with text index
+
+            // Lookup subroles
+            {
+                $lookup: {
+                    from: "subroles",
+                    localField: "user.subRoles",
+                    foreignField: "_id",
+                    as: "user.subRoles"
+                }
+            },
+            ...(filterInput?.role?.length > 0
+                ? [
+                    {
+                        $match:
+                            filterInput.role.includes("LEARNER") &&
+                                filterInput.role.includes("ADMIN")
+                                ? {}
+                                : filterInput.role.includes("LEARNER")
+                                    ? {
+                                        "user.role": "LEARNER",
+                                        "user.subRoles.name": { $ne: "ADMIN" },
+                                    }
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
+                    },
+                ]
+                : []),
+
+
+            // Lookup user vessels
+            {
+                $lookup: {
+                    from: "uservessels",
+                    localField: "user._id",
+                    foreignField: "user",
+                    as: "userVessels",
+                    pipeline: [
+                        { $match: { isActive: true } },
+                        {
+                            $lookup: {
+                                from: "vessels",
+                                localField: "vessel",
+                                foreignField: "_id",
+                                as: "vesselDetails",
+                                pipeline: [
+                                    { $match: { name: { $exists: true } } },
+                                    { $project: { _id: 1, name: 1, vesselStatus: 1, typeOfVessel: 1, isActive: 1 } },
+                                    {
+                                        $lookup: {
+                                            from: "vesseltypes",
+                                            localField: "typeOfVessel",
+                                            foreignField: "_id",
+                                            as: "typeOfVesselDetails",
+                                            pipeline: [
+                                                { $match: { _id: { $ne: null } } },
+                                                { $project: { _id: 1, name: 1 } }
+                                            ]
+                                        }
+                                    },
+                                    { $unwind: { path: "$typeOfVesselDetails", preserveNullAndEmptyArrays: true } }
+                                ]
+                            }
+                        },
+                        { $unwind: { path: "$vesselDetails", preserveNullAndEmptyArrays: true } },
+                        { $sort: { updatedAt: -1 } },
+                        { $limit: 1 }
+                    ]
+                }
+            },
+            { $unwind: { path: "$userVessels", preserveNullAndEmptyArrays: true } },
+
+            // Add latest update time
+            {
+                $addFields: {
+                    latestUpdatedAt: { $max: ["$updatedAt", "$user.updatedAt"] }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    user: 1,
+                    empDesignation: 1,
+                    userVessels: 1,
+                    latestUpdatedAt: 1
+                }
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
+            },
+            // Apply sorting
+            ...sortingStage,
+
+            // Pagination with facet
+            // {
+            //     $facet: {
+            //         metadata: [
+            //             { $count: "total" },
+            //             { $project: { total: 1 } }
+            //         ],
+            //         data: [
+            //             { $skip: skip },
+            //             { $limit: limit },
+            //             {
+            //                 $project: {
+            //                     _id: 1,
+            //                     user: 1,
+            //                     empDesignation: 1,
+            //                     userVessels: 1,
+            //                     latestUpdatedAt: 1
+            //                 }
+            //             }
+            //         ]
+            //     }
+            // }
+        ];
+            */
+            // Execute the aggregation
+            // const resultsw = await Employee.aggregate(results);
+            // // const { metadata, data } = results[0] || { metadata: [], data: [] };
+            // const totalCount = resultsw?.length ? resultsw?.length : 0;
+
+            // return {
+            //     employees: resultsw,
+            //     totalCount,
+            //     totalEmployees: totalCount
+            // };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMPLOYESS, error.message);
         }
     },
-    getDeleteRequests: async ({ pageInput, filterInput }, context) => {
+    getDeleteRequests: async ({ pageInput, search }, context) => {
+
         const { role, userPermissions } = AuthUser(context);
 
         if (
@@ -922,34 +1383,84 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
-        const skip = pageInput?.skip ?? 0,
-            limit = pageInput?.limit ?? 50;
+        try {
 
-        const searchCriteria = filterInput?.search
-            ? {
-                $or: [
-                    { firstName: { $regex: filterInput.search, $options: "i" } },
-                    { lastName: { $regex: filterInput.search, $options: "i" } },
-                    { email: { $regex: filterInput.search, $options: "i" } },
-                ],
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
+
+            const sortFieldValue = pageInput?.sortField || "deleteRequestDate";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
+
+            const searchInput = search?.trim();
+            const searchRegex = new RegExp(searchInput, "i");
+            let searchCriteria = { deleteRequest: true };
+
+            if (searchInput) {
+                const nameParts = searchInput.split(" ").filter(Boolean);
+
+                const fullNameSearch =
+                    nameParts.length > 1
+                        ? {
+                            $and: [
+                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                            ]
+                        }
+                        : {};
+
+                searchCriteria = {
+                    deleteRequest: true,
+                    $or: [
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        ...(nameParts.length > 1 ? [fullNameSearch] : [])
+                    ]
+                };
             }
-            : {};
 
-        const result = await User.find({ deleteRequest: true, ...searchCriteria })
-            .skip(skip)
-            .limit(limit)
-            .sort({ deleteRequestDate: -1 });
+            const sortOptions = { [sortFieldValue]: sortOrderValue };
 
-        if (!result) {
-            return { totalCount: 0 };
+            const result = await User.find({ deleteRequest: true, ...searchCriteria })
+                .skip(skip)
+                .limit(limit)
+                .sort(sortOptions)
+                .lean();
+
+            if (!result) {
+                return { totalCount: 0 };
+            }
+
+            const userIds = result.map(user => user._id);
+
+            const employees = await Employee.find({ user: { $in: userIds } })
+                .populate({
+                    path: "empDesignation",
+                    select: "name"
+                })
+                .lean();
+
+            const employeeMap = new Map(
+                employees.map(emp => [emp.user.toString(), emp.empDesignation?.name || null])
+            );
+
+            const finalUsers = result.map(user => ({
+                ...user,
+                designation: employeeMap.get(user._id.toString()) || null
+            }));
+
+            const totalCount = await User.countDocuments({ deleteRequest: true });
+
+            return {
+                data: finalUsers,
+                totalCount,
+            };
+
+        } catch (error) {
+            console.log(error)
+            throw Error(error);
         }
 
-        const totalCount = await User.countDocuments({ deleteRequest: true });
-
-        return {
-            users: result,
-            totalCount,
-        };
     },
     getImportLogs: async () => {
         const combinedLogs = await Log.aggregate([
@@ -1063,101 +1574,125 @@ module.exports.queries = {
     sendWelcomeMails: async ({ emailInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-
-        const emails = emailInput.email;
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        let messages = [];
-        const notifications = [];
-        await Promise.all(
-            emails.map(async (email) => {
-                if (!emailRegex.test(email)) {
-                    messages.push(`Invalid email format: ${email}`);
-                    return;
-                }
-
-                let currentUserData = await User.findOne({ email: email });
-                if (!currentUserData) {
-                    messages.push(`No user data found for email: ${email}`);
-                    return;
-                }
-
-                let html = ``;
-                if (currentUserData.isResetPasswordDialog) {
-                    const htmlContent = sendWelcomeEmailsToLearner({
-                        firstName: currentUserData.firstName,
-                        buttonLink: `${process.env.APP_URL}/login`,
-                    });
-                    html = htmlContent;
-                } else {
-                    const generatePassword = generateRandomString(10);
-                    currentUserData.password = await CryptoHelper.hash(generatePassword, 10);
-                    try {
-                        await currentUserData.save();
-                    } catch {
-                        messages.push(`Failed to create new dummy password for ${email}`);
+        try {
+            const emails = emailInput.email;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            let messages = [];
+            const notifications = [];
+            await Promise.all(
+                emails.map(async (email) => {
+                    if (!emailRegex.test(email)) {
+                        messages.push(`Invalid Email format: ${email}`);
                         return;
                     }
-                    const htmlContent = sendEmailToLearner({
-                        firstName: currentUserData.firstName,
-                        email: currentUserData.email,
-                        temp_password: generatePassword,
-                        buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
-                    });
-                    html = htmlContent;
-                    await SendEmail({
-                        receiverEmail: userInfo.email,
-                        subject: "Registration Invitation",
-                        htmlContent: html,
-                    })
-                }
 
-                try {
-                    await SendEmail({
-                        receiverEmail: email,
-                        subject: "Registration Invitation",
-                        htmlContent: html,
-                    });
-                    messages.push(`Welcome mail sent to ${email}`);
+                    let currentUserData = await User.findOne({ email: email, isDeleted: false, isRegistered: true });
+                    if (!currentUserData) {
+                        throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `One or more User are Unregistered`);
+                    }
 
-                }
-                catch (error) {
-                    messages.push(`Unable to send Welcome mail to ${email}`);
-                }
-                notifications.push({
-                    subscriber: subscriberId,
-                    title: [{ lang: "en", value: `Welcome Email Sent` }],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `Welcome Email has been successfully sent to "${currentUserData.firstName} ${currentUserData.lastName}" (${email}).`,
-                        },
-                    ],
-                    notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                    notifyAdmin: true,
-                    notifiers: [],
-                    employeeNotifiers: [],
-                    affected: [
-                        {
-                            targetRef: "User",
-                            target: currentUserData._id,
-                        },
-                    ],
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    status: "SENT"
-                });
+                    let html = ``;
+                    if (currentUserData.isResetPasswordDialog) {
+                        const htmlContent = sendWelcomeEmailsToLearner({
+                            firstName: currentUserData.firstName,
+                            buttonLink: `${process.env.APP_URL}/login`,
+                        });
+                        html = htmlContent;
+                    } else {
+                        let generatePassword
 
+                        if (!currentUserData.dummyPassword) {
+                            generatePassword = generateRandomString(10);
+                            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
+                            currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+                            currentUserData.password = dummyPasswordHash;
+                        } else {
+                            const parts = currentUserData.dummyPassword.split('~~~');
+                            const newDummyPassword = parts[1];
+                            generatePassword = newDummyPassword;
+                            currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
+                        }
 
-            })
-        );
-        if (notifications.length > 0) {
-            try {
-                await NotificationHelper.createNotification(notifications);
-            } catch (error) {
-                messages.push(`Failed to create notifications.`);
-            }
+                        try {
+                            await currentUserData.save();
+                        } catch {
+                            messages.push(`Failed to create new dummy password for ${email}`);
+                            return;
+                        }
+                        const htmlContent = sendEmailToLearner({
+                            firstName: currentUserData.firstName,
+                            email: currentUserData.email,
+                            temp_password: generatePassword,
+                            buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
+                        });
+                        html = htmlContent;
+                        await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
+                        /*
+                        await SendEmail({
+                            receiverEmail: userInfo.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        })
+                        */
+                    }
+                    /*
+                    try {
+                       const data = await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
+                        console.log('data',data);
+                        messages.push(`Welcome Email sent to ${email}`);
+                        console.log('message',messages);
+                    }
+                    catch (error) { 
+                        console.log('error',error);
+                        messages.push(`Unable to send Welcome Email to ${email}`);
+                    }
+                    */
+                    /* 
+                                    notifications.push({
+                                        subscriber: subscriberId,
+                                        title: [{ lang: "en", value: `Welcome Email Sent` }],
+                                        message: [
+                                            {
+                                                lang: "en",
+                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                            },
+                                        ],
+                                        notificationType: NotificationType.WELCOME_EMAIL_SENT,
+                                        notifyAllAdmin: true,
+                                        notifiers: [],
+                                        employeeNotifiers: [],
+                                        affected: [
+                                            {
+                                                targetRef: "User",
+                                                target: currentUserData._id,
+                                            },
+                                        ],
+                                        icon: notificationiconEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                        status: "SENT"
+                                    });
+                     */
+                })
+            );
+            /*  if (notifications.length > 0) {
+                 try {
+                     // await NotificationHelper.createNotification(notifications);
+                 } catch (error) {
+                     messages.push(`Failed to create notifications.`);
+                 }
+             } */
+            return messages;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `${error}`);
         }
-        return messages;
     },
     validateEmailorEmployeeId: async ({ input }, context) => {
         const { role } = AuthUser(context);
@@ -1180,7 +1715,7 @@ module.exports.queries = {
             } else if (input.civilIdOrPassport) {
                 const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
-                    messages.push("Another user already exists with this employee Id");
+                    messages.push("Employee Id already exists");
                 }
             }
             if (messages.length > 0) {
@@ -1195,6 +1730,121 @@ module.exports.queries = {
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
+    getDynamicData: async ({ userId }, context) => {
+        const { role, userPermissions, subscriberId, isOrganizationManager, managingOrganization } =
+            AuthUser(context);
+        try {
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+
+            const dynamicDataRecord = await DynamicData.findOne({ userId });
+
+            if (!dynamicDataRecord) {
+                return {
+                    status: false,
+                    message: "No dynamic data found for this user",
+                    data: null,
+                };
+            }
+
+            return {
+                status: true,
+                message: "Data fetched successfully",
+                data: dynamicDataRecord,
+            };
+        } catch (error) {
+            return {
+                status: false,
+                message: error.message,
+                data: null,
+            };
+        }
+    },
+    getDeleteHistory: async ({ pageInput, search, filterInput }, context) => {
+
+        const { role, userPermissions, subscriberId, userInfo } = AuthUser(context);
+
+        if (
+            !SubRoleHelper.hasPermission({
+                currentRole: role,
+                currentPermissions: userPermissions,
+                requiredAll: false,
+            })
+        ) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+
+        try {
+
+            const skip = pageInput?.skip ?? 0,
+                limit = pageInput?.limit ?? 50;
+
+            const sortFieldValue = pageInput?.sortField || "createdAt";
+            const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
+
+            const searchInput = search?.trim();
+            const searchRegex = new RegExp(searchInput, "i");
+            const requestStatus = filterInput?.deleteRequestStatus?.trim() || null;
+            let searchCriteria;
+            let requestStatusFilter;
+            if (searchInput) {
+                const nameParts = searchInput.split(" ").filter(Boolean);
+                const fullNameSearch =
+                    nameParts.length > 1
+                        ? {
+                            $and: [
+                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                            ]
+                        }
+                        : {};
+
+                searchCriteria = {
+                    $or: [
+                        { firstName: { $regex: searchRegex } },
+                        { lastName: { $regex: searchRegex } },
+                        { email: { $regex: searchRegex } },
+                        ...(nameParts.length > 1 ? [fullNameSearch] : [])
+                    ]
+                };
+            }
+
+            const isApproveOrReject = requestStatus === "APPROVED" ? true : requestStatus === "REJECTED" ? false : null;
+            if (isApproveOrReject != null) {
+                requestStatusFilter = {
+                    isDeleted: isApproveOrReject
+                }
+            }
+
+            const sortOptions = { [sortFieldValue]: sortOrderValue };
+
+            const result = await DeleteRequestHistory.find({ ...searchCriteria, ...requestStatusFilter })
+                .skip(skip)
+                .limit(limit)
+                .sort(sortOptions);
+
+            if (!result) {
+                return { totalCount: 0 };
+            }
+
+            const totalCount = await DeleteRequestHistory.countDocuments(requestStatusFilter);
+
+            return {
+                data: result,
+                totalCount,
+            };
+
+        } catch (error) {
+            console.log(error);
+            throw Error(error);
         }
     }
 
@@ -1323,79 +1973,119 @@ const deleteEmployees = async ({ input }, context) => {
 
 const changeRegisterEmployees = async ({ input }, context) => {
     const { userInfo, subscriberId } = AuthUser(context);
+    try {
+        const users = await User.find({ _id: { $in: input.users } });
 
-    const users = await User.find({ _id: { $in: input.users } });
-
-    if (users.length === 0) {
-        throw CustomError(ErrorName.VALIDATION_ERROR);
-    }
-
-    let updateUsers;
-    if (input.type === "Registered") {
-        const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
-        if (alreadyRegisteredUsers.length > 0) {
-            throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
+        if (users.length === 0) {
+            throw CustomError(ErrorName.VALIDATION_ERROR);
         }
+        const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
+        let updateUsers;
+        const employeeDesignations = await Employee.find(
+            { user: { $in: input?.users } }
+        ).select('user empDesignation -_id');
 
-        updateUsers = await User.updateMany(
-            { _id: { $in: input.users } },
-            { isRegistered: true }
-        );
-        const emailContentforAdmin = registered_statusforAdmin(
-            {
-                adminfirstName: userInfo.firstName,
-                userfirstName: users[0].firstName
-            }
-        );
-        await SendEmail({
-            receiverEmail: userInfo.email,
-            subject: `User Status Update: ${input.type}`,
-            htmlContent: emailContentforAdmin,
+        const designationMap = {};
+        employeeDesignations.forEach(emp => {
+            designationMap[emp?.user?.toString()] = emp.empDesignation;
         });
-    } else if (input.type === "Unregistered") {
-        const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
-        if (alreadyUnregisteredUsers.length > 0) {
-            throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
-        }
 
-        const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-        updateUsers = await User.updateMany(
-            { _id: { $in: input.users } },
-            {
-                $set: { isRegistered: false }
+        const userVesselIds = users.filter(u => u.currentVessel).map(u => u.currentVessel);
+        const vessels = await Vessel.find(
+            { _id: { $in: userVesselIds }, isDeleted: false, isActive: true }
+        ).select('typeOfVessel');
+
+        const vesselTypeMap = {};
+        vessels.forEach(v => {
+            vesselTypeMap[v._id.toString()] = v.typeOfVessel;
+        });
+
+        const conditions = users.map(user => ({
+            designationID: designationMap[user?._id?.toString()] || null,
+            vesselID: user?.currentVessel || null,
+            vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()] || null : null,
+            currentStatus: user?.vesselStatus || null,
+            email: user?.email,
+            _id: user?._id
+        }));
+        if (input.type === "Registered") {
+            const alreadyRegisteredUsers = users.filter((user) => user.isRegistered);
+            if (alreadyRegisteredUsers?.length > 0) {
+                throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
             }
-        );
-    }
-    if (updateUsers) {
-        if (updateUsers.nModified > 0) {
-            const users = await User.find({
-                _id: { $in: input.users },
-                subscriber: subscriberId,
+
+            updateUsers = await User.updateMany(
+                { _id: { $in: input.users } },
+                { isRegistered: true }
+            );
+            const emailContentforAdmin = registered_statusforAdmin(
+                {
+                    adminfirstName: userInfo.firstName,
+                    userfirstName: users[0].firstName
+                }
+            );
+            await SendEmail({
+                receiverEmail: userInfo.email,
+                subject: `User Status Update: ${input.type}`,
+                htmlContent: emailContentforAdmin,
             });
-            const notificationsData = users.map((user) => ({
-                subscriber: subscriberId,
-                employee: { user },
-                updatedBy: userInfo,
-                type: input.type,
-            }));
-            await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-            for (const user of users) {
-                const emailContent =
-                    input.type === "Registered"
-                        ? registered_status({ firstName: user.firstName })
-                        : Unregistered_Status({ firstName: user.firstName });
-                await SendEmail({
-                    receiverEmail: user.email,
-                    subject: `Current Status Update: ${input.type}`,
-                    htmlContent: emailContent,
-                });
+            if (learningPlans?.length > 0) {
+                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
-            return { count: updateUsers.nModified, success: true };
-        } else {
-            return { count: updateUsers.nModified, success: false };
+        } else if (input.type === "Unregistered") {
+            const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
+            if (alreadyUnregisteredUsers.length > 0) {
+                throw CustomError(ErrorName.EMPLOYEE_ALREADY_UNREGISTERED);
+            }
+
+            const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+            updateUsers = await User.updateMany(
+                { _id: { $in: input.users } },
+                {
+                    $set: { isRegistered: false }
+                }
+            );
+            /* Removed Unregistered User Autoenerollment
+            if(learningPlans?.length > 0){
+                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+            }      
+            */
         }
-    } else {
-        throw CustomError(ErrorName.ERROR_FETCHING_CONTENT);
+        if (updateUsers) {
+            if (updateUsers.nModified > 0) {
+                const users = await User.find({
+                    _id: { $in: input.users },
+                    subscriber: subscriberId,
+                });
+                const notificationsData = users.map((user) => ({
+                    subscriber: subscriberId,
+                    employee: { user },
+                    updatedBy: userInfo,
+                    type: input.type,
+                }));
+                // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+                /* Ticket No SEAV-91
+                for (const user of users) {
+                    const emailContent =
+                        input.type === "Registered"
+                            ? registered_status({ firstName: user.firstName })
+                            : Unregistered_Status({ firstName: user.firstName });
+                    await SendEmail({
+                        receiverEmail: user.email,
+                        subject: `Current Status Update: ${input.type}`,
+                        htmlContent: emailContent,
+                    });
+                }
+                */
+                return { count: updateUsers.nModified, success: true };
+            } else {
+                return { count: updateUsers.nModified, success: false };
+            }
+        } else {
+            throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
+        }
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
 
@@ -1417,6 +2107,7 @@ const manageRole = async ({ input }, context) => {
     let operationType;
     let notificationMessage = "";
     let affectedUsers = [];
+    const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
     if (input.change === "Assign") {
         if (!input.assignType) throw CustomError(ErrorName.ASSIGNTYPE_ERROR);
 
@@ -1425,37 +2116,45 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
-        if (input.removeType === "REMOVE_AS_AUTHOR") {
+        if (input.removeType === operationTypeRoleEnum.REMOVE_AS_AUTHOR) {
             updateUserRole = await User.updateMany(
                 { _id: { $in: input.users }, superAdmin: false, role: "AUTHOR" },
                 { $set: { role: "EMPLOYEE" } }
             );
+            if (updateUserRole?.nModified > 0) {
+                const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo);
+            }
             operationType = "Removed role as AUTHOR";
-            notificationMessage = "Your role has been changed to EMPLOYEE.";
+            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
 
-        if (input.removeType === "REMOVE_AS_ADMIN") {
+        if (input.removeType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
             updateUserRole = await User.updateMany(
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
-                { $set: { subRoles: [] } }
+                { $set: { subRoles: [], roleAssignmentDate: null } }
             );
+            const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
+            if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
+                const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo);
+            }
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = "Your Roles have been removed.";
+            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
         }
     } else if (input.change === "Delete") {
-        updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
+        updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = "Your account has been deleted.";
+        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
     if (updateUserRole) {
-        if (updateUserRole.n > 0) {
+        if (updateUserRole.n > 0 && (input.change !== "Delete") && (input.removeType !== operationTypeRoleEnum.REMOVE_AS_ADMIN)) {
             affectedUsers = await User.find({ _id: { $in: input.users } }, "firstName lastName email");
 
             const adminNotification = {
@@ -1468,7 +2167,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: affectedUsers.map(user => ({
@@ -1479,7 +2178,7 @@ const manageRole = async ({ input }, context) => {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             };
-
+            /* Ticket No SEAV-91
             const userNotifications = affectedUsers.map(user => ({
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Management Update" }],
@@ -1490,7 +2189,7 @@ const manageRole = async ({ input }, context) => {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -1505,6 +2204,8 @@ const manageRole = async ({ input }, context) => {
             }));
 
             await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            */
+            // await NotificationHelper.createNotification([adminNotification]);
             return { count: updateUserRole.n, success: true };
         } else {
             return { count: updateUserRole.n, success: false };
@@ -1535,78 +2236,221 @@ const respondToDeleteRequest = async ({ input }, context) => {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
 
-    if (input.type === "REJECT") {
-        const rejectDeleteRequest = await User.updateMany(
-            { _id: { $in: input.users } },
-            {
-                $set: {
-                    deleteRequest: false,
-                    deleteRequestDate: null,
-                },
-            }
-        );
+    try {
 
-        if (rejectDeleteRequest.nModified > 0) {
-            for (let userId of input.users) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await sendNotificationOn({
-                        subscriber: subscriberId,
-                        user: {
-                            _id: userId,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email,
-                        },
-                        action: "rejected",
-                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
-                        createdBy: userInfo,
-                    });
-                } else {
-                    console.error(`User with ID ${userId} not found`);
+
+        const getUsers = await User.find({ _id: { $in: input.users } }).populate("subRoles", "name").lean();
+
+
+
+        if (input.type === "REJECT") {
+
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                isDeleted: false,
+                civilIdOrPassport: user.civilIdOrPassport,
+                lastLoginAt: user.lastLoginAt,
+                reasonForDelete: user.reasonForDelete,
+                directSignup: user.directSignup,
+                deleteRequestDate: user.deleteRequestDate,
+                decisionDate: new Date(),
+                isRegistered: user?.isRegistered
+            }));
+
+            const rejectDeleteRequest = await User.updateMany(
+                { _id: { $in: input.users } },
+                {
+                    $set: {
+                        deleteRequest: false,
+                        deleteRequestDate: null,
+                        reasonForDelete: null,
+                    },
                 }
+            );
+
+            if (rejectDeleteRequest.nModified > 0) {
+
+                const history = await DeleteRequestHistory.find();
+
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+
+                for (let userId of input.users) {
+                    const user = await User.findById(userId);
+                    if (user) {
+                        await sendNotificationOn({
+                            subscriber: subscriberId,
+                            user: {
+                                _id: userId,
+                                firstName: user.firstName,
+                                lastName: user.lastName,
+                                civilIdOrPassport: user.civilIdOrPassport,
+                                email: user.email,
+                            },
+                            action: "rejected",
+                            message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                            createdBy: userInfo,
+                            icon: notificationiconEnum.DELETE_REQUEST
+                        });
+                    } else {
+                        console.error(`User with ID ${userId} not found`);
+                    }
+
+                    if (updateDeleteRequestHistory) {
+                        if (userHistoryData[0]?.isEmailNotification) {
+                            const sendmailforApproval = await aws_helper.sendEmail({
+                                receiverEmail: userHistoryData[0]?.email,
+                                subject: 'Delete request REJECTED',
+                                htmlContent: DeleteRequestRejected({
+                                    firstName: userHistoryData[0]?.firstName,
+                                })
+                            });
+
+                            if (!sendmailforApproval) {
+                                throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                            }
+                        }
+                    }
+                }
+
+                return "Successfully rejected";
+            } else {
+                throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
             }
-            return "Successfully rejected";
-        } else {
-            throw CustomError(ErrorName.ERROR_REJECTING_USER_REQUEST);
+        }
+
+        if (input.type === "APPROVE") {
+
+            // if (!getUsers || getUsers?.length === 0) {
+            //     throw CustomError(ErrorName.USER_NOT_FOUND, "Users not found");
+            // }
+
+            const isAdmin = user => user.subRoles?.some(role => role.name === "ADMIN");
+
+            const adminsNotBeingDeleted = await User.find({
+                _id: { $nin: input?.users },
+                isDeleted: false
+            })
+                .populate("subRoles", "name")
+                .lean();
+
+            const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
+            console.log("remainingAdmins", remainingAdmins.length)
+            if (remainingAdmins.length === 1) {
+                console.log("At least one admin must remain in the system.");
+                throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
+            }
+
+
+
+            const userHistoryData = getUsers.map(user => ({
+                firstName: user?.firstName,
+                lastName: user?.lastName,
+                email: user?.email,
+                isDeleted: true,
+                civilIdOrPassport: user?.civilIdOrPassport,
+                lastLoginAt: user?.lastLoginAt,
+                reasonForDelete: user?.reasonForDelete,
+                directSignup: user?.directSignup,
+                deleteRequestDate: user?.deleteRequestDate,
+                decisionDate: new Date(),
+                isRegistered: false
+            }));
+
+            let errors = [];
+            // const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
+            // Soft delete users keeping only the first name, last name and course details
+            const deleteUsers = await EmployeeHelper.deleteUsersAfterGDPR(input.users, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
+            }
+
+            if (deleteUsers) {
+
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
+
+                if (updateDeleteRequestHistory) {
+                    if (userHistoryData[0]?.isEmailNotification) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: 'Delete request APPROVED',
+                            htmlContent: DeleteRequestApproved({
+                                firstName: userHistoryData[0]?.firstName,
+                            })
+                        });
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
+                    }
+
+                }
+
+                return "Successfully deleted";
+            } else {
+                throw CustomError(ErrorName.ERROR_DELETING_USER);
+            }
+        }
+
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED, error.message);
+    }
+};
+
+const checkUserRegType = async (userIds, regType) => {
+    if (!userIds || userIds.length === 0) {
+        return;
+    }
+    const employeeRecords = await Employee.find({ user: { $in: userIds } }, 'regType user');
+    if (!employeeRecords.length) {
+        throw CustomError(ErrorName.NOT_FOUND, "No employees found for provided userObjectIds.");
+    }
+
+    const regTypes = new Set(employeeRecords.map(emp => emp.regType));
+
+    if (![0, 1, 2].includes(regType)) {
+        throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided.");
+    }
+    if (regType === 0) {
+        const invalidUser = employeeRecords.find(emp => ![1, 2].includes(emp.regType));
+        if (invalidUser) {
+            throw CustomError(ErrorName.INVALID_REG_TYPE, "When regType is 0, all selected users must have regType 1 or 2.");
         }
     }
-    if (input.type === "APPROVE") {
-        let errors = [];
-        const deleteUsers = await EmployeeHelper.deleteUsers(input.users, errors);
-        if (errors.length > 0) {
-            throw CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
-        }
-        if (deleteUsers) {
-            for (let userId of input.users) {
-                const user = await User.findById(userId);
-                if (user) {
-                    await sendNotificationOn({
-                        subscriber: subscriberId,
-                        user: {
-                            _id: userId,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            civilIdOrPassport: user.civilIdOrPassport,
-                            email: user.email,
-                        },
-                        action: "approved",
-                        message: `Admin ${userInfo.firstName} ${userInfo.lastName} has approved your delete request.`,
-                        createdBy: userInfo,
-                    });
-                } else {
-                    console.error(`User with ID ${userId} not found`);
-                }
-            }
-            return "Successfully deleted";
-        } else {
-            throw CustomError(ErrorName.ERROR_DELETING_USER);
+    else {
+        const invalidUser = employeeRecords.find(emp => emp.regType !== regType);
+        if (invalidUser) {
+            throw CustomError(
+                ErrorName.INVALID_REG_TYPE,
+                `When regType is ${regType}, all selected users must have regType ${regType}.`
+            );
         }
     }
 };
 
+const clearApprovedDeletionRequestHistory = async (_, context) => {
+    try {
+        const { userId } = AuthUser(context);
+        if (!userId) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const result = await DeleteRequestHistory.deleteMany({ isDeleted: true });
+        if (result.deletedCount === 0) {
+            throw CustomError(ErrorName.NOT_FOUND, "No deletion requests found to clear.");
+        }
+        return {
+            status: true,
+            message: `${result.deletedCount} deletion requests cleared successfully.`,
+        };
+    } catch (error) {
+        throw Error(error.message);
+    }
+}
+
+
 module.exports.mutations = {
+    clearApprovedDeletionRequestHistory,
     respondToDeleteRequest,
     manageRole,
     changeRegisterEmployees,
@@ -1672,6 +2516,29 @@ module.exports.mutations = {
                 VesselStatus.ASSIGNED,
             ];
 
+            const countriesListed = [
+                'afghanistan', 'albania', 'algeria', 'andorra', 'angola', 'antigua and barbuda', 'argentina', 'armenia', 'australia', 'austria',
+                'azerbaijan', 'bahamas', 'bahrain', 'bangladesh', 'barbados', 'belarus', 'belgium', 'belize', 'benin', 'bhutan',
+                'bolivia', 'bosnia and herzegovina', 'botswana', 'brazil', 'brunei', 'bulgaria', 'burkina faso', 'burundi', 'cabo verde', 'cambodia',
+                'cameroon', 'canada', 'central african republic', 'chad', 'chile', 'china', 'colombia', 'comoros', 'congo', 'congo (democratic republic)',
+                'costa rica', 'croatia', 'cuba', 'cyprus', 'czech republic', 'denmark', 'djibouti', 'dominica', 'dominican republic', 'east timor',
+                'ecuador', 'egypt', 'el salvador', 'equatorial guinea', 'eritrea', 'estonia', 'eswatini', 'ethiopia', 'fiji', 'finland',
+                'france', 'gabon', 'gambia', 'georgia', 'germany', 'ghana', 'greece', 'grenada', 'guatemala', 'guinea', 'guinea-bissau',
+                'guyana', 'haiti', 'honduras', 'hungary', 'iceland', 'india', 'indonesia', 'iran', 'iraq', 'ireland',
+                'israel', 'italy', 'ivory coast', 'jamaica', 'japan', 'jordan', 'kazakhstan', 'kenya', 'kiribati', 'north korea', 'south korea', 'kuwait', 'kyrgyzstan', 'laos', 'latvia', 'lebanon', 'lesotho', 'liberia', 'libya', 'liechtenstein',
+                'lithuania', 'luxembourg', 'madagascar', 'malawi', 'malaysia', 'maldives', 'mali', 'malta', 'marshall islands', 'mauritania',
+                'mauritius', 'mexico', 'micronesia', 'moldova', 'monaco', 'mongolia', 'montenegro', 'morocco', 'mozambique', 'myanmar',
+                'namibia', 'nauru', 'nepal', 'netherlands', 'new zealand', 'nicaragua', 'niger', 'nigeria', 'north macedonia', 'norway',
+                'oman', 'pakistan', 'palau', 'palestine', 'panama', 'papua new guinea', 'paraguay', 'peru', 'philippines', 'poland', 'portugal',
+                'qatar', 'romania', 'russia', 'rwanda', 'saint kitts and nevis', 'saint lucia', 'saint vincent and the grenadines', 'samoa', 'san marino', 'sao tome and principe',
+                'saudi arabia', 'senegal', 'serbia', 'seychelles', 'sierra leone', 'singapore', 'slovakia', 'slovenia', 'solomon islands', 'somalia',
+                'south africa', 'south sudan', 'spain', 'sri lanka', 'sudan', 'suriname', 'sweden', 'switzerland', 'syria', 'taiwan',
+                'tajikistan', 'tanzania', 'thailand', 'togo', 'tonga', 'trinidad and tobago', 'tunisia', 'turkmenistan', 'turkey', 'tuvalu',
+                'uganda', 'ukraine', 'united arab emirates', 'united kingdom', 'united states', 'uruguay', 'uzbekistan', 'vanuatu', 'vatican city',
+                'venezuela', 'vietnam', 'yemen', 'zambia', 'zimbabwe'
+            ];
+
+
             const errors = await EmployeeHelper.bulkValidationHelper(
                 createReadStream,
                 empIds,
@@ -1685,6 +2552,7 @@ module.exports.mutations = {
                 userId,
                 subscriberId,
                 newFileName,
+                countriesListed,
                 saveCSV
             );
 
@@ -1702,13 +2570,25 @@ module.exports.mutations = {
                         },
                     ],
                     notificationType: NotificationType.BULK_IMPORT_FAILED,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
                     employeeNotifiers: [],
                     icon: notificationiconEnum.ERROR,
                     createdBy: userInfo,
                 };
                 await NotificationHelper.createNotification([failedNotification]);
+
+                const createImportLog = await ImportLog.create({
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: { url: saveCSV },
+                    importStatus: "FAILED",
+                    description: `${nonEmptyArray}`,
+                })
+
+                if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
@@ -1728,18 +2608,31 @@ module.exports.mutations = {
                 userId,
                 newFileName,
                 saveCSV,
+                context
             });
 
             child.on("message", async message => {
                 if (message.type === 'NOTIFICATION') {
+                    // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
+                    const notification = message?.data?.onNotification;
+
+                    if (notification?.createdAt) {
+                        notification.createdAt = new Date(notification.createdAt).getTime().toString();
+                    }
+
+                    if (notification?.updatedAt) {
+                        notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
+                    }
                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
                 }
 
                 if (message.type === 'EMAIL') {
-                    await sendNodeEmailBulk({
-                        receiverEmails: message.data.email,
-                        subject: message.data.subject
-                    })
+
+                    SqliteEmailHelper.insertEmails(message.data.email);
+                    const emails = SqliteEmailHelper.fetchEmailBatch();
+
+                    await sendNodeEmailBulk({ subject: message.data.subject });
+
                 }
             });
 
@@ -1787,6 +2680,26 @@ module.exports.mutations = {
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
 
+        const existingDeletedUser = await DeletedUser.find({ email: input.user.email, civilIdOrPassport: input.user.civilIdOrPassport });
+
+        if (existingDeletedUser.length > 0) {
+
+            const existingDeletedUserIds = existingDeletedUser.map(user => user._id);
+
+            let errors = [];
+            const restoreUser = await EmployeeHelper.restoreUsers(existingDeletedUserIds, errors);
+
+            if (errors.length > 0) {
+                throw CustomError(ErrorName.FAILED, `${errors[0]}`);
+            }
+
+            return {
+                status: true,
+                message: "User restored successfully!",
+            };
+
+        }
+
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
         const notificationList = [];
@@ -1797,11 +2710,12 @@ module.exports.mutations = {
         const savedEmployees = await DbTransactionHelper.performDbTransaction(async session => {
             const savedEmployees = [];
 
-            const generatePassword = generateRandomString(10);
+            let userPasswordInfo = {};
+            let generatePassword = input?.user?.password || generateRandomString(10);
+            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
 
-            input.user.password = input.user.password
-                ? await CryptoHelper.hash(input.user.password, 10)
-                : await CryptoHelper.hash(generatePassword, 10);
+            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
+            userPasswordInfo.password = dummyPasswordHash;
 
             const existingDesignation = await Designation.findById(input.empDesignation);
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
@@ -1812,13 +2726,15 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport?.toLowerCase(),
+                civilIdOrPassport: input.user.civilIdOrPassport?.toUpperCase(),
                 isRegistered: input.user.isRegistered ?? true,
-                currentVessel: input.user.currentVessel ?? null,
-                vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
+                currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
+                vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
                 email: input.user.email,
-                password: input.user.password,
                 role: userRole,
+                ...userPasswordInfo,
+                isSignupAdminAprroved: true,
+                country: input.user.country.toUpperCase() ?? null,    
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -1844,39 +2760,41 @@ module.exports.mutations = {
             let savedUserVessel;
             let vessel;
 
-            if (input.user.currentVessel && input.user.vesselStatus) {
+            if (input.user.currentVessel || input.user.vesselStatus) {
 
-                if (input.user.vesselStatus !== 'ONSHORE') {
+                let userVesselUpdate = {
+                    user: savedUser,
+                    vessel: input.user.currentVessel && input.user.currentVessel !== "" ? ObjectId(input.user.currentVessel) : null,
+                    vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== "" ? input.user.vesselStatus : null,
+                };
 
-                    let userVesselUpdate = {
-                        user: savedUser,
-                        vessel: input.user.currentVessel ?? null,
-                        vesselStatus: input.user.vesselStatus ?? 'ONSHORE',
-                    };
+                savedUserVessel = await UserVessel.create(userVesselUpdate);
 
-                    savedUserVessel = await UserVessel.create(userVesselUpdate);
-
-                }
                 if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
 
-            invitationList.push({
-                userData: savedUser,
-            });
+            // invitationList.push({
+            //     userData: savedUser,
+            // });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find( { isDeleted: false, status: 'ACTIVE' } );        
-                const conditions = {
-                designationID: input.empDesignation,
-                vesselID: savedUserVessel?.vessel ?? null,
-                vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                currentStatus: savedUserVessel?.vesselStatus ?? null,
-                email: savedUser.email,
-                _id: savedUser._id
-            };
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
 
-            // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context,session);
+            if (savedUser.isRegistered === true && learningPlans?.length > 0) {
+
+                const conditions = [{
+                    designationID: input.empDesignation,
+                    vesselID: savedUserVessel?.vessel ?? null,
+                    vesselTypeID: vessel?.typeOfVessel?._id ?? null,
+                    currentStatus: savedUserVessel?.vesselStatus ?? null,
+                    email: savedUser.email,
+                    _id: savedUser._id
+                }];
+
+                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
+
+            }
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -1890,35 +2808,16 @@ module.exports.mutations = {
             //         currentStatus: savedUserVessel?.vesselStatus
             //     };
             // });
-            // if (filteredPlans?.length > 0) {
-            //     console.log('inside filtered Learning Plan',filteredPlans);
-            //     await LearningPlan.updateMany(
-            //         { _id: { $in: filteredPlans?.map((lp) => lp._id) } },
-            //         [
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $ifNull: ["$assignedLearnerIDs", []]
-            //                     }
-            //                 }
-            //             },
-            //             {
-            //                 $set: {
-            //                     assignedLearnerIDs: {
-            //                         $concatArrays: ["$assignedLearnerIDs", [savedUser._id]]
-            //                     }
-            //                 }
-            //             }
-            //         ]
-            //     );
-            // }
-            const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
-                firstName: savedUser.firstName,
-                email: savedUser.email,
-                templategeneratePassword: generatePassword,
-            });
 
-            await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to SeaVerse!", htmlContent: emailContentforNewEmployee })
+            if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
+                const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
+                    firstName: savedUser.firstName,
+                    email: savedUser.email,
+                    templategeneratePassword: generatePassword,
+                });
+
+                await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+            }
 
             return savedEmployees;
         });
@@ -1927,19 +2826,22 @@ module.exports.mutations = {
 
         EmployeeHelper.sendEnrollmentNotification(notificationList);
 
+        // Jira Ticket SEAV-55
+        /*
         EmployeeHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             employee: savedEmployees?.[0],
             createdBy: userInfo,
             action: "CREATED",
         });
+        */
 
         return {
             status: true,
             message: "User created successfully!",
         };
     },
-    updateEmployee: async ({ id, input }, context) => {
+    updateEmployee: async ({ id, input }, context, session) => {
 
         const {
             role,
@@ -1990,7 +2892,8 @@ module.exports.mutations = {
                     role: role,
                     userInfo: userInfo,
                 },
-                context
+                context,
+                session
             );
             const updatedFields = Object.keys(input).reduce((changes, key) => {
                 if (currentEmployee[key] !== input[key]) {
@@ -2002,12 +2905,12 @@ module.exports.mutations = {
                 return changes;
             }, {});
 
-            EmployeeHelper.sendNotificationOnCRUD({
-                subscriber: subscriberId,
-                employee: savedEmployee,
-                createdBy: userInfo,
-                action: "UPDATED",
-            });
+            // EmployeeHelper.sendNotificationOnCRUD({
+            //     subscriber: subscriberId,
+            //     employee: savedEmployee,
+            //     createdBy: userInfo,
+            //     action: "UPDATED",
+            // });
 
             return savedEmployee;
 
@@ -2287,49 +3190,48 @@ module.exports.mutations = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
+
             const { users, subrole } = input;
             if (role !== "ADMIN" && primaryRole[0] !== "ADMIN") {
                 throw new Error("Unauthorized: Only admins can assign subroles");
             }
+
             const validSubRole = await SubRole.findById(subrole);
             if (!validSubRole) {
                 throw new Error("Invalid subrole");
             }
+
+            await User.updateMany(
+                { _id: { $in: users } },
+                { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+            );
+
             const usersToUpdate = await User.find({ _id: { $in: users } });
-            if (!usersToUpdate || usersToUpdate.length === 0) {
+
+            if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-            await Promise.all(
-                usersToUpdate.map(async user => {
-                    if (!user.subRoles) {
-                        user.subRoles = [];
-                    }
-                    if (!user.subRoles.includes(subrole)) {
-                        user.subRoles.push(subrole);
-                    }
-                    await user.save();
-                })
-            );
+            /*
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-            await Promise.all(
-                usersToUpdate.map(async user => {
-                    const emailContentforAdmin = roleUpdateNotifyAdmin({
-                        firstName: userInfo?.firstName,
-                        usersUpdated: [{ user: user.firstName }],
-                    });
-                    await SendEmail({
-                        receiverEmail: userInfo?.email,
-                        subject: `User Role Updated`,
-                        htmlContent: emailContentforAdmin,
-                    })
-                })
-            );
-            const adminNotificationMessage = `${userInfo.firstName} ${userInfo.lastName} has assigned the Role "${validSubRole.name}" successfully.`;
+            */
+            const emailContentForAdmin = roleUpdateNotifyAdmin({
+                firstName: userInfo?.firstName,
+                usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
+            });
+
+            await SendEmail({
+                receiverEmail: userInfo?.email,
+                subject: "User Role Updated",
+                htmlContent: emailContentForAdmin,
+            });
+
+            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
+            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -2340,8 +3242,9 @@ module.exports.mutations = {
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: true,
-                notifiers: [],
+                notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
+                notifiers: [userId],
                 employeeNotifiers: [],
                 affected: users.map(user => ({
                     targetRef: "User",
@@ -2358,11 +3261,11 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}".`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName || ''}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
-                notifyAdmin: false,
+                notifyAllAdmin: false,
                 notifiers: [user._id],
                 employeeNotifiers: [user._id],
                 affected: [
@@ -2376,9 +3279,9 @@ module.exports.mutations = {
                 createdBy: userInfo,
             }));
 
-            await NotificationHelper.createNotification([adminNotification, ...userNotifications]);
+            await NotificationHelper.createNotification([adminNotification]);//...userNotifications
 
-            const userIdsToSend = usersToUpdate.map(user => user._id);
+            /* const userIdsToSend = usersToUpdate.map(user => user._id);
             for (const userId of userIdsToSend) {
                 await sendNotifications({
                     userIds: userId,
@@ -2387,7 +3290,13 @@ module.exports.mutations = {
                     content: `You have been assigned the Role "${validSubRole.name}".`,
                     webLink: "",
                 });
+            } */
+            const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
+            if (validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0) {
+                const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
+                await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo);
             }
+
             return {
                 success: true,
                 message: "Role successfully assigned to all learners",
@@ -2417,27 +3326,28 @@ module.exports.mutations = {
             'Last Login',
             'Created At',
             'User Roles',
-            'Vessel Type'
+            'Vessel Type',
+            'User Status',
+            'Country'
         ];
-        const defaultExportUserIds = await User.find({ isDeleted: false }).distinct('_id');
-        const userIds = userObjectIds && userObjectIds.ids && userObjectIds.ids.length > 0
-            ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
-            : defaultExportUserIds;
-
         try {
+            if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
+                throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
+            }
             const notifications = [];
-            const exportStartTime = new Date();
+            // const exportStartTime = new Date();
+            /* Ticket Number : SEAV-117
             const inProgressNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: `User Export In Progress` }],
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 createdBy: userInfo,
@@ -2445,14 +3355,37 @@ module.exports.mutations = {
             };
             notifications.push(inProgressNotification);
             await NotificationHelper.createNotification(notifications);
+            */
+            const regType = userObjectIds?.regType;
+            if (![0, 1, 2].includes(regType)) {
+                throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided. Must be 0, 1, or 2.");
+            }
+            let employeeQuery = {};
+            if (regType === 0) {
+                employeeQuery = { regType: { $in: [1, 2] } };
+            } else {
+                employeeQuery = { regType: regType };
+            }
 
+            let userIds = [];
+            if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
+                await checkUserRegType(userObjectIds.ids, regType);
+                userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
+            } else {
+                const employees = await Employee.find(employeeQuery).select('user');
+                userIds = employees.map(emp => emp.user);
+            }
+            const initialMatchStage = {
+                $match: {
+                    _id: { $in: userIds },
+                    isDeleted: false
+                }
+            };
+            if (userObjectIds?.filterInput) {
+                await processFilters(userObjectIds.filterInput, initialMatchStage);
+            }
             const pipeline = [
-                {
-                    $match: {
-                        _id: { $in: userIds },
-                        isDeleted: false
-                    },
-                },
+                initialMatchStage,
                 {
                     $lookup: {
                         from: 'employees',
@@ -2462,6 +3395,11 @@ module.exports.mutations = {
                     },
                 },
                 { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $match: {
+                        'employeeDetails.regType': regType === 0 ? { $in: [1, 2] } : regType
+                    }
+                },
                 {
                     $lookup: {
                         from: 'vessels',
@@ -2510,6 +3448,14 @@ module.exports.mutations = {
                 },
                 { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
                 {
+                    $lookup: {
+                        from: 'subroles',
+                        localField: 'subRoles',
+                        foreignField: '_id',
+                        as: 'subRoleDetails',
+                    },
+                },
+                {
                     $group: {
                         _id: '$_id',
                         firstName: { $first: '$firstName' },
@@ -2540,8 +3486,15 @@ module.exports.mutations = {
                         createdAt: { $first: '$createdAt' },
                         role: { $first: '$role' },
                         vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                        isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
+                        isRegistered: { $first: '$isRegistered' },
+                        subRoleDetails: { $first: '$subRoleDetails' },
+                        country: { $first: '$country' },
                     },
                 },
+                {
+                    $sort: { 'firstName': 1, 'lastName': 1 }
+                }
             ];
 
             const projectStage = {
@@ -2559,9 +3512,49 @@ module.exports.mutations = {
                             else: { $toDate: '$lastLoginAt' },
                         },
                     },
-                    'User Roles': '$role',
+                    // 'User Roles': '$role',
+                    'User Roles': {
+                        $concat: [
+                            '$role',
+                            {
+                                $cond: {
+                                    if: {
+                                        $and: [
+                                            { $isArray: '$subRoleDetails' },
+                                            { $gt: [{ $size: '$subRoleDetails' }, 0] }
+                                        ]
+                                    },
+                                    then: {
+                                        $concat: [
+                                            '  ',
+                                            {
+                                                $reduce: {
+                                                    input: '$subRoleDetails',
+                                                    initialValue: '',
+                                                    in: {
+                                                        $concat: [
+                                                            '$$value',
+                                                            { $cond: [{ $eq: ['$$value', ''] }, '', ', '] },
+                                                            '$$this.name'
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    else: ' '
+                                }
+                            }
+                        ]
+                    },
                     'Vessel Type': '$vesselType',
-                    'Vessel Status': '$vesselStatus',
+                    'Vessel Status': {
+                        $cond: {
+                            if: { $eq: ['$vesselStatus', 'ONBOARDED'] },
+                            then: 'ONBOARD',
+                            else: '$vesselStatus'
+                        }
+                    },
                     'Vessel IMO Number': '$vesselImoNumber',
                     'Created At': {
                         $cond: {
@@ -2570,33 +3563,82 @@ module.exports.mutations = {
                             else: { $toDate: '$createdAt' },
                         },
                     },
+                    isResetPasswordDialog: 1,
+                    'User Status': {
+                        $cond: {
+                            if: { $eq: ['$isRegistered', true] },
+                            then: 'Active',
+                            else: 'Inactive',
+                        },
+                    },
+                    'Country':{
+                        $cond: {
+                            if: { $eq: ['$country', null] },
+                            then: ' ',
+                            else: '$country',
+                        },
+                    }
                 },
             };
             pipeline.push(projectStage);
+
+
             const users = await User.aggregate(pipeline);
+            if (users.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
+            }
             const data = users.map(user => {
                 const rowData = {};
+                const isResetPassword = user?.isResetPasswordDialog ?? true;
                 hardcodedFields.forEach(field => {
+                    if (field === 'isResetPasswordDialog') {
+                        return;
+                    }
                     if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
-                        rowData[field] = formatDateWithSuffix(new Date(user['Last Login']));
+                        rowData[field] = isResetPassword ? formatDateWithSuffix(new Date(user['Last Login'])) : "";
+                    } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Created At']));
                     } else {
                         rowData[field] = user[field] || ' ';
                     }
                 });
                 return rowData;
             });
-            // const workbook = xlsx.utils.book_new();
+
+            /**  
+                        @initial_requirement
+                        //Old data to export user to csv
+            
+                        // const workbook = xlsx.utils.book_new();
+                        const worksheet = xlsx.utils.json_to_sheet(data);
+                        const csvData = xlsx.utils.sheet_to_csv(worksheet);
+                        // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+                        // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                        const csvBuffer = Buffer.from(csvData, 'utf-8');
+                        const excelFilePath = await UploadHelper.uploadExcel({
+                            data: csvBuffer,
+                            folderName: "exports",
+                            fileName: `exported_users_${Date.now()}.csv`,
+                            uploadType: UploadHelper.uploadType.exportExcel,
+                        });
+              */
+
+            /**
+             * @description
+             *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
+             */
+
+            const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(data);
-            const csvData = xlsx.utils.sheet_to_csv(worksheet);
-            // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
-            // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const csvBuffer = Buffer.from(csvData, 'utf-8');
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
-                data: csvBuffer,
+                data: excelBuffer,
                 folderName: "exports",
-                fileName: `exported_users_${Date.now()}.csv`,
+                fileName: `exported_users_${await generateFileNameTimestamp()}.xlsx`,
                 uploadType: UploadHelper.uploadType.exportExcel,
             });
+
             if (excelFilePath) {
                 const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
                 const urlObject = new URL(s3PresignedUrl);
@@ -2615,12 +3657,14 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            value: `The export user process completed successfully.`,
+                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            value: `"User Export" file is ready:`,
                         },
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
-                    notifyAdmin: true,
-                    notifiers: [],
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -2634,7 +3678,7 @@ module.exports.mutations = {
                     icon: notificationiconEnum.SUCCESS,
                     createdBy: userInfo,
                 };
-                notifications.push(successNotification);
+                // notifications.push(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
                 return {
                     status: true,
@@ -2646,7 +3690,55 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.UPLOAD_FAILED);
             }
         } catch (error) {
-            throw new Error(error.message);
+            throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
+        }
+    },
+    createOrUpdateDynamicData: async ({ input }, context) => {
+        const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
+        try {
+            const { userId, jsonData } = input;
+
+            if (!userId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId is required");
+            }
+
+            if (!jsonData || typeof jsonData !== "object") {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "jsonData is required and should be an object");
+            }
+
+            const user = await User.findOne({ _id: userId, isDeleted: false, isRegistered: true });
+
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found or not Registered");
+            }
+
+            const existingRecord = await DynamicData.findOne({ userId });
+
+            let savedData;
+
+            if (existingRecord) {
+                existingRecord.jsonData = jsonData;
+                savedData = await existingRecord.save();
+            } else {
+                savedData = await DynamicData.create({
+                    userId,
+                    jsonData,
+                });
+            }
+
+            return {
+                status: true,
+                message: existingRecord ? "Data updated successfully!" : "Data created successfully!",
+                data: savedData,
+            };
+
+        } catch (error) {
+
+            return {
+                status: false,
+                message: error.message || "An error occurred",
+            };
         }
     }
 

@@ -27,7 +27,7 @@ function courseUnenrollmentEmail(unenrolledUsers) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -56,12 +56,7 @@ function courseUnenrollmentEmail(unenrolledUsers) {
                                         Please reach out to your administrator or contact us for further assistance.
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
-                                    </td>
-                                </tr>
+                               
                             </table>
                         </td>
                     </tr>

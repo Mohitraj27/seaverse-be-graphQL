@@ -21,6 +21,10 @@ const trainingCertificateSchema = new Schema(
             ref: "Training",
             required: true,
         },
+        migrationTraining: {
+            type: ObjectId,
+            ref: "MigrationCourse",
+        },
         organization: {
             type: ObjectId,
             ref: "Organization",
@@ -68,6 +72,9 @@ const trainingCertificateSchema = new Schema(
             type: String,
             trim: true,
         },
+        issuedAt: {
+            type: Date,
+        },
         authoringTitle:{
             type: String,
             trim: true,
@@ -100,7 +107,10 @@ const trainingCertificateSchema = new Schema(
         generatedAt: Date,
         expiresAt: Date,
         pdfUrl: String,
-        isFromMigration:Boolean,
+        isFromMigration:{
+            type: Boolean,
+            default: false
+        },
         trainingMode: {
             type: String, 
             uppercase: true,

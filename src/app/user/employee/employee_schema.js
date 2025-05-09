@@ -41,7 +41,7 @@ type userVessels {
     updatedAt: String!
     isActive: Boolean!
     vessel: ID!
-    vesselStatus: String!
+    vesselStatus: String
     vesselDetails: VesselDetails
 }
 
@@ -82,7 +82,7 @@ type userVessels {
         }
         type deleteReqResponse {
             totalCount: Int
-            users: [User]
+            data: [User]
         }
         type BulkUserResponse {
             users: [Employee]
@@ -164,6 +164,15 @@ type userVessels {
             Registered
             Unregistered
         }
+        enum SortableFieldEnum {
+            FIRST_NAME
+            DESIGNATION
+            STATUS
+            USER_ROLE
+            VESSEL_TYPE
+            LAST_SEEN
+            COUNTRY
+        }
         input changeRegisterInput {
             users: [ID!]!
             type: RegisterType!
@@ -231,14 +240,19 @@ type userVessels {
             role: [RoleEnum]
             isRegistered: Boolean
             empDesignation: [ID]
-            vesselStatus: [VesselStatusEnum] 
+            vesselStatus: [VesselStatusEnum]
             vesselName: [ID]
             vesselType: [ID]
             lastSeen: LastSeenEnum
+            showInvited: Boolean
+            country : [String]
+        }
+        input SortFieldInput {
+            field : SortableFieldEnum
+            sortOrder : Int
         }
         input deleteRequestFilterInput {
-            search: String
-            isDeleted: Boolean
+            deleteRequestStatus : String
         }
         input ManagerFilterInput {
             search: String
@@ -249,6 +263,8 @@ type userVessels {
         }
         input UserObjectIDs {
             ids: [ID!]
+            regType: Int!
+            filterInput: FilterEnabled
         }
         input ImportUserInput {
             firstName: String!
@@ -314,18 +330,61 @@ type FetchFileResponse {
     message: String
     url: String
 }
+        type DynamicData {
+            userId: ID!
+            jsonData: JSON  # Dynamic JSON data
+            createdAt: String
+            updatedAt: String
+        }
+
+        type DynamicDataResponse {
+            status: Boolean
+            message: String
+            data: DynamicData
+        }
+
+        input DynamicDataInput {
+            userId: ID!
+            jsonData: JSON!
+        }
+        enum sortFieldEnum {
+            deleteRequestDate
+            isDeleted
+        }
+        input deleteRequestPageInput {
+            skip: Int
+            limit: Int
+            sortField: sortFieldEnum
+            sortOrder: String
+        }
+        type deleteAndSignUpRequestCountResponse {
+            deleteRequestCount: Int
+            signUpRequestCount: Int
+        }
+        input FilterField {
+            field_name: [String!]!
+            field_values: [JSON!]!  # Using JSON type to handle both strings and booleans
+        }
+        input FilterEnabled {
+            flag: Boolean!
+            fields: [FilterField!]
+        }
+        
     `,
     queries: `
+        getDeleteAndSignUpRequestCounts: deleteAndSignUpRequestCountResponse!
         getEmployeeProfiles(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
-        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput): EmployeeList!
+        getEmployees(pageInput: PageInput, filterInput: EmployeeFilterInput, sortInput : SortFieldInput ): EmployeeList!
         getManagerList(pageInput: PageInput, filterInput: ManagerFilterInput): EmployeeList!
         getEmployeeNotInGroup(pageInput: PageInput, filterInput: ManagerFilterInput, group: ID!): EmployeeList!
         getImportLogs: [importlogs]
-        getDeleteRequests(pageInput: PageInput, filterInput: ManagerFilterInput): deleteReqResponse!
+        getDeleteRequests(pageInput: deleteRequestPageInput, search: String): deleteReqResponse!
         getCSVImportLogs: [csvimportLogRes!]
         sendWelcomeMails(emailInput: emailIDInput): [String]
         validateEmailorEmployeeId(input: EmailorEmployeeIdInput): valdationResponse!
-         fetchSampleFile: FetchFileResponse!
+        fetchSampleFile: FetchFileResponse!
+        getDynamicData(userId: ID!): DynamicDataResponse!
+        getDeleteHistory(pageInput: deleteRequestPageInput, search: String, filterInput: deleteRequestFilterInput): deleteReqResponse!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
@@ -338,6 +397,8 @@ type FetchFileResponse {
         manageRole(input: manageRoleInput!): manageRoleResponse!
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
-        exportUserToCsv(userObjectIds: UserObjectIDs): exportUserToCsvResponse!
+        exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
+        createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
+        clearApprovedDeletionRequestHistory:createEmployeeRes
     `,
 };

@@ -1,7 +1,7 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
 const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
-const { User } = require("./user_model");
+const { User, AppUser } = require("./user_model");
 
 const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationHelper = require("../notifications/notification_helper");
@@ -135,6 +135,10 @@ module.exports = {
 
             if (input.lastName) existingUser.lastName = input.lastName;
 
+            if (input.country) existingUser.country = input.country.toUpperCase();
+
+            if(input.country === '') existingUser.country = null;
+
             if (input.lastName === '') existingUser.lastName = null;
 
             if (
@@ -165,6 +169,21 @@ module.exports = {
 
                 existingUser.email = input.email;
             }
+            if (input?.consents?.length > 0 ) {
+                const validConsents = input.consents.every(consent =>
+                    typeof consent.title === 'string' &&
+                    typeof consent.message === 'string' &&
+                    typeof consent.status === 'boolean'
+                );
+                if (!validConsents) {
+                     throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
+                }
+               await User.findByIdAndUpdate(
+                    input?._id,
+                    { $set: { consents: input.consents } },
+                    { new: true }
+                );
+            }
 
             if (input.phone) existingUser.phone = input.phone;
 
@@ -185,10 +204,9 @@ module.exports = {
                 existingUser.languagePreference = input.languagePreference;
 
             if (input.isRegistered != null) existingUser.isRegistered = input.isRegistered;
-            if (input.currentVessel) existingUser.currentVessel = input.vesselStatus !== VesselStatus.ONSHORE ? input.currentVessel : null;
+            if (input.currentVessel || input.currentVessel === '') existingUser.currentVessel = input.currentVessel === '' ? null : input.currentVessel;
             if (!input.currentVessel) existingUser.currentVessel = null;
-            if (input.vesselStatus) existingUser.vesselStatus = input.vesselStatus ?? VesselStatus.ONSHORE;
-
+            if (input.vesselStatus || input.vesselStatus === '') existingUser.vesselStatus = input.vesselStatus === '' ? null : input.vesselStatus;
 
             if (input.isProfileCompleted != null)
                 existingUser.isProfileCompleted = input.isProfileCompleted;
@@ -238,7 +256,7 @@ module.exports = {
                 },
             ],
             notificationType: NotificationType.EMPLOYEE_JOINED,
-            notifyAdmin: true,
+            notifyAllAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [
@@ -260,6 +278,6 @@ module.exports = {
             createdBy: notificationData.createdBy,
         };
 
-        await NotificationHelper.createNotification(notification);
+        // await NotificationHelper.createNotification(notification);
     },
 };

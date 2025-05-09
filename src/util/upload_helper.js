@@ -9,6 +9,13 @@ const fileType = {
     audios: ["audio/mpeg"],
     images: ["image/png", "image/jpeg", "image/bmp", "image/jpg"],
     allImages: "image/",
+    subtitles: [
+        "text/vtt",
+        "text/srt",
+        "application/srt",
+        "application/octet-stream",
+        "text/plain"
+    ],
     documents: [
         "application/pdf",
         "application/vnd.ms-powerpoint",
@@ -28,6 +35,7 @@ const uploadType = {
     trainingContentVideo: "trainingContentVideo",
     trainingContentAudio: "trainingContentAudio",
     trainingContentImage: "trainingContentImage",
+    trainingContentSubtitle: "trainingContentSubtitle",
     quizContentImage: "quizContentImage",
     introVideo: "introVideo",
     organizationImage: "organizationImage",
@@ -58,6 +66,8 @@ const getPathFromType = ({ type, folder, filename }) => {
         return `${rootFolder}/training-contents/${folder}/videos/${filename}`;
     else if (type === uploadType.trainingContentAudio)
         return `${rootFolder}/training-contents/${folder}/audios/${filename}`;
+    else if (type === uploadType.trainingContentSubtitle)
+        return `${rootFolder}/training-contents/${folder}/subtitles/${filename}`;
     else if (type === uploadType.trainingContentImage)
         return `${rootFolder}/training-contents/${folder}/images/${filename}`;
     else if (type === uploadType.quizContentImage)
@@ -89,13 +99,13 @@ const isPromise = data => data !== undefined && data instanceof Promise;
 
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
     if (isPromise(fileData)) {
-        const { filename, mimetype, createReadStream } = await fileData;
+        const { filename: fileNameCurrent, mimetype, createReadStream } = await fileData;
         if (
             acceptedTypes === fileType.all ||
             mimetype?.startsWith(acceptedTypes) ||
             acceptedTypes?.includes(mimetype)
         ) {
-            let extension = PathHelper.extname(filename);
+            let extension = PathHelper.extname(fileName) || PathHelper.extname(fileNameCurrent);
             if (!extension) {
                 const ext = MimeHelper.extension(mimetype);
                 if (ext) extension = `.${ext}`;
@@ -106,7 +116,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
             const filePath = getPathFromType({
                 type: uploadType,
                 folder: folderName,
-                filename: fileName,
+                filename: fileNameCurrent,
             });
 
             if (filePath) {
@@ -114,7 +124,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 const s3Path = await AwsHelper.uploadFile({
                     fileData: stream,
                     filePath: filePath,
-                    originalFileName: filename,
+                    originalFileName: fileName || fileNameCurrent,
                     mimeType: mimetype,
                 });
 
@@ -186,6 +196,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
     throw CustomError(ErrorName.INVALID_FILE);
 };
 
+
 const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) => {
     fileName = `${fileName}.json`;
 
@@ -231,6 +242,19 @@ module.exports = {
                 fileName: fileName,
                 uploadType: uploadType,
                 acceptedTypes: fileType.videos,
+            });
+
+            if (filePath) return filePath;
+        } else if (typeof data === "string") return data;
+    },
+    uploadSubtitle: async ({ data, folderName, fileName, uploadType }) => {
+        if (isPromise(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName: folderName,
+                fileName: fileName,
+                uploadType: uploadType,
+                acceptedTypes: fileType.all,
             });
 
             if (filePath) return filePath;

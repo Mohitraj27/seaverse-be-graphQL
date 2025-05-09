@@ -11,6 +11,7 @@ module.exports = {
             isActive: Boolean!
             createdAt: String!
             updatedAt: String!
+            owner: Owner
         }
         type VesselTypeNew {
             _id: ID
@@ -25,8 +26,8 @@ module.exports = {
             typeOfVessel: ID!
             imoNumber: String!
             isActive: Boolean!
-            companyName: String
-            ownerName: String
+            companyName: String!
+            ownerId: ID
             address: String
         }
         input VesselFilterInput {

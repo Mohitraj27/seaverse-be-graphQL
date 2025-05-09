@@ -7,7 +7,21 @@ const { OverallTrainingProgress } = require('../../training-registrations/overal
 const AwsHelper = require("../../../util/aws_helper");
 const { getTheContent } = require("./content_zip_helper");
 const { TrainingModuleContent } = require("../training_modules/training_module_contents/training_module_content_model");
+const { User } = require("../../user/user_model");
+const validateInputData = async (input, userId) => {
+    if (!userId) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
 
+    if (!input.training || !input.trainingModule) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training and training module is required");
+
+    const existingTraining = await Training.findById(input.training);
+
+    if (!existingTraining) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
+
+    const existingTrainingModule = await TrainingModule.find({ _id: input?.trainingModule, training: input?.training });
+
+    if (!existingTrainingModule) throw CustomError(ErrorName.LESSON_NOT_FOUND, "Lesson not found");
+    
+}
 module.exports.queries = {
 
 }
@@ -17,19 +31,7 @@ module.exports.mutations = {
         const { userId } = AuthUser(context);
 
         try {
-
-            if (!userId) throw CustomError(ErrorName.NOT_FOUND);
-
-            if (!input.training || !input.trainingModule) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
-
-            const existingTraining = await Training.findById(input.training);
-
-            if (!existingTraining) throw CustomError(ErrorName.NOT_FOUND, "Course not found");
-
-            const existingTrainingModule = await TrainingModule.find({ _id: input.trainingModule, training: input.training });
-
-            if (!existingTrainingModule) throw CustomError(ErrorName.NOT_FOUND, "Lesson not found");
-
+            await validateInputData(input, userId);
             const trainingModuleContentsFromContentData = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
 
             let trainingContentIds = [];
@@ -58,18 +60,22 @@ module.exports.mutations = {
                 }).populate('trainingContent').lean();
 
             }
-
+            const user = await User.findOne({ _id: userId }).lean();
+            const userLanguages = user?.contentlanguages || [];
             let getContent;
             if (trainingContentIds.length > 0) {
-                getContent = await getTheContent(trainingContents);
+                getContent = await getTheContent(trainingContents, userLanguages);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-
+                /*
                 const trainingContents = [];
                 trainingModuleContentsFromTrainingContent.map((item) => {
                     return trainingContents.push(item.trainingContent);
                 })
 
                 getContent = await getTheContent(trainingContents, 'contentCollection');
+                */
+                const trainingContents = trainingModuleContentsFromTrainingContent.map(item => item.trainingContent);
+                getContent = await getTheContent(trainingContents, userLanguages);
             }
 
             if (getContent.length == 0) {
@@ -89,7 +95,7 @@ module.exports.mutations = {
             }
 
         } catch (error) {
-            throw Error(error.message);
+            throw CustomError(ErrorName.FAILED_TO_DOWNLOAD_ZIP, error.message);
         }
     }
 }

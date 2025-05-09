@@ -28,7 +28,11 @@ const { resetPasswordRequest, resetPasswordRequestforAdmin } = require("../../em
 const { forgetPassword } = require('../../email-template/forgetPassword');
 const EmployeeHelper = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
-
+const { Subscriber } = require("../../saas/subscriber/subscriber_model");
+const NotificationType = require("../../notifications/notification_type.json");
+const notificationiconEnum = require("../../notifications/notification_icon.json");
+const notificationHelper = require("../../notifications/notification_helper");
+const mongoose = require('mongoose');
 
 
 module.exports.queries = {
@@ -289,18 +293,18 @@ module.exports.queries = {
 
         let errors = [];
         const resetPasswordHtml = resetPasswordRequest(user, token);
-        const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
+        // const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
             receiverEmail: user.email,
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
         });
-        await AwsHelper.sendEmail({
-            receiverEmail: userInfo.email,
-            subject: "Reset Password Request",
-            htmlContent: resetPasswordHtmlforAdmin,
-        })
+        // await AwsHelper.sendEmail({
+        //     receiverEmail: userInfo.email,
+        //     subject: "Reset Password Request",
+        //     htmlContent: resetPasswordHtmlforAdmin,
+        // })
         if (errors.length > 0) {
             throw new CustomError(ErrorName.FAILED);
         }
@@ -317,12 +321,17 @@ module.exports.mutations = {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         try {
             if (role === "LEARNER") {
-                const isUpdatingNonAvatarFields = Object.keys(input).some(field => field !== "avatar");
+                const isUpdatingNonAvatarFields = Object.keys(input).some(
+                    field => field !== "avatar"
+                );
                 if (isUpdatingNonAvatarFields) {
-                    throw CustomError('Learner can only update their profile picture');
+                    throw CustomError("Learner can only update their profile picture");
                 }
             }
-            const savedUser = await UserHelper.updateUser({ id: userId, input }, { currentRole: role });
+            const savedUser = await UserHelper.updateUser(
+                { id: userId, input },
+                { currentRole: role }
+            );
 
             if (savedUser) {
                 if (input.address) {
@@ -350,8 +359,8 @@ module.exports.mutations = {
         }
     },
     changePassword: async ({ input }, context) => {
-
-        const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } = AuthUser(context);
+        const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } =
+            AuthUser(context);
 
         try {
             const { userId } = AuthUser(context);
@@ -362,12 +371,14 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
 
-
             if (newPassword !== confirmPassword) {
                 throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
 
-            const sameOldPassword = await CryptoHelper.compare(input.newPassword, existingUser.password);
+            const sameOldPassword = await CryptoHelper.compare(
+                input.newPassword,
+                existingUser.password
+            );
             if (sameOldPassword) {
                 throw CustomError(ErrorName.PASSWORD_MISMATCH, "Please enter a new password");
             }
@@ -375,20 +386,32 @@ module.exports.mutations = {
             const isResetPasswordDialog = existingUser.isResetPasswordDialog;
             if (isResetPasswordDialog) {
                 if (!currentPassword || !newPassword || !confirmPassword) {
-                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
+                    throw CustomError(
+                        ErrorName.PROVIDE_PASSWORDS,
+                        "Provide all the required fields"
+                    );
                 }
             } else {
                 if (!newPassword || !confirmPassword) {
-                    throw CustomError(ErrorName.PROVIDE_PASSWORDS, "Provide all the required fields");
+                    throw CustomError(
+                        ErrorName.PROVIDE_PASSWORDS,
+                        "Provide all the required fields"
+                    );
                 }
             }
             if (!isAlphanumeric(newPassword)) {
-                throw CustomError(ErrorName.INVALID_PASSWORD, "Password must have 8 characters and should be alphanumeric with a special character");
+                throw CustomError(
+                    ErrorName.INVALID_PASSWORD,
+                    "Password must have 8 characters and should be alphanumeric with a special character"
+                );
             }
             if (isResetPasswordDialog) {
-                const isPasswordValid = await CryptoHelper.compare(currentPassword, existingUser.password);
+                const isPasswordValid = await CryptoHelper.compare(
+                    currentPassword,
+                    existingUser.password
+                );
                 if (!isPasswordValid) {
-                    throw CustomError(ErrorName.INVALID_PASSWORD, "Current password is incorrect");
+                    throw CustomError(ErrorName.INVALID_PASSWORD, "Old password is incorrect");
                 }
             }
             existingUser.password = await CryptoHelper.hash(newPassword, 10);
@@ -410,43 +433,66 @@ module.exports.mutations = {
         }
     },
 
-    forgetPassword: async ({ email }, context) => {
-
+    forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-
             const existingUser = await User.findOne({ email });
             if (!existingUser) {
-                throw CustomError(ErrorName.NOT_FOUND);
+                throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
-
+            if (consentsInput?.length > 0) {
+                const existingConsentsMap = new Map(
+                  (existingUser.consents || []).map(consent => [consent._id.toString(), consent])
+                );
+          
+                consentsInput.forEach(consent => {
+                  const consentId = consent._id ? consent._id.toString() : null;
+          
+                  if (consentId && existingConsentsMap.has(consentId)) {
+                    
+                    const existingConsent = existingConsentsMap.get(consentId);
+                    existingConsent.title = consent.title;
+                    existingConsent.message = consent.message;
+                    existingConsent.status = consent.status;
+                  } else {
+                    existingUser.consents.push({
+                      _id: new mongoose.Types.ObjectId(), 
+                      title: consent.title,
+                      message: consent.message,
+                      status: consent.status,
+                    });
+                  }
+                });
+              }
             const token = generateRandomString(10);
 
             existingUser.resetPasswordToken = token;
-            existingUser.resetPasswordExpires = Date.now() + (7 * 3600000);
+            existingUser.resetPasswordExpires = Date.now() + 7 * 3600000;
             const updatedUser = await existingUser.save();
 
             if (!updatedUser) {
                 throw CustomError(ErrorName.FAILED);
             }
             const forgetPasswordEmailContent = forgetPassword(token);
-            const result = await AwsHelper.sendEmail({ receiverEmail: email, subject: "Reset Password", htmlContent: forgetPasswordEmailContent })
+            const result = await AwsHelper.sendEmail({
+                receiverEmail: email,
+                subject: "Reset Password",
+                htmlContent: forgetPasswordEmailContent,
+            });
             if (result) {
                 return {
                     success: true,
-                    message: "Email sent. Please check your email for reset link."
-                }
+                    message: "Email sent. Please check your email for reset link.",
+                    consents: updatedUser.consents || [],
+                };
             } else {
-                throw CustomError(ErrorName.FAILED, 'Failed to send reset link. Please try again.');
+                throw CustomError(ErrorName.FAILED, "Failed to send reset link. Please try again.");
             }
-
         } catch (error) {
-            throw new Error(error.message)
+            throw new Error(error.message);
         }
-
     },
 
     verifyResetPassword: async ({ token }) => {
-
         try {
             const user = await User.findOne({ resetPasswordToken: token });
 
@@ -458,16 +504,12 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.EXPIRED_TOKEN);
             }
             return "Success";
-
         } catch (error) {
             console.error(error);
         }
-
     },
     newPasswordAfterReset: async ({ input }, context) => {
-
         try {
-
             let userId = null;
 
             if (!input.token) {
@@ -475,13 +517,15 @@ module.exports.mutations = {
             }
 
             if (input.newPassword !== input.confirmPassword) {
-                throw CustomError(ErrorName.PASSWORD_MISMATCH, 'Passwords do not match');
+                throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
             }
 
             const user = await User.findOne({
                 $or: [
-                    ObjectId.isValid(userId) ? { _id: userId } : { resetPasswordToken: input.token }
-                ]
+                    ObjectId.isValid(userId)
+                        ? { _id: userId }
+                        : { resetPasswordToken: input.token },
+                ],
             });
 
             if (!user) {
@@ -491,7 +535,10 @@ module.exports.mutations = {
             let checkAlphaNumeric = isAlphanumeric(input.newPassword);
 
             if (!checkAlphaNumeric) {
-                throw CustomError(ErrorName.INVALID_PASSWORD, 'Password must be 6-15 characters long.');
+                throw CustomError(
+                    ErrorName.INVALID_PASSWORD,
+                    "Password must be 6-15 characters long."
+                );
             }
 
             user.password = await CryptoHelper.hash(input.newPassword, 10);
@@ -507,20 +554,45 @@ module.exports.mutations = {
             } else {
                 throw CustomError(ErrorName.FAILED);
             }
-
         } catch (error) {
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
-
     },
     selfDeleteRequest: async ({ input }, context) => {
-        const { subscriberId, userId, userInfo } = AuthUser(context);
+        const { userId, userInfo } = AuthUser(context);
 
         try {
-            const { reasonForDelete } = input;
             if (!userId) {
-                throw new CustomError(ErrorName.UNAUTHORIZED);
+                throw new CustomError(ErrorName.UNAUTHORIZED, "Unauthorized");
             }
+            const userData = await User.aggregate([
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "subRoles",
+                        foreignField: "_id",
+                        as: "subRoles",
+                    },
+                },
+                {
+                    $unwind: "$subRoles",
+                },
+                {
+                    $match: {
+                        "subRoles.name": "ADMIN",
+                    },
+                },
+            ]);
+
+            if (userData.length === 1) {
+                throw CustomError(
+                    ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
+                    "You cannot delete yourself because you are the only admin left in the system."
+                );
+            }
+
+            const { reasonForDelete } = input;
+
             if (!reasonForDelete || !reasonForDelete.trim().length) {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
@@ -528,37 +600,48 @@ module.exports.mutations = {
             const updateUser = await User.findByIdAndUpdate(userId, {
                 $set: {
                     deleteRequest: true,
-                    isDeleted: true,
-                    isActive: false,
                     deleteRequestDate: Date.now(),
-                    reasonForDelete: reasonForDelete
-                }
+                    reasonForDelete: reasonForDelete,
+                },
             });
 
-            await OverallTrainingProgress.updateMany(
-                { user: userId },
-                {
-                    $set: {
-                        isDeleted: true,
-                    }
-                }
-            );
-
             if (updateUser) {
+                const subscriber = await Subscriber.findOne();
 
-                await sendNotificationOnDELETEREQUEST({
+                let subscriberId;
+
+                if (subscriber) {
+                    subscriberId = subscriber._id;
+                }
+
+                const viewRequestPath = `${process.env.APP_URL}/admin/delete-request?tab=new`;
+
+                const signupRequestNotifcation = {
                     subscriber: subscriberId,
-                    user: {
-                        _id: userId,
-                        firstName: updateUser.firstName,
-                        lastName: updateUser.lastName,
-                        civilIdOrPassport: updateUser.civilIdOrPassport,
-                        email: updateUser.email
-                    },
-                    action: "requested",
-                    reasonForDelete,
-                    createdBy: userInfo
-                });
+                    title: [{ lang: "en", value: `Delete Request` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Delete request received. Please take necessary action.`,
+                        },
+                    ],
+                    notificationType: NotificationType.USER_DELETE_REQUEST,
+                    notifyAllAdmin: true,
+                    notifiers: [],
+                    additionalInfo: [
+                        {
+                            infoType: "VIEW_REQUEST",
+                            infoData: {
+                                filePath: viewRequestPath,
+                            },
+                        },
+                    ],
+                    status: "SENT",
+                    employeeNotifiers: [],
+                    isUserRequest: true,
+                    icon: notificationiconEnum.SUCCESS,
+                };
+                await notificationHelper.createNotification(signupRequestNotifcation);
 
                 LogHelper.logActivity({
                     subscriber: subscriberId,
@@ -571,23 +654,16 @@ module.exports.mutations = {
                         {
                             infoType: "REASON_FOR_DELETE",
                             infoData: reasonForDelete,
-                        }
-                    ]
+                        },
+                    ],
                 });
-                const errors = [];
 
-                if (errors.length > 0) {
-                    throw new CustomError(ErrorName.ERROR_DELETING_USER, `${errors[0]}`);
-                }
-
-                return "Delete request processed and user deleted successfully!";
+                return "Delete request processed successfully!";
             } else {
-                console.error(error);
                 throw new CustomError(ErrorName.FAILED);
             }
         } catch (error) {
-            console.error(error);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
-
-    }
+    },
 };

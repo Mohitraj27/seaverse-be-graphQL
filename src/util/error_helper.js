@@ -75,20 +75,59 @@ const errorName = {
     LEARNING_PLAN_NOT_CREATED: "Learning Plan Not Created",
     EMPLOYEE_NOT_REGISTERED: "EMPLOYEE_NOT_REGISTERED",
     INVALID_EMAIL: "INVALID_EMAIL",
-    INVALID_LEARNING_PLAN_STATUS_UPDATE:"INVALID_LEARNING_PLAN_STATUS_UPDATE",
-    INVALID_LEARNING_PLAN:"INVALID_LEARNING_PLAN",
-    LEARNING_PLAN_NOT_FOUND:"LEARNING_PLAN_NOT_FOUND",
-    MIGRATION_COURSES_NOT_FOUND:"MIGRATION_COURSES_NOT_FOUND",
-    OVERALLTRAININGPROGRESSES_NOT_REGISTERED:"OVERALLTRAININGPROGRESSES_NOT_REGISTERED",
-    CREATE_OR_UPDATE_TRAINING_MODULE:"CREATE_OR_UPDATE_TRAINING_MODULE",
-    COURSE_TITLE_ALREADY_EXIST:"COURSE_TITLE_ALREADY_EXIST",
-    NOTIFICATION_FAILED_TO_MARK_AS_READ:"NOTIFICATION_FAILED_TO_MARK_AS_READ",
-    GET_NOTIFICATION_FAILED:"GET_NOTIFICATION_FAILED",
-    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:"MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
+    INVALID_LEARNING_PLAN_STATUS_UPDATE: "INVALID_LEARNING_PLAN_STATUS_UPDATE",
+    INVALID_LEARNING_PLAN: "INVALID_LEARNING_PLAN",
+    LEARNING_PLAN_NOT_FOUND: "LEARNING_PLAN_NOT_FOUND",
+    MIGRATION_COURSES_NOT_FOUND: "MIGRATION_COURSES_NOT_FOUND",
+    OVERALLTRAININGPROGRESSES_NOT_REGISTERED: "OVERALLTRAININGPROGRESSES_NOT_REGISTERED",
+    CREATE_OR_UPDATE_TRAINING_MODULE: "CREATE_OR_UPDATE_TRAINING_MODULE",
+    COURSE_TITLE_ALREADY_EXIST: "COURSE_TITLE_ALREADY_EXIST",
+    NOTIFICATION_FAILED_TO_MARK_AS_READ: "NOTIFICATION_FAILED_TO_MARK_AS_READ",
+    GET_NOTIFICATION_FAILED: "GET_NOTIFICATION_FAILED",
+    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS: "MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
     FAILED_TO_FETCH_EMPLOYESS: "FAILED_TO_FETCH_EMPLOYESS",
     INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS: "INVALID_ORDER_FOR_MANDATORY_FIELDS_EXPORT_USERS",
     INVALID_TITLE: "INVALID_TITLE",
-    INVALID_DESCRIPTION: "INVALID_DESCRIPTION"
+    INVALID_DESCRIPTION: "INVALID_DESCRIPTION",
+    LEARNING_PLAN_NOT_UPDATED: "LEARNING_PLAN_NOT_UPDATED",
+    FAILED_TO_UPDATE_STATUS: "FAILED_TO_UPDATE_STATUS",
+    FAILED_TO_DELETE_LEARNING_PLAN: "FAILED_TO_DELETE_LEARNING_PLAN",
+    FAILED_TO_FETCH_LEARNING_PLAN: "FAILED_TO_FETCH_LEARNING_PLAN",
+    REGTYPE_REQUIRED: "REGTYPE_REQUIRED",
+    INVALID_REG_TYPE: "INVALID_REG_TYPE",
+    EMAIL_NOT_FOUND: "EMAIL_NOT_FOUND",
+    SIGNUP_FAILED: "SIGNUP_FAILED",
+    EMAIL_VERIFICATION_FAILED: "EMAIL_VERIFICATION_FAILED",
+    OTP_VERIFICATION_FAILED: "OTP_VERIFICATION_FAILED",
+    INVALID_OTP: "INVALID_OTP",
+    OTP_EXPIRED: "OTP_EXPIRED",
+    FAILED_TO_FETCH_SIGNUP_REQUEST: "FAILED_TO_FETCH_SIGNUP_REQUEST",
+    SIGNUP_REQUEST_DATA_NOT_FOUND: "SIGNUP_REQUEST_DATA_NOT_FOUND",
+    INVALID_SIGNUP_REQUEST_ID: "INVALID_SIGNUP_REQUEST_ID",
+    FAILED_TO_PROCESS_SIGNUP_REQUEST: "FAILED_TO_PROCESS_SIGNUP_REQUEST",
+    FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
+    FAILED_TO_SEND_APPROVAL_EMAIL: "FAILED_TO_SEND_APPROVAL_EMAIL",
+    FAILED_TO_SEND_REJECTION_EMAIL: "FAILED_TO_SEND_REJECTION_EMAIL",
+    DELETE_REQUEST_PENDING:"DELETE_REQUEST_PENDING",
+    FAILED_TO_FETCH_DESIGNATIONS:"FAILED_TO_FETCH_DESIGNATIONS",
+    FAILED_TO_CHANGE_REGISTER_STATUS: "FAILED_TO_CHANGE_REGISTER_STATUS",
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    FAILED_TO_DELETE_USER: "FAILED_TO_DELETE_USER",
+    FAILED_TO_DELETE_LAST_ADMIN: "FAILED_TO_DELETE_LAST_ADMIN",
+    INVALID_LANGUAGES_CODES_SELECTED: "INVALID_LANGUAGES_CODES_SELECTED",
+    SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    FAILED_TO_DOWNLOAD_ZIP: "FAILED_TO_DOWNLOAD_ZIP",
+    COURSE_NOT_FOUND: "COURSE_NOT_FOUND",
+    LESSON_NOT_FOUND: "LESSON_NOT_FOUND",
+    FAILED_TO_EXPORT_USERS_TO_CSV: "FAILED_TO_EXPORT_USERS_TO_CSV",
+    FAILED_TO_DELETE_CUSTOM_GROUP:"FAILED_TO_DELETE_CUSTOM_GROUP",
+    CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:"CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN",
+    FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL",
+    FAILED_TO_SWITCH_NOTIFICATION:"FAILED_TO_SWITCH_NOTIFICATION",
+    INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT"
 };
 
 const errorType = {
@@ -163,9 +202,14 @@ const errorType = {
         Type: "OTP_ERROR",
     },
     WRONG_PASSWORD: {
-        message: "Wrong Password",
+        message: "Invalid E-mail or Password",
         statusCode: 400,
         Type: "WRONG_PASSWORD",
+    },
+    EMAIL_NOT_FOUND: {
+        message: "Email ID not found in our system",
+        statusCode: 400,
+        Type: "EMAIL_NOT_FOUND",
     },
     UPLOAD_FAILED: {
         message: "Upload Failed",
@@ -452,9 +496,9 @@ const errorType = {
         status: 400,
         type: "LEARNING_PLAN_ALREADY_EXISTS"
     },
-    LEARNING_PLAN_NOT_CREATED:{
+    LEARNING_PLAN_NOT_CREATED: {
         message: 'Learning Plan Not Created',
-        status: 400,    
+        status: 400,
         type: "LEARNING_PLAN_NOT_CREATED"
     },
     EMPLOYEE_NOT_REGISTERED: {
@@ -482,15 +526,15 @@ const errorType = {
         statusCode: 400,
         type: "LEARNING_PLAN_NOT_FOUND"
     },
-    MIGRATION_COURSES_NOT_FOUND:{
-        message:"Migration Courses Not found",
-        statusCode:400,
-        type:"MIGRATION_COURSES_NOT_FOUND"
+    MIGRATION_COURSES_NOT_FOUND: {
+        message: "Migration Courses Not found",
+        statusCode: 400,
+        type: "MIGRATION_COURSES_NOT_FOUND"
     },
-    OVERALLTRAININGPROGRESSES_NOT_REGISTERED:{
-        message:"Overalltrainingprogresses Not Registered",
-        statusCode:400,
-        type:"OVERALLTRAININGPROGRESSES_NOT_REGISTERED"
+    OVERALLTRAININGPROGRESSES_NOT_REGISTERED: {
+        message: "Overalltrainingprogresses Not Registered",
+        statusCode: 400,
+        type: "OVERALLTRAININGPROGRESSES_NOT_REGISTERED"
     },
     CREATE_OR_UPDATE_TRAINING_MODULE: {
         message: 'Error in Creating or Updating Training Module',
@@ -502,17 +546,17 @@ const errorType = {
         statusCode: 400,
         type: "COURSE_TITLE_ALREADY_EXIST"
     },
-    NOTIFICATION_FAILED_TO_MARK_AS_READ:{
+    NOTIFICATION_FAILED_TO_MARK_AS_READ: {
         message: 'Failed to mark notifications as read.',
         statusCode: 400,
         type: "NOTIFICATION_FAILED_TO_MARK_AS_READ"
     },
-    GET_NOTIFICATION_FAILED:{
+    GET_NOTIFICATION_FAILED: {
         message: 'Get Notification Failed',
         statusCode: 400,
         type: "GET_NOTIFICATION_FAILED"
     },
-    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS:{
+    MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS: {
         message: 'Missing mandatory fields for export',
         statusCode: 400,
         type: "MISSING_MANDATORY_FIELDS_FOR_EXPORT_USERS",
@@ -536,11 +580,201 @@ const errorType = {
         message: 'Description is not valid',
         statusCode: 400,
         type: "INVALID_DESCRIPTION"
+    },
+    LEARNING_PLAN_NOT_UPDATED: {
+        message: 'Learning Plan Not Updated',
+        statusCode: 400,
+        type: "LEARNING_PLAN_NOT_UPDATED"
+    },
+    FAILED_TO_UPDATE_STATUS: {
+        message: 'Failed to update status',
+        statusCode: 400,
+        type: "FAILED_TO_UPDATE_STATUS"
+    },
+    FAILED_TO_DELETE_LEARNING_PLAN: {
+        message: 'Failed to delete learning plan',
+        statusCode: 400,
+        type: "FAILED_TO_DELETE_LEARNING_PLAN"
+    },
+    FAILED_TO_FETCH_LEARNING_PLAN: {
+        message: 'Failed to fetch learning plan',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_LEARNING_PLAN"
+    },
+    REGTYPE_REQUIRED: {
+        message: 'Registration type is required',
+        statusCode: 400,
+        type: "REGTYPE_REQUIRED",
+    },
+    INVALID_REG_TYPE: {
+        message: 'Invalid Reg Type Provided',
+        statusCode: 400,
+        type: "INVALID_REG_TYPE",
+    },
+    EMAIL_VERIFICATION_FAILED: {
+        message: 'Email Verification Failed',
+        statusCode: 400,
+        type: "EMAIL_VERIFICATION_FAILED",
+    },
+    SIGNUP_FAILED: {
+        message: 'Failed to signup',
+        statusCode: 400,
+        type: "SIGNUP_FAILED",
+    },
+    OTP_VERIFICATION_FAILED: {
+        message: 'OTP Verification Failed',
+        statusCode: 400,
+        type: "OTP_VERIFICATION_FAILED",
+    },
+    INVALID_OTP: {
+        message: 'Invalid OTP',
+        statusCode: 400,
+        type: "INVALID_OTP",
+    },
+    OTP_EXPIRED : {
+        message: 'OTP Expired',
+        statusCode: 400,
+        type: "OTP_EXPIRED",
+    },
+    FAILED_TO_FETCH_SIGNUP_REQUEST: {
+        message: 'Failed to fetch signup request',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_SIGNUP_REQUEST",
+    },
+    SIGNUP_REQUEST_DATA_NOT_FOUND: {
+        message: 'Signup request data not found',
+        statusCode: 400,
+        type: "SIGNUP_REQUEST_DATA_NOT_FOUND",
+    },
+    INVALID_SIGNUP_REQUEST_ID: {
+        message: 'Please pass the correct signup request id',
+        statusCode: 400,
+        type: "INVALID_SIGNUP_REQUEST_ID",
+    },
+    FAILED_TO_PROCESS_SIGNUP_REQUEST:{
+        message: 'Failed to process signup request',
+        statusCode: 400,
+        type: "FAILED_TO_PROCESS_SIGNUP_REQUEST",
+    },
+    FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST: {
+        message: 'Failed to fetch history signup request',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_HISTORY_SIGNUP_REQUEST",
+    },
+    FAILED_TO_SEND_APPROVAL_EMAIL: {
+        message: 'Failed to send approval email to the Learner',
+        statusCode: 400,
+        type: "FAILED_TO_SEND_APPROVAL_EMAIL"
+    },
+    FAILED_TO_SEND_REJECTION_EMAIL: {
+        message: 'Failed to send rejection email to the Learner',
+        statusCode: 400,
+        type: "FAILED_TO_SEND_REJECTION_EMAIL"
+    },
+    DELETE_REQUEST_PENDING: {
+        message: 'Delete Request Pending',
+        statusCode: 400,
+        type: "DELETE_REQUEST_PENDING"
+    },
+    FAILED_TO_FETCH_DESIGNATIONS: {
+        message: 'Failed to fetch designations',
+        statusCode: 400,
+        type: "FAILED_TO_FETCH_DESIGNATIONS"
+    },
+    FAILED_TO_CHANGE_REGISTER_STATUS:{
+        message: 'Failed to change register status',
+        statusCode: 400,
+        type: "FAILED_TO_CHANGE_REGISTER_STATUS"
+    },
+    FAILED_TO_UNENROLL_FROM_LEARNING_PLAN: {
+        message: 'Failed to unenroll from learning plan',
+        statusCode: 400,    
+        type: "FAILED_TO_UNENROLL_FROM_LEARNING_PLAN",
+    },
+    FAILED_TO_CREATE_CONTENT_LANGUAGE: {
+        message: 'Failed to create content language',
+        statusCode: 400,    
+        type: "FAILED_TO_CREATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_UPDATE_CONTENT_LANGUAGE: {
+        message: 'Failed to update content language',
+        statusCode: 400,    
+        type: "FAILED_TO_UPDATE_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_FETCH_CONTENT_LANGUAGES: {
+        message: 'Failed to fetch content language',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_CONTENT_LANGUAGE",
+    },
+    FAILED_TO_DELETE_USER: {
+        message: 'Failed to delete admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_USER",
+    },
+    FAILED_TO_DELETE_LAST_ADMIN: {
+        message: 'Failed to delete last admin',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_LAST_ADMIN",
+    },
+    INVALID_LANGUAGES_CODES_SELECTED: {
+        message: 'Invalid language codes selected',
+        statusCode: 400,    
+        type: "INVALID_LANGUAGES_CODES_SELECTED",
+    },
+    SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER: {
+        message: 'Group doesn\'t have any member',
+        statusCode: 400,    
+        type: "SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER",
+    },
+    FAILED_TO_DOWNLOAD_ZIP: {
+        message: 'Failed to download zip',
+        statusCode: 400,    
+        type: "FAILED_TO_DOWNLOAD_ZIP",
+    },
+    COURSE_NOT_FOUND: {
+        message: 'Course not found',    
+        statusCode: 400,    
+        type: "COURSE_NOT_FOUND",
+    },
+    LESSON_NOT_FOUND: {
+        message: 'Lesson not found',
+        statusCode: 400,    
+        type: "LESSON_NOT_FOUND",
+    },
+    FAILED_TO_EXPORT_USERS_TO_CSV: { 
+        message: 'Failed to export users to CSV',
+        statusCode: 400,    
+        type: "FAILED_TO_EXPORT_USERS_TO_CSV"
+    },
+    FAILED_TO_DELETE_CUSTOM_GROUP:{
+        message: 'Failed to delete custom group',
+        statusCode: 400,    
+        type: "FAILED_TO_DELETE_CUSTOM_GROUP"
+    },
+    CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN:{
+        message: 'Custom group exist for learning plan',
+        statusCode: 400,    
+        type: "CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN"
+    },
+    FAILED_TO_SENT_WELCOME_MAIL:{
+        message: 'Failed to sent welcome mail',
+        statusCode: 400,    
+        type: "FAILED_TO_SENT_WELCOME_MAIL"
+    },
+    FAILED_TO_SWITCH_NOTIFICATION:{
+        message: 'Failed to switch email notification',
+        statusCode: 400,    
+        type: "FAILED_TO_SWITCH_NOTIFICATION"
+    },
+    INVALID_CONSENT_FORMAT:{
+        message: 'Invalid consent format',
+        statusCode: 400,    
+        type: "INVALID_CONSENT_FORMAT"
     }
 };
 
 const formatError = error => {
- 
+    console.log(error);
     let errorObject;
     try {
         errorObject = JSON.parse(error.message);
@@ -556,6 +790,7 @@ const formatError = error => {
     if (!errorObject) {
         errorObject = errorType[error.message];
     }
+    console.log({ errorObject });
 
     return {
         message: errorObject?.message ?? "An error occurred",

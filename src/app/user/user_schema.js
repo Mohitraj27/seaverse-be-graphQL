@@ -36,7 +36,26 @@ module.exports = {
             employee: Employee
             htmlTemplate: String
             isResetPasswordDialog: Boolean
-            vesselStatus: vesselStatusEnum
+            vesselStatus: String
+            directSignup: Boolean
+            isSignupAdminAprroved: Boolean
+            reasonForDelete: String
+            deleteRequestDate: String
+            deleteRequest: Boolean
+            isDeleted: Boolean
+            designation: String
+            contentlanguages: [String]
+            consents: [TermsAndConditions!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+            country: String
+        }
+        type TermsAndConditions {
+            _id: ID
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         type UserList {
             users: [User]
@@ -59,12 +78,17 @@ module.exports = {
         input SignUpInput {
             firstName: String
             lastName: String
-            emailOrCivilIdOrPassport: String!
-            phone: PhoneInput
+            email: String!
+            country: String
             password: String!
-            avatar: Upload
-            firebaseToken: String
-            deviceId: String
+            confirmPassword: String!
+            consents: [TermsAndConditionsInput!]
+        }
+        input TermsAndConditionsInput {
+            message: String!
+            title: String!
+            status:Boolean!
+            timestamp: String
         }
         enum vesselStatusEnum {
             ASSIGNED
@@ -76,8 +100,8 @@ module.exports = {
             lastName: String
             civilIdOrPassport: String
             isRegistered: Boolean
-            currentVessel: ID
-            vesselStatus: vesselStatusEnum
+            currentVessel: String
+            vesselStatus: String
             companyEmail: String
             email: String
             phone: PhoneInput
@@ -92,6 +116,16 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
+            country: String
+            consents:[TermsAndConditionsforUpdateEmployee!]
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+        }
+        input TermsAndConditionsforUpdateEmployee {
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         input SignInInput {
             countryCode: String
@@ -99,6 +133,14 @@ module.exports = {
             password: String!
             firebaseToken: String
             deviceId: String
+            consents: [TermsAndConditionsInputforSignIn]
+        }
+        input TermsAndConditionsInputforSignIn {
+            _id: ID   
+            message: String
+            title: String
+            status:Boolean
+            timestamp: String
         }
         input SignOutInput {
             firebaseToken: String
@@ -116,10 +158,67 @@ module.exports = {
             downloadType: downloadTypeEnum!
             id: ID!
         }
+        input contentLanguageInput {
+            languagecode : [String!]
+            userId: ID!
+        }
         type downloadResponse {
             status: String!
             message: String!
         }
+        input AppSignUpInput {
+            firstName: String!
+            lastName: String
+            email: String!
+            password: String!
+        }
+        type SignUpRes {
+            message: String!
+            status: String!
+            user: User!
+            token: String!
+            refreshToken: String!
+        }
+        input emailVertificationInput{
+            country: String
+            email: String!
+        }
+        type emailVerification{
+            status: String!
+            message: String!
+            generatedtoken: String!
+            email:String!
+            country: String!
+        }
+        input OTPVerificationInput{
+            email: String
+            generatedtoken: String!
+            otp: String!
+        }
+        type verifyOTP{
+            status: String!
+            message: String!
+            email: String!
+            country: String!
+        }
+        type contentLanguage{
+            status: String!
+            message: String!
+        }
+        input SwitchNotificationInput {
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+        }
+        type NotificationStatus {
+            isEmailNotification: Boolean
+            isPushNotification: Boolean
+        }
+        type switchNotifcationResponse {
+            status: Boolean!
+            message: String!
+            currentNotificationStatus: NotificationStatus
+        }
+
     `,
     queries: `
         downloadNotification(input: downloadInput!): downloadResponse!
@@ -128,9 +227,14 @@ module.exports = {
         createSaasAdmin(input: SignUpInput!): AuthUser!
         saasAdminSignIn(input: SignInInput!): AuthUser!
         subscriberSignUp(input: SignUpInput!): AuthUser!
-        signUp(input: SignUpInput!, token: String): AuthUser!
+        signUp(input: SignUpInput!): SignUpRes!
         signIn(input: SignInInput!, role: Role): AuthUser!
         generateRefreshToken(token: String!): refreshTokenRes!
         signOut(input: SignOutInput): String!
+        appSignUp(input: AppSignUpInput!): downloadResponse!
+        signUpVerifyEmail(input: emailVertificationInput!): emailVerification!
+        verifyOTPSignup(input: OTPVerificationInput!):verifyOTP!
+        updateProfileforCourseSetting(input: contentLanguageInput!): contentLanguage!
+        switchNotifcation(input: SwitchNotificationInput!): switchNotifcationResponse!
     `,
 };

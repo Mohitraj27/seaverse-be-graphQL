@@ -211,8 +211,11 @@ module.exports = {
     groupTypes: require("./group_types.json"),
     courseStatus: require("./course_status"),
     contentTypes: require("./content_type.json"),
+    consentTypes: require("./consent_type.json"),
     VesselStatus,
     Language: require("./language"),
     EmailTemplate: require("./email_template"),
     OverallProgressStatus : require("./overall_course_progress_status.json"),
+    SqliteEmailHelper: require("./sqlite_email_helper"),
+    dummyPassword: require('./dummy_pwd.json')
 };

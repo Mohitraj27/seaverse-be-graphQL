@@ -50,7 +50,7 @@ const convertUnderscoreSeperatedStringToCamelCase = async (str) => {
         })
         .join(''); 
 }
-
+/* 
 const formatDate = (date) => {
     if (date) {
         const formattedDate = new Date(date);
@@ -61,15 +61,98 @@ const formatDate = (date) => {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Kolkata',
+            hour12: false,
+            timeZone: 'UTC',
         });
     }
     return null;
 };
+*/
+
+const formatDate = (date) => {
+    if (date) {
+        const formattedDate = new Date(date);
+
+        // Get day, month, year, hours, minutes, and seconds
+        const day = String(formattedDate.getUTCDate()).padStart(2, '0');
+        const month = String(formattedDate.getUTCMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+        const year = formattedDate.getUTCFullYear();
+        const hours = String(formattedDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(formattedDate.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(formattedDate.getUTCSeconds()).padStart(2, '0');
+
+        // Format the date as "DD-MM-YYYY HH.MM.SS"
+        return `${day}-${month}-${year} ${hours}.${minutes}.${seconds}`;
+    }
+    return null;
+};
+
+const generateSortingStage = async(fieldMapping, lowercaseFields = [], defaultField = "FIRST_NAME",sortInput) => {
+    const sortingStage = [];
+    const sortOrder = sortInput?.sortOrder ?? 1;
+    
+    const field = sortInput?.field ?? defaultField;
+    const fieldPath = fieldMapping[field];
+
+    if (fieldPath) {
+        // if the field is a text value, we need to sort by lowercase value for consistency
+        const isLowercaseRequired = lowercaseFields.includes(field);
+        
+        if (isLowercaseRequired) {
+            sortingStage.push({
+                $addFields: {
+                    [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
+                }
+            });
+            sortingStage.push({
+                $sort: {
+                    [`lowercase${field}`]: sortOrder
+                }
+            });
+        } else {
+            sortingStage.push({
+                $sort: {
+                    [fieldPath]: sortOrder
+                }
+            });
+        }
+    } else {
+        // If the fieldPath doesn't exist in fieldMapping, apply default sorting (by defaultField)
+        sortingStage.push({
+            $addFields: {
+                [`lowercase${defaultField}`]: { $toLower: `$${fieldMapping[defaultField]}` }
+            }
+        });
+        sortingStage.push({
+            $sort: {
+                [`lowercase${defaultField}`]: sortOrder
+            }
+        });
+    }
+
+    return sortingStage;
+}
+
+
+const convertMinutesToHMS = (minutes) => {
+    if (minutes == null || isNaN(minutes)) {
+        return '00:00:00'; 
+    }
+    if (minutes <= 0) {
+        return '00:00:00'; 
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = Math.floor(minutes % 60); 
+    const remainingSeconds = Math.round((minutes % 1) * 60); 
+
+    return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+};
+
 module.exports ={
     generateFileNameTimestamp,
     getAppliedFilters,
     convertUnderscoreSeperatedStringToCamelCase,
     formatDate,
+    generateSortingStage,
+    convertMinutesToHMS,
 }

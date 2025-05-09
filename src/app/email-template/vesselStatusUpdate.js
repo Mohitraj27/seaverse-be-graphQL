@@ -27,7 +27,7 @@ function vesselStatusUpdateEmail(user) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -51,12 +51,7 @@ function vesselStatusUpdateEmail(user) {
                                         The status of the vessel  <strong>${user.vesselName}</strong> you are assigned to has been updated to <strong>${user.vesselStatus}</strong>.
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
-                                    </td>
-                                </tr>
+                               
                             </table>
                         </td>
                     </tr>
@@ -102,7 +97,7 @@ function vesselStatusUpdateEmailAdmin(user) {
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -130,7 +125,7 @@ function vesselStatusUpdateEmailAdmin(user) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Best Regards,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>

@@ -124,97 +124,97 @@ module.exports.queries = {
             },
             ...(filterInput?.search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  {
-                                      certificateNumber: {
-                                          $regex: filterInput.search,
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "trainingTitle.value": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "organizationName.value": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeName: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeNo: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeCivilIdOrPassport: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      employeeEmail: {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.firstName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.lastName": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.civilIdOrPassport": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.email": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.companyEmail": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.user.phone.number": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                                  {
-                                      "employee.employeeNo": {
-                                          $regex: ".*" + filterInput.search + ".*",
-                                          $options: "i",
-                                      },
-                                  },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                {
+                                    certificateNumber: {
+                                        $regex: filterInput.search,
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "trainingTitle.value": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "organizationName.value": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeName: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeNo: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeCivilIdOrPassport: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    employeeEmail: {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.firstName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.lastName": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.civilIdOrPassport": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.email": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.companyEmail": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.user.phone.number": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                                {
+                                    "employee.employeeNo": {
+                                        $regex: ".*" + filterInput.search + ".*",
+                                        $options: "i",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ]
                 : []),
         ];
 
@@ -247,161 +247,152 @@ module.exports.queries = {
 
         return existingTrainingCertificate;
     },
-    getUserCertificates: async ({ id , filterInput }) => {
+    getUserCertificates: async ({ id, filterInput }) => {
         try {
-            
-            let matchStage =[];
-            let courseFilter =[];
-            let courseProgressFilter =[];
+
+            let matchStage = [];
+            let courseFilter = [];
+            let courseProgressFilter = [];
 
             if (filterInput?.name) {
-                matchStage.push( {
+                matchStage.push({
                     $match: {
-                      'layoutInfo.title.value': { $regex: filterInput?.name, $options: 'i' } 
+                        'training.title.value': { $regex: filterInput?.name, $options: 'i' }
                     },
-                  },)
+                },)
             }
             if (filterInput?.courseId) {
-                courseFilter.push( {
+                courseFilter.push({
                     $match: {
-                      'training': ObjectId(filterInput?.courseId),
+                        'training': ObjectId(filterInput?.courseId),
                     },
-                  },)
+                },)
             }
             if (filterInput?.courseProgressId) {
-                courseProgressFilter.push( {
+                courseProgressFilter.push({
                     $match: {
-                      'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
+                        'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
                     },
-                  },)
+                },)
+            }
+            if(filterInput?.isFromMigration !== undefined){
+                matchStage.push({
+                    $match: {
+                        isFromMigration: { $eq: filterInput.isFromMigration },
+                    },
+                });
             }
 
-          const certificatesQuery = [
-            {
-              $match: {
-                user: ObjectId(id),
-              },
-            },
-            ...courseFilter,
-            {
-              $lookup: {
-                from: 'trainings',
-                localField: 'training',
-                foreignField: '_id',
-                as: 'training',
-              },
-            },
-            {
-              $unwind: { path: '$training', preserveNullAndEmptyArrays: true },
-            },
-            {
-              $lookup: {
-                from: 'organizations',
-                localField: 'organization',
-                foreignField: '_id',
-                as: 'organization',
-              },
-            },
-            {
-              $unwind: { path: '$organization', preserveNullAndEmptyArrays: true },
-            },
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'user',
-                foreignField: '_id',
-                as: 'user',
-              },
-            },
-              {
-                  $lookup:{
-                      from: "overalltrainingprogresses",
-                      localField: "trainingRegistration",
-                      foreignField: "trainingRegistration",
-                      as: "overallProgressInfo",
-                      pipeline: [
-                          {
-                              $match: {
-                                  user: ObjectId(id)
-                              }
-                          }
-                      ]
-                  }
-              },
-              {
-                  $unwind:
-                  {
-                      path: "$overallProgressInfo",
-                      preserveNullAndEmptyArrays: false
-                  }
-              },
-              ...courseProgressFilter,
-            {
-              $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
-            },
-            {
-              $lookup: {
-                from: 'certificatelayouts',
-                localField: 'certificateLayout',
-                foreignField: '_id',
-                as: 'layoutInfo',
-              },
-            },
-            {
-              $unwind: { path: '$layoutInfo', preserveNullAndEmptyArrays: true },
-            },
-            ...matchStage,
-            {
-              $project: {
-                'training.title': 1,
-                'training.description': 1,
-                'organization.name': 1,
-                'organization.address': 1,
-                'user.firstName': 1,
-                'user.lastName': 1,
-                'layoutInfo.layout': 1,
-                'layoutInfo.authorName': 1,
-                'layoutInfo.title': 1,
-                'layoutInfo.authoringTitle': 1,
-                'layoutInfo.certificateReference': 1,
-                'layoutInfo.logos': 1,
-                'layoutInfo.additionalData': 1,
-                'createdAt': 1,
-                'trainingCertificateValidity': 1,
-                'generatedAt': 1,
-                'certificateNumber': 1,
-                'expiresAt':1,
-                'layoutInfo.pdfUrl':1,
-                'layoutInfo.isFromMigration':1,
-                'layoutInfo.certificateNumber':1
+            const certificatesQuery = [
+                { $match: { user: ObjectId(id) } },
+                ...courseFilter,
+                {
+                    $lookup: {
+                        from: 'trainings',
+                        localField: 'training',
+                        foreignField: '_id',
+                        as: 'training',
+                    },
                 },
-            },
-          ];
-      
-          const certificates = await TrainingCertificate.aggregate(certificatesQuery);
-      
-          if (!certificates || certificates.length === 0) {
+                {
+                    $unwind: { path: '$training', preserveNullAndEmptyArrays: true },
+                },
+                ...matchStage,
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'user',
+                        foreignField: '_id',
+                        as: 'user',
+                    },
+                },
+                {
+                    $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
+                },
+                {
+                    $lookup: {
+                        from: 'overalltrainingprogresses',
+                        localField: 'trainingRegistration',
+                        foreignField: 'trainingRegistration',
+                        as: 'overallProgressInfo',
+                        pipeline: [{ $match: { user: ObjectId(id) } }],
+                    },
+                },
+                {
+                    $unwind: { path: '$overallProgressInfo', preserveNullAndEmptyArrays: true },
+                },
+                ...courseProgressFilter,
+                {
+                    $lookup: {
+                        from: 'certificatelayouts',
+                        localField: 'certificateLayout',
+                        foreignField: '_id',
+                        as: 'layoutInfo',
+                    },
+                },
+                {
+                    $unwind: { path: '$layoutInfo', preserveNullAndEmptyArrays: true },
+                },
+                {
+                    $project: {
+                        'training.title': 1,
+                        'training.description': 1,
+                        'user.firstName': 1,
+                        'user.lastName': 1,
+                        'layoutInfo.layout': 1,
+                        'layoutInfo._id': 1,
+                        'layoutInfo.courseProvidedBy':1,
+                        'layoutInfo.certificateExpiry':1,
+                        'layoutInfo.authorName': 1,
+                        'layoutInfo.title': 1,
+                        'layoutInfo.authoringTitle': 1,
+                        'layoutInfo.certificateReference': 1,
+                        'layoutInfo.logos': 1,
+                        'layoutInfo.additionalData': 1,
+                        'createdAt': 1,
+                        'trainingCertificateValidity': 1,
+                        'generatedAt': 1,
+                        'certificateNumber': 1,
+                        'expiresAt': 1,
+                        'layoutInfo.pdfUrl': 1,
+                        'isFromMigration': 1,
+                        'pdfUrl': 1,
+                        'issuedAt': 1,
+                        'layoutInfo.isFromMigration': 1,
+                        'layoutInfo.certificateNumber': 1,
+                        'layoutInfo.signature':1,
+                    },
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+            ];
+
+            const certificates = await TrainingCertificate.aggregate(certificatesQuery);
+            if (!certificates || certificates.length === 0) {
+                return {
+                    trainingCertificates: [],
+                    totalCount: 0,
+                };
+            }
+            const totalCount = certificates?.length;
+
             return {
-              trainingCertificates: [],
-              totalCount: 0,
+                trainingCertificates: certificates,
+                totalCount,
             };
-          }
-          const totalCount = certificates?.length;
-      
-          return {
-            trainingCertificates: certificates,
-            totalCount,
-          };
         } catch (error) {
-          throw Error(error.message);
+            throw Error(error.message);
         }
-      }
-      
-    };
-      
+    }
+
+};
+
 
 module.exports.mutations = {
-    generateCertificates: async (input,context) =>{
-        return TrainingCertificateHelper.generateCertificate(input,context);
+    generateCertificates: async (input, context) => {
+        return TrainingCertificateHelper.generateCertificate(input, context);
     },
 }

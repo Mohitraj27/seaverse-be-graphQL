@@ -33,7 +33,7 @@ const LogType = require("../logs/log_type.json");
 const BatchStatus = require("../batches/batch_status.json");
 const { User } = require("../user/user_model");
 const { sendEmail } = require("../../util/aws_helper");
-const { create, filter } = require("lodash");
+// const { create, filter, over } = require("lodash");
 const { OverallTrainingProgress } = require("./overall-course-progress/overall_progress_model");
 const XLSX = require('xlsx');
 const path = require('path');
@@ -48,6 +48,7 @@ const courseCompletion = require("../email-template/courseCompletion");
 const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
+const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -74,13 +75,14 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline : [
-                      {
-                        $match :{
-                          isDeleted : false
+                   /*  pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false,
+                                isSignupAdminAprroved: { $ne: false },
+                            }
                         }
-                      }
-                    ]
+                    ] */
                 }
             },
             {
@@ -131,8 +133,17 @@ module.exports.queries = {
             },
             {
                 $match: {
-                    'userInfo': { $ne: null },
-                    'userInfo.isDeleted': { $ne: true }
+                    $or: [
+                        {
+                            status: "COMPLETED",
+                            'userInfo': { $ne: null },
+                        },
+                        {
+                            'userInfo': { $ne: null },
+                            'userInfo.isDeleted': { $ne: true },
+                            'userInfo.isSignupAdminAprroved': { $ne: false }
+                        }
+                    ]
                 }
             },
             {
@@ -152,16 +163,23 @@ module.exports.queries = {
                     firstName: '$userInfo.firstName',
                     lastName: '$userInfo.lastName',
                     status: '$status',
-                    directEnrollment: '$directEnrollment'
+                    email: '$userInfo.email',
+                    isRegistered: '$userInfo.isRegistered',
+                    directEnrollment: '$directEnrollment',
+                    adminMarkedAsCompleted: '$adminMarkedAsCompleted'
                 }
             }
         ]);
+        
         const formattedResults = results.map(user => ({
             id: user.id,
             firstName: user.firstName,
             lastName: user.lastName,
             status: user.status,
-            directEnrollment: user.directEnrollment
+            email: user.email ?? "",
+            isRegistered: user.isRegistered,
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
         return {
             countOfUsers: formattedResults.length || 0,
@@ -264,6 +282,7 @@ module.exports.queries = {
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 isEnrolled: true,
+                isDeleted: { $ne: true },
             }
 
             if (filterInput?.search) {
@@ -282,8 +301,8 @@ module.exports.queries = {
                 };
             }
 
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            // const twoDaysAgo = new Date();
+            // twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
             const courses = await OverallTrainingProgress.aggregate([
                 {
@@ -298,14 +317,14 @@ module.exports.queries = {
                 {
                     $match: {
                         ...filterConditions,
-                        $and: [
-                            {
-                                $or: [
-                                    { "training.deletedDate": { $gt: twoDaysAgo } },
-                                    { "training.deletedDate": { $exists: false } },
-                                ]
-                            }
-                        ]
+                        // $and: [
+                        //     {
+                        //         $or: [
+                        //             { "training.deletedDate": { $gt: twoDaysAgo } },
+                        //             { "training.deletedDate": { $exists: false } },
+                        //         ]
+                        //     }
+                        // ]
                     },
                 },
                 {
@@ -320,38 +339,14 @@ module.exports.queries = {
                 },
                 { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
-                    $lookup: {
-                        from: "trainingcontentbridges",
-                        let: { moduleIds: "$trainingModules._id" },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: { $in: ["$trainingModule", "$$moduleIds"] },
-                                },
-                            },
-                            {
-                                $lookup: {
-                                    from: "trainingmodulecontents",
-                                    localField: "trainingContent",
-                                    foreignField: "_id",
-                                    as: "trainingModuleContentDetails",
-                                },
-                            },
-                            {
-                                $project: {
-                                    duration: { $sum: "$trainingModuleContentDetails.duration" },
-                                },
-                            },
-                        ],
-                        as: "trainingContentsFallback",
-                    },
+                    $addFields: {
+                        totalDuration: { $ifNull: ["$totalDuration", 0] }
+                    }
                 },
                 {
                     $addFields: {
-                        totalDuration: {
-                            $toInt: { $sum: "$trainingContentsFallback.duration" },
-                        },
-                    },
+                        timeSpend: { $ifNull: ["$timeSpend", 0] }
+                    }
                 },
                 { $sort: { createdAt: -1 } }
             ]);
@@ -365,6 +360,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
+        
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
@@ -556,7 +552,9 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
+                                        videoId: { $first: "$videoId" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
                                         trainingModule: { $first: "$trainingModule" },
@@ -635,6 +633,8 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoDuration: "$videoDuration",
+                                    videoId: "$videoId",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
@@ -1068,6 +1068,8 @@ module.exports.queries = {
                                         status: { $first: "$status" },
                                         progressPercentage: { $first: "$progressPercentage" },
                                         lastAccessedDuration: { $first: "$lastAccessedDuration" },
+                                        videoId: { $first: "$videoId" },
+                                        videoDuration: { $first: "$videoDuration" },
                                         playerSettings: { $first: "$playerSettings" },
                                         quizAttempts: { $first: "$quizAttempts" },
                                         trainingModuleContent: { $first: "$trainingModuleContent" },
@@ -1144,6 +1146,8 @@ module.exports.queries = {
                                     status: "$status",
                                     progressPercentage: "$progressPercentage",
                                     lastAccessedDuration: "$lastAccessedDuration",
+                                    videoId: "$videoId",
+                                    videoDuration: "$videoDuration",
                                     quizAttemptDetails: "$quizAttemptDetails"
                                 }
                             }
@@ -1383,8 +1387,31 @@ module.exports.queries = {
 
 module.exports.mutations = {
     createTrainingRegistration: async ({ input }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+        // const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
         return TrainingRegistrationHelper.createTrainingRegistration(input, context);
+    },
+    courseCompletionForFirstTime: async ({ input }, context) => {
+        const { userId, subscriberId } = AuthUser(context);
+
+        try {
+
+            if (!input) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass the training ID");
+            }
+
+            const fetchOverallTrainingProgressAndUpdate = await OverallTrainingProgress.findOneAndUpdate(
+                { _id: input }, { finishedCourseFirstTime: true }
+            );
+
+            if (!fetchOverallTrainingProgressAndUpdate) throw CustomError(ErrorName.FAILED);
+
+            return {
+                message: "Success!"
+            }
+
+        } catch (error) {
+            throw Error(error);
+        }
     },
     verifyRegistrationEmails: async ({ input }, context) => {
 
@@ -1472,7 +1499,7 @@ module.exports.mutations = {
                     if (verifiedUsers.notEnrolledEmails.length > 0) {
                         notEnrolledEmails.push(...verifiedUsers.notEnrolledEmails);
                     }
-                    
+
                 }
 
                 if (input.type === "ENROLL") {
@@ -1694,24 +1721,117 @@ module.exports.mutations = {
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
             if (!input.userIds || input.userIds.length === 0) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "User IDs are required");
 
-            const trainingData = await Training.findOne({ _id: input.training });
-            const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
-            const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
-            await OverallTrainingProgress.updateMany(
-                { training: input.training, user: { $in: input.userIds } },
+            const trainingData = await Training.aggregate([
                 {
-                    $set: {
-                        status: "COMPLETED",
-                        isComplete: true,
-                        completedModules: trainingModuleIds.length,
-                        isCertificateGenerated: true,
-                        adminMarkedAsCompleted: true,
-                        startData: { $ifNull: ["$startData", new Date()] },
-                        endDate: new Date(),
-                    }
-                }
-            );
+                    $match: {
+                        _id: { $in: [input.training] },
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "certificatelayouts",
+                        localField: "_id",
+                        foreignField: "training",
+                        as: "certificateLayouts",
+                        let: {
+                            currentCertificateLayout: "$$ROOT.currentCertificateLayout",
+                        },
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    layout: 1,
+                                    version: 1,
+                                    certificateExpiry: 1,
+                                },
+                            },
+                            {
+                                $match: {
+                                    $expr: {
+                                        $eq: ["$layout", "$$currentCertificateLayout"],
+                                    },
+                                },
+                            },
+                            {
+                                $project: {
+                                    _id: 1,
+                                    certificateExpiry: 1,
+                                    version: 1,
+                                },
+                            },
+                            {
+                                $sort: {
+                                    version: -1,
+                                },
+                            },
+                            {
+                                $limit: 1,
+                            },
+                        ],
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$certificateLayouts",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                "$$ROOT",
+                                {
+                                    layoutId: "$certificateLayouts._id",
+                                    certificateValidity: "$certificateLayouts.certificateExpiry",
+                                },
+                            ],
+                        },
+                    },
+                },
+            ]);
+
+            const trainingDataById = trainingData.reduce((acc, training) => {
+                acc[training._id.toString()] = training;
+                return acc;
+            }, {});
+
+            const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
+            if (!trainingData.length>0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
+            const recordsToUpdate = await OverallTrainingProgress.find({
+                training: input.training,
+                user: { $in: input.userIds }
+            });
+
+            const overallProgressDataById = recordsToUpdate.reduce((acc, progress) => {
+                acc[progress._id.toString()] = progress;
+                return acc;
+            }, {});
+
+            const updateOps = recordsToUpdate.map((record) => {
+                return {
+                    updateOne: {
+                        filter: { _id: record._id },
+                        update: {
+                            $set: {
+                                status: "COMPLETED",
+                                isComplete: true,
+                                completedModules: trainingModuleIds.length,
+                                isCertificateGenerated: true,
+                                adminMarkedAsCompleted: true,
+                                startDate: record.startDate ?? new Date(),
+                                endDate: new Date(),
+                                assignedCertificateLayout: trainingDataById[record.training?.toString()].layout ?? null,
+                                assignedCertificateLayoutId: trainingDataById[record.training?.toString()].layoutId ?? null,
+                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ??null,
+                            },
+                        },
+                    },
+                };
+            });
+
+            await OverallTrainingProgress.bulkWrite(updateOps);
 
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
@@ -1721,80 +1841,89 @@ module.exports.mutations = {
                 training: input.training,
             });
 
-            const generateSVCertificateId = async () => {
-                const uuid = uuidv4().replace(/-/g, '').toUpperCase();
-                const certNumber = `SV-${uuid.substring(0, 8)}`;
-                return certNumber;
-            }
-
             await Promise.all(
                 overallTrainingProgressUsers.map(async (progressUser) => {
 
                     const overallTrainingProgress = await OverallTrainingProgress.findOne({ _id: progressUser._id }).populate([
                         { path: "user", select: "firstName lastName email" }
-                    ]);;
-                    const existingCertificate = await TrainingCertificate.findOne({
-                        trainingRegistration: progressUser.trainingRegistration,
-                        user: progressUser.user
-                    });
+                    ]);
 
-                    if (!existingCertificate && selectedCertificateLayout) {
-                        const startDate = overallTrainingProgress.createdAt;
-                        const completedAt = CurrentDateTime()?.utcDateTime;
-                        const generatedAt = CurrentDateTime()?.utcDateTime;
-                        const certificateValidity = trainingData?.certificateValidity;
-                        const expiresAt = certificateValidity
-                            ? ParseDateTime(completedAt)?.utcDateTimeObj.add({ days: certificateValidity }).format()
-                            : undefined;
+                    if (overallTrainingProgress.isCertificatePresent) {
+                        const existingCertificate = await TrainingCertificate.findOne({
+                            trainingRegistration: progressUser.trainingRegistration,
+                            training: progressUser.training,
+                            user: progressUser.user,
+                        });
 
-                        const certificateNumber = await generateSVCertificateId();
-                        const userName = `${overallTrainingProgress.user?.firstName ?? ""} ${overallTrainingProgress.user?.lastName ?? ""}`;
+                        if (!existingCertificate && selectedCertificateLayout) {
+                            const startDate =
+                                overallTrainingProgress.startDate ?? CurrentDateTime().utcDateTime;
+                            const completedAt = CurrentDateTime()?.utcDateTime;
+                            const generatedAt = CurrentDateTime()?.utcDateTime;
+                            const certificateValidity = overallTrainingProgress?.certificateExpiry;
+                            const expiresAt = overallTrainingProgress.certificateExpiry
+                                ? await calculateExpiryDate(
+                                      completedAt,
+                                      overallTrainingProgress.certificateExpiry ?? null
+                                  )
+                                : null;
+                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ? 
+                                overallTrainingProgress?.assignedCertificateLayoutId : trainingDataById[overallTrainingProgress.training?.toString()].layoutId;
+                            const certificateNumber = await generateUniqueCertificateId();
 
-                        const certificateData = {
-                            subscriber: subscriberId,
-                            trainingRegistration: overallTrainingProgress.trainingRegistration,
-                            training: overallTrainingProgress.training,
-                            certificateLayout: selectedCertificateLayout._id,
-                            user: overallTrainingProgress.user,
-                            trainingCertificateValidity: certificateValidity,
-                            status: "COMPLETED",
-                            certificateNumber: certificateNumber,
-                            startDate: startDate,
-                            completedAt: completedAt,
-                            generatedAt: generatedAt,
-                            expiresAt: expiresAt,
-                        };
+                            const certificateData = {
+                                subscriber: subscriberId,
+                                trainingRegistration: overallTrainingProgress.trainingRegistration,
+                                training: overallTrainingProgress.training,
+                                certificateLayout: certificateLayout,
+                                user: overallTrainingProgress.user,
+                                trainingCertificateValidity: certificateValidity,
+                                status: "COMPLETED",
+                                certificateNumber: certificateNumber,
+                                startDate: startDate,
+                                completedAt: completedAt,
+                                generatedAt: generatedAt,
+                                expiresAt: expiresAt,
+                            };
 
-                        const savedTrainingCertificate = await TrainingCertificate.create(certificateData);
+                            const savedTrainingCertificate = await TrainingCertificate.create(
+                                certificateData
+                            );
 
-                        if (!savedTrainingCertificate) {
-                            throw CustomError(ErrorName.FAILED, "Failed to generate certificate");
+                            if (!savedTrainingCertificate) {
+                                throw CustomError(
+                                    ErrorName.FAILED,
+                                    "Failed to generate certificate"
+                                );
+                            }
                         }
                     }
                 })
             );
-            const courseImages = await AWS_HELPER.fetchFile(trainingData?.coverImage?.url) ||
+            const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-            const emailContent = courseCompletion({
-                firstName: overallTrainingProgressUsers[0].user.firstName,
-                trainingTitle: trainingData.title[0]?.value,
-                durationHours: trainingData.durationHours,
-                courseId: trainingData._id,
-                courseImage: courseImages
-            });
-            sendEmail({
-                receiverEmail: overallTrainingProgressUsers[0].user.email,
-                subject: `Congratulations on Completing the ${trainingData.title[0]?.value} Course!`,
-                htmlContent: emailContent,
-            });
+            if(overallTrainingProgressUsers[0].user.isEmailNotification){
+                const emailContent = courseCompletion({
+                    firstName: overallTrainingProgressUsers[0].user.firstName,
+                    trainingTitle: trainingData[0].title[0]?.value,
+                    durationHours: trainingData[0].durationHours,
+                    courseId: trainingData[0]._id,
+                    courseImage: courseImages,
+                });
+                sendEmail({
+                    receiverEmail: overallTrainingProgressUsers[0].user.email,
+                    subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
+                    htmlContent: emailContent,
+                });
+            }            
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Course Completed`,
-                    messageValue: `Congratulations! The ${trainingData.title[0]?.value} course has been successfully completed by you.`,
+                    messageValue: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
-                    notifyAdmin: false,
-                    notifiers: [input.userIds],
+                    notifyAllAdmin: false,
+                    notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
                     status: 'SENT',
@@ -1803,23 +1932,23 @@ module.exports.mutations = {
                 });
             }));
 
-            await NotificationHelper.createNotificationhelper({
+           /*  await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Course Completion Notification`,
                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
                 notificationType: NotificationType.COURSE_COMPLETION,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [],
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            });
+            }); */
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
-                body: `Congratulations! You have successfully completed the course ${trainingData.title[0]?.value}.`,
+                body: `Congratulations! You have successfully completed the course ${trainingData[0].title[0]?.value}.`,
                 content: "Course Completion Content",
                 webLink: ""
             });
@@ -1828,6 +1957,7 @@ module.exports.mutations = {
                 message: "Marked as completed successfully"
             }
         } catch (error) {
+            console.log(error);
             throw Error(error.message);
         }
     },
@@ -1839,6 +1969,10 @@ module.exports.mutations = {
             if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
             if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
+            const trainingInfo = await Training.find({ _id: input?.training }).select('_id title isCertificate').lean();
+            const trainingData = trainingInfo[0];
+
+            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             if (input.userIds && input.userIds.length > 0) {
 
                 const result = await OverallTrainingProgress.updateMany(
@@ -1859,7 +1993,10 @@ module.exports.mutations = {
                             lastConsumedContent: {},
                             totalDuration: 0,
                             timeSpend: 0,
-                            attemptCount: 1
+                            attemptCount: 1,
+                            isCertificatePresent: trainingData.isCertificate ?? false,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
+
                         }
                     },
                 );
@@ -1896,6 +2033,8 @@ module.exports.mutations = {
                             totalDuration: 0,
                             timeSpend: 0,
                             attemptCount: 1,
+                            isCertificatePresent: trainingData.isCertificate ?? false,
+                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
                         }
                     }
                 );
@@ -1913,8 +2052,8 @@ module.exports.mutations = {
                 }
 
             }
-            const trainingData = await Training.findById(input.training);
-            if (!trainingData) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+
+
             const trainingTitle = trainingData.title[0]?.value;
             const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
             const users = await User.find({
@@ -1924,57 +2063,6 @@ module.exports.mutations = {
                 { $match: { _id: input.training } },
                 { $project: { title: 1 } }
             ]);
-            users.forEach(user => {
-                trainings.forEach(training => {
-                    const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
-                    const emailContent = moduleResetNotificationEmail({
-                        firstName: user.firstName,
-                        email: user.email,
-                        courseTitle: trainingTitle,
-                    });
-                    sendEmail({
-                        receiverEmail: user.email,
-                        subject: `Module Reset Notification`,
-                        htmlContent: emailContent,
-                    });
-                });
-            });
-            await Promise.all(userIds.map(async (userId) => {
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Your Course has been reset`,
-                    messageValue: `Your progress for the course ${trainingData.title[0]?.value} has been reset by ${userInfo.firstName} ${userInfo.lastName}. Please start again.`,
-                    notificationType: NotificationType.COURSE_MODULES_RESET,
-                    notifyAdmin: false,
-                    notifiers: [input.userIds],
-                    employeeNotifiers: [input.userIds],
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-            }));
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Course Reset Notification`,
-                messageValue: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
-                notificationType: NotificationType.COURSE_MODULES_RESET,
-                notifyAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                affected: [],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-            await sendNotifications({
-                userIds: userIds,
-                title: 'Course Reset Notification',
-                body: `The progress for the course ${trainingData.title[0]?.value} has been reset for ${userIds.length} learners.`,
-                content: "Dummy content",
-                webLink: ""
-            });
             return {
                 status: true,
                 message: `${trainingTitle} reset successfully`

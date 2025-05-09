@@ -1,5 +1,14 @@
 module.exports = {
     types: `
+
+    enum certificateLayoutOperation {
+        TOGGLE,
+        CREATE_OR_UPDATE,
+        SWITCH_LAYOUTS,
+    }
+
+
+
     input certificateLayoutInput {
         id: ID, 
         layout: String,
@@ -11,6 +20,9 @@ module.exports = {
         logos: [logoUrl],
         additionalData: [genericObjectInput],
         disabled: Boolean
+        courseProvidedBy : String
+        certificateExpiry : Int
+        apiMode : certificateLayoutOperation
     }
     input logoUrl {
         url : String
@@ -27,7 +39,9 @@ module.exports = {
     type certificateLayoutOutput {
         success : Boolean,
         message : String
+        layout : CertificateLayout
         logos : [MultiMediaInfo]
+        signature : MultiMediaInfo
     }
     type certificateLayoutOutputForDelete {
         success : Boolean,
@@ -42,6 +56,7 @@ module.exports = {
         authoringTitle: String
         certificateReference: String
         logos: [MultiMediaInfo]
+        signature: MultiMediaInfo
         additionalData: [genericObjectOutput]
         createdAt: String
         updatedAt: String
@@ -50,18 +65,26 @@ module.exports = {
         user:ID
         isFromMigration:Boolean
         disabled: Boolean
+        certificateExpiry : Int
+        courseProvidedBy : String
+        listOfLayouts:[layoutAndIds]
     }
         type CertificateLayoutData {
         success:Boolean
         message:String
     }
+
+    type layoutAndIds {
+        layout:String
+        _id:ID
+    }
 `,
     queries:`
-    getCertificateLayoutByTrainingId(trainingId:ID!):CertificateLayout
+    getCertificateLayoutByTrainingId(trainingId:ID!,layout:String):CertificateLayout
     getMigrationcoursesToCertificateLayout:CertificateLayoutData
 `,
     mutations: `
-    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload):certificateLayoutOutput
+    createOrUpdateCertificateLayout(input:certificateLayoutInput, logoImage1 : Upload, logoImage2 : Upload,logoImage3 : Upload, signatureImage : Upload):certificateLayoutOutput
     deleteLogosFromCertificateLayout(layoutId : ID! , logoIndexes:[Int]!):certificateLayoutOutputForDelete
 `,
 };

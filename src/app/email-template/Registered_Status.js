@@ -30,9 +30,9 @@ function registered_status(user) {
 
 <body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
-        <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -63,8 +63,8 @@ function registered_status(user) {
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p>Thanks</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                             </table>
@@ -153,9 +153,11 @@ function registered_statusforAdmin({ adminfirstName, userfirstName }) {
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                <img src="https://yourlogo.com/seaverse-logo.png" alt="Seaverse Logo">
-            </div>
+            <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+            <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
+            </td>
+             </tr>
             <div class="content">
                 <h1>User Successfully Registered</h1>
                 <p>Hello <strong>${adminfirstName}</strong> 👋,</p>
@@ -166,7 +168,7 @@ function registered_statusforAdmin({ adminfirstName, userfirstName }) {
                 
                 <p>
                 Thanks,
-                Synergy Marine Group
+                
 
                 </p>
                 <br>

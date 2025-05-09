@@ -72,6 +72,9 @@ module.exports = {
             user : certificateUserInfo
             training : certiTrainingInfo
             layoutInfo : CertificateLayout
+            isFromMigration : Boolean
+            pdfUrl : String
+            issuedAt: String
         }
         type certificateUserInfo{
             firstName : String
@@ -85,6 +88,7 @@ module.exports = {
             name : String
             courseId : ID
             courseProgressId : ID
+            isFromMigration : Boolean
         }
         
     `,

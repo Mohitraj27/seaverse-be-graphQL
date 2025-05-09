@@ -8,6 +8,22 @@ const stream = require('stream');
 const { uploadType, uploadZip } = require("../../../util/upload_helper");
 const AwsHelper = require("../../../util/aws_helper");
 
+const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
+    if (!videos?.length) return [];
+
+    if (userLanguages?.length === 0) {
+        userLanguages = ['english'];
+    }
+
+    const matchedVideos = videos.filter(video => userLanguages.includes(video?.lang));
+
+    if (matchedVideos?.length > 0) {
+        return matchedVideos;
+    }
+
+    return videos.filter(video => video.isDefault);
+};
+
 const fileDownloader = async (contentMap) => {
 
     const archive = archiver('zip', { zlib: { level: 9 } });
@@ -76,7 +92,7 @@ const fileDownloader = async (contentMap) => {
 
 };
 
-const fetchFiles = (contents) => {
+const fetchFiles = async (contents, userLanguages = []) => {
 
     let fileUrlMap = new Map();
 
@@ -86,7 +102,20 @@ const fetchFiles = (contents) => {
 
         switch (trainingContent.contentType) {
             case contentTypes.VIDEO:
-                fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
+                /* fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
+               break;
+               */
+                const selectedVideos = await filterVideosByLanguage(trainingContent?.videos, userLanguages);
+                selectedVideos.forEach((video, index) => {
+                    if (video?.url) {
+                        fileUrlMap.set(`${content?._id}_video_${video?._id}_${video?.lang}`, video?.url);
+                    }
+                    video?.subtitles?.forEach((subtitle) => {
+                        if (subtitle?.url) {
+                            fileUrlMap.set(`${content?._id}_subtitle_${video?._id}_${video?.lang}_${subtitle?._id}_${subtitle?.lang}`, subtitle?.url);
+                        }
+                    });
+                });
                 break;
             case contentTypes.IMAGE:
                 fileUrlMap.set(content._id, trainingContent.images[0]?.url);
@@ -104,20 +133,19 @@ const fetchFiles = (contents) => {
 
 }
 
-const getTheContent = async (contents) => {
+const getTheContent = async (contents, userLanguages = []) => {
 
     let zipUrl = null;
     let fetchedData;
 
     const allQuizzes = contents.every(content => content.contentType === contentTypes.QUIZ);
-    
+
     if (allQuizzes) {
         return [];
     }
 
-    fetchedData = fetchFiles(contents);
-
-    if (fetchedData.size > 0) {
+    fetchedData = await fetchFiles(contents, userLanguages);
+    if (fetchedData?.size > 0) {
         zipUrl = await fileDownloader(fetchedData);
     }
 
@@ -125,7 +153,7 @@ const getTheContent = async (contents) => {
         return null;
     }
 
-    return zipUrl;
+    return zipUrl || null;
 }
 
 module.exports = {

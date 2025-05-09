@@ -9,20 +9,15 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
             <td style="padding: 10px 100px;" class="content-inner">
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
                     <tr>
-                        <td style="text-align: center; vertical-align: top;">
-                            <img src="${
-                                course.courseImage
-                            }" alt="Course Image" style="display: block; margin: 0 auto; height: auto; width: 100px;">
-                        </td>
-                        <td style="padding-left: 24px; vertical-align: top; width: 100%; max-width: 500px;">
+                        <td style="padding-left: 24px; vertical-align: top; width: 100%; max-width: 500px; text-align: center;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
-                                    <td style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
+                                    <td style="text-align: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
                                         ${truncateString(course.trainingTitle)}
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
+                                    <td style="text-align: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
                                         Duration: ${course.durationHours} Hours
                                     </td>
                                 </tr>
@@ -66,12 +61,11 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
 
       <body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
           <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
-              <tr>
-                  <td style="text-align: center;">
-                      <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo"
-                          style="padding: 40px 48px; margin: auto;">
-                  </td>
-              </tr>
+              <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+            <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
+            </td>
+        </tr>
               <tr>
                   <td>
                       <table style="background-color: #FFFFFF; border-radius: 8px; margin: 0 auto; width: 640px;" border="0"
@@ -118,11 +112,11 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
                           </tr>
                           ${coursesHTML}
                           <tr>
-                              <td style="padding: 35px 0 40px 0;" class="content-inner">
+                              <td style="padding: 13px 0 40px 0;" class="content-inner">
                                   <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                       <tr>
                                           <td style="text-align: center;">
-                                              <a href="${isAdmin ? `${process.env.APP_URL}/course` : `${process.env.APP_URL}/learner`}"
+                                              <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}"
                                                   style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
                                                   Start Training
                                               </a>
@@ -145,7 +139,6 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
   
       </html>
     `;
-  }
+}
 
-  module.exports = courseEnrollment;
-  
+module.exports = courseEnrollment;

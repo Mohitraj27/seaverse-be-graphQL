@@ -19,10 +19,8 @@ const notificationSchema = new Schema(
             type: String,
             uppercase: true,
         },
-        notifyAdmin: {
-            type: Boolean,
-            default: true,
-        },
+        notifyAllAdmin: Boolean,
+        isNotificatonForAdmin : Boolean,
         notifiers: [
             {
                 type: ObjectId,
@@ -89,6 +87,10 @@ const notificationSchema = new Schema(
             type: String,
             default: "STABLE",
             enum: Object.values(notificationiconEnum),
+        },
+        isUserRequest: {
+            type: Boolean,
+            default: false
         }
     },
     { timestamps: true }

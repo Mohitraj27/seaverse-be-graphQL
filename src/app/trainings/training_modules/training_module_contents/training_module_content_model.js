@@ -26,11 +26,11 @@ const trainingModuleContentSchema = new Schema(
         },
         title: {
             type: [LocalisedDataSchema],
-            required: true,
+            // required: true,
         },
         description: {
             type: [LocalisedDataSchema],
-            required: false,
+            // required: false,
         },
         scorm: {
             courseId: String,
@@ -48,6 +48,34 @@ const trainingModuleContentSchema = new Schema(
                     type: String,
                     required: true,
                 },
+                isDefault: {
+                    type: Boolean,
+                    default: false,
+                },
+                isShowSubtitle: {
+                    type: Boolean,
+                    default: false,
+                },
+                title: {
+                    type: String,
+                },
+                duration:{
+                    type: Number,
+                },
+                description: {
+                    type: String,
+                },
+                subtitles: [
+                    {
+                        lang: {
+                            type: String,
+                            lowercase: true,
+                        },
+                        url: {
+                            type: String,
+                        },
+                    },
+                ],
             },
         ],
         audios: [

@@ -38,6 +38,9 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const { populate, validate } = require("../contact-support/contact_support_model");
 const { certificateLayout } = require("../../app/trainings/certificate_layout/certificateLayout_model");
 const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/migrationcourses/migrationcourses_helper");
+const { Subscriber } = require("../saas/subscriber/subscriber_model");
+
+const { fork } = require("child_process");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -235,6 +238,7 @@ module.exports.mutations = {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
         const moduleContentIds = [];
+        const isUpdate = input._id ? true : false;
         if (!input._id) {
             if (!input.authorName && input.status === "PUBLISHED") throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Author name is required");
             if (!input.title?.length || !input.title || input.title.some(item => item.value == "")) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course title is required");
@@ -266,6 +270,14 @@ module.exports.mutations = {
             const savedTraining = await TrainingHelper.createOrUpdateTraining(
                 { input, coverImage, bannerImage, session },
                 context
+            );
+
+
+            // Update the training duration in overall training progress if any
+            await OverallTrainingProgress.updateMany(
+                { training: savedTraining._id, status: "NOT_STARTED" },
+                { totalDuration: savedTraining.durationHours },
+                { session }
             );
 
             savedTraining.trainingModules = [];
@@ -329,29 +341,41 @@ module.exports.mutations = {
                 );
             }
 
-            if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
-                await createOrUpdateTrainingMigrationCourses({ input }, session, context);
-            } else {
-                if (input.migrationcoursesId) {
-                    const migrationcoursesIdObjectId = new ObjectId(input.migrationcoursesId);
-                    savedTraining.migrationcoursesId = migrationcoursesIdObjectId;
-                }
+            if (!input._id) {
+                input._id = savedTraining._id;
             }
+
             return savedTraining;
         });
 
-        if (!savedTraining) throw CustomError(ErrorName.FAILED);
-        TrainingHelper.sendNotificationOnCRUD({
-            subscriber: subscriberId,
-            training: savedTraining,
-            action: input._id ? "UPDATED" : "CREATED",
-            createdBy: userInfo,
-        });
+        if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
 
+            const child = fork("./src/app/trainings/migration_enrollment.js");
+
+            child.send({
+                migrationcourseId: input.migrationcoursesId,
+                trainingId: savedTraining._id,
+            });
+
+            child.on("error", error => {
+                console.error("Error in child process:", error);
+            });
+
+        }
+
+        if (!savedTraining) throw CustomError(ErrorName.FAILED);
+        if (!isUpdate) {
+            TrainingHelper.sendNotificationOnCRUD({
+                subscriber: subscriberId,
+                training: savedTraining,
+                action: isUpdate ? "UPDATED" : "CREATED",
+                createdBy: userInfo,
+            });
+        }
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,
-            operation: input._id ? "UPDATE" : "CREATE",
+            operation: isUpdate ? "UPDATE" : "CREATE",
             ipInfo: context.ipInfo,
             affected: [
                 {
@@ -406,7 +430,6 @@ module.exports.mutations = {
                     { training: id },
                     { isDeleted: true }
                 )
-
             }
 
         } catch (error) {
@@ -566,7 +589,13 @@ module.exports.mutations = {
     },
     syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
 
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        const { role, userId, userInfo, subscriberId: subscriberID } = AuthUser(context);
+
+        let subscriberId;
+        if (!subscriberID) {
+            const subscriber = await Subscriber.findOne({ isActive: true }).select("_id");
+            subscriberId = subscriber._id;
+        }
 
         try {
 
@@ -597,8 +626,11 @@ module.exports.mutations = {
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
+
+                //add content data to overall training progress
                 const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
+                //updating the progress in overall training progress and the final certificate generation 
                 updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
 
                 if (syncContentErrors.length > 0) {
@@ -631,7 +663,7 @@ module.exports.mutations = {
         const fetchOverallTraining = await OverallTrainingProgress.findById(overallId).populate("training");
 
         if (!fetchOverallTraining) throw CustomError(ErrorName.NOT_FOUND, "Course data not found!");
-        
+
         const trainingModuleCount = await TrainingModule.find({ training: fetchOverallTraining.training._id }).countDocuments();
 
         const allowMultipleAttempts = fetchOverallTraining.training.allowMultipleAttempts;
@@ -655,6 +687,7 @@ module.exports.mutations = {
             fetchOverallTraining.progressPercentage = 0.00;
             fetchOverallTraining.lastConsumedContent = {};
             fetchOverallTraining.startDate = null;
+            fetchOverallTraining.finishedCourseFirstTime = false;
             fetchOverallTraining.endDate = null;
             fetchOverallTraining.status = 'NOT_STARTED';
             fetchOverallTraining.attemptCount++;
@@ -662,6 +695,8 @@ module.exports.mutations = {
             fetchOverallTraining.totalDuration = fetchOverallTraining.training.durationHours ?? 0;
             fetchOverallTraining.adminMarkedAsCompleted = false;
             fetchOverallTraining.totalTrainingModules = trainingModuleCount || fetchOverallTraining.totalTrainingModules;
+            fetchOverallTraining.isCertificatePresent = fetchOverallTraining?.training?.isCertificate ?? false;
+            fetchOverallTraining.assignedCertificateLayout = fetchOverallTraining?.training?.currentCertificateLayout;
 
             updateOverallTrainingProgress = await fetchOverallTraining.save();
         }

@@ -30,6 +30,7 @@ const certificateLayout = new Schema(
         authorName: String,
         authoringTitle: String,
         certificateReference: String,
+        courseProvidedBy : String,
         logos: [{
             url: String,
         }],
@@ -40,6 +41,14 @@ const certificateLayout = new Schema(
         disabled: {
             type: Boolean,
             default: false,
+        },
+        certificateExpiry : { // using number because we are saving the number of days
+            type : Number,
+            default : null
+        }, 
+        version : Number,
+        signature :{
+            url : String,
         },
     },
     { timestamps: true }

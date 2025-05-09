@@ -11,7 +11,7 @@ module.exports = {
 
             const notification = {
                 subscriber: notificationData.subscriber,
-                title: [{ lang: "en", value: `Training category ${notificationData.action}` }],
+                title: [{ lang: "en", value: `Course category ${notificationData.action}` }],
                 message: [
                     {
                         lang: "en",
@@ -19,7 +19,7 @@ module.exports = {
                     },
                 ],
                 notificationType: NotificationType["TRAINING_CATEGORY_" + notificationData.action],
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

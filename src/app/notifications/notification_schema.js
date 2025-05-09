@@ -21,7 +21,8 @@ module.exports = {
             title: [LocalisedData]
             message: [LocalisedData]
             notificationType: String
-            notifyAdmin: Boolean
+            notifyAllAdmin: Boolean
+            isNotificatonForAdmin: Boolean
             notifiers: [User]
             employeeNotifiers: [Employee]
             affected: [NotificationAffected]
@@ -32,6 +33,7 @@ module.exports = {
             updatedAt: String
             icon: String
             isRead: Boolean
+            isUserRequest: Boolean
         }
         type NotificationList {
             notifications: [Notification]
@@ -43,6 +45,8 @@ module.exports = {
             dateFrom: String
             dateTo: String
             isRead: Boolean
+            selectUserRequests : Boolean
+            isSeeAllPage : Boolean
         }
         type dismissNotificationResponse {
             status: String
@@ -69,6 +73,7 @@ module.exports = {
     `,
     queries: `
         getNotifications(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
+        getNotificationsForApp(pageInput: PageInput, filterInput: NotificationFilterInput):GetNotificationsOutput
     `,
     mutations: `
         markEachNotificationAsRead(notificationId: ID!): dismissNotificationResponse

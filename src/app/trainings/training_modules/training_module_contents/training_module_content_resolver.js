@@ -22,6 +22,10 @@ const NotificationHelper = require("../../../notifications/notification_helper")
 const NotificationType = require("../../../notifications/notification_type.json");
 const notificationiconEnum = require("../../../notifications/notification_icon.json");
 
+const { TrainingProgress } = require("../../../training-registrations/training-progress/training_progress_model");
+const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
+const { default: mongoose } = require("mongoose");
+
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
 }
@@ -78,29 +82,61 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $addFields: {
+                        creatorId: "$createdBy",
+                        updaterId: "$updatedBy"
+                    }
+                },
+                {
                     $lookup: {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
-                        as: "createdBy",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
+                        as: "createdByUser"
                     },
                 },
-                { $unwind: "$createdBy" },
                 {
                     $lookup: {
                         from: "users",
                         localField: "updatedBy",
                         foreignField: "_id",
-                        as: "updatedBy",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
+                        as: "updatedByUser"
                     },
                 },
-                { $unwind: "$updatedBy" },
+                {
+                    $addFields: {
+                        createdBy: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$createdByUser" }, 0] },
+                                then: {
+                                    _id: "$creatorId",
+                                    firstName: "Unknown",
+                                    lastName: "User"
+                                },
+                                else: { $arrayElemAt: ["$createdByUser", 0] }
+                            }
+                        },
+                        updatedBy: {
+                            $cond: {
+                                if: { $eq: [{ $size: "$updatedByUser" }, 0] },
+                                then: {
+                                    _id: "$updaterId",
+                                    firstName: "Unknown",
+                                    lastName: "User"
+                                },
+                                else: { $arrayElemAt: ["$updatedByUser", 0] }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        createdByUser: 0,
+                        updatedByUser: 0,
+                        creatorId: 0,
+                        updaterId: 0
+                    }
+                },
                 {
                     $lookup: {
                         from: "trainingcontentbridges",
@@ -549,22 +585,23 @@ module.exports.mutations = {
             await content.save();
 
             updatedContents.push(content);
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Content Status Updated`,
-                messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: content._id,
-                    },
-                ],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userId,
-            });
+            //content status update notification
+            /*  await NotificationHelper.createNotificationhelper({
+                 subscriber: subscriberId,
+                 titleValue: `Content Status Updated`,
+                 messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
+                 notifyAllAdmin: true,
+                 affected: [
+                     {
+                         targetRef: "TrainingModuleContent",
+                         target: content._id,
+                     },
+                 ],
+                 status: 'SENT',
+                 icon: notificationiconEnum.SUCCESS,
+                 createdBy: userId,
+             }); */
         }
 
         return {
@@ -610,26 +647,28 @@ module.exports.mutations = {
                 });
             }
         }
-        if (successfullyDeleted.length > 0) {
-            for (const content of successfullyDeleted) {
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Deleted`,
-                    messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo.firstName} ${userInfo.lastName}.`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
-                    notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: content._id,
-                        },
-                    ],
-                    status: 'SENT',
-                    icon: notificationiconEnum.WARNING,
-                    createdBy: userId,
-                });
-            }
-        }
+        /* 
+                if (successfullyDeleted.length > 0) {
+                    for (const content of successfullyDeleted) {
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Training Module Content Deleted`,
+                            messageValue: `The training module content ${content.title[0]?.value} has been deleted by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            notificationType: NotificationType.TRAINING_MODULE_CONTENT_DELETED,
+                            notifyAllAdmin: true,
+                            affected: [
+                                {
+                                    targetRef: "TrainingModuleContent",
+                                    target: content._id,
+                                },
+                            ],
+                            status: 'SENT',
+                            icon: notificationiconEnum.WARNING,
+                            createdBy: userId,
+                        });
+                    }
+                }
+        */
         return {
             success: invalidDeletes.length === 0,
             message: invalidDeletes.length === 0
@@ -639,24 +678,25 @@ module.exports.mutations = {
         };
     },
 
-    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
+    createTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, subtitles, audio, file }, context) => {
+
         try {
             const { userId, subscriberId, userInfo } = AuthUser(context);
 
-            if (input.title) {
+            if (!videos && input.title) {
                 const titleValues = input.title.map(x => x.value.trim());
                 if (titleValues.some(x => x === "")) {
-                    throw CustomError(ErrorName.INVALID_TITLE, "Title cannot be empty");
+                    throw CustomError(ErrorName.INVALID_TITLE, "Name of the content cannot be empty!");
                 }
             }
-
+            /*
             if (input.description) {
                 const descriptionValues = input.description.map(x => x.value.trim());
                 if (descriptionValues.some(x => x === "")) {
                     throw CustomError(ErrorName.INVALID_DESCRIPTION, "Description cannot be empty");
                 }
             }
-
+            */
             const existingContent = await TrainingModuleContent.findOne({
                 $or: input.title.map(x => ({
                     "title.value": x.value.trim(),
@@ -671,11 +711,12 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = video ? await video : null;
+            const videoFile = videos ? await videos : null;
             const audioFile = audio ? await audio : null;
             const fileFile = file ? await file : null;
+            const subtitlesFile = subtitles ? await subtitles : null;
 
-            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
+            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip', 'srt', 'vtt'];
 
             const validateFileFormat = async (mediaFile) => {
                 const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
@@ -729,16 +770,53 @@ module.exports.mutations = {
                 contentTypeNotification = 'Thumbnail'
             }
 
-            if (video) {
-                const videoUrl = await UploadHelper.uploadVideo({
-                    data: video,
-                    folderName: `video-content`,
-                    fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentVideo,
+            if (videos?.length) {
+                const videoUrls = await Promise.all(videos.map(async (v) => {
+                    const videoUrl = await UploadHelper.uploadVideo({
+                        data: v,
+                        folderName: `video-content`,
+                        fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    });
+                    return videoUrl;
+                }));
+
+                const subtitleUrls = await Promise.all((subtitles || []).map(async (s, i) => {
+                    const subtitleUrl = await UploadHelper.uploadSubtitle({
+                        data: s,
+                        folderName: `subtitle-content`,
+                        fileName: `subtitle_${Date.now()}_${s?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentSubtitle,
+                    });
+                    return subtitleUrl;
+                }));
+
+                const vData = videoUrls.map((v, i) => {
+                    const meta = videoMetas?.[i] || {};
+                    const subtitleRefs = meta.subtitles || [];
+
+                    const mappedSubtitles = subtitleRefs.map(ref => {
+                        const subtitleUrl = subtitleUrls[ref.index];
+                        return subtitleUrl ? { lang: ref.lang, url: subtitleUrl } : null;
+                    }).filter(Boolean);
+
+                    return {
+                        url: v,
+                        lang: meta.lang,
+                        isDefault: meta.isDefault,
+                        title: meta.title,
+                        description: meta.description,
+                        duration: meta.duration,
+                        isShowSubtitle: meta.isShowSubtitle,
+                        subtitles: mappedSubtitles
+                    };
                 });
-                input.videos = [{ url: videoUrl }];
-                contentTypeNotification = 'Video';
+
+                input.videos = vData;
+
+                contentTypeNotification = 'Videos';
             }
+
 
             if (audio) {
                 const audioUrl = await UploadHelper.uploadAudio({
@@ -810,13 +888,12 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
-            await NotificationHelper.createNotificationhelper({
+            /* await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New  Content Created`,
                 messageValue: `A new ${contentTypeNotification} has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
-                notifyAdmin: true,
+                notifyAllAdmin: true,
                 affected: [
                     {
                         targetRef: "TrainingModuleContent",
@@ -826,11 +903,11 @@ module.exports.mutations = {
                 status: 'SENT',
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
-            });
-
+            }); */
             return savedContent;
         } catch (error) {
-            throw Error(error.message);
+            console.error("Error in createTrainingModuleContent:", error);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
     },
 
@@ -951,311 +1028,398 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `New Content Created`,
-                messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: savedContent._id,
-                    },
-                ],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
+            /* 
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `New Content Created`,
+                            messageValue: `A new Quiz has been added to the training module by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            notificationType: NotificationType.TRAINING_MODULE_CONTENT_CREATED,
+                            notifyAllAdmin: true,
+                            affected: [
+                                {
+                                    targetRef: "TrainingModuleContent",
+                                    target: savedContent._id,
+                                },
+                            ],
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                        });
+              */
             return savedContent;
         } catch (error) {
             throw Error(error.message);
         }
     },
 
-    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, video, audio, file }, context) => {
+    updateTrainingModuleContent: async ({ input, scorm, thumbnail, image, videos, videoMetas, audio, file, deletedVideos, deletedSubtitles, subtitles }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
-        try {
-            const alreadyContentExist = await TrainingModuleContent.findOne({
-                $or: input.title.map(x => ({
-                    "title.value": x.value.trim(),
-                })),
-                UID: { $ne: input.UID },
-                isDeleted: { $ne: true },
-            }).lean().select("_id");
 
-            if (alreadyContentExist) {
-                throw CustomError(ErrorName.CONTENT_ALREADY_EXIST, "Content already exists with this title");
+        const existingContent = await TrainingModuleContent.findOne({
+            _id: input._id ?? undefined,
+        });
+
+        if (!existingContent) {
+            throw CustomError(ErrorName.CONTENT_NOT_FOUND);
+        }
+
+     
+
+     
+
+
+        const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
+
+        const scormFile = scorm ? await scorm : null;
+        const thumbnailFile = thumbnail ? await thumbnail : null;
+        const imageFile = image ? await image : null;
+        const videoFiles = videos ? await videos : null;
+        const audioFile = audio ? await audio : null;
+        const fileFile = file ? await file : null;
+
+        const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
+
+        const validateFileFormat = (mediaFile) => {
+            const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
+            return allowedFileFormats.includes(fileExtension);
+        };
+
+        // const validateFiles = [scormFile, thumbnailFile, imageFile, audioFile, fileFile, ...(videoFiles || [])];
+        // for (const mediaFile of validateFiles) {
+        //     console.log(mediaFile,"medifile")
+        //     if (mediaFile && !validateFileFormat(mediaFile)) {
+        //         throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+        //     }
+        // }
+
+        if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
+            input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
+        }
+
+        let updateData = {
+            title: input.title,
+            description: input.description,
+            contentType: input.contentType,
+            contentStatus: input.contentStatus,
+            duration: input.duration,
+            displayPosition: input.displayPosition,
+            isActive: input.isActive,
+            createdBy: existingContent.createdBy,
+            updatedBy: userId,
+            updatedAt: new Date(),
+            videos: existingContent.videos || [],
+            audios: existingContent.audios || [],
+            images: existingContent.images || [],
+            files: existingContent.files || [],
+            scorm: existingContent.scorm || null,
+            thumbnail: existingContent.thumbnail || null,
+            version: existingContent.version || 1,
+            UID: existingContent.UID,
+        };
+
+        let isUpdated = false;
+        let isMediaUpdated = false;
+
+        const fieldsToCheck = ["title", "description", "contentType", "contentStatus", "duration", "displayPosition", "isActive"];
+
+        for (const field of fieldsToCheck) {
+            if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
+                isUpdated = true;
+                break;
             }
+        }
 
-            const existingContent = await TrainingModuleContent.findOne({
-                _id: input._id ?? undefined,
-                subscriber: subscriberId,
-                UID: input.UID ?? undefined
-            });
+        if ((!videoFiles || videoFiles.length === 0) && videoMetas?.length > 0) {
+            let videoUpdated = false;
 
-            if (!existingContent) {
-                throw CustomError(ErrorName.CONTENT_NOT_FOUND);
-            }
+            for (let i = videoMetas.length - 1; i >= 0; i--) {
+                const videoMeta = videoMetas[i];
+                if (!videoMeta?.lang) continue;
 
-            const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
+                const existingVideo = updateData.videos.find(video => video.lang === videoMeta.lang);
+                if (existingVideo) {
+                    existingVideo.title = videoMeta.title ?? existingVideo.title;
+                    existingVideo.description = videoMeta.description ?? existingVideo.description;
+                    existingVideo.isDefault = videoMeta.isDefault ?? existingVideo.isDefault;
+                    existingVideo.isShowSubtitle = videoMeta.isShowSubtitle ?? existingVideo.isShowSubtitle;
+                    existingVideo.duration = videoMeta.duration ?? existingVideo.duration;
 
-            const scormFile = scorm ? await scorm : null;
-            const thumbnailFile = thumbnail ? await thumbnail : null;
-            const imageFile = image ? await image : null;
-            const videoFile = video ? await video : null;
-            const audioFile = audio ? await audio : null;
-            const fileFile = file ? await file : null;
+                    // videoMetas.splice(i, 1);
 
-            const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
-
-            const validateFileFormat = async (mediaFile) => {
-                const fileExtension = typeof mediaFile.filename === 'string' ? mediaFile.filename.split('.').pop().toLowerCase() : '';
-                return allowedFileFormats.includes(fileExtension);
-            };
-
-            if (scormFile && !validateFileFormat(scormFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid SCORM file format');
-            }
-
-            if (thumbnailFile && !validateFileFormat(thumbnailFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid thumbnail file format');
-            }
-
-            if (imageFile && !validateFileFormat(imageFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
-            }
-
-            if (videoFile && !validateFileFormat(videoFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
-            }
-
-            if (audioFile && !validateFileFormat(audioFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
-            }
-
-            if (fileFile && !validateFileFormat(fileFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
-
-            if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
-                input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
-            }
-
-            // if (input.duration) {
-            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            //     if (!durationStyleChecked) {
-            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            //     }
-            //     input.duration = TrainingModuleContentHelper.convertDurationToMinutes(input.duration);
-            // }
-
-            let updateData = {
-                title: input.title,
-                description: input.description,
-                contentType: input.contentType,
-                contentStatus: input.contentStatus,
-                duration: input.duration,
-                displayPosition: input.displayPosition,
-                isActive: input.isActive,
-                createdBy: existingContent.createdBy,
-                updatedBy: userId,
-                updatedAt: new Date(),
-                videos: existingContent.videos,
-                audios: existingContent.audios,
-                images: existingContent.images,
-                files: existingContent.files,
-                scorm: existingContent.scorm,
-                thumbnail: existingContent.thumbnail,
-                version: existingContent.version ? existingContent.version : 1,
-                UID: existingContent.UID,
-            };
-            let isUpdated = false;
-            let isMediaUpdated = false;
-            let updatedFields = [];
-            const fieldsToCheck = [
-                "title",
-                "description",
-                "contentType",
-                "contentStatus",
-                "duration",
-                "displayPosition",
-                "isActive"
-            ];
-
-            for (const field of fieldsToCheck) {
-                if (JSON.stringify(input[field]) !== JSON.stringify(existingContent[field])) {
-                    isUpdated = true;
-                    break;
+                    videoUpdated = true;
+                } else {
+                    throw CustomError(ErrorName.FAILED, "VIDEO META NOT FOUND");
                 }
             }
 
-            if (thumbnail === null) {
-                updateData.thumbnail = null;
+            if (videoUpdated) {
                 isUpdated = true;
-            } else if (thumbnail) {
-                const thumbnailUrl = await UploadHelper.uploadImage({
-                    data: thumbnail,
-                    folderName: `image-content-${existingContent._id}`,
-                    fileName: `image_${Date.now()}_${thumbnailFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentImage,
-                });
-                updateData.thumbnail = thumbnailUrl;
-                isUpdated = true;
-                isMediaUpdated = true;
             }
+        }
 
-            if (video) {
-                const videoUrl = await UploadHelper.uploadVideo({
-                    data: video,
-                    folderName: `video-content-${existingContent._id}`,
-                    fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentAudio,
-                });
-                updateData.videos = [{ url: videoUrl }];
-                updateData.audios = [];
-                updateData.images = [];
-                updateData.files = [];
-                updateData.scorm = null;
-                isUpdated = true;
-                isMediaUpdated = true;
-            }
+        if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
 
-            if (audio) {
-                const audioUrl = await UploadHelper.uploadAudio({
-                    data: audio,
-                    folderName: `audio-content-${existingContent._id}`,
-                    fileName: `audio_${Date.now()}_${audioFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentAudio,
-                });
-                updateData.audios = [{ url: audioUrl }]
-                updateData.videos = [];
-                updateData.images = [];
-                updateData.files = [];
-                updateData.scorm = null;
-                isUpdated = true;
-                isMediaUpdated = true;
-            }
+            
+            const deletedIds = deletedVideos.map(id => id.toString());
+            updateData.videos = updateData.videos.filter(video => {
+                const videoIdStr = video._id?.toString?.();
+                return videoIdStr && !deletedIds.includes(videoIdStr);
+            });
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
 
-            if (image) {
-                const imageUrl = await UploadHelper.uploadImage({
-                    data: image,
-                    folderName: `image-content-${existingContent._id}`,
-                    fileName: `image_${Date.now()}_${imageFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentImage,
-                });
-                updateData.images = [{ url: imageUrl }];
-                updateData.videos = [];
-                updateData.audios = [];
-                updateData.files = [];
-                updateData.scorm = null;
-                isUpdated = true;
-                isMediaUpdated = true;
-            }
-
-            if (file) {
-                const fileUrl = await UploadHelper.uploadDocument({
-                    data: file,
-                    folderName: `file-content-${existingContent._id}`,
-                    fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentFile,
-                });
-                updateData.files = [{ url: fileUrl }];
-                updateData.videos = [];
-                updateData.images = [];
-                updateData.audios = [];
-                updateData.scorm = null;
-                isUpdated = true;
-                isMediaUpdated = true;
-            }
-
-            if (scorm) {
-                let courseInfo = await ScromHelper.uploadToScormCloud(scorm);
-
-                if (courseInfo) {
-                    const { filename } = await scorm;
-                    updateData.scorm = {
-                        courseId: courseInfo.courseId,
-                        type: "CLOUD",
-                        fileName: filename
+        if (deletedSubtitles?.length > 0) {
+            for (const subtitleId of deletedSubtitles) {
+                for (const video of updateData.videos) {
+                    const index = video.subtitles?.findIndex(s => s._id?.toString() === subtitleId.toString());
+                    if (index >= 0) {
+                        video.subtitles.splice(index, 1);
+                        isUpdated = true;
+                        // isMediaUpdated = true;
                     }
                 }
+            }
+        }
+
+
+
+        if (videoFiles?.length > 0 && videoMetas?.length > 0) {
+            updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
+           
+
+            const uploadedVideos = (await Promise.all(
+                videoMetas.map(async (videoMeta) => {
+                    const videoIndex = videoMeta.index;
+                         console.log(videoIndex, "videoIndex")
+                   
+                    const videoFile = videoFiles[videoIndex];  
+                   
+
+                    if (!videoFile) {
+                        console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)}, no  video file`);
+                        return null;
+                    }
+
+                    const videoUrl = await UploadHelper.uploadVideo({
+                        data: videoFile,
+                        folderName: `video-content`,
+                        fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    });
+
+                    return {
+                        url: videoUrl,
+                        meta: videoMeta
+                    };
+                })
+            )).filter(Boolean);  
+
+         
+
+            for (const uploaded of uploadedVideos) {
+                const { url, meta } = uploaded;
+                const existingVideo = updateData.videos.find(v => v.lang === meta.lang);
+
+                if (existingVideo) {
+                    existingVideo.url = url;
+                    existingVideo.title = meta.title;
+                    existingVideo.description = meta.description;
+                    existingVideo.isDefault = meta.isDefault;
+                    existingVideo.isShowSubtitle = meta.isShowSubtitle;
+                    existingVideo.duration = meta.duration;
+                    
+                } else {
+                    //only push if not exists
+                    updateData.videos.push({
+                        url,
+                        lang: meta.lang,
+                        title: meta.title,
+                        description: meta.description,
+                        isDefault: meta.isDefault,
+                        isShowSubtitle: meta.isShowSubtitle,
+                        duration: meta.duration
+                    });
+                }
+            }
+
+            isUpdated = true;
+            isMediaUpdated = true;
+            updateData.audios = [];
+            updateData.images = [];
+            updateData.files = [];
+        }
+
+
+
+        if (subtitles?.length > 0 && videoMetas?.length > 0) {
+            for (let i = 0; i < videoMetas.length; i++) {
+                const videoMeta = videoMetas[i];
+                const video = updateData.videos.find(v => v.lang === videoMeta.lang);
+                if (!video) continue;
+
+                video.subtitles = video.subtitles || [];
+
+                if (videoMeta.subtitles?.length > 0) {
+                    for (let j = 0; j < videoMeta.subtitles.length; j++) {
+                        const meta = videoMeta.subtitles[j];
+                        const subtitleFile = subtitles[j];
+                        if (!meta?.lang || !subtitleFile) continue;
+
+                        const subtitleUrl = await UploadHelper.uploadSubtitle({
+                            data: subtitleFile,
+                            folderName: `subtitle-content-${existingContent._id}`,
+                            fileName: `subtitle_${Date.now()}_${subtitleFile?.filename?.split('.')?.[0]}`,
+                            uploadType: UploadHelper.uploadType.trainingContentSubtitle,
+                        });
+
+                        // Push only new subtitles (you could check ID existence here)
+                        video.subtitles.push({
+                            url: subtitleUrl,
+                            lang: meta.lang,
+                        });
+
+
+                        isUpdated = true;
+                    }
+                }
+            }
+        }
+
+
+
+        if (thumbnail === null) {
+            updateData.thumbnail = null;
+            isUpdated = true;
+        } else if (thumbnailFile) {
+            const thumbnailUrl = await UploadHelper.uploadImage({
+                data: thumbnail,
+                folderName: `image-content-${existingContent._id}`,
+                fileName: `image_${Date.now()}_${thumbnailFile?.filename?.split('.')?.[0]}`,
+                uploadType: UploadHelper.uploadType.trainingContentImage,
+            });
+            updateData.thumbnail = thumbnailUrl;
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
+
+        if (audio) {
+            const audioUrl = await UploadHelper.uploadAudio({
+                data: audio,
+                folderName: `audio-content-${existingContent._id}`,
+                fileName: `audio_${Date.now()}_${audioFile?.filename?.split('.')?.[0]}`,
+                uploadType: UploadHelper.uploadType.trainingContentAudio,
+            });
+            updateData.audios = [{ url: audioUrl }];
+            updateData.images = [];
+            updateData.videos = [];
+            updateData.files = [];
+            updateData.scorm = null;
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
+
+        if (image) {
+            const imageUrl = await UploadHelper.uploadImage({
+                data: image,
+                folderName: `image-content-${existingContent._id}`,
+                fileName: `image_${Date.now()}_${imageFile?.filename?.split('.')?.[0]}`,
+                uploadType: UploadHelper.uploadType.trainingContentImage,
+            });
+            updateData.images = [{ url: imageUrl }];
+            updateData.audios = [];
+            updateData.files = [];
+            updateData.videos = [];
+            updateData.scorm = null;
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
+
+        if (file) {
+            const fileUrl = await UploadHelper.uploadDocument({
+                data: file,
+                folderName: `file-content-${existingContent._id}`,
+                fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+                uploadType: UploadHelper.uploadType.trainingContentFile,
+            });
+            updateData.files = [{ url: fileUrl }];
+            updateData.images = [];
+            updateData.audios = [];
+            updateData.videos = [];
+            updateData.scorm = null;
+            isUpdated = true;
+            isMediaUpdated = true;
+        }
+
+        if (scorm) {
+            const courseInfo = await ScromHelper.uploadToScormCloud(scorm);
+            if (courseInfo) {
+                updateData.scorm = {
+                    courseId: courseInfo.courseId,
+                    type: "CLOUD",
+                    fileName: scormFile.filename
+                };
+                updateData.audios = [];
+                updateData.images = [];
+                updateData.files = [];
+                updateData.videos = [];
                 isUpdated = true;
                 isMediaUpdated = true;
             }
-            let savedContent = null;
-            if (isMediaUpdated) {
-                updateData.version = updateData.version + 1;
-                updateData.modifiedDate = new Date();
-                updateData.isPublished = usedInCourses.length > 0 ? true : false;
-
-                const savedContentData = new TrainingModuleContent({
-                    ...updateData,
-                    subscriber: subscriberId,
-                });
-                savedContent = await savedContentData.save();
-
-                await TrainingModuleContent.findOneAndUpdate(
-                    { _id: input._id, subscriber: subscriberId },
-                    { $set: { isUpdated: true } }
-                )
-            } else {
-                savedContent = await TrainingModuleContent.findOneAndUpdate(
-                    { _id: existingContent._id, subscriber: subscriberId },
-                    { $set: updateData },
-                    { new: true, setDefaultsOnInsert: true, runValidators: true }
-                );
-            }
-
-            LogHelper.logActivity({
-                subscriber: subscriberId,
-                logType: LogType.TRAINING_MODULE_CONTENT_LOG,
-                operation: "UPDATE",
-                ipInfo: context.ipInfo,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: savedContent._id,
-                    },
-                ],
-                additionalInfo: [
-                    {
-                        infoType: "TRAINING_MODULE_CONTENT_INFO",
-                        infoData: JSON.stringify(savedContent),
-                    },
-                ],
-                createdBy: userInfo,
-            });
-
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Training Module Content Updated`,
-                messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
-                notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                notifyAdmin: true,
-                affected: [
-                    {
-                        targetRef: "TrainingModuleContent",
-                        target: savedContent._id,
-                    },
-                ],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
-
-            return {
-                success: true,
-                message: "Content updated successfully.",
-                updatedContent: savedContent,
-                isUpdated,
-            };
-        } catch (error) {
-            throw Error(error.message);
         }
+
+        let savedContent = null;
+
+        if (isMediaUpdated) {
+            updateData.version = (existingContent.version || 1) + 1;
+            updateData.modifiedDate = new Date();
+            updateData.isPublished = usedInCourses.length > 0;
+
+            const savedContentData = new TrainingModuleContent({
+                ...updateData,
+                subscriber: subscriberId,
+            });
+            savedContent = await savedContentData.save();
+
+            await TrainingModuleContent.updateOne(
+                { _id: existingContent._id, subscriber: subscriberId },
+                { $set: { isUpdated: true } }
+            );
+        } else {
+            savedContent = await TrainingModuleContent.findOneAndUpdate(
+                { _id: existingContent._id, subscriber: subscriberId },
+                { $set: updateData },
+                { new: true, setDefaultsOnInsert: true, runValidators: true }
+            );
+        }
+
+        await LogHelper.logActivity({
+            subscriber: subscriberId,
+            logType: LogType.TRAINING_MODULE_CONTENT_LOG,
+            operation: "UPDATE",
+            ipInfo: context.ipInfo,
+            affected: [
+                {
+                    targetRef: "TrainingModuleContent",
+                    target: savedContent._id,
+                },
+            ],
+            additionalInfo: [
+                {
+                    infoType: "TRAINING_MODULE_CONTENT_INFO",
+                    infoData: JSON.stringify(savedContent),
+                },
+            ],
+            createdBy: userInfo,
+        });
+
+        return {
+            success: true,
+            message: "Content updated successfully.",
+            isUpdated,
+        };
     },
+
 
     updateTrainingModuleContentQuiz: async ({ input }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
@@ -1405,19 +1569,19 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
-                    affected: [],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-
+                /* 
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `Training Module Content Updated`,
+                                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                                    notifyAllAdmin: true,
+                                    affected: [],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                });
+                  */
                 return {
                     success: true,
                     message: "Quiz content updated with a new version.",
@@ -1456,24 +1620,24 @@ module.exports.mutations = {
                     ],
                     createdBy: userInfo,
                 });
-
-                await NotificationHelper.createNotificationhelper({
-                    subscriber: subscriberId,
-                    titleValue: `Training Module Content Updated`,
-                    messageValue: `Training Module Content Updated by ${userInfo.firstName} ${userInfo.lastName}`,
-                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
-                    notifyAdmin: true,
-                    affected: [
-                        {
-                            targetRef: "TrainingModuleContent",
-                            target: savedContent._id,
-                        },
-                    ],
-                    status: 'SENT',
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                });
-
+                /*  
+                                await NotificationHelper.createNotificationhelper({
+                                    subscriber: subscriberId,
+                                    titleValue: `Training Module Content Updated`,
+                                    messageValue: `Training Module Content Updated by ${userInfo?.firstName} ${userInfo?.lastName}`,
+                                    notificationType: NotificationType.TRAINING_MODULE_CONTENT_UPDATED,
+                                    notifyAllAdmin: true,
+                                    affected: [
+                                        {
+                                            targetRef: "TrainingModuleContent",
+                                            target: savedContent._id,
+                                        },
+                                    ],
+                                    status: 'SENT',
+                                    icon: notificationiconEnum.SUCCESS,
+                                    createdBy: userInfo,
+                                });
+                  */
                 return {
                     success: true,
                     message: "Quiz content updated successfully.",
@@ -1491,66 +1655,116 @@ module.exports.mutations = {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
         }
 
-        const inputContents = await TrainingModuleContent.find({
-            _id: { $in: ids },
-            subscriber: subscriberId,
-        });
+        try {
 
-        if (!inputContents || inputContents.length === 0) {
-            throw CustomError(ErrorName.NOT_FOUND);
-        }
-
-        const fetchCurrentContents = await TrainingContentBridge.find({})
-            .populate("trainingContent")
-            .lean();
-
-        if (!fetchCurrentContents) {
-            throw CustomError(ErrorName.NOT_FOUND);
-        }
-
-        let bridgesToUpdate = [];
-        inputContents.forEach((inputContent) => {
-            fetchCurrentContents
-                .filter(
-                    (content) =>
-                        content.trainingContent &&
-                        content.trainingContent.UID === inputContent.UID
-                )
-                .forEach((content) => bridgesToUpdate.push({ bridgeId: content._id, trainingContentId: inputContent._id }));
-        });
-
-        for (const { bridgeId, trainingContentId } of bridgesToUpdate) {
-            await TrainingContentBridge.findByIdAndUpdate(bridgeId, {
-                trainingContent: trainingContentId,
+            const inputContents = await TrainingModuleContent.find({
+                _id: { $in: ids },
+                subscriber: subscriberId,
             });
+
+            if (!inputContents || inputContents.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
+
+            const contentUIDs = inputContents.map(content => content.UID);
+
+            const matchingTrainingContents = await TrainingModuleContent.find({ UID: { $in: contentUIDs } }).select('_id');
+            const matchingTrainingContentIds = matchingTrainingContents.map(content => content._id);
+
+            const fetchCurrentContents = await TrainingContentBridge.find({ trainingContent: { $in: matchingTrainingContentIds } }).populate('trainingContent').lean();
+
+            if (!fetchCurrentContents.length) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
+
+            const bridgesToUpdate = fetchCurrentContents.map(content => ({
+                bridgeId: content._id,
+                trainingContentId: inputContents.find(ic => ic.UID === content.trainingContent.UID)._id,
+                currentContent: content?.trainingContent?._id
+            }));
+
+            const bulkBridgeUpdates = bridgesToUpdate.map(({ bridgeId, trainingContentId }) => ({
+                updateOne: {
+                    filter: { _id: bridgeId },
+                    update: { trainingContent: trainingContentId }
+                }
+            }));
+
+            await TrainingContentBridge.bulkWrite(bulkBridgeUpdates);
+
+            const currentContentId = bridgesToUpdate[0].currentContent;
+            const trainingContentId = bridgesToUpdate[0].trainingContentId;
+
+            const updatedDocs = await TrainingProgress.find({
+                trainingModuleContent: { $in: currentContentId },
+                isDeleted: { $ne: true },
+                status: 'NOT_STARTED'
+            }).lean();
+
+            await TrainingProgress.updateMany(
+                {
+                    trainingModuleContent: { $in: currentContentId },
+                    isDeleted: { $ne: true },
+                    status: 'NOT_STARTED'
+                },
+                [
+                    { $set: { trainingModuleContent: trainingContentId } }
+                ]
+            );
+
+            const overallTrainingProgressIds = updatedDocs.map(doc => doc.overallTrainingProgress);
+            if (overallTrainingProgressIds.length > 0) {
+                await OverallTrainingProgress.updateMany(
+                    {
+                        _id: { $in: overallTrainingProgressIds },
+                        "contentData.contentIds": { $in: currentContentId }
+                    },
+                    {
+                        $set: {
+                            "contentData.$[outer].contentIds.$[inner]": trainingContentId
+                        }
+                    },
+                    {
+                        arrayFilters: [
+                            { "outer.contentIds": { $in: currentContentId } },
+                            { "inner": { $in: currentContentId } }
+                        ]
+                    }
+                );
+            }
+
+            await TrainingModuleContent.updateMany(
+                { _id: { $in: ids }, subscriber: subscriberId },
+                { $set: { isPublished: false } }
+            );
+
+            const impactedCoursesCount = bridgesToUpdate.length;
+            const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
+            /* 
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Content Successfully Pushed to the Courses`,
+                            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            notificationType: NotificationType.CONTENT_PUSHED,
+                            notifyAllAdmin: true,
+                            affected: inputContents.map((content) => ({
+                                targetRef: "TrainingModuleContent",
+                                target: content._id,
+                            })),
+                            status: 'SENT',
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userId,
+                        }); 
+            */
+            return {
+                status: 1,
+                message: "New content pushed to lessons successfully.",
+            };
+
+        } catch (error) {
+            return Error(error);
         }
-        await TrainingModuleContent.updateMany(
-            { _id: { $in: ids }, subscriber: subscriberId },
-            { $set: { isPublished: false } }
-        );
 
-        const impactedCoursesCount = bridgesToUpdate.length;
-        const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
-
-        await NotificationHelper.createNotificationhelper({
-            subscriber: subscriberId,
-            titleValue: `Content Successfully Pushed to the Courses`,
-            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo.firstName} ${userInfo.lastName}.`,
-            notificationType: NotificationType.CONTENT_PUSHED,
-            notifyAdmin: true,
-            affected: inputContents.map((content) => ({
-                targetRef: "TrainingModuleContent",
-                target: content._id,
-            })),
-            status: 'SENT',
-            icon: notificationiconEnum.SUCCESS,
-            createdBy: userId,
-        });
-
-        return {
-            status: 1,
-            message: "New content pushed to lessons successfully.",
-        };
     },
 
 };

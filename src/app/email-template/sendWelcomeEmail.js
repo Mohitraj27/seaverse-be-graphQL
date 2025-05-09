@@ -1,4 +1,4 @@
-function sendWelcomeEmailsToLearner(user){
+function sendWelcomeEmailsToLearner(user) {
     return `
     <html lang="en">
 
@@ -30,9 +30,9 @@ function sendWelcomeEmailsToLearner(user){
 
 <body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
-        <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
+         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -70,8 +70,8 @@ function sendWelcomeEmailsToLearner(user){
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p>Thanks</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -107,7 +107,7 @@ function sendWelcomeEmailsToLearner(user){
     `;
 }
 
-function sendEmailToLearner(user){
+function sendEmailToLearner(user) {
     return `
     <html lang="en">
 <head>
@@ -136,7 +136,7 @@ function sendEmailToLearner(user){
     <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
         <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
             <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/Frame+1000003213.png" alt="Seaverse Logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
             </td>
         </tr>
         <tr>
@@ -174,7 +174,7 @@ function sendEmailToLearner(user){
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
-                                        <p>Synergy Marine Group</p>
+                                        <p></p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -206,4 +206,4 @@ function sendEmailToLearner(user){
 </html>    
     `;
 }
-module.exports = {sendWelcomeEmailsToLearner, sendEmailToLearner};
+module.exports = { sendWelcomeEmailsToLearner, sendEmailToLearner };

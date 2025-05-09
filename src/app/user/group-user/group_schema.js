@@ -110,6 +110,7 @@ module.exports = {
             vesselType: String
             subRole: [String]
             regStatus: String
+            owner: String
             customGroups: [String]
         }
         type singleMemberDetails {
@@ -139,6 +140,7 @@ module.exports = {
         input memberFilter {
             isDeleted :Boolean
             search : String
+            isRegistered : Boolean
         }
         input autosyncInput {
             groupId : String
