@@ -177,7 +177,6 @@ const userSchema = new Schema(
         ],
         country: {
             type: String,
-            default: null,
         },
         isEmailNotification:{
             type: Boolean,

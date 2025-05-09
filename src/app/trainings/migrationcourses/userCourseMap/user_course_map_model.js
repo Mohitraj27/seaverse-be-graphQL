@@ -4,7 +4,7 @@ const userCourseMap = new Schema(
     {
         user: {
             type: ObjectId,
-            ref: "User",
+            ref: "MigrationUser",
             required: true
         },
         course: {
@@ -24,5 +24,8 @@ const userCourseMap = new Schema(
     },
     { timestamps: true }
 );
+
+userCourseMap.index({ user: 1 });
+userCourseMap.index({ course: 1 });
 
 module.exports.UserCourseMap = Model("UserCourseMap", userCourseMap);
