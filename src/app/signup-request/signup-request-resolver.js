@@ -163,7 +163,7 @@ module.exports.mutations = {
                         decisionDate: new Date(),
                         vesselName,
                         vesselStatus,
-                        isRegistered
+                        isRegistered: input?.isRegistered
                     }], { session });
 
                     await SignupRequest.deleteOne({ userId }, { session });
@@ -228,7 +228,8 @@ module.exports.mutations = {
                         requestDate: signupRequest?.requestDate,
                         signupStatus: signupStatus?.REJECTED,
                         country: signupRequest?.country,
-                        decisionDate: new Date()
+                        decisionDate: new Date(),
+                        isRegistered: input?.isRegistered
                     }], { session });
                     await SignupRequest.deleteOne({ userId }, { session });
                     const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
