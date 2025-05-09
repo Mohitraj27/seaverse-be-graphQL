@@ -1864,6 +1864,9 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
     const country = row["Country"].toLowerCase();
     if (row["Country"] && !countriesListed.includes(row["Country"].toLowerCase())) {
         errors.push(`Invalid Country in row ${rowIndex + 1} as ${row["Country"]}`);
+        return errors;
+    } else if (row["Country"] && countriesListed.includes(row["Country"].toLowerCase())) {
+        row["Country"] = row["Country"].toUpperCase();
     }
 
     if (!row["Country"]) {
