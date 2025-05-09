@@ -4,10 +4,11 @@ const { OverallTrainingProgress } = require("./overall_progress_model");
 const { TrainingRegistration } = require("../training_registration_model");
 const { TrainingProgress } = require("../training-progress/training_progress_model");
 const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const { Employee } = require("../../user/employee/employee_model");
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {
-        const fiveYearsAgo = new Date(Date.now() - /* 5 * 365 * 24 * */ 15 * 60 * 1000); //15mins for testing
+        const fiveYearsAgo = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000);
         const usersToDelete = await User.find({
             deletionDate: { $lt: fiveYearsAgo },
             isDeleted: true,
@@ -94,6 +95,11 @@ const deleteCourseDataForDeletedUsers = async userIds => {
 
             await User.deleteMany(
                 { _id: { $in: userIds } },
+                { session }
+            );
+
+            await Employee.deleteMany(
+                { user: { $in: userIds } },
                 { session }
             );
             
