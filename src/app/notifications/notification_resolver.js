@@ -531,6 +531,26 @@ module.exports.mutations = {
                 usersMarkedAsRead: { $nin: [userId] },
             };
 
+            if(context.platform === Role.ADMIN){
+                filter.$or = [
+                    {
+                        $and: [
+                            { isNotificatonForAdmin: true },
+                            { notifiers: {$in : [userId]} },
+                        ]   
+                    },
+                    { notifyAllAdmin: true },
+                ];
+            }
+
+            if (context.platform === Role.LEARNER) {
+                filter.$and = [
+                    { notifyAllAdmin: { $ne: true } },
+                    { isNotificatonForAdmin: { $ne: true } },
+                    { notifiers: { $in: [userId] } },
+                ];
+            }
+
             const updatedNotifications = await Notification.updateMany(filter, {
                 $addToSet: { usersMarkedAsRead: userId },
             });
