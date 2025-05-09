@@ -2734,6 +2734,7 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
+                country: input.user.country.toUpperCase() ?? null,    
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -3327,6 +3328,7 @@ module.exports.mutations = {
             'User Roles',
             'Vessel Type',
             'User Status',
+            'Country'
         ];
         try {
             if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
@@ -3487,6 +3489,7 @@ module.exports.mutations = {
                         isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
                         isRegistered: { $first: '$isRegistered' },
                         subRoleDetails: { $first: '$subRoleDetails' },
+                        country: { $first: '$country' },
                     },
                 },
                 {
@@ -3568,6 +3571,13 @@ module.exports.mutations = {
                             else: 'Inactive',
                         },
                     },
+                    'Country':{
+                        $cond: {
+                            if: { $eq: ['$country', null] },
+                            then: ' ',
+                            else: '$country',
+                        },
+                    }
                 },
             };
             pipeline.push(projectStage);

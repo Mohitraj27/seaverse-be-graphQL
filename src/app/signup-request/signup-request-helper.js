@@ -9,7 +9,7 @@ const { rejectionEmailTemplate } = require('../email-template/SignupRequestRejec
 const aws_helper = require("../../util/aws_helper");
 const reject30DayOldSignupRequests = async () => {
     try {
-        const thirtyDaysAgo = new Date(Date.now() - 5 * 60 * 1000 /* - 30 * 24 * 60 * 60 * 1000 */); //5 mins (for testing)
+        const thirtyDaysAgo = new Date(Date.now()  - 30 * 24 * 60 * 60 * 1000 ); 
         const oldSignupRequests = await SignupRequest.find({
             requestDate: { $lt: thirtyDaysAgo },
             signupStatus: "PENDING",
