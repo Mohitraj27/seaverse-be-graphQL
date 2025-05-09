@@ -7,7 +7,7 @@ const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/as
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {
-        const fiveYearsAgo = new Date(Date.now() - /* 5 * 365 * 24 * */ 15 * 60 * 1000); //15mins for testing
+        const fiveYearsAgo = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000);
         const usersToDelete = await User.find({
             deletionDate: { $lt: fiveYearsAgo },
             isDeleted: true,

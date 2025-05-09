@@ -1943,9 +1943,7 @@ const clear7dayOldRequests = async () => {
 const scheduledForEveryDayMidnight = async () => {
     try {
         // Schedule the task to run every day at midnight
-        CronHelper.schedule("* * * * *", async () => {
-
-            console.log("running in every one min");
+        CronHelper.schedule("0 0 * * *", async () => {
 
             //clear 7 day old user requests for userprofile deletion and signup requests
             await clear7dayOldRequests();
@@ -1966,7 +1964,7 @@ const scheduledForEveryDayMidnight = async () => {
 const approve30DayOldDeleteRequests = async () => {
     try {
         const currentDate = new Date();
-        const thirtyDaysAgo = new Date(currentDate.setDate(currentDate.getDate() - - 5 * 60 * 1000)); // 5 mins for testing
+        const thirtyDaysAgo = new Date(Date.now()  - 30 * 24 * 60 * 60 * 1000 ); 
 
         const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
 
