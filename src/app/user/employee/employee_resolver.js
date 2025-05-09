@@ -2735,7 +2735,7 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
-                country: input.user.country ?? null,    
+                country: input.user.country.toUpperCase() ?? null,    
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
