@@ -8,6 +8,7 @@ const {
     EmailTemplate,
     VesselStatus,
     dummyPassword,
+    consentTypes,
 
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
@@ -1428,7 +1429,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
 
     try {
 
-        const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
+        const getUsers = await User.find({ _id: { $in: users } })
             .populate("subRoles", "name")
             .lean();
 
@@ -1546,7 +1547,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             );
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
 
-            await OverallTrainingProgress.deleteMany(
+            const deletedOverallTrainingProgresses = await OverallTrainingProgress.deleteMany(
                 {
                     user: { $in: users },
                     status: { $ne: "COMPLETED" },
@@ -1629,6 +1630,18 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                     { $set: { isDeleted: true } },
                     { session }
                 );
+
+                const noCourseDataToBeRemoved = trainingProgressesToBeDeleted.length == 0 && trainingProgressesNotToBeDeleted.length == 0 ;
+                if (noCourseDataToBeRemoved) {
+                    await User.deleteMany(
+                        { _id: { $in: users } },
+                        { session }
+                    );
+                    await Employee.deleteMany(
+                        { user: { $in: users } },
+                        { session }
+                    );
+                }
 
                 if (updateGroupMember) {
                     /*
@@ -1938,6 +1951,34 @@ const clear7dayOldRequests = async () => {
         throw new Error(error.message);
     }
 }
+const clear7dayOldUsersWhoRejectedTAndC = async () => {
+    try {
+        const currentDate = new Date();
+        const sevenDaysAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+        const usersWhoRejected = await User.find({
+            consents: {
+              $elemMatch: {
+                consentType: consentTypes.INITIAL_LOGIN,
+                status: false,
+                timestamps: { $lte: sevenDaysAgo },
+              }
+            }
+          })
+          .select('_id');
+          
+        const rejectedUserIds = usersWhoRejected.map(user => user._id);
+
+        if (rejectedUserIds.length === 0) {
+            return "No users to delete";
+        }
+        await approveDeleteRequests(rejectedUserIds, false);
+      
+    }
+    catch (error) {
+        throw new Error(error.message);
+    }
+}
 
 
 const scheduledForEveryDayMidnight = async () => {
@@ -1948,6 +1989,9 @@ const scheduledForEveryDayMidnight = async () => {
             //clear 7 day old user requests for userprofile deletion and signup requests
             await clear7dayOldRequests();
 
+            //clear 7 day old users who rejected terms and conditions
+            await clear7dayOldUsersWhoRejectedTAndC();
+            
             //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
             await reject30DayOldSignupRequests();
             await approve30DayOldDeleteRequests();
@@ -1970,6 +2014,10 @@ const approve30DayOldDeleteRequests = async () => {
 
         const usersWhoRaisedDeleteRequest = await User.find({ deleteRequest: true, ...query });
 
+        if (usersWhoRaisedDeleteRequest.length === 0) {
+            return "No users to delete";
+        }
+
         await approveDeleteRequests(usersWhoRaisedDeleteRequest);
     }
     catch (error) {
@@ -1977,7 +2025,7 @@ const approve30DayOldDeleteRequests = async () => {
     }
 }
 
-const approveDeleteRequests = async (getUsers) => {
+const approveDeleteRequests = async (getUsers,isHistoryRequired = true) => {
     try {
         const input = {};
         input.users = getUsers.map(user => user._id);
@@ -2027,24 +2075,26 @@ const approveDeleteRequests = async (getUsers) => {
         }
 
         if (deleteUsers) {
-            const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(
-                userHistoryData
-            );
+            if (isHistoryRequired) {
+                const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(
+                    userHistoryData
+                );
 
-            if (updateDeleteRequestHistory) {
-                if (userHistoryData[0]?.isEmailNotification) {
-                    const sendmailforApproval = await aws_helper.sendEmail({
-                        receiverEmail: userHistoryData[0]?.email,
-                        subject: "Delete request APPROVED",
-                        htmlContent: DeleteRequestApproved({
-                            firstName: userHistoryData[0]?.firstName,
-                        }),
-                    });
-                    if (!sendmailforApproval) {
-                        throw CustomError(
-                            ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL,
-                            "Failed to send approval email"
-                        );
+                if (updateDeleteRequestHistory) {
+                    if (userHistoryData[0]?.isEmailNotification) {
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: userHistoryData[0]?.email,
+                            subject: "Delete request APPROVED",
+                            htmlContent: DeleteRequestApproved({
+                                firstName: userHistoryData[0]?.firstName,
+                            }),
+                        });
+                        if (!sendmailforApproval) {
+                            throw CustomError(
+                                ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL,
+                                "Failed to send approval email"
+                            );
+                        }
                     }
                 }
             }
