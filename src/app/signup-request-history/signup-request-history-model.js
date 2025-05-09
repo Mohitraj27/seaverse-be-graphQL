@@ -14,6 +14,7 @@ const HistorySignupRequestSchema = new Schema({
     isDeleted: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
+    isRegistered: { type: Boolean },
     decisionDate: { type: Date } 
 });
 
