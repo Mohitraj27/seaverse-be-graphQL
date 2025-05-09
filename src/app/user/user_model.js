@@ -169,10 +169,11 @@ const userSchema = new Schema(
         ],
         consents: [
             {
-            message: {type:String},
-            title: {type:String},
-            status: { type: Boolean},
-            timestamps: { type: Date, default: Date.now}
+                consentType: { type: String },
+                message: { type: String },
+                title: { type: String },
+                status: { type: Boolean },
+                timestamps: { type: Date, default: Date.now }
             }
         ],
         country: {
