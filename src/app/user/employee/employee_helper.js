@@ -2063,7 +2063,7 @@ const approveDeleteRequests = async (getUsers,isHistoryRequired = true) => {
             directSignup: user?.directSignup,
             deleteRequestDate: user?.deleteRequestDate,
             decisionDate: new Date(),
-            isRegistered: user?.isRegistered,
+            isRegistered: false,
         }));
 
         let errors = [];
