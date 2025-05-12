@@ -20,6 +20,11 @@ function signUpVerifyEmailTemplate(data) {
             overflow: hidden;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
         }
+        .main-container{
+              max-width: 600px;
+              margin: 0 auto;
+              overflow: hidden;
+          }
         .logo-container {
             text-align: center;
             padding: 24px;
@@ -31,6 +36,7 @@ function signUpVerifyEmailTemplate(data) {
             align-items: center;
             margin: 20px auto;
             text-align: center;
+            padding-left: 30%
         }
         .logo {
             max-width: 200px;
@@ -96,10 +102,11 @@ function signUpVerifyEmailTemplate(data) {
     </style>
 </head>
 <body>
-    <div class="container">
-          <div class="logo-section">
+    <div class="main-container">
+    <div class="logo-section">
         <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
-         </div>
+        </div>
+    <div class="container">
         <div class="content">
             <div class="message">
                 Welcome to Seaverse! To complete your signup process,
@@ -116,6 +123,7 @@ function signUpVerifyEmailTemplate(data) {
         <div class="footer">
             Sent by Seaverse - Training for Advanced Navigation Techniques
         </div>
+    </div>
     </div>
 </body>
 </html>
