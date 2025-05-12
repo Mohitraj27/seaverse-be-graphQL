@@ -31,6 +31,7 @@ module.exports = {
             createdAt: String
             updatedAt: String
             decisionDate: String
+            isRegistered: Boolean
         }
         type HistorySignupRequestList {
             items: [HistorySignupRequest]
