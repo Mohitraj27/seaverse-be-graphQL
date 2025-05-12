@@ -102,7 +102,8 @@ function signUpVerifyEmailTemplate(data) {
     </style>
 </head>
 <body>
-    <div class="main-container">
+  
+      <div class="main-container">
     <div class="logo-section">
         <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
         </div>
