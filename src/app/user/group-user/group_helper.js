@@ -600,29 +600,12 @@ module.exports = {
                     usersWithRole = await User.aggregate([
 
                         {
-                            $lookup: {
-                                from: "subroles",
-                                localField: "subRoles",
-                                foreignField: "_id",
-                                as: "subroleDetails",
-                            }
-                        },
-                        {
-                            $unwind: {
-                                path: "$subroleDetails",
-                                preserveNullAndEmptyArrays: true
-                            }
-                        },
-
-                        {
                             $match: {
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
                                 email: { $ne: null },
                                 isSignupAdminAprroved: true,
-                                'subroleDetails.name': {
-                                    $ne: "ADMIN"
-                                }
+                                role:"LEARNER"
                             }
                         },
                         {
