@@ -47,6 +47,7 @@ module.exports = {
                     Body: fileData,
                     ContentType: mimeType,
                     Metadata: { originalFileName },
+                    CacheControl: 'no-cache',
                     ContentDisposition: `attachment; filename="${originalFileName}"`
                 };
 
