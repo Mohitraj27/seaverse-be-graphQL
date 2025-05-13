@@ -11,11 +11,7 @@ function rejectionEmailTemplate(data) {
               padding: 0;
               background-color: #f7f7f7;
           }
-          .main-container{
-              max-width: 600px;
-              margin: 0 auto;
-              overflow: hidden;
-          }
+        
           .container {
               max-width: 600px;
               margin: 0 auto;
@@ -24,19 +20,16 @@ function rejectionEmailTemplate(data) {
               border-radius: 8px;
               overflow: hidden;
           }
-          .logo-container {
-              width: 100%;
-              display: flex;
-              justify-content: center;
-              padding: 20px;
-          }
-         .logo-section {
-            display: flex;
+         .main-container {
+            max-width: 600px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .logo-section {
             justify-content: center;
             align-items: center;
             margin: 20px auto;
             text-align: center;
-            padding-left: 30%
         }
         .logo {
             max-width: 200px;

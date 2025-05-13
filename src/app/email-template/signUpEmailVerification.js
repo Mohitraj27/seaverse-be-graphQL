@@ -25,18 +25,16 @@ function signUpVerifyEmailTemplate(data) {
               margin: 0 auto;
               overflow: hidden;
           }
-        .logo-container {
-            text-align: center;
-            padding: 24px;
-            background-color: #ffffff;
+        .main-container {
+            max-width: 600px;
+            margin: 0 auto;
+            overflow: hidden;
         }
         .logo-section {
-            display: flex;
             justify-content: center;
             align-items: center;
             margin: 20px auto;
             text-align: center;
-            padding-left: 30%
         }
         .logo {
             max-width: 200px;
@@ -103,9 +101,9 @@ function signUpVerifyEmailTemplate(data) {
 </head>
 <body>
   
-      <div class="main-container">
-    <div class="logo-section">
-        <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
+    <div class="main-container">
+        <div class="logo-section">
+            <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
         </div>
     <div class="container">
         <div class="content">
