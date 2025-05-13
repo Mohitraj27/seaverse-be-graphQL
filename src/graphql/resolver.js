@@ -137,6 +137,14 @@ module.exports = {
         //     });
         // }
     },
+    OverallTrainingProgress: {
+        totalDuration: (parent) => {
+            if (parent.totalDuration && typeof parent.totalDuration == "number") {
+                return convertMinutesToHHMMSS(parent.totalDuration);
+            }
+            return parent.totalDuration;
+        },
+    },
     Query: {
         ...AuthHelper.simplify(AppDataResolver.queries),
         ...AuthHelper.simplify(AppSettingsResolver.queries),
