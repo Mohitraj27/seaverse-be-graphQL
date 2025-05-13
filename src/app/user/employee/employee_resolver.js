@@ -1087,19 +1087,28 @@ module.exports.queries = {
                     : []),
                 ...(filterInput?.role?.length > 0
                     ? [
+                        // commented out as Every Admin is Leaner, Bug by astitva 13/5/25
+                        //  {
+                        //     $match:
+                        //         filterInput.role.includes("LEARNER") &&
+                        //             filterInput.role.includes("ADMIN")
+                        //             ? {}
+                        //             : filterInput.role.includes("LEARNER")
+                        //                 ? {
+                        //                     "user.role": "LEARNER",
+                        //                     "user.subRoles.name": { $ne: "ADMIN" },
+                        //                 }
+                        //                 : filterInput.role.includes("ADMIN")
+                        //                     ? { "user.subRoles.name": "ADMIN" }
+                        //                     : { "user.role": { $in: filterInput.role } },
+                        // },
                         {
                             $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
+                                filterInput.role.includes("LEARNER")
                                     ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
                         },
                     ]
                     : []),
