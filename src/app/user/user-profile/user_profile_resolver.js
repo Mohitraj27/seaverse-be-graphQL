@@ -313,6 +313,47 @@ module.exports.queries = {
             return "Email sent. Please check your email for reset link."
         }
 
+    },
+    checkLastAdmin: async ({ }, context) => {
+
+        try {
+            const userData = await User.aggregate([
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "subRoles",
+                        foreignField: "_id",
+                        as: "subRoles",
+                    },
+                },
+                {
+                    $unwind: "$subRoles",
+                },
+                {
+                    $match: {
+                        $or: [
+
+                            { "subRoles.name": "ADMIN" }
+                        ],
+                    },
+                },
+            ]);
+
+            if (userData.length === 1) {
+                return {
+                    isLastAdmin: true,
+                    message: "You are the last admin in the system.",
+                };
+            }
+            else {
+                return {
+                    isLastAdmin: false,
+                    message: "You are not the last admin in the system.",
+                };
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     }
 };
 
@@ -441,28 +482,28 @@ module.exports.mutations = {
             }
             if (consentsInput?.length > 0) {
                 const existingConsentsMap = new Map(
-                  (existingUser.consents || []).map(consent => [consent._id.toString(), consent])
+                    (existingUser.consents || []).map(consent => [consent._id.toString(), consent])
                 );
-          
+
                 consentsInput.forEach(consent => {
-                  const consentId = consent._id ? consent._id.toString() : null;
-          
-                  if (consentId && existingConsentsMap.has(consentId)) {
-                    
-                    const existingConsent = existingConsentsMap.get(consentId);
-                    existingConsent.title = consent.title;
-                    existingConsent.message = consent.message;
-                    existingConsent.status = consent.status;
-                  } else {
-                    existingUser.consents.push({
-                      _id: new mongoose.Types.ObjectId(), 
-                      title: consent.title,
-                      message: consent.message,
-                      status: consent.status,
-                    });
-                  }
+                    const consentId = consent._id ? consent._id.toString() : null;
+
+                    if (consentId && existingConsentsMap.has(consentId)) {
+
+                        const existingConsent = existingConsentsMap.get(consentId);
+                        existingConsent.title = consent.title;
+                        existingConsent.message = consent.message;
+                        existingConsent.status = consent.status;
+                    } else {
+                        existingUser.consents.push({
+                            _id: new mongoose.Types.ObjectId(),
+                            title: consent.title,
+                            message: consent.message,
+                            status: consent.status,
+                        });
+                    }
                 });
-              }
+            }
             const token = generateRandomString(10);
 
             existingUser.resetPasswordToken = token;
@@ -579,7 +620,10 @@ module.exports.mutations = {
                 },
                 {
                     $match: {
-                        "subRoles.name": "ADMIN",
+                        $or: [
+
+                            { "subRoles.name": "ADMIN" }
+                        ],
                     },
                 },
             ]);
@@ -666,4 +710,5 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    
 };

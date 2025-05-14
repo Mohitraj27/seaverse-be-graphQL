@@ -55,12 +55,18 @@ module.exports = {
             status: Boolean
             message: String
         }
+            type checkLastAdminRes {
+            isLastAdmin: Boolean
+            message: String
+        }
     `,
     queries: `
         getProfile(id: ID): User!
         getPublicProfile(id: ID!): PublicProfile!
         getUserProfile: UserProfile
         resetPassword: String!
+        checkLastAdmin: checkLastAdminRes!
+
     `,
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
