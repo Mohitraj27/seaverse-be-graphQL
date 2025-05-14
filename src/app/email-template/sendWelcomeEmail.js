@@ -72,6 +72,7 @@ function sendWelcomeEmailsToLearner(user) {
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks</p>
                                         <p></p>
+                                        <p>Seaverse Team</p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -175,6 +176,7 @@ function sendEmailToLearner(user) {
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
                                         <p>Thanks,</p>
                                         <p></p>
+                                        <p>Seaverse Team</p>
                                     </td>
                                 </tr>
                                 <tr>
