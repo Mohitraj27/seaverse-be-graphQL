@@ -116,6 +116,37 @@ module.exports = {
             }
             return parent.duration;
         },
+        // videos: (parent) => {
+        //     if (!Array.isArray(parent.videos)) return [];
+
+        //     return parent.videos.map(video => {
+        //         const rawDuration = parseFloat(video.duration);
+        //         const formattedDuration = !isNaN(rawDuration)
+        //             ? convertMinutesToHHMMSS(rawDuration)
+        //             : video.duration;
+
+        //         return {
+        //             ...video,
+        //             duration: formattedDuration
+        //         };
+        //     });
+        // }
+    },
+    OverallTrainingProgress: {
+        totalDuration: (parent) => {
+            if (parent.totalDuration ) {
+                return convertMinutesToHHMMSS(parent.totalDuration);
+            }
+            return parent.totalDuration;
+        },
+    },
+    Training:{
+        durationHours: (parent) => {
+            if (parent.durationHours) {
+                return convertMinutesToHHMMSS(parent.durationHours);
+            }
+            return parent.durationHours;
+        }
     },
     Query: {
         ...AuthHelper.simplify(AppDataResolver.queries),

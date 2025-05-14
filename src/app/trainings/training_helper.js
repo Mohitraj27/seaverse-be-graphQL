@@ -398,7 +398,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 // });
 
                 const updateFields = {
-                    status: "IN_PROGRESS",
+                    status: doc?.adminMarkedAsCompleted ? doc.status : "IN_PROGRESS",
                     contentData,
                     startDate: new Date(),
                     totalTrainingModules: contentData?.length,
@@ -614,7 +614,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 notifications.push({
                     subscriber: subscriberId,
                     title: [{ lang: "en", value: `Course completed successfully!` }],
-                    message: [{ lang: "en", value: `The course ${trainingName ?? ''} has been successfully completed. You have successfully completed the course ${trainingName ?? ''}` }],
+                    message: [{ lang: "en", value: `The course ${trainingName ?? ''} has been successfully completed.` }],
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
                     notifiers: [userId],
@@ -778,6 +778,10 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     let bulkOperations = [];
 
     overallIdModuleProgressMap.forEach(({ progressPercentages, durations }, overallId) => {
+
+        // Find doc with overallId
+        const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+
         const totalDuration = durations.reduce((sum, val) => sum + val, 0);
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
@@ -795,7 +799,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
             updateFields.status = "COMPLETED";
             updateFields.endDate = new Date();
         } else if (average >= 0 && average < 100) {
-            updateFields.status = "IN_PROGRESS";
+            updateFields.status = overallDoc?.adminMarkedAsCompleted ? overallDoc?.status : "IN_PROGRESS";
         }
 
         bulkOperations.push({

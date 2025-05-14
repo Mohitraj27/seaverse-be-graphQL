@@ -45,7 +45,7 @@ module.exports = {
             images: [MultiMediaInfo]
             price: Float
             """in days"""
-            durationHours: Int
+            durationHours: String
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudience
@@ -156,7 +156,7 @@ module.exports = {
             
             price: Float
             """in days"""
-            durationHours: Int
+            durationHours: String
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudienceInput
