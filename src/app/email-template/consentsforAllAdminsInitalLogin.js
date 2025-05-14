@@ -59,7 +59,7 @@ function sendConsentsforAllAdminsInitalLogin(data) {
                 <tr>
                   <td style="font-size: 16px; color: #384860;">
                     Thanks,<br />
-                    Synergy Marine Group
+                    Seaverse Team
                   </td>
                 </tr>
               </table>
