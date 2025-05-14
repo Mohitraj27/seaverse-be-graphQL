@@ -103,7 +103,10 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
         const adminUsers = [];
         const learnerUsers = [];
 
-        const roleUsersQuery = await User.find({ role: "LEARNER", isDeleted: { $ne: true } }).populate("subRoles", "name");
+        const roleUsersQuery = await User.find({ role: "LEARNER", isDeleted: { $ne: true }, isSignupAdminAprroved: true }).populate("subRoles", "name");
+        if (Array.isArray(roleUsersQuery)) {
+            learnerUsers.push(...roleUsersQuery);
+        }
         roleUsersQuery.forEach(user => {
             if (user.subRoles.length > 0) {
                 user.subRoles.forEach(subRole => {
@@ -111,13 +114,8 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                         if (subRole.name === "ADMIN" && roleIds.includes("ADMIN")) {
                             adminUsers.push(user);
                         }
-                        // if (roleIds.includes("LEARNER")) {
-                        //     learnerUsers.push(user);
-                        // }
                     }
                 });
-            } else if (roleIds.includes("LEARNER")) {
-                learnerUsers.push(user);
             }
         });
 
@@ -1193,12 +1191,12 @@ module.exports = {
 
                         // Prepare email data for insertion into SQLite queue
                         const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                                receiverEmail: user.email,
-                                firstName: user.firstName,
-                                courses: coursesDataMap,
-                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                            }));
-                        
+                            receiverEmail: user.email,
+                            firstName: user.firstName,
+                            courses: coursesDataMap,
+                            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                        }));
+
                         // Insert emails into the course_emails table
                         SqliteEmailHelper.insertCourseEmails(emailData);
                         // Send the emails batch by batch
