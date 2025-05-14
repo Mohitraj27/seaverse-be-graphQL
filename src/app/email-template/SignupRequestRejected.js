@@ -103,7 +103,7 @@ function rejectionEmailTemplate(data) {
               
               <p class="message">
                   Thanks<br>
-                  
+                  <p>Seaverse Team</p>
               </p>
               
               <div class="support-box">
