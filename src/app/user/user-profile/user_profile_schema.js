@@ -65,6 +65,8 @@ module.exports = {
         getPublicProfile(id: ID!): PublicProfile!
         getUserProfile: UserProfile
         resetPassword: String!
+        checkLastAdmin: checkLastAdminRes!
+
     `,
     mutations: `
         updateProfile(input: ProfileUpdateInput!): User!
@@ -73,6 +75,5 @@ module.exports = {
         verifyResetPassword(token: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest(input: DeleteRequestInput!): String!
-        checkLastAdmin: checkLastAdminRes!
     `,
 };
