@@ -118,7 +118,6 @@ const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
                 });
             }
         });
-        console.log(learnerUsers, "learnerUsers");
 
         let roleQuery = [];
         if (roleIds.includes("ADMIN")) {
