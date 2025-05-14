@@ -11,6 +11,7 @@ function rejectionEmailTemplate(data) {
               padding: 0;
               background-color: #f7f7f7;
           }
+        
           .container {
               max-width: 600px;
               margin: 0 auto;
@@ -19,12 +20,12 @@ function rejectionEmailTemplate(data) {
               border-radius: 8px;
               overflow: hidden;
           }
-          .logo-container {
-              text-align: center;
-              padding: 20px;
-          }
-         .logo-section {
-            display: flex;
+         .main-container {
+            max-width: 600px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .logo-section {
             justify-content: center;
             align-items: center;
             margin: 20px auto;
@@ -85,6 +86,7 @@ function rejectionEmailTemplate(data) {
       </style>
   </head>
   <body>
+      <div class="main-container">
        <div class="logo-section">
         <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" class="logo">
          </div>
@@ -114,6 +116,7 @@ function rejectionEmailTemplate(data) {
           <div class="footer">
               Sent by Seaverse - Training for all courses.
           </div>
+      </div>
       </div>
   </body>
   </html>`;
