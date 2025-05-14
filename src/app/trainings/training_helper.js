@@ -223,7 +223,8 @@ const validateSyncOfflineData = async (data) => {
 
 }
 
-const addDataToOverallTrainingProgress = async (input, errors, session) => {
+const addDataToOverallTrainingProgress = async (input, errors, session, fromDownload) => {
+
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -398,7 +399,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 // });
 
                 const updateFields = {
-                    status: doc?.adminMarkedAsCompleted ? doc.status : "IN_PROGRESS",
+                    status: (doc?.adminMarkedAsCompleted || fromDownload) ? doc.status : "IN_PROGRESS",
                     contentData,
                     startDate: new Date(),
                     totalTrainingModules: contentData?.length,
@@ -427,23 +428,34 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
     }
 
-    const updateOverallTrainingProgress = [];
-    for (const item of input) {
+    if (!fromDownload) {
 
-        const lastModule = item.trainingModules[item.trainingModules.length - 1];
-        const lastContent = lastModule.contentDetails[lastModule.contentDetails.length - 1];
+        const updateOverallTrainingProgress = [];
+        for (const item of input) {
 
-        updateOverallTrainingProgress.push({
-            updateOne: {
-                filter: { _id: item.overallId },
-                update: { $set: { lastConsumedContent: { moduleId: lastModule.moduleId, contentId: lastContent.contentId } } }
-            }
-        })
+            const lastModule = item.trainingModules[item.trainingModules.length - 1];
+            const lastContent = lastModule.contentDetails[lastModule.contentDetails.length - 1];
+
+            updateOverallTrainingProgress.push({
+                updateOne: {
+                    filter: { _id: item.overallId },
+                    update: { $set: { lastConsumedContent: { moduleId: lastModule.moduleId, contentId: lastContent.contentId } } }
+                }
+            })
+
+        }
+
+        if (updateOverallTrainingProgress.length > 0) {
+            await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress, { session });
+        }
 
     }
 
-    if (updateOverallTrainingProgress.length > 0) {
-        await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress, { session });
+
+    const overallProgresses = await OverallTrainingProgress.find({ _id: { $in: overallIds } });
+
+    if (overallProgresses.length > 0) {
+        return overallProgresses;
     }
 
 }
