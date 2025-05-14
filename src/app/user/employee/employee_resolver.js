@@ -81,6 +81,7 @@ const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
+const { decrypt, encrypt } = require("../../../util/encryption_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2676,6 +2677,15 @@ module.exports.mutations = {
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
+        //encryption logic 
+       
+        //replace the original fields with encrypted ones
+        input.user.firstName = encrypt(input?.user?.firstName);
+        input.user.lastName = encrypt(input?.user?.lastName);
+        input.user.civilIdOrPassport = encrypt(input?.user?.civilIdOrPassport);
+        input.user.email = encrypt(input?.user?.email);
+
+
         const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
@@ -2810,13 +2820,23 @@ module.exports.mutations = {
             // });
 
             if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
+                const decryptedEmail = decrypt(savedUser.email);
+                const decryptedFirstName = decrypt(savedUser.firstName);
+                
                 const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
-                    firstName: savedUser.firstName,
-                    email: savedUser.email,
+                    firstName: decryptedFirstName,
+                    email: decryptedEmail,
                     templategeneratePassword: generatePassword,
                 });
 
-                await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+                function isValidEmail(email) {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    return emailRegex.test(email);
+                }
+                  
+                if (isValidEmail(decryptedEmail)) {
+                    await AwsHelper.sendEmail({ receiverEmail: decryptedEmail, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+                }
             }
 
             return savedEmployees;

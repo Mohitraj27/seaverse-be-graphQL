@@ -188,7 +188,11 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { firstName, lastName, password, confirmPassword, email, country, TermsAndConditions } = input;
+                const { password, confirmPassword, country, TermsAndConditions } = input;
+
+                const firstName  = encrypt(input.firstName);
+                const lastName  = encrypt(input.lastName);
+                const email = encrypt(input.email);
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");

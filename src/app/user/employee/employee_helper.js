@@ -2249,6 +2249,13 @@ module.exports = {
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
         let newVessel;
+
+        //Encryption logic
+        input.user.firstName = input.user.firstName ? encrypt(input.user.firstName) : input.user.firstName;
+        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName) : input.user.lastName;
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport ? encrypt(input.user.civilIdOrPassport) : input.user.civilIdOrPassport;
+        input.user.email = input.user.email ? encrypt(input.user.email) : input.user.email;
+
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
