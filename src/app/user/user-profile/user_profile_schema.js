@@ -55,6 +55,10 @@ module.exports = {
             status: Boolean
             message: String
         }
+            type checkLastAdminRes {
+            isLastAdmin: Boolean
+            message: String
+        }
     `,
     queries: `
         getProfile(id: ID): User!
@@ -69,5 +73,6 @@ module.exports = {
         verifyResetPassword(token: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest(input: DeleteRequestInput!): String!
+        checkLastAdmin: checkLastAdminRes!
     `,
 };

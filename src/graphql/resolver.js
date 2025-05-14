@@ -57,10 +57,10 @@ const { ContentZipResolver } = require("../app/trainings/compress_to_zip");
 const { CompanyResolver } = require("../app/vessle/company");
 const { OwnerResolver } = require("../app/vessle/owner");
 const { convertMinutesToHHMMSS } = require("../util/string_helper");
-const {migrationcoursesResolver} = require("../app/trainings/migrationcourses")
+const { migrationcoursesResolver } = require("../app/trainings/migrationcourses")
 const { SignupRequestResolver } = require('../app/signup-request');
 const { SignupRequestHistoryResolver } = require('../app/signup-request-history');
-const { contentLanguageResolver  } = require('../app/trainings/training_modules/training_module_contents/content_languages');
+const { contentLanguageResolver } = require('../app/trainings/training_modules/training_module_contents/content_languages');
 module.exports = {
     ID: new GraphQLScalarType({
         name: "ID",
@@ -95,24 +95,29 @@ module.exports = {
     }),
     MultiMediaInfo: {
         s3Path: async (parent) => {
-          if (parent.url) {
-            const s3url = await AwsHelper.fetchFile(parent.url);
-            return s3url;
-          }
-          return null;
+            if (parent.url) {
+                const s3url = await AwsHelper.fetchFile(parent.url);
+                return s3url;
+            }
+            return null;
         },
     },
     TrainingModuleContent: {
         thumbnail: async (parent) => {
-          if (parent.thumbnail) {
-            const s3url = await AwsHelper.fetchFile(parent.thumbnail);
-            return s3url;
-          }
-          return null;
+            if (parent.thumbnail) {
+                const s3url = await AwsHelper.fetchFile(parent.thumbnail);
+                return s3url;
+            }
+            return null;
         },
         duration: (parent) => {
             if (parent.duration && typeof parent.duration == "number") {
                 return convertMinutesToHHMMSS(parent.duration);
+            }
+            console.log(parent);
+            if (parent.videos.map((video) => video.duration && typeof video.duration == "number")) {
+                console.log("video duration", parent.videos);
+                return convertMinutesToHHMMSS(video.duration);
             }
             return parent.duration;
         },
@@ -217,7 +222,7 @@ module.exports = {
 
         ...AuthHelper.requiresLogin(QuizContentResolver.mutations),
         ...AuthHelper.requiresLogin(QuizAttemptResolver.mutations),
-        
+
         ...AuthHelper.requiresEmployee(DesignationResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupResolver.mutations),
         ...AuthHelper.requiresEmployee(GroupMemebrResolver.mutations),
@@ -232,7 +237,7 @@ module.exports = {
         ...AuthHelper.requiresAdmin(CompanyResolver.mutations),
         ...AuthHelper.requiresAdmin(OwnerResolver.mutations),
         ...AuthHelper.requiresEmployee(TrainingCertificateResolver.mutations),
-        
+
         ...AuthHelper.requiresEmployee(NotificationResolver.mutations),
         ...AuthHelper.requiresAdmin(SignupRequestResolver.mutations),
         ...AuthHelper.requiresEmployee(contentLanguageResolver.mutations),
