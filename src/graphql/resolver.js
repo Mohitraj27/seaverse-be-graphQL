@@ -139,11 +139,19 @@ module.exports = {
     },
     OverallTrainingProgress: {
         totalDuration: (parent) => {
-            if (parent.totalDuration && typeof parent.totalDuration == "number") {
+            if (parent.totalDuration ) {
                 return convertMinutesToHHMMSS(parent.totalDuration);
             }
             return parent.totalDuration;
         },
+    },
+    Training:{
+        durationHours: (parent) => {
+            if (parent.durationHours) {
+                return convertMinutesToHHMMSS(parent.durationHours);
+            }
+            return parent.durationHours;
+        }
     },
     Query: {
         ...AuthHelper.simplify(AppDataResolver.queries),
