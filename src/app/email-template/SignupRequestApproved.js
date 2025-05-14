@@ -115,6 +115,7 @@ function approvalEmailTemplate(data) {
                 <p class="message">
                     Thanks<br>
                 </p>
+                <p>Seaverse Team</p>
                 <div class="button-container">
                     <a href="${data?.loginLink || '#'}" class="login-button">Log In</a>
                 </div>
