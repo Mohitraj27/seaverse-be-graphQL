@@ -212,6 +212,12 @@ module.exports.queries = {
 
                 if (checkIfAdmin?.roleAssignmentDate) {
                     filterConditions.$or[0].$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                    filterConditions.$or[1] = {
+                        $and: [
+                            { notifyAllAdmin: true },
+                            { createdAt: { $gt: checkIfAdmin.roleAssignmentDate } }
+                        ]
+                    } 
                 }
 
                 const pipeline = [{ $match: filterConditions }];
@@ -231,7 +237,13 @@ module.exports.queries = {
                 ];
 
                 if (checkIfAdmin?.roleAssignmentDate) {
-                    filterConditions.$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                    filterConditions.$or[0].$and.push({ createdAt: { $gt: checkIfAdmin.roleAssignmentDate } });
+                    filterConditions.$or[1] = {
+                        $and: [
+                            { notifyAllAdmin: true },
+                            { createdAt: { $gt: checkIfAdmin.roleAssignmentDate } }
+                        ]
+                    }
                 }
 
                 const pipeline = [{ $match: filterConditions }];
@@ -257,7 +269,7 @@ module.exports.queries = {
                 totalCount: 0,
             };
         } catch (error) {
-            throw CustomError(GET_NOTIFICATION_FAILED, error.message);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
     },
     getNotificationsForApp: async ({ pageInput, filterInput }, context) => {
