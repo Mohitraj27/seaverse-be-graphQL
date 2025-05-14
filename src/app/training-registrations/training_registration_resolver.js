@@ -1948,7 +1948,7 @@ module.exports.mutations = {
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
-                body: `Congratulations! You have successfully completed the course ${trainingData[0].title[0]?.value}.`,
+                body: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                 content: "Course Completion Content",
                 webLink: ""
             });
