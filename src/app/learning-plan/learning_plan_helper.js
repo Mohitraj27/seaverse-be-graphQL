@@ -278,15 +278,17 @@ const createLearningPlanHelper = async (input, context) => {
         if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
-        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
-        if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
-            const enrollData = {
-                trainings: newLearningPlan.selectCourses,
-                users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
-                type: "ENROLL",
-                learningPlan: newLearningPlan._id
+        if (newLearningPlan?.status === learningPlanStatus.ACTIVE) {
+            const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
+            if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
+                const enrollData = {
+                    trainings: newLearningPlan.selectCourses,
+                    users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
+                    type: "ENROLL",
+                    learningPlan: newLearningPlan._id
+                }
+                await createTrainingRegistration(enrollData, context);
             }
-            await createTrainingRegistration(enrollData, context);
         }
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
@@ -365,7 +367,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             groupIDs: input.groupIDs || existingLearningPlan.groupIDs
         });
         if (input.audienceSelection === audienceSelection.EVERYONE_IN_ORGANIZATION) {
-            existingLearningPlan.groupIDs = []; 
+            existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
@@ -397,14 +399,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 groupIDs: input.groupIDs
             });
             learnersToAssign = userIds;
-            
+
         }
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
 
         if (learnersToAssign?.length > 0) {
-               const existingAssignments = await LearningPlanAssignment.find({
+            const existingAssignments = await LearningPlanAssignment.find({
                 learningPlanId: existingLearningPlan._id,
                 assignedLearnerId: { $in: learnersToAssign },
                 isDeleted: false,
