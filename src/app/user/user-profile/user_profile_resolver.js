@@ -313,6 +313,47 @@ module.exports.queries = {
             return "Email sent. Please check your email for reset link."
         }
 
+    },
+    checkLastAdmin: async ({ }, context) => {
+
+        try {
+            const userData = await User.aggregate([
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "subRoles",
+                        foreignField: "_id",
+                        as: "subRoles",
+                    },
+                },
+                {
+                    $unwind: "$subRoles",
+                },
+                {
+                    $match: {
+                        $or: [
+
+                            { "subRoles.name": "ADMIN" }
+                        ],
+                    },
+                },
+            ]);
+
+            if (userData.length === 1) {
+                return {
+                    isLastAdmin: true,
+                    message: "You are the last admin in the system.",
+                };
+            }
+            else {
+                return {
+                    isLastAdmin: false,
+                    message: "You are not the last admin in the system.",
+                };
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     }
 };
 
@@ -669,46 +710,5 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    checkLastAdmin: async ({ }, context) => {
-        const { userId } = AuthUser(context);
-
-        try {
-            const userData = await User.aggregate([
-                {
-                    $lookup: {
-                        from: "subroles",
-                        localField: "subRoles",
-                        foreignField: "_id",
-                        as: "subRoles",
-                    },
-                },
-                {
-                    $unwind: "$subRoles",
-                },
-                {
-                    $match: {
-                        $or: [
-
-                            { "subRoles.name": "ADMIN" }
-                        ],
-                    },
-                },
-            ]);
-
-            if (userData.length === 1) {
-                return {
-                    isLastAdmin: true,
-                    message: "You are the last admin in the system.",
-                };
-            }
-            else {
-                return {
-                    isLastAdmin: false,
-                    message: "You are not the last admin in the system.",
-                };
-            }
-        } catch (error) {
-            throw CustomError(ErrorName.FAILED, error.message);
-        }
-    }
+    
 };
