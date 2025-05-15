@@ -801,7 +801,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
 
         const updateFields = {
-            progressPercentage: average,
+            progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
             totalDuration,
             completedModules: completedCount
         };

@@ -281,7 +281,10 @@ module.exports.queries = {
 
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
-                isEnrolled: true,
+                $or: [
+                    { isEnrolled: true },
+                    { isEnrolled: false, status: "COMPLETED" }
+                ],
                 isDeleted: { $ne: true },
             }
 
@@ -1797,7 +1800,7 @@ module.exports.mutations = {
             }, {});
 
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData.length>0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
             const recordsToUpdate = await OverallTrainingProgress.find({
                 training: input.training,
@@ -1816,6 +1819,7 @@ module.exports.mutations = {
                         update: {
                             $set: {
                                 status: "COMPLETED",
+                                progressPercentage: 100,
                                 isComplete: true,
                                 completedModules: trainingModuleIds.length,
                                 isCertificateGenerated: true,
