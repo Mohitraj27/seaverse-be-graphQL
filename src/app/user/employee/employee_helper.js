@@ -596,9 +596,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...resultforGroup?.allMatchedUsers);
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-                const validUsers = userConditions.filter(user =>
-                    evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                );
+            const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+            if(resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0){ 
+              // Filter group-matched users by conditional custom fields
+                const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+                // const validUsers = userConditions.filter(user =>
+                //     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                // );
                 const validUserIds = new Set(validUsers.map(user => user._id));
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
@@ -649,6 +653,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                         assignedLearnerId: { $in: usersToRemove }
                     });
                 }
+            }
             }
             if (usersToEnroll.length > 0) {
                 const enrollData = {

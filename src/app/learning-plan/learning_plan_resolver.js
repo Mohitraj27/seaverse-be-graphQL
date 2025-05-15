@@ -20,8 +20,8 @@ module.exports.mutations = {
         try {
             const { subscriberId, userId, userInfo } = AuthUser(context);
             const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId }, context);
-            if (!result.success) {
-                throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result.errors[0]);
+            if (!result?.success) {
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result?.errors[0]);
             }
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -210,8 +210,8 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Learning Plan not found");
             }
             const validation = await updateLearningPlanHelper(id, input, context);
-            if (!validation.success) {
-                throw CustomError(ErrorName.VALIDATION_FAILED, validation.errors.join(", "));
+            if (!validation?.success) {
+                throw CustomError(ErrorName.VALIDATION_FAILED, validation?.errors?.join(", "));
             }
             const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
             const learningPlanName = updatedLearningPlan?.title ?? "";
