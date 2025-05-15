@@ -257,12 +257,14 @@ module.exports.mutations = {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
                     const duration = trainingContent?.duration || 0;
-                    totalDurationSeconds += duration;
+                    const mins = Math.floor(duration);
+                    const secs = Math.round((duration % 1) * 100);
+                    totalDurationSeconds += mins * 60 + secs;
                 }
             }
         }
 
-        const totalDuration = Math.round(totalDurationSeconds);
+        const totalDuration = (totalDurationSeconds);
         input.durationHours = totalDuration;
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {

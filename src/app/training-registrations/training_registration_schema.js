@@ -74,7 +74,7 @@ module.exports = {
             isEnrolled: Boolean
             moduleCount: Int
             totalTrainingModules: Int
-            totalDuration: Float
+            totalDuration: String
             status: String
             timeSpend: Float
             lastConsumedContent: lastConsumedContent
@@ -85,6 +85,7 @@ module.exports = {
             isCertificatePresent: Boolean
             finishedCourseFirstTime: Boolean
             adminMarkedAsCompleted: Boolean
+            version: Int
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]

@@ -223,7 +223,8 @@ const validateSyncOfflineData = async (data) => {
 
 }
 
-const addDataToOverallTrainingProgress = async (input, errors, session) => {
+const addDataToOverallTrainingProgress = async (input, errors, session, fromDownload) => {
+
 
     const overallIds = input.map((item) => item.overallId);
 
@@ -398,7 +399,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
                 // });
 
                 const updateFields = {
-                    status: "IN_PROGRESS",
+                    status: (doc?.adminMarkedAsCompleted || fromDownload) ? doc.status : "IN_PROGRESS",
                     contentData,
                     startDate: new Date(),
                     totalTrainingModules: contentData?.length,
@@ -427,23 +428,34 @@ const addDataToOverallTrainingProgress = async (input, errors, session) => {
 
     }
 
-    const updateOverallTrainingProgress = [];
-    for (const item of input) {
+    if (!fromDownload) {
 
-        const lastModule = item.trainingModules[item.trainingModules.length - 1];
-        const lastContent = lastModule.contentDetails[lastModule.contentDetails.length - 1];
+        const updateOverallTrainingProgress = [];
+        for (const item of input) {
 
-        updateOverallTrainingProgress.push({
-            updateOne: {
-                filter: { _id: item.overallId },
-                update: { $set: { lastConsumedContent: { moduleId: lastModule.moduleId, contentId: lastContent.contentId } } }
-            }
-        })
+            const lastModule = item.trainingModules[item.trainingModules.length - 1];
+            const lastContent = lastModule.contentDetails[lastModule.contentDetails.length - 1];
+
+            updateOverallTrainingProgress.push({
+                updateOne: {
+                    filter: { _id: item.overallId },
+                    update: { $set: { lastConsumedContent: { moduleId: lastModule.moduleId, contentId: lastContent.contentId } } }
+                }
+            })
+
+        }
+
+        if (updateOverallTrainingProgress.length > 0) {
+            await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress, { session });
+        }
 
     }
 
-    if (updateOverallTrainingProgress.length > 0) {
-        await OverallTrainingProgress.bulkWrite(updateOverallTrainingProgress, { session });
+
+    const overallProgresses = await OverallTrainingProgress.find({ _id: { $in: overallIds } });
+
+    if (overallProgresses.length > 0) {
+        return overallProgresses;
     }
 
 }
@@ -614,7 +626,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 notifications.push({
                     subscriber: subscriberId,
                     title: [{ lang: "en", value: `Course completed successfully!` }],
-                    message: [{ lang: "en", value: `The course ${trainingName ?? ''} has been successfully completed. You have successfully completed the course ${trainingName ?? ''}` }],
+                    message: [{ lang: "en", value: `The course ${trainingName ?? ''} has been successfully completed.` }],
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
                     notifiers: [userId],
@@ -778,6 +790,10 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     let bulkOperations = [];
 
     overallIdModuleProgressMap.forEach(({ progressPercentages, durations }, overallId) => {
+
+        // Find doc with overallId
+        const overallDoc = overallDocs.find(doc => doc._id.toString() === overallId.toString());
+
         const totalDuration = durations.reduce((sum, val) => sum + val, 0);
         const total = progressPercentages.reduce((sum, val) => sum + val, 0);
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
@@ -795,7 +811,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
             updateFields.status = "COMPLETED";
             updateFields.endDate = new Date();
         } else if (average >= 0 && average < 100) {
-            updateFields.status = "IN_PROGRESS";
+            updateFields.status = overallDoc?.adminMarkedAsCompleted ? overallDoc?.status : "IN_PROGRESS";
         }
 
         bulkOperations.push({

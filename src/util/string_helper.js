@@ -2,15 +2,20 @@ module.exports = {
     stringNormalize: value => {
         if (value && typeof value === "string") return value.normalize("NFKC");
     },
-    convertMinutesToHHMMSS: (minutes) => {
-        if (typeof minutes !== "number" || minutes < 0) {
+    convertMinutesToHHMMSS: (decimalMinutes) => {
+        if (typeof decimalMinutes !== "number" || decimalMinutes < 0) {
             throw new Error("Invalid input. Minutes must be a non-negative number.");
         }
-    
-        const hours = Math.floor(minutes / 60);
-        const mins = Math.floor(minutes % 60);
-        const secs = Math.floor((minutes * 60) % 60);
-    
-        return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+        const minutesPart = Math.floor(decimalMinutes);
+        const secondsPart = Math.round((decimalMinutes % 1) * 100);
+
+        const totalSeconds = minutesPart * 60 + secondsPart;
+
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 };
