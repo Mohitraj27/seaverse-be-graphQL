@@ -278,7 +278,7 @@ const createLearningPlanHelper = async (input, context) => {
         if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
-        if (newLearningPlan?.status === learningPlanStatus.ACTIVE) {
+        if (newLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE) {
             const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
             if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
                 const enrollData = {
