@@ -102,6 +102,10 @@ const overallProgressSchema = new Schema(
         finishedCourseFirstTime: {
             type: Boolean,
             default: false
+        },
+        version: {
+            type: Number,
+            default: 1
         }
     },
     { timestamps: true }
