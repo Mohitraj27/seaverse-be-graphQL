@@ -85,6 +85,7 @@ module.exports = {
             isCertificatePresent: Boolean
             finishedCourseFirstTime: Boolean
             adminMarkedAsCompleted: Boolean
+            version: Int
         }
         type TrainingRegistrationList {
             trainingRegistrations: [TrainingRegistration]
