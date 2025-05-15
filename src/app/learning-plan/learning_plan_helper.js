@@ -365,7 +365,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             groupIDs: input.groupIDs || existingLearningPlan.groupIDs
         });
         if (input.audienceSelection === audienceSelection.EVERYONE_IN_ORGANIZATION) {
-            existingLearningPlan.groupIDs = []; 
+            existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
@@ -397,14 +397,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 groupIDs: input.groupIDs
             });
             learnersToAssign = userIds;
-            
+
         }
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
 
         if (learnersToAssign?.length > 0) {
-               const existingAssignments = await LearningPlanAssignment.find({
+            const existingAssignments = await LearningPlanAssignment.find({
                 learningPlanId: existingLearningPlan._id,
                 assignedLearnerId: { $in: learnersToAssign },
                 isDeleted: false,
@@ -1033,7 +1033,7 @@ const mergeUsersData = (inputData) => {
 const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = [], pageInput) => {
 
     try {
-        const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+        const matchCriteria = { learningPlan: { $in: [learningPlanId] }, isEnrolled: { $ne: false } };
 
         const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
