@@ -3436,7 +3436,7 @@ module.exports = {
 
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
-                usersCount: userCount,
+                usersCount: 0,
                 uploadedBy: userId,
                 fileName: newFileName,
                 filePath: { url: saveCSV },
@@ -3463,7 +3463,7 @@ module.exports = {
 
             const createImportLog = await ImportLog.create({
                 subscriber: subscriberId,
-                usersCount: userCount,
+                usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
                 uploadedBy: userId,
                 fileName: newFileName,
                 filePath: { url: saveCSV },
