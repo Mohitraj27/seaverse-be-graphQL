@@ -1722,6 +1722,9 @@ module.exports.mutations = {
                     {
                         $set: {
                             "contentData.$[outer].contentIds.$[inner]": trainingContentId
+                        },
+                        $inc: {
+                            version: 1
                         }
                     },
                     {
