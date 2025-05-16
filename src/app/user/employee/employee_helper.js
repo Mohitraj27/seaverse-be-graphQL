@@ -216,11 +216,34 @@ async function enrollUsers(enrollDataArray) {
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
 
-        const trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+        let trainingRegistrations;
 
-        if (!trainingRegistrations || trainingRegistrations.length === 0) {
-            throw new Error("No training registration found for the provided training IDs.");
+        let subscriberId;
+        const subscriber = await Subscriber.findOne();
+        if (subscriber) {
+            subscriberId = subscriber._id;
         }
+
+        const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+
+        const existingTrainingIds = existingRegistrations.map(reg => reg.training.toString());
+
+        const missingTrainingIds = trainingObjectIds.filter(id => !existingTrainingIds.includes(id.toString()));
+
+        if (missingTrainingIds.length > 0) {
+
+            const newTrainingRegistrations = await TrainingRegistration.insertMany(
+                missingTrainingIds.map(trainingId => ({
+                    training: trainingId,
+                    subscriber: subscriberId
+                }))
+            );
+
+        }
+
+
+        trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+
 
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
         const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
@@ -596,64 +619,64 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...resultforGroup?.allMatchedUsers);
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-            const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-            if(resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0){ 
-              // Filter group-matched users by conditional custom fields
-                const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
-                // const validUsers = userConditions.filter(user =>
-                //     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                // );
-                const validUserIds = new Set(validUsers.map(user => user._id));
-                const usersToRemove = userConditions
-                    .filter(user => !validUserIds.has(user._id))
-                    .map(user => user._id);
+                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+                if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
+                    // Filter group-matched users by conditional custom fields
+                    const validUsers = userConditions.filter(user => resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+                    // const validUsers = userConditions.filter(user =>
+                    //     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                    // );
+                    const validUserIds = new Set(validUsers.map(user => user._id));
+                    const usersToRemove = userConditions
+                        .filter(user => !validUserIds.has(user._id))
+                        .map(user => user._id);
 
-                const userIds = validUsers.map(user => user._id);
+                    const userIds = validUsers.map(user => user._id);
 
-                if (validUsers?.length > 0) {
+                    if (validUsers?.length > 0) {
 
-                    const existingAssignments = await LearningPlanAssignment.find({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: userIds },
-                        isDeleted: { $ne: true }
-                    }, { assignedLearnerId: 1 });
-
-                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
-
-                    const newAssignments = userIds
-                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
-                        .map(userId => ({
+                        const existingAssignments = await LearningPlanAssignment.find({
                             learningPlanId: plan._id,
-                            assignedLearnerId: userId,
-                            isMannuallyAdded: false,
-                            createdBy: context.user.userId,
-                            updatedBy: context.user.userId,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        }));
+                            assignedLearnerId: { $in: userIds },
+                            isDeleted: { $ne: true }
+                        }, { assignedLearnerId: 1 });
 
-                    if (newAssignments.length > 0) {
-                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                        console.log('data enrolled ', dataEnrolled);
-                    }
-                    usersToEnroll.push(...userIds);
-                }
-                if (usersToRemove.length > 0) {
-                    await OverallTrainingProgress.updateMany(
-                        {
-                            learningPlan: plan._id,
-                            user: { $in: usersToRemove }
-                        },
-                        {
-                            $pull: { learningPlan: plan._id }
+                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                        const newAssignments = userIds
+                            .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                            .map(userId => ({
+                                learningPlanId: plan._id,
+                                assignedLearnerId: userId,
+                                isMannuallyAdded: false,
+                                createdBy: context.user.userId,
+                                updatedBy: context.user.userId,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }));
+
+                        if (newAssignments.length > 0) {
+                            const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                            console.log('data enrolled ', dataEnrolled);
                         }
-                    );
-                    const deleteResult = await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: usersToRemove }
-                    });
+                        usersToEnroll.push(...userIds);
+                    }
+                    if (usersToRemove.length > 0) {
+                        await OverallTrainingProgress.updateMany(
+                            {
+                                learningPlan: plan._id,
+                                user: { $in: usersToRemove }
+                            },
+                            {
+                                $pull: { learningPlan: plan._id }
+                            }
+                        );
+                        const deleteResult = await LearningPlanAssignment.deleteMany({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: { $in: usersToRemove }
+                        });
+                    }
                 }
-            }
             }
             if (usersToEnroll.length > 0) {
                 const enrollData = {
@@ -1636,7 +1659,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                     { session }
                 );
 
-                const noCourseDataToBeRemoved = trainingProgressesToBeDeleted.length == 0 && trainingProgressesNotToBeDeleted.length == 0 ;
+                const noCourseDataToBeRemoved = trainingProgressesToBeDeleted.length == 0 && trainingProgressesNotToBeDeleted.length == 0;
                 if (noCourseDataToBeRemoved) {
                     await User.deleteMany(
                         { _id: { $in: users } },
@@ -1963,22 +1986,22 @@ const clear7dayOldUsersWhoRejectedTAndC = async () => {
 
         const usersWhoRejected = await User.find({
             consents: {
-              $elemMatch: {
-                consentType: consentTypes.INITIAL_LOGIN,
-                status: false,
-                timestamps: { $lte: sevenDaysAgo },
-              }
+                $elemMatch: {
+                    consentType: consentTypes.INITIAL_LOGIN,
+                    status: false,
+                    timestamps: { $lte: sevenDaysAgo },
+                }
             }
-          })
-          .select('_id');
-          
+        })
+            .select('_id');
+
         const rejectedUserIds = usersWhoRejected.map(user => user._id);
 
         if (rejectedUserIds.length === 0) {
             return "No users to delete";
         }
         await approveDeleteRequests(rejectedUserIds, false);
-      
+
     }
     catch (error) {
         throw new Error(error.message);
@@ -1996,7 +2019,7 @@ const scheduledForEveryDayMidnight = async () => {
 
             //clear 7 day old users who rejected terms and conditions
             await clear7dayOldUsersWhoRejectedTAndC();
-            
+
             //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
             await reject30DayOldSignupRequests();
             await approve30DayOldDeleteRequests();
@@ -2013,7 +2036,7 @@ const scheduledForEveryDayMidnight = async () => {
 const approve30DayOldDeleteRequests = async () => {
     try {
         const currentDate = new Date();
-        const thirtyDaysAgo = new Date(Date.now()  - 30 * 24 * 60 * 60 * 1000 ); 
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
 
@@ -2030,7 +2053,7 @@ const approve30DayOldDeleteRequests = async () => {
     }
 }
 
-const approveDeleteRequests = async (getUsers,isHistoryRequired = true) => {
+const approveDeleteRequests = async (getUsers, isHistoryRequired = true) => {
     try {
         const input = {};
         input.users = getUsers.map(user => user._id);
@@ -2152,19 +2175,19 @@ const sendDeletionEmailBulk = async () => {
     try {
         let results = [];
         while (true) {
-
+ 
             const deletionBatch = await fetchDeletionBatch();
             if (deletionBatch.length === 0) {
                 break;
             }
-
+ 
             const batchResults = await sendDeletionWithRetry(deletionBatch);
-
+ 
             results = results.concat(batchResults);
             await delay(200);
-
+ 
             const deletionIds = deletionBatch.map(email => email.id);
-
+ 
             // Filter successful emails to delete
             const successfulIds = [];
             batchResults.forEach((result, index) => {
@@ -2172,15 +2195,15 @@ const sendDeletionEmailBulk = async () => {
                     successfulIds.push(deletionIds[index]);
                 }
             });
-
+ 
             if (successfulIds.length > 0) {
                 await deleteDeletionBatch(successfulIds);
             }
         }
-
+ 
         const success = results.filter(res => res.status === "fulfilled");
         const errors = results.filter(res => res.status === "rejected");
-
+ 
         return {
             status: "success",
             successCount: success.length,
@@ -2195,7 +2218,7 @@ const sendDeletionEmailBulk = async () => {
         };
     }
 };
-
+ 
 const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
     try {
         const emailPromises = deletionBatch.map(async (user) => {
@@ -2209,7 +2232,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
                 return Promise.reject(new Error("Invalid email address"));
             }
         });
-
+ 
         return await Promise.allSettled(emailPromises);
     } catch (error) {
         if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {
@@ -3133,7 +3156,7 @@ module.exports = {
                 icon: notificationiconEnum.ERROR,
                 creatorId: userInfo._id,
             });
-            
+
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
                 `${errors[0]}`
