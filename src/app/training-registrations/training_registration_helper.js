@@ -1282,10 +1282,11 @@ module.exports = {
                     const notifications = userObjectIds.flatMap(userId =>
                         input.trainings.map(trainingId => ({
                             subscriber: subscriberId,
-                            titleValue: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you`,
-                            messageValue: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.`,
+                            title: [{ lang: "en", value: `${trainingTitlesMap.get(trainingId.toString())} has been enrolled to you` }],
+                            message: [{ lang: "en", value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(trainingId.toString())}.` }],
                             notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
                             notifyAllAdmin: false,
+                            isNotificatonForAdmin: false,
                             notifiers: [userId],
                             employeeNotifiers: [userId],
                             affected: [],
@@ -1301,7 +1302,7 @@ module.exports = {
                             }]
                         }))
                     );
-                    await NotificationHelper.createNotificationhelper(...notifications);
+                    await NotificationHelper.createNotification(notifications);
                 } else {
                     throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER, "Selected Group doesn't have members enrollment is not possible");
                 }

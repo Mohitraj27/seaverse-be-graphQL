@@ -2027,7 +2027,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { _id: { $in: input.users } },
                 { isRegistered: true }
             );
-            const emailContentforAdmin = registered_statusforAdmin(
+            /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
                     userfirstName: users[0].firstName
@@ -2037,7 +2037,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 receiverEmail: userInfo.email,
                 subject: `User Status Update: ${input.type}`,
                 htmlContent: emailContentforAdmin,
-            });
+            }); */
             if (learningPlans?.length > 0) {
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
