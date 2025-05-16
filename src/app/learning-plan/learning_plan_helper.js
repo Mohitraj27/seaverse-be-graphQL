@@ -278,15 +278,17 @@ const createLearningPlanHelper = async (input, context) => {
         if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
-        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
-        if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
-            const enrollData = {
-                trainings: newLearningPlan.selectCourses,
-                users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
-                type: "ENROLL",
-                learningPlan: newLearningPlan._id
+        if (newLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE) {
+            const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
+            if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
+                const enrollData = {
+                    trainings: newLearningPlan.selectCourses,
+                    users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
+                    type: "ENROLL",
+                    learningPlan: newLearningPlan._id
+                }
+                await createTrainingRegistration(enrollData, context);
             }
-            await createTrainingRegistration(enrollData, context);
         }
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
@@ -439,13 +441,25 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
 
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
-            const enrollData = {
-                trainings: existingLearningPlan.selectCourses,
-                users: learnersToAssign.map(learner => learner._id),
-                type: "ENROLL",
-                learningPlan: existingLearningPlan._id
-            };
-            await createTrainingRegistration(enrollData, context);
+            const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
+            if(courseIds?.length > 0){            
+            const publishedCourses = await Training.find({
+                _id: { $in: courseIds },
+                status: "PUBLISHED",
+                isDeleted: false
+            }).select('_id'); 
+
+            const publishedCourseIds = publishedCourses?.map(course => course._id);
+            if (publishedCourseIds?.length > 0) {
+                const enrollData = {
+                    trainings: publishedCourseIds,
+                    users: learnersToAssign?.map(learner => learner._id) || [],
+                    type: "ENROLL",
+                    learningPlan: existingLearningPlan._id
+                };
+                await createTrainingRegistration(enrollData, context);
+            }
+        }
         }
         let inputCourses = [], excludedCourses = [];
         if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
