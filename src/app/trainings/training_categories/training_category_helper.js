@@ -20,6 +20,7 @@ module.exports = {
                 ],
                 notificationType: NotificationType["TRAINING_CATEGORY_" + notificationData.action],
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
