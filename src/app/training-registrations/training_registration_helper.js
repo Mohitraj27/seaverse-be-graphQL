@@ -640,7 +640,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                                 filter: { training, user: user._id },
                                 update: {
                                     $addToSet: { learningPlan: learningPlanId },
-                                    $set: { isEnrolled: true, unenrollmentDate: null, totalDuration: durationHours },
+                                    $set: { unenrollmentDate: null, totalDuration: durationHours },
                                 },
                             },
                         };

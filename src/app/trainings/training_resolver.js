@@ -443,13 +443,14 @@ module.exports.mutations = {
         }
 
         if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
+        /* 
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: deletedTraining,
             action: "DELETED",
             createdBy: userInfo,
         });
-
+        */
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,

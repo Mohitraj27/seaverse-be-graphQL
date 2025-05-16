@@ -1035,7 +1035,7 @@ const mergeUsersData = (inputData) => {
 const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = [], pageInput) => {
 
     try {
-        const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+        const matchCriteria = { learningPlan: { $in: [learningPlanId] }, isEnrolled: { $ne: false } };
 
         const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
