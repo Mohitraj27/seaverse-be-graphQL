@@ -220,11 +220,34 @@ async function enrollUsers(enrollDataArray) {
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
 
-        const trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+        let trainingRegistrations;
 
-        if (!trainingRegistrations || trainingRegistrations.length === 0) {
-            throw new Error("No training registration found for the provided training IDs.");
+        let subscriberId;
+        const subscriber = await Subscriber.findOne();
+        if (subscriber) {
+            subscriberId = subscriber._id;
         }
+
+        const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+
+        const existingTrainingIds = existingRegistrations.map(reg => reg.training.toString());
+
+        const missingTrainingIds = trainingObjectIds.filter(id => !existingTrainingIds.includes(id.toString()));
+
+        if (missingTrainingIds.length > 0) {
+
+            const newTrainingRegistrations = await TrainingRegistration.insertMany(
+                missingTrainingIds.map(trainingId => ({
+                    training: trainingId,
+                    subscriber: subscriberId
+                }))
+            );
+
+        }
+
+
+        trainingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
+
 
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
         const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
@@ -769,6 +792,7 @@ const sendDeleteNotification = async (notificationsData) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -821,6 +845,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -868,6 +893,7 @@ const sendEnrollmentNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
@@ -961,6 +987,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `${notificationData.action}` }],
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             createdBy: notificationData.createdBy,
@@ -992,6 +1019,7 @@ const sendNotificationOnCRUD = async notificationData => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `Employee ${notificationData.action}` }],
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [
@@ -2160,19 +2188,19 @@ const sendDeletionEmailBulk = async () => {
     try {
         let results = [];
         while (true) {
-
+ 
             const deletionBatch = await fetchDeletionBatch();
             if (deletionBatch.length === 0) {
                 break;
             }
-
+ 
             const batchResults = await sendDeletionWithRetry(deletionBatch);
-
+ 
             results = results.concat(batchResults);
             await delay(200);
-
+ 
             const deletionIds = deletionBatch.map(email => email.id);
-
+ 
             // Filter successful emails to delete
             const successfulIds = [];
             batchResults.forEach((result, index) => {
@@ -2180,15 +2208,15 @@ const sendDeletionEmailBulk = async () => {
                     successfulIds.push(deletionIds[index]);
                 }
             });
-
+ 
             if (successfulIds.length > 0) {
                 await deleteDeletionBatch(successfulIds);
             }
         }
-
+ 
         const success = results.filter(res => res.status === "fulfilled");
         const errors = results.filter(res => res.status === "rejected");
-
+ 
         return {
             status: "success",
             successCount: success.length,
@@ -2203,7 +2231,7 @@ const sendDeletionEmailBulk = async () => {
         };
     }
 };
-
+ 
 const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
     try {
         const emailPromises = deletionBatch.map(async (user) => {
@@ -2217,7 +2245,7 @@ const sendDeletionWithRetry = async (deletionBatch, retryCount = 0) => {
                 return Promise.reject(new Error("Invalid email address"));
             }
         });
-
+ 
         return await Promise.allSettled(emailPromises);
     } catch (error) {
         if (error.message.includes("Maximum sending rate exceeded") && retryCount < 5) {

@@ -92,7 +92,10 @@ module.exports.queries = {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
-                        as: "createdByUser"
+                        as: "createdByUser",
+                         pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
                     },
                 },
                 {
@@ -100,7 +103,10 @@ module.exports.queries = {
                         from: "users",
                         localField: "updatedBy",
                         foreignField: "_id",
-                        as: "updatedByUser"
+                        as: "updatedByUser",
+                          pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
                     },
                 },
                 {
