@@ -1621,6 +1621,7 @@ module.exports = {
                 notificationType:
                     NotificationType["TRAINING_REGISTRATION_" + notificationData.action],
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

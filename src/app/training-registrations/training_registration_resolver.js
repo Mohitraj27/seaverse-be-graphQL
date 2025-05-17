@@ -1927,6 +1927,7 @@ module.exports.mutations = {
                     messageValue: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
                     notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
