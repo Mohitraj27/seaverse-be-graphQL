@@ -671,6 +671,7 @@ module.exports.mutations = {
                     ],
                     notificationType: NotificationType.USER_DELETE_REQUEST,
                     notifyAllAdmin: true,
+                    isNotificatonForAdmin: true,
                     notifiers: [],
                     additionalInfo: [
                         {

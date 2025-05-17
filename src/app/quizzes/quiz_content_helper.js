@@ -57,6 +57,7 @@ module.exports.QuizContentHelper = {
                 title: [{ lang: "en", value: `Quiz ${notificationData.action}` }],
                 notificationType: NotificationType["QUIZ_" + notificationData.action],
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: notificationData.notifiers ?? [],
                 employeeNotifiers: [],
                 affected: [

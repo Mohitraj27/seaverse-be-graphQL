@@ -784,6 +784,7 @@ const sendDeleteNotification = async (notificationsData) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -836,6 +837,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [
@@ -883,6 +885,7 @@ const sendEnrollmentNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
@@ -976,6 +979,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `${notificationData.action}` }],
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             createdBy: notificationData.createdBy,
@@ -1007,6 +1011,7 @@ const sendNotificationOnCRUD = async notificationData => {
             subscriber: notificationData.subscriber,
             title: [{ lang: "en", value: `Employee ${notificationData.action}` }],
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [

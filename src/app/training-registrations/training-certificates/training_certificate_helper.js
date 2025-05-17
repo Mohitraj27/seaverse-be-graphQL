@@ -96,6 +96,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: false,
                 notifiers: notificationData.userIds ? notificationData.userIds : [],
                 employeeNotifiers: [],
                 affected: [
@@ -248,6 +249,7 @@ module.exports = {
                 messageValue: `Congratulations! Your certificate for completing the course ${selectedCourse.title} has been successfully generated.`,
                 notificationType: NotificationType.CERTIFICATE_GENERATED_SUCCESS,
                 notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
                 notifiers: [userId],
                 employeeNotifiers: [userId],
                 status: 'SENT',

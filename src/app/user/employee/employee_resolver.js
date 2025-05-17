@@ -2177,6 +2177,7 @@ const manageRole = async ({ input }, context) => {
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: affectedUsers.map(user => ({
