@@ -108,10 +108,9 @@ const sendCredentialMail = async ({ userData }) => {
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email,_id } = conditions;
     const matches = conditionalCustomFields.map((field) => {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
-
         switch (type_of_Field) {
             case "DESIGNATION":
                 if (designationID === null || designationID === undefined) {
@@ -146,10 +145,15 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                     : !valueOfField.includes(currentStatus);
 
             case "EMAIL":
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(email)
-                    : !valueOfField.includes(email);
-
+                if (_id === null || _id === undefined) {
+                    return true;
+                }
+                
+                const data = isOrIsNot === "IS"
+                    ? valueOfField.map((el) => el == _id).some((el) => el === true)
+                    : valueOfField.map((el) => el != _id).some((el) => el === false);
+              
+                return data;
             case "GROUP":
                 return groupIDs?.some((group) => {
                     switch (group.groupType) {
@@ -511,9 +515,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                console.log(userConditions, 'data reciverd from user conditions');
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
+                console.log('valid users ', validUsers);
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
                 const usersToRemove = userConditions
@@ -581,6 +587,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 }
             }
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
+
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
                 if (resultforGroup?.success) {
                     const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
@@ -596,64 +603,65 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...resultforGroup?.allMatchedUsers);
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-            const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-            if(resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0){ 
-              // Filter group-matched users by conditional custom fields
-                const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
-                // const validUsers = userConditions.filter(user =>
-                //     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                // );
-                const validUserIds = new Set(validUsers.map(user => user._id));
-                const usersToRemove = userConditions
-                    .filter(user => !validUserIds.has(user._id))
-                    .map(user => user._id);
-
-                const userIds = validUsers.map(user => user._id);
-
-                if (validUsers?.length > 0) {
-
-                    const existingAssignments = await LearningPlanAssignment.find({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: userIds },
-                        isDeleted: { $ne: true }
-                    }, { assignedLearnerId: 1 });
-
-                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
-
-                    const newAssignments = userIds
-                        .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
-                        .map(userId => ({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: userId,
-                            isMannuallyAdded: false,
-                            createdBy: context.user.userId,
-                            updatedBy: context.user.userId,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        }));
-
-                    if (newAssignments.length > 0) {
-                        const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                        console.log('data enrolled ', dataEnrolled);
-                    }
-                    usersToEnroll.push(...userIds);
-                }
-                if (usersToRemove.length > 0) {
-                    await OverallTrainingProgress.updateMany(
-                        {
-                            learningPlan: plan._id,
-                            user: { $in: usersToRemove }
-                        },
-                        {
-                            $pull: { learningPlan: plan._id }
-                        }
+                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+                console.log('result for Group ', resultforGroup);
+                if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
+                    // Filter group-matched users by conditional custom fields
+                    // const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+                    const validUsers = userConditions.filter(user =>
+                        evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                     );
-                    const deleteResult = await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: usersToRemove }
-                    });
+                    const validUserIds = new Set(validUsers.map(user => user._id));
+                    const usersToRemove = userConditions
+                        .filter(user => !validUserIds.has(user._id))
+                        .map(user => user._id);
+
+                    const userIds = validUsers.map(user => user._id);
+
+                    if (validUsers?.length > 0) {
+
+                        const existingAssignments = await LearningPlanAssignment.find({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: { $in: userIds },
+                            isDeleted: { $ne: true }
+                        }, { assignedLearnerId: 1 });
+
+                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+
+                        const newAssignments = userIds
+                            .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
+                            .map(userId => ({
+                                learningPlanId: plan._id,
+                                assignedLearnerId: userId,
+                                isMannuallyAdded: false,
+                                createdBy: context.user.userId,
+                                updatedBy: context.user.userId,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }));
+
+                        if (newAssignments.length > 0) {
+                            const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
+                            console.log('data enrolled ', dataEnrolled);
+                        }
+                        usersToEnroll.push(...userIds);
+                    }
+                    if (usersToRemove.length > 0) {
+                        await OverallTrainingProgress.updateMany(
+                            {
+                                learningPlan: plan._id,
+                                user: { $in: usersToRemove }
+                            },
+                            {
+                                $pull: { learningPlan: plan._id }
+                            }
+                        );
+                        const deleteResult = await LearningPlanAssignment.deleteMany({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: { $in: usersToRemove }
+                        });
+                    }
                 }
-            }
             }
             if (usersToEnroll.length > 0) {
                 const enrollData = {
@@ -1636,7 +1644,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                     { session }
                 );
 
-                const noCourseDataToBeRemoved = trainingProgressesToBeDeleted.length == 0 && trainingProgressesNotToBeDeleted.length == 0 ;
+                const noCourseDataToBeRemoved = trainingProgressesToBeDeleted.length == 0 && trainingProgressesNotToBeDeleted.length == 0;
                 if (noCourseDataToBeRemoved) {
                     await User.deleteMany(
                         { _id: { $in: users } },
@@ -1963,22 +1971,22 @@ const clear7dayOldUsersWhoRejectedTAndC = async () => {
 
         const usersWhoRejected = await User.find({
             consents: {
-              $elemMatch: {
-                consentType: consentTypes.INITIAL_LOGIN,
-                status: false,
-                timestamps: { $lte: sevenDaysAgo },
-              }
+                $elemMatch: {
+                    consentType: consentTypes.INITIAL_LOGIN,
+                    status: false,
+                    timestamps: { $lte: sevenDaysAgo },
+                }
             }
-          })
-          .select('_id');
-          
+        })
+            .select('_id');
+
         const rejectedUserIds = usersWhoRejected.map(user => user._id);
 
         if (rejectedUserIds.length === 0) {
             return "No users to delete";
         }
         await approveDeleteRequests(rejectedUserIds, false);
-      
+
     }
     catch (error) {
         throw new Error(error.message);
@@ -1996,7 +2004,7 @@ const scheduledForEveryDayMidnight = async () => {
 
             //clear 7 day old users who rejected terms and conditions
             await clear7dayOldUsersWhoRejectedTAndC();
-            
+
             //reject 30 day old user requests for userprofile deletion and approve 30 day old signup requests
             await reject30DayOldSignupRequests();
             await approve30DayOldDeleteRequests();
@@ -2013,7 +2021,7 @@ const scheduledForEveryDayMidnight = async () => {
 const approve30DayOldDeleteRequests = async () => {
     try {
         const currentDate = new Date();
-        const thirtyDaysAgo = new Date(Date.now()  - 30 * 24 * 60 * 60 * 1000 ); 
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         const query = { deleteRequestDate: { $lte: thirtyDaysAgo } };
 
@@ -2030,7 +2038,7 @@ const approve30DayOldDeleteRequests = async () => {
     }
 }
 
-const approveDeleteRequests = async (getUsers,isHistoryRequired = true) => {
+const approveDeleteRequests = async (getUsers, isHistoryRequired = true) => {
     try {
         const input = {};
         input.users = getUsers.map(user => user._id);
@@ -3133,7 +3141,7 @@ module.exports = {
                 icon: notificationiconEnum.ERROR,
                 creatorId: userInfo._id,
             });
-            
+
             throw CustomError(
                 ErrorName.VALIDATION_ERROR,
                 `${errors[0]}`
