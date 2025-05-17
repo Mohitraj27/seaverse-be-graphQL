@@ -44,8 +44,8 @@ module.exports = {
     
         notifications.push({
             subscriber,
-            title: [{ lang: "en", value: titleValue }], 
-            message: [{ lang: "en", value: messageValue }], 
+            title: [{ lang: "en", value: titleValue }],
+            message: [{ lang: "en", value: messageValue }],
             notificationType,
             notifyAllAdmin,
             isNotificatonForAdmin,
