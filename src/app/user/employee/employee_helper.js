@@ -200,8 +200,9 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     currentCertificateLayout: currentCertificateLayout ?? null
 });
 
-async function enrollUsers(enrollDataArray) {
+async function enrollUsers(enrollDataArray,context) {
     try {
+        const { userInfo } = AuthUser(context);
         const allUserIds = [];
         const allTrainingIds = [];
 
@@ -222,6 +223,21 @@ async function enrollUsers(enrollDataArray) {
         const subscriber = await Subscriber.findOne();
         if (subscriber) {
             subscriberId = subscriber._id;
+        }
+
+        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds }, isEnrolled: { $ne: true } });
+        const existingSetOfUserTrainings = new Set(
+            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
+        );
+        const newEnrollments = [];
+
+        for (const userId of userObjectIds) {
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    newEnrollments.push({ userId, trainingId });
+                }
+            }
         }
 
         const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
@@ -385,6 +401,82 @@ async function enrollUsers(enrollDataArray) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
+        try {
+            const trainingProgressDocuments = await OverallTrainingProgress.find({
+                user: { $in:  userObjectIds },
+                training: { $in: trainingObjectIds }
+            });
+    
+            const trainingProgressMap = new Map();
+    
+            trainingProgressDocuments.forEach(doc => {
+                const key = `${doc.user.toString()}_${doc.training.toString()}`;
+                trainingProgressMap.set(key, doc._id);
+            });
+    
+            // Precompute training progress IDs for quick lookup
+            const trainingProgressMapComputed = new Map(
+                userObjectIds.flatMap(userId =>
+                    trainingObjectIds.map(trainingId => {
+                        const key = `${userId}_${trainingId}`;
+                        return [key, trainingProgressMap.get(key)];
+                    })
+                )
+            );
+    
+            const trainingTitlesMap = new Map(
+                (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
+                    .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
+            );
+    
+            if (userObjectIds?.length > 0) { 
+                const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
+                    subscriber: subscriberId,
+                    title: [
+                        {
+                            lang: "en",
+                            value: `${trainingTitlesMap.get(
+                                trainingId.toString()
+                            )} has been enrolled to you`,
+                        },
+                    ],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
+                                trainingId.toString()
+                            )}.`,
+                        },
+                    ],
+                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    affected: [],
+                    status: "SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                    additionalInfo: [
+                        {
+                            infoType: "VIEW_COURSE",
+                            infoData: {
+                                filePath: trainingId,
+                                trainingProgressId: trainingProgressMapComputed.get(
+                                    `${userId}_${trainingId}`
+                                ),
+                            },
+                        },
+                    ],
+                }));
+    
+                if (notifications?.length > 0) {
+                    await NotificationHelper.createNotification(notifications);
+                }
+            }
+        } catch (error) {
+            console.log(error);
+        }
 
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
@@ -393,6 +485,7 @@ async function enrollUsers(enrollDataArray) {
 
         return finalEnrollments;
     } catch (error) {
+        console.log(error);
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
@@ -686,7 +779,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     learningPlan: plan._id,
                     session
                 };
-                await enrollUsers([enrollData]);
+                await enrollUsers([enrollData], context);
                 return true;
             }
             return false;
