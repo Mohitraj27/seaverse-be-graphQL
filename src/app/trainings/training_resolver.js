@@ -8,7 +8,9 @@ const {
 } = require("../../util");
 const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
+const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const { TrainingModule } = require("./training_modules/training_module_model");
+const  LearningPlanStatus  = require("../learning-plan/enumFields/learning_plan_status.json");
 const {
     TrainingModuleContent,
 } = require("./training_modules/training_module_contents/training_module_content_model");
@@ -256,8 +258,8 @@ module.exports.mutations = {
             for (const module of input.trainingModules) {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
-                  
-                  console.log("trainingContent", trainingContent);
+
+                    console.log("trainingContent", trainingContent);
                     const duration = trainingContent?.duration || 0;
                     const mins = Math.floor(duration);
                     const secs = Math.round((duration % 1) * 100);
@@ -409,6 +411,19 @@ module.exports.mutations = {
 
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
+        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
+        const checkLastCourse = await LearningPlan.findOne({
+            selectCourses: { $in: ObjectId(id) },
+            status: LearningPlanStatus.ACTIVE
+        })
+
+        if (checkLastCourse) {
+            throw CustomError(
+                ErrorName.FORBIDDEN,
+                `This course is currently assigned to an active learning plan and cannot be deleted`
+            );
+        }
+
 
         let deletedTraining = await Training.findOne({
             _id: id,
