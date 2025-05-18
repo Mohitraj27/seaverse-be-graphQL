@@ -937,6 +937,7 @@ module.exports = {
     combineTrainingModules,
     mergeContentDetails,
     extractTrainingContentData,
+    sendCourseEmailBulk,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
