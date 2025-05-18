@@ -419,8 +419,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
                 continue;
             }
 
-            console.log(`Processing group type: ${groupType}, IDs: ${JSON.stringify(groupIDsList)}`);
-
             const matchingUsers = userConditions.filter(user => {
                 if (!user) return false;
 
@@ -466,8 +464,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
         // Remove duplicates (a user might match multiple group criteria)
         const uniqueMatchedUserIds = [...new Set(matchedUserIds)];
 
-        console.log(`Total unique matched users: ${uniqueMatchedUserIds.length}`);
-
         // Check for existing assignments to avoid duplicates
         const existingAssignments = await LearningPlanAssignment.find({
             learningPlanId: plan._id,
@@ -481,8 +477,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
         const newUserIds = uniqueMatchedUserIds.filter(userId =>
             !alreadyAssignedUserIds.has(userId.toString())
         );
-
-        console.log(`Users to be newly assigned: ${newUserIds.length}`);
 
         return {
             success: true,
@@ -612,7 +606,30 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
 
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+
+                
                 if (resultforGroup?.success) {
+
+                    const usersToRemove = userConditions
+                        .filter(user => !resultforGroup?.allMatchedUsers.includes(user._id))
+                        .map(user => user._id);
+    
+                    if (usersToRemove.length > 0) {
+                        await OverallTrainingProgress.updateMany(
+                            {
+                                learningPlan: plan._id,
+                                user: { $in: usersToRemove }
+                            },
+                            {
+                                $pull: { learningPlan: plan._id }
+                            }
+                        );
+                        const deleteResult = await LearningPlanAssignment.deleteMany({
+                            learningPlanId: plan._id,
+                            assignedLearnerId: { $in: usersToRemove }
+                        });
+                    }
+
                     const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
                         learningPlanId: resultforGroup?.planId,
                         assignedLearnerId: userId,
