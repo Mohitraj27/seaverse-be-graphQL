@@ -12,7 +12,7 @@ const {
 
 } = require("../../../util");
 const { CryptoHelper, PubSubHelper, Validator, CronHelper, ConsoleLog, ObjectId } = require("../../../tools");
-
+const courseEnrollment = require('../../email-template/courseEnrollment');
 const { Training } = require("../../trainings/training_model");
 const { Employee } = require("../../user/employee/employee_model");
 const { User, DeletedUser } = require("../../user/user_model");
@@ -61,7 +61,7 @@ const mongoose = require('mongoose');
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { clear } = require("geoip-lite");
 const { TrainingProgress } = require('../../training-registrations/training-progress/training_progress_model');
-const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests } = require("../../../util/sqlite_email_helper");
+const { fetchDeletionBatch, deleteDeletionBatch, insertDeletionRequests, insertCourseEmails, deleteCourseEmailBatch, fetchCourseEmailBatch } = require("../../../util/sqlite_email_helper");
 const LearningPlanStatus = require('../../learning-plan/enumFields/audienceSelectionEnum.json');
 const { groupTypes } = require('../../../util');
 const { DeleteRequestHistory } = require("./delete_request_history_model");
@@ -69,6 +69,8 @@ const HistorySignupRequest = require("../../signup-request-history/signup-reques
 const { reject30DayOldSignupRequests } = require("../../signup-request/signup-request-helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
+const { fetchFile, sendEmail } = require("../../../util/aws_helper");
+const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const sendCredentialMail = async ({ userData }) => {
@@ -200,8 +202,9 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     currentCertificateLayout: currentCertificateLayout ?? null
 });
 
-async function enrollUsers(enrollDataArray) {
+async function enrollUsers(enrollDataArray,context) {
     try {
+        const { userInfo } = AuthUser(context);
         const allUserIds = [];
         const allTrainingIds = [];
 
@@ -222,6 +225,21 @@ async function enrollUsers(enrollDataArray) {
         const subscriber = await Subscriber.findOne();
         if (subscriber) {
             subscriberId = subscriber._id;
+        }
+
+        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds }, isEnrolled: { $ne: true } });
+        const existingSetOfUserTrainings = new Set(
+            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
+        );
+        const newEnrollments = [];
+
+        for (const userId of userObjectIds) {
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    newEnrollments.push({ userId, trainingId });
+                }
+            }
         }
 
         const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
@@ -264,7 +282,7 @@ async function enrollUsers(enrollDataArray) {
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate currentCertificateLayout').lean();
+        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -385,7 +403,118 @@ async function enrollUsers(enrollDataArray) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
+        try {
+            const trainingProgressDocuments = await OverallTrainingProgress.find({
+                user: { $in:  userObjectIds },
+                training: { $in: trainingObjectIds }
+            });
+    
+            const trainingProgressMap = new Map();
+    
+            trainingProgressDocuments.forEach(doc => {
+                const key = `${doc.user.toString()}_${doc.training.toString()}`;
+                trainingProgressMap.set(key, doc._id);
+            });
+    
+            // Precompute training progress IDs for quick lookup
+            const trainingProgressMapComputed = new Map(
+                userObjectIds.flatMap(userId =>
+                    trainingObjectIds.map(trainingId => {
+                        const key = `${userId}_${trainingId}`;
+                        return [key, trainingProgressMap.get(key)];
+                    })
+                )
+            );
+    
+            const trainingTitlesMap = new Map(
+                (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
+                    .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
+            );
+    
+            if (userObjectIds?.length > 0) { 
+                const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
+                    subscriber: subscriberId,
+                    title: [
+                        {
+                            lang: "en",
+                            value: `${trainingTitlesMap.get(
+                                trainingId.toString()
+                            )} has been enrolled to you`,
+                        },
+                    ],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
+                                trainingId.toString()
+                            )}.`,
+                        },
+                    ],
+                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    affected: [],
+                    status: "SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                    additionalInfo: [
+                        {
+                            infoType: "VIEW_COURSE",
+                            infoData: {
+                                filePath: trainingId,
+                                trainingProgressId: trainingProgressMapComputed.get(
+                                    `${userId}_${trainingId}`
+                                ),
+                            },
+                        },
+                    ],
+                }));
+    
+                if (notifications?.length > 0) {
+                    await NotificationHelper.createNotification(notifications);
+                }
+            }
+        } catch (error) {
+            console.log(error);
+        }
 
+        try {
+
+            //send enrollment email
+            const imageUrlMap = new Map(await Promise.all(
+                trainingData.map(async training => [
+                    training?._id,
+                    await fetchFile(training?.coverImage?.url) ||
+                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
+                ])
+                ));
+
+            // Preprocess course data once
+            const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
+            const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
+            const coursesDataMap = trainingData.map(training => ({
+                trainingTitle: training?.title?.[0]?.value || ' ',
+                durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                courseImage: imageUrlMap.get(training?._id),
+            }));
+            // Prepare email data for insertion into SQLite queue
+            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+                receiverEmail: user.email,
+                firstName: user.firstName,
+                courses: coursesDataMap,
+                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+            }));
+
+            // Insert emails into the course_emails table
+            insertCourseEmails(emailData);
+            // Send the emails batch by batch
+            await sendCourseEmailBulk();
+        } catch (error) {
+            console.log(error);
+        }
+       
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }
@@ -393,9 +522,97 @@ async function enrollUsers(enrollDataArray) {
 
         return finalEnrollments;
     } catch (error) {
+        console.log(error);
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
+
+const sendCourseEmailBulk = async (action = 'ENROLL') => {
+    try {
+        let results = [];
+        while (true) {
+
+            const emailBatch = await fetchCourseEmailBatch(action);
+            if (!emailBatch.length) break;
+
+            // Generate HTML content dynamically
+            const emailsToSend = emailBatch.map(email => {
+                let html;
+                const coursesData = JSON.parse(email.courses);
+                
+                switch (email.action) {
+                    case 'ENROLL':
+                        html = courseEnrollment({
+                            firstName: email.firstName,
+                            courses: coursesData.courses || [],
+                            isAdmin: Boolean(email.isAdmin),
+                        });
+                        break;
+                    default:
+                        throw new Error('Unknown action');
+                }
+                return { to: email.email, subject: email.subject, html };
+            });
+
+            // Send emails (use sendWithRetry logic from existing code)
+            const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            results = results.concat(batchResults);
+            await delay(200);
+            // Delete processed emails
+            const emailIds = emailBatch.map(email => email.id);
+            await deleteCourseEmailBatch(emailIds);
+        }
+
+        // Return summary ( in case you have to verify success and errors, console the results)
+        const { successCount, errorCount, errors } = summarizeResults(results);
+
+        return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
+
+    } catch (error) {
+        console.log(error);
+        return { success: false, message: error.message };
+    }
+};
+
+
+const summarizeResults = (results) => {
+    const [success, errors] = results.reduce(
+        (acc, res) => [
+            acc[0].concat(res.status === 'fulfilled' ? res : []),
+            acc[1].concat(res.status === 'rejected' ? res : []),
+        ],
+        [[], []]
+    );
+    return {
+        successCount: success.length,
+        errorCount: errors.length,
+        errors: errors.map(err => err.reason.message),
+    };
+};
+const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
+    try {
+        const emailPromises = emailBatch.map(async (email) => {
+            const { to, subject, html } = email;
+            if (to?.trim()?.length) {
+                return await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+            } else {
+                return Promise.reject(new Error("Invalid email address"));
+            }
+        });
+        return await Promise.allSettled(emailPromises);
+    } catch (error) {
+        console.log(error);
+        if (
+            error.message.includes("Maximum sending rate exceeded") &&
+            retryCount < 5
+        ) {
+            await delay(2 ** retryCount * 1000);
+            return sendCourseMailsWithRetry(emailBatch, retryCount + 1);
+        }
+        throw error;
+    }
+};
+
 
 
 async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
@@ -704,7 +921,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     learningPlan: plan._id,
                     session
                 };
-                await enrollUsers([enrollData]);
+                await enrollUsers([enrollData], context);
                 return true;
             }
             return false;
