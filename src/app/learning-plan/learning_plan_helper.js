@@ -664,7 +664,7 @@ const getUsersAndCount = async (input) => {
                                 : { [field]: { $nin: groupIDs } };
                         } else {
                             const value = condition.valueOfField.map(status => status);
-                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value, $ne: null } };
                         }
                         return valueData;
                     }));
