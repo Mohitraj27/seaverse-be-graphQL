@@ -1683,6 +1683,19 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
 
+            const trainingsUsedTheContent = fetchCurrentContents.map((currentContent) => currentContent.training);
+            if (trainingsUsedTheContent.length > 0) {
+                // Update not started OVerall Training Progresses
+                await OverallTrainingProgress.updateMany(
+                    { training: { $in: trainingsUsedTheContent }, status: 'NOT_STARTED' },
+                    {
+                        $inc: {
+                            version: 1
+                        }
+                    },
+                )
+            }
+
             const bridgesToUpdate = fetchCurrentContents.map(content => ({
                 bridgeId: content._id,
                 trainingContentId: inputContents.find(ic => ic.UID === content.trainingContent.UID)._id,
