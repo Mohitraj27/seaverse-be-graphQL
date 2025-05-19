@@ -370,6 +370,9 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
+        if(existingLearningPlan?.status === learningPlanStatus.DRAFT){
+              return { learningPlan: existingLearningPlan, success: true };
+        }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         await LearningPlanAssignment.deleteMany({
