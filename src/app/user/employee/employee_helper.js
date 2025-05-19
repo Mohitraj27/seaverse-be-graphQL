@@ -510,11 +510,11 @@ async function enrollUsers(enrollDataArray,context) {
                 courses: coursesDataMap,
                 isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
             }));
-
+            console.log("emailData", emailData.length);
             // Insert emails into the course_emails table
-            insertCourseEmails(emailData);
+            /* insertCourseEmails(emailData);
             // Send the emails batch by batch
-            await sendCourseEmailBulk();
+            await sendCourseEmailBulk(); */
         } catch (error) {
             console.log(error);
         }
