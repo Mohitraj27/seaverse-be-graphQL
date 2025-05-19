@@ -111,7 +111,7 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
                     type: "ENROLL",
                     learningPlan: plan?._id,
                 };
-                const data = await enrollUsers([enrollData]);
+                const data = await enrollUsers([enrollData], context);
                 return true;
             }
             return false;
