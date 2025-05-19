@@ -188,7 +188,8 @@ module.exports.mutations = {
                             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
                             currentStatus: vesselStatus || "",
                             email: signupRequest?.email,
-                            _id: signupRequest?.userId
+                            _id: signupRequest?.userId,
+                            role: 'LEARNER',
                         }];
     
                         if (learningPlans.length > 0) {

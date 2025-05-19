@@ -110,7 +110,7 @@ const sendCredentialMail = async ({ userData }) => {
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email, _id } = conditions;
     const matches = conditionalCustomFields.map((field) => {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
 
@@ -489,7 +489,7 @@ async function enrollUsers(enrollDataArray,context) {
                     await fetchFile(training?.coverImage?.url) ||
                     'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
                 ])
-                ));
+            ));
 
             // Preprocess course data once
             const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
@@ -656,6 +656,11 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
                     case groupTypes.vesselStatus:
                         if (user?.currentStatus) {
                             matches = groupIDsList.includes(user.currentStatus);
+                        }
+                        break;
+                    case groupTypes.role:
+                        if (user?.role) {
+                            matches = groupIDsList.includes(user.role);
                         }
                         break;
                 }
@@ -3628,8 +3633,8 @@ module.exports = {
                         vesselTypeID: typeOfVesselIds ?? null,
                         currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
                         email: user.email,
-                        _id: user._id
-
+                        _id: user._id,
+                        role: 'LEARNER'
                     };
 
                     conditionsList.push(conditions);
