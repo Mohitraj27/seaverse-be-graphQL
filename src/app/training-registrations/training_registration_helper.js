@@ -937,6 +937,7 @@ module.exports = {
     combineTrainingModules,
     mergeContentDetails,
     extractTrainingContentData,
+    sendCourseEmailBulk,
     createTrainingRegistration: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
@@ -1008,9 +1009,10 @@ module.exports = {
             const fetchedUserIds = allUsersFetched.map(user => user._id);
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
+            let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds }, isEnrolled: {$ne: false} });
 
             const existingSetOfUserTrainings = new Set(
-                existingOverallProgresses.map(e => `${e.user.toString()}-${e.training.toString()}`)
+                nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
             );
 
             const newEnrollments = [];

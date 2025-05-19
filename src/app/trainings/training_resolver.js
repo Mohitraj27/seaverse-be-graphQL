@@ -419,7 +419,7 @@ module.exports.mutations = {
 
         if (checkLastCourse) {
             throw CustomError(
-                ErrorName.FORBIDDEN,
+                ErrorName.FAILED,
                 `This course is currently assigned to an active learning plan and cannot be deleted`
             );
         }
@@ -434,7 +434,7 @@ module.exports.mutations = {
 
         if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
             throw CustomError(
-                ErrorName.FORBIDDEN,
+                ErrorName.BAD_REQUEST,
                 `Deleting a course with status ${deletedTraining.status} is not allowed`
             );
         }
@@ -457,7 +457,7 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
-        if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
+        if (!deletedTraining) throw CustomError(ErrorName.BAD_REQUEST, "Failed to delete course");
         /* 
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
