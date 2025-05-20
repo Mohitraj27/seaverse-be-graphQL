@@ -354,7 +354,7 @@ module.exports = {
                 }
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
-                const completedAt = CurrentDateTime().utcDateTime;
+                const completedAt = overallDoc?.completionDate ?? CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
                     ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
                     : null;

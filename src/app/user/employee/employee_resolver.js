@@ -2799,7 +2799,8 @@ module.exports.mutations = {
                     vesselTypeID: vessel?.typeOfVessel?._id ?? null,
                     currentStatus: savedUserVessel?.vesselStatus ?? null,
                     email: savedUser.email,
-                    _id: savedUser._id
+                    _id: savedUser._id,
+                    role: 'LEARNER',
                 }];
 
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
