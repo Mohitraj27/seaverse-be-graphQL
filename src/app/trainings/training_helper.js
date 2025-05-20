@@ -811,7 +811,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
         if (average == 100) {
             updateFields.status = "COMPLETED";
-            updateFields.endDate = new Date();
+            updateFields.endDate = overallDoc?.completionDate ?? new Date();
         } else if (average >= 0 && average < 100) {
             updateFields.status = overallDoc?.adminMarkedAsCompleted ? overallDoc?.status : "IN_PROGRESS";
         }

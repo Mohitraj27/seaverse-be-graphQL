@@ -260,6 +260,7 @@ module.exports = {
         }
         input UpdateTrainingProgressInput {
             overallId: ID!
+            completionDate: String
             trainingModules: [UpdateTrainingModuleInput!]!
         }
         type startOverRes {
