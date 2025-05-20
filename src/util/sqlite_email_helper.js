@@ -114,14 +114,18 @@ const fetchCourseEmailBatch = (action = null) => {
     }
 };
   
-  const deleteCourseEmailBatch = (ids) => {
-    return new Promise((resolve, reject) => {
-      const placeholders = ids.map(() => '?').join(',');
-      db.run(`DELETE FROM course_emails WHERE id IN (${placeholders})`, ids, (err) => {
-        resolve(err ? reject(err) : true);
-      });
-    });
-  };
+const deleteCourseEmailBatch = (ids) => {
+    try {
+        return new Promise((resolve, reject) => {
+            const placeholders = ids.map(() => '?').join(',');
+            db.run(`DELETE FROM course_emails WHERE id IN (${placeholders})`, ids, (err) => {
+                resolve(err ? reject(err) : true);
+            });
+        });
+    } catch (error) {
+        console.log('error in deleting course emails', error);
+    }
+};
 
 
  // Deletion emails CRUD to SQLite
