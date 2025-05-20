@@ -186,12 +186,17 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
-    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
-        const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0 ) {
+        const groupTypeToFieldTypeMap = {
+            'vesselType': 'VESSEL_TYPE',
+            'vesselStatus': 'CURRENT_STATUS'
+        };
+        const normalizedTopLevelFields = input.groupIDs.map(group => groupTypeToFieldTypeMap[group.groupType?.trim()] || group.groupType?.toUpperCase()).filter(Boolean);
 
         for (const field of input.conditionalCustomFields || []) {
-            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) {
-                errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
+            const fieldType = field.type_of_Field?.trim()?.toUpperCase();
+            if (normalizedTopLevelFields.includes(fieldType)) {
+                errorList.push(`An auto-synced group of the same type has already been selected as a primary condition. Please choose a different group or condition`);
             }
         }
     }
