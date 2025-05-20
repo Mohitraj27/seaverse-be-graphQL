@@ -110,10 +110,9 @@ const sendCredentialMail = async ({ userData }) => {
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, email } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, email,_id } = conditions;
     const matches = conditionalCustomFields.map((field) => {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
-
         switch (type_of_Field) {
             case "DESIGNATION":
                 if (designationID === null || designationID === undefined) {
@@ -148,10 +147,15 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                     : !valueOfField.includes(currentStatus);
 
             case "EMAIL":
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(email)
-                    : !valueOfField.includes(email);
-
+                if (_id === null || _id === undefined) {
+                    return true;
+                }
+                
+                const data = isOrIsNot === "IS"
+                    ? valueOfField.map((el) => el == _id).some((el) => el === true)
+                    : valueOfField.map((el) => el != _id).some((el) => el === false);
+              
+                return data;
             case "GROUP":
                 return groupIDs?.some((group) => {
                     switch (group.groupType) {
@@ -225,21 +229,6 @@ async function enrollUsers(enrollDataArray,context) {
         const subscriber = await Subscriber.findOne();
         if (subscriber) {
             subscriberId = subscriber._id;
-        }
-
-        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds }, isEnrolled: { $ne: true } });
-        const existingSetOfUserTrainings = new Set(
-            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
-        );
-        const newEnrollments = [];
-
-        for (const userId of userObjectIds) {
-            for (const trainingId of trainingObjectIds) {
-                const key = `${userId}-${trainingId}`;
-                if (!existingSetOfUserTrainings.has(key)) {
-                    newEnrollments.push({ userId, trainingId });
-                }
-            }
         }
 
         const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
@@ -403,118 +392,6 @@ async function enrollUsers(enrollDataArray,context) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
-        try {
-            const trainingProgressDocuments = await OverallTrainingProgress.find({
-                user: { $in:  userObjectIds },
-                training: { $in: trainingObjectIds }
-            });
-    
-            const trainingProgressMap = new Map();
-    
-            trainingProgressDocuments.forEach(doc => {
-                const key = `${doc.user.toString()}_${doc.training.toString()}`;
-                trainingProgressMap.set(key, doc._id);
-            });
-    
-            // Precompute training progress IDs for quick lookup
-            const trainingProgressMapComputed = new Map(
-                userObjectIds.flatMap(userId =>
-                    trainingObjectIds.map(trainingId => {
-                        const key = `${userId}_${trainingId}`;
-                        return [key, trainingProgressMap.get(key)];
-                    })
-                )
-            );
-    
-            const trainingTitlesMap = new Map(
-                (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
-                    .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
-            );
-    
-            if (userObjectIds?.length > 0) { 
-                const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
-                    subscriber: subscriberId,
-                    title: [
-                        {
-                            lang: "en",
-                            value: `${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )} has been enrolled to you`,
-                        },
-                    ],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )}.`,
-                        },
-                    ],
-                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                    notifyAllAdmin: false,
-                    isNotificatonForAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
-                    affected: [],
-                    status: "SENT",
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    additionalInfo: [
-                        {
-                            infoType: "VIEW_COURSE",
-                            infoData: {
-                                filePath: trainingId,
-                                trainingProgressId: trainingProgressMapComputed.get(
-                                    `${userId}_${trainingId}`
-                                ),
-                            },
-                        },
-                    ],
-                }));
-    
-                if (notifications?.length > 0) {
-                    await NotificationHelper.createNotification(notifications);
-                }
-            }
-        } catch (error) {
-            console.log(error);
-        }
-
-        try {
-
-            //send enrollment email
-            const imageUrlMap = new Map(await Promise.all(
-                trainingData.map(async training => [
-                    training?._id,
-                    await fetchFile(training?.coverImage?.url) ||
-                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
-                ])
-                ));
-
-            // Preprocess course data once
-            const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
-            const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
-            const coursesDataMap = trainingData.map(training => ({
-                trainingTitle: training?.title?.[0]?.value || ' ',
-                durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                courseImage: imageUrlMap.get(training?._id),
-            }));
-            // Prepare email data for insertion into SQLite queue
-            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                receiverEmail: user.email,
-                firstName: user.firstName,
-                courses: coursesDataMap,
-                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-            }));
-            console.log("emailData", emailData.length);
-            // Insert emails into the course_emails table
-            /* insertCourseEmails(emailData);
-            // Send the emails batch by batch
-            await sendCourseEmailBulk(); */
-        } catch (error) {
-            console.log(error);
-        }
-       
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }
@@ -718,9 +595,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         throw new Error("userConditions should be an array");
     }
 
+    const usersToEnroll = [];
+    let enrollDataSet = [];
+    let enrollmentData = [];
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
-            const usersToEnroll = [];
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
@@ -745,9 +624,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+                console.log(userConditions, 'data reciverd from user conditions');
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
+                console.log('valid users ', validUsers);
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
                 const usersToRemove = userConditions
@@ -855,12 +736,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
+                console.log('result for Group ', resultforGroup);
                 if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
                     // Filter group-matched users by conditional custom fields
-                    const validUsers = userConditions.filter(user => resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
-                    // const validUsers = userConditions.filter(user =>
-                    //     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                    // );
+                    // const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+                    const validUsers = userConditions.filter(user =>
+                        evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                    );
                     const validUserIds = new Set(validUsers.map(user => user._id));
                     const usersToRemove = userConditions
                         .filter(user => !validUserIds.has(user._id))
@@ -921,13 +803,174 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     learningPlan: plan._id,
                     session
                 };
-                await enrollUsers([enrollData], context);
+                enrollDataSet.push(enrollData);
+                enrollmentData.push(enrollData);
                 return true;
             }
             return false;
         })
     );
+    
+    const allUserIds = new Set();
+    const allTrainingIds = new Set();
+    
+    enrollDataSet?.forEach(data => {
+        (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
+        (data.trainings || [])?.forEach(trainingId => allTrainingIds.add(trainingId.toString()));
+    });
+    
+    // Convert Sets to arrays if needed
+    const uniqueUserIds = Array.from(allUserIds);
+    const uniqueTrainingIds = Array.from(allTrainingIds);
+    
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, context);
+
+    await enrollUsers(enrollmentData, context);
     return filteredPlans.filter(Boolean);
+}
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, context) => {
+    try {
+        const { subscriberId, userInfo } = AuthUser(context);
+
+
+        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds } });
+        const existingSetOfUserTrainings = new Set(
+            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
+        );
+        
+        const newEnrollments = [];
+
+        for (const userId of userObjectIds) {
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    newEnrollments.push({ userId, trainingId });
+                }
+            }
+        }
+
+        console.log("newEnrollments", newEnrollments);
+        if (newEnrollments.length === 0) {
+            console.log("No new enrollments found");
+            return;
+        }
+
+        const trainingProgressDocuments = await OverallTrainingProgress.find({
+            user: { $in: userObjectIds },
+            training: { $in: trainingObjectIds }
+        });
+
+        const trainingProgressMap = new Map();
+
+        trainingProgressDocuments.forEach(doc => {
+            const key = `${doc.user.toString()}_${doc.training.toString()}`;
+            trainingProgressMap.set(key, doc._id);
+        });
+
+        // Precompute training progress IDs for quick lookup
+        const trainingProgressMapComputed = new Map(
+            userObjectIds.flatMap(userId =>
+                trainingObjectIds.map(trainingId => {
+                    const key = `${userId}_${trainingId}`;
+                    return [key, trainingProgressMap.get(key)];
+                })
+            )
+        );
+
+        const trainingTitlesMap = new Map(
+            (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
+                .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
+        );
+        
+        if (userObjectIds?.length > 0) {
+            const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
+                subscriber: subscriberId,
+                title: [
+                    {
+                        lang: "en",
+                        value: `${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )} has been enrolled to you`,
+                    },
+                ],
+                message: [
+                    {
+                        lang: "en",
+                        value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )}.`,
+                    },
+                ],
+                notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
+                notifiers: [userId],
+                employeeNotifiers: [userId],
+                affected: [],
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+                additionalInfo: [
+                    {
+                        infoType: "VIEW_COURSE",
+                        infoData: {
+                            filePath: trainingId,
+                            trainingProgressId: trainingProgressMapComputed.get(
+                                `${userId}_${trainingId}`
+                            ),
+                        },
+                    },
+                ],
+            }));
+
+            if (notifications?.length > 0) {
+                await NotificationHelper.createNotification(notifications);
+            }
+        }
+
+
+        const trainingData = await Training.find({ _id: { $in: trainingObjectIds } }).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        //send enrollment email
+        const imageUrlMap = new Map(await Promise.all(
+            trainingData.map(async training => [
+                training?._id,
+                await fetchFile(training?.coverImage?.url) ||
+                'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
+            ])
+        ));
+
+        // Preprocess course data once
+        const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
+        const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
+        const coursesDataMap = trainingData.map(training => ({
+            trainingTitle: training?.title?.[0]?.value || ' ',
+            durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+            courseImage: imageUrlMap.get(training?._id),
+        }));
+
+        // Prepare email data for insertion into SQLite queue
+        const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+            receiverEmail: user.email,
+            firstName: user.firstName,
+            courses: coursesDataMap,
+            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+        }));
+
+        // Insert emails into the course_emails table
+        insertCourseEmails(emailData);
+        // Send the emails batch by batch
+        await sendCourseEmailBulk();
+
+    } catch (error) {
+        console.log(error);
+        throw CustomError(ErrorName.FAILED, error.message);
+    }
 }
 const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport }) => {
     let subscriberLogo = null;
