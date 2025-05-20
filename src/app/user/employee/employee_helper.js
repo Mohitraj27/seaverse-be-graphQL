@@ -231,21 +231,6 @@ async function enrollUsers(enrollDataArray,context) {
             subscriberId = subscriber._id;
         }
 
-        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds }, isEnrolled: { $ne: true } });
-        const existingSetOfUserTrainings = new Set(
-            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
-        );
-        const newEnrollments = [];
-
-        for (const userId of userObjectIds) {
-            for (const trainingId of trainingObjectIds) {
-                const key = `${userId}-${trainingId}`;
-                if (!existingSetOfUserTrainings.has(key)) {
-                    newEnrollments.push({ userId, trainingId });
-                }
-            }
-        }
-
         const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
 
         const existingTrainingIds = existingRegistrations.map(reg => reg.training.toString());
@@ -407,118 +392,6 @@ async function enrollUsers(enrollDataArray,context) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
-        try {
-            const trainingProgressDocuments = await OverallTrainingProgress.find({
-                user: { $in:  userObjectIds },
-                training: { $in: trainingObjectIds }
-            });
-    
-            const trainingProgressMap = new Map();
-    
-            trainingProgressDocuments.forEach(doc => {
-                const key = `${doc.user.toString()}_${doc.training.toString()}`;
-                trainingProgressMap.set(key, doc._id);
-            });
-    
-            // Precompute training progress IDs for quick lookup
-            const trainingProgressMapComputed = new Map(
-                userObjectIds.flatMap(userId =>
-                    trainingObjectIds.map(trainingId => {
-                        const key = `${userId}_${trainingId}`;
-                        return [key, trainingProgressMap.get(key)];
-                    })
-                )
-            );
-    
-            const trainingTitlesMap = new Map(
-                (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
-                    .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
-            );
-    
-            if (userObjectIds?.length > 0) { 
-                const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
-                    subscriber: subscriberId,
-                    title: [
-                        {
-                            lang: "en",
-                            value: `${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )} has been enrolled to you`,
-                        },
-                    ],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )}.`,
-                        },
-                    ],
-                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                    notifyAllAdmin: false,
-                    isNotificatonForAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
-                    affected: [],
-                    status: "SENT",
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    additionalInfo: [
-                        {
-                            infoType: "VIEW_COURSE",
-                            infoData: {
-                                filePath: trainingId,
-                                trainingProgressId: trainingProgressMapComputed.get(
-                                    `${userId}_${trainingId}`
-                                ),
-                            },
-                        },
-                    ],
-                }));
-    
-                if (notifications?.length > 0) {
-                    await NotificationHelper.createNotification(notifications);
-                }
-            }
-        } catch (error) {
-            console.log(error);
-        }
-
-        try {
-
-            //send enrollment email
-            const imageUrlMap = new Map(await Promise.all(
-                trainingData.map(async training => [
-                    training?._id,
-                    await fetchFile(training?.coverImage?.url) ||
-                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
-                ])
-                ));
-
-            // Preprocess course data once
-            const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
-            const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
-            const coursesDataMap = trainingData.map(training => ({
-                trainingTitle: training?.title?.[0]?.value || ' ',
-                durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                courseImage: imageUrlMap.get(training?._id),
-            }));
-            // Prepare email data for insertion into SQLite queue
-            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                receiverEmail: user.email,
-                firstName: user.firstName,
-                courses: coursesDataMap,
-                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-            }));
-            console.log("emailData", emailData.length);
-            // Insert emails into the course_emails table
-            /* insertCourseEmails(emailData);
-            // Send the emails batch by batch
-            await sendCourseEmailBulk(); */
-        } catch (error) {
-            console.log(error);
-        }
-       
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }
@@ -722,9 +595,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         throw new Error("userConditions should be an array");
     }
 
+    const usersToEnroll = [];
+    let enrollDataSet = [];
+    let enrollmentData = [];
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
-            const usersToEnroll = [];
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
@@ -928,13 +803,174 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     learningPlan: plan._id,
                     session
                 };
-                await enrollUsers([enrollData], context);
+                enrollDataSet.push(enrollData);
+                enrollmentData.push(enrollData);
                 return true;
             }
             return false;
         })
     );
+    
+    const allUserIds = new Set();
+    const allTrainingIds = new Set();
+    
+    enrollDataSet?.forEach(data => {
+        (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
+        (data.trainings || [])?.forEach(trainingId => allTrainingIds.add(trainingId.toString()));
+    });
+    
+    // Convert Sets to arrays if needed
+    const uniqueUserIds = Array.from(allUserIds);
+    const uniqueTrainingIds = Array.from(allTrainingIds);
+    
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, context);
+
+    await enrollUsers(enrollmentData, context);
     return filteredPlans.filter(Boolean);
+}
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, context) => {
+    try {
+        const { subscriberId, userInfo } = AuthUser(context);
+
+
+        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds } });
+        const existingSetOfUserTrainings = new Set(
+            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
+        );
+        
+        const newEnrollments = [];
+
+        for (const userId of userObjectIds) {
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    newEnrollments.push({ userId, trainingId });
+                }
+            }
+        }
+
+        console.log("newEnrollments", newEnrollments);
+        if (newEnrollments.length === 0) {
+            console.log("No new enrollments found");
+            return;
+        }
+
+        const trainingProgressDocuments = await OverallTrainingProgress.find({
+            user: { $in: userObjectIds },
+            training: { $in: trainingObjectIds }
+        });
+
+        const trainingProgressMap = new Map();
+
+        trainingProgressDocuments.forEach(doc => {
+            const key = `${doc.user.toString()}_${doc.training.toString()}`;
+            trainingProgressMap.set(key, doc._id);
+        });
+
+        // Precompute training progress IDs for quick lookup
+        const trainingProgressMapComputed = new Map(
+            userObjectIds.flatMap(userId =>
+                trainingObjectIds.map(trainingId => {
+                    const key = `${userId}_${trainingId}`;
+                    return [key, trainingProgressMap.get(key)];
+                })
+            )
+        );
+
+        const trainingTitlesMap = new Map(
+            (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
+                .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
+        );
+        
+        if (userObjectIds?.length > 0) {
+            const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
+                subscriber: subscriberId,
+                title: [
+                    {
+                        lang: "en",
+                        value: `${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )} has been enrolled to you`,
+                    },
+                ],
+                message: [
+                    {
+                        lang: "en",
+                        value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )}.`,
+                    },
+                ],
+                notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
+                notifiers: [userId],
+                employeeNotifiers: [userId],
+                affected: [],
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+                additionalInfo: [
+                    {
+                        infoType: "VIEW_COURSE",
+                        infoData: {
+                            filePath: trainingId,
+                            trainingProgressId: trainingProgressMapComputed.get(
+                                `${userId}_${trainingId}`
+                            ),
+                        },
+                    },
+                ],
+            }));
+
+            if (notifications?.length > 0) {
+                await NotificationHelper.createNotification(notifications);
+            }
+        }
+
+
+        const trainingData = await Training.find({ _id: { $in: trainingObjectIds } }).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        //send enrollment email
+        const imageUrlMap = new Map(await Promise.all(
+            trainingData.map(async training => [
+                training?._id,
+                await fetchFile(training?.coverImage?.url) ||
+                'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
+            ])
+        ));
+
+        // Preprocess course data once
+        const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
+        const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
+        const coursesDataMap = trainingData.map(training => ({
+            trainingTitle: training?.title?.[0]?.value || ' ',
+            durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+            courseImage: imageUrlMap.get(training?._id),
+        }));
+
+        // Prepare email data for insertion into SQLite queue
+        const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+            receiverEmail: user.email,
+            firstName: user.firstName,
+            courses: coursesDataMap,
+            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+        }));
+
+        // Insert emails into the course_emails table
+        insertCourseEmails(emailData);
+        // Send the emails batch by batch
+        await sendCourseEmailBulk();
+
+    } catch (error) {
+        console.log(error);
+        throw CustomError(ErrorName.FAILED, error.message);
+    }
 }
 const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport }) => {
     let subscriberLogo = null;
