@@ -637,6 +637,14 @@ module.exports.mutations = {
                 })
             })
 
+            input = input?.filter(item => item.isCourseUpdated !== true);
+
+            if (input.length === 0) {
+                return {
+                    status: 0,
+                    message: "No data to sync!"
+                };
+            }
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 

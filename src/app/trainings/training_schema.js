@@ -262,6 +262,7 @@ module.exports = {
             overallId: ID!
             completionDate: String
             trainingModules: [UpdateTrainingModuleInput!]!
+            isCourseUpdated: Boolean
         }
         type startOverRes {
             status: Int
