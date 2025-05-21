@@ -197,7 +197,7 @@ module.exports.queries = {
             const checkIfAdmin = await User.findOne({
                 _id: userId,
                 subRoles: subRoleAdminId._id
-            }).lean();
+            }).lean().select("roleAssignmentDate");
 
             if (context.platform === Role.ADMIN) {
                 filterConditions.$or = [
