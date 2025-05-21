@@ -156,7 +156,7 @@ const convertMinutesToHMS = (minutes) => {
 
     const wholeMinutes = Math.floor(minutes);                         
     const decimalPart = +(minutes % 1).toFixed(2);                    
-    const secondsFromDecimal = Math.round(decimalPart * 100);        
+    const secondsFromDecimal = Math.round(decimalPart * 60);        
 
     // Add overflow seconds to minutes
     const totalSeconds = wholeMinutes * 60 + secondsFromDecimal;

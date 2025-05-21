@@ -10,7 +10,7 @@ const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
 const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const { TrainingModule } = require("./training_modules/training_module_model");
-const  LearningPlanStatus  = require("../learning-plan/enumFields/learning_plan_status.json");
+const LearningPlanStatus = require("../learning-plan/enumFields/learning_plan_status.json");
 const {
     TrainingModuleContent,
 } = require("./training_modules/training_module_contents/training_module_content_model");
@@ -98,6 +98,7 @@ module.exports.queries = {
                                 localField: "updatedBy",
                                 foreignField: "_id",
                                 as: "createdByDetails",
+                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1,_id:1 } }],
                             },
                         },
                         {
@@ -258,14 +259,7 @@ module.exports.mutations = {
             for (const module of input.trainingModules) {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
-
-                    console.log("trainingContent", trainingContent);
-                    const duration = trainingContent?.duration || 0;
-                    const mins = Math.floor(duration);
-                    const secs = Math.round((duration % 1) * 100);
-                    console.log("totalDurationSeconds before", totalDurationSeconds);
-                    totalDurationSeconds += (mins * 60 + secs) / 60;
-                    console.log("totalDurationSeconds after", totalDurationSeconds);
+                    totalDurationSeconds += trainingContent?.duration;
                 }
             }
         }
@@ -644,6 +638,14 @@ module.exports.mutations = {
                 })
             })
 
+            input = input?.filter(item => item.isCourseUpdated !== true);
+
+            if (input.length === 0) {
+                return {
+                    status: 0,
+                    message: "No data to sync!"
+                };
+            }
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
