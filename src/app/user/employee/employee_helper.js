@@ -157,6 +157,9 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
               
                 return data;
             case "GROUP":
+                if (!groupIDs || groupIDs.length === 0) {
+                    return false;
+                }
                 return groupIDs?.some((group) => {
                     switch (group.groupType) {
                         case "designation":
@@ -168,6 +171,12 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
 
+                        case "custom":
+                            const customGroupId = group.groupIDs?.[0];
+                            if (!customGroupId) return false;
+                            const hasValidIds = group.groupIDs[0] && _id;
+                            const data = Boolean(hasValidIds);
+                            return data;
                         default:
                             return false;
                     }
