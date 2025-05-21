@@ -206,7 +206,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     currentCertificateLayout: currentCertificateLayout ?? null
 });
 
-async function enrollUsers(enrollDataArray,context) {
+async function enrollUsers(enrollDataArray, context) {
     try {
         const { userInfo } = AuthUser(context);
         const allUserIds = [];
@@ -603,6 +603,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     const usersToEnroll = [];
     let enrollDataSet = [];
     let enrollmentData = [];
+    let removeUsersData = [];
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
 
@@ -629,16 +630,23 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-                console.log(userConditions, 'data reciverd from user conditions');
+
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
-                console.log('valid users ', validUsers);
+
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
                     .map(user => user._id);
+
+                if (usersToRemove.length > 0) {
+                    removeUsersData.push({
+                        usersToRemove,
+                        planId: plan._id
+                    });
+                }
 
                 const userIds = validUsers.map(user => user._id);
 
@@ -668,62 +676,25 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                         const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
 
-                    // const assignments = userIds.map(userId => ({
-                    //     learningPlanId: plan._id,
-                    //     assignedLearnerId: userId,
-                    //     isMannuallyAdded: false,
-                    //     createdBy: context.user.userId,
-                    //     updatedBy: context.user.userId
-                    // }));
-
-                    // if (assignments?.length) {
-                    //     const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                    // }
                     usersToEnroll.push(...userIds);
                 }
-
-                if (usersToRemove.length > 0) {
-
-                    await OverallTrainingProgress.updateMany(
-                        {
-                            learningPlan: plan._id,
-                            user: { $in: usersToRemove }
-                        },
-                        {
-                            $pull: { learningPlan: plan._id }
-                        }
-                    );
-                    const deleteResult = await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: usersToRemove }
-                    });
-
-                }
             }
+
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
 
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
 
-                
+
                 if (resultforGroup?.success) {
 
                     const usersToRemove = userConditions
                         .filter(user => !resultforGroup?.allMatchedUsers.includes(user._id))
                         .map(user => user._id);
-    
+
                     if (usersToRemove.length > 0) {
-                        await OverallTrainingProgress.updateMany(
-                            {
-                                learningPlan: plan._id,
-                                user: { $in: usersToRemove }
-                            },
-                            {
-                                $pull: { learningPlan: plan._id }
-                            }
-                        );
-                        const deleteResult = await LearningPlanAssignment.deleteMany({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: usersToRemove }
+                        removeUsersData.push({
+                            usersToRemove,
+                            planId: plan._id
                         });
                     }
 
@@ -740,11 +711,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...resultforGroup?.allMatchedUsers);
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-                console.log('result for Group ', resultforGroup);
+
                 if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
-                    // Filter group-matched users by conditional custom fields
-                    // const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+
                     const validUsers = userConditions.filter(user =>
                         evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                     );
@@ -752,6 +723,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     const usersToRemove = userConditions
                         .filter(user => !validUserIds.has(user._id))
                         .map(user => user._id);
+
+                    if (usersToRemove.length > 0) {
+                        removeUsersData.push({
+                            usersToRemove,
+                            planId: plan._id
+                        });
+                    }
 
                     const userIds = validUsers.map(user => user._id);
 
@@ -779,28 +757,15 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                         if (newAssignments.length > 0) {
                             const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                            console.log('data enrolled ', dataEnrolled);
                         }
                         usersToEnroll.push(...userIds);
                     }
-                    if (usersToRemove.length > 0) {
-                        await OverallTrainingProgress.updateMany(
-                            {
-                                learningPlan: plan._id,
-                                user: { $in: usersToRemove }
-                            },
-                            {
-                                $pull: { learningPlan: plan._id }
-                            }
-                        );
-                        const deleteResult = await LearningPlanAssignment.deleteMany({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: usersToRemove }
-                        });
-                    }
+
                 }
             }
+
             if (usersToEnroll.length > 0) {
+
                 const enrollData = {
                     trainings: plan.selectCourses,
                     users: usersToEnroll,
@@ -812,22 +777,61 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 enrollmentData.push(enrollData);
                 return true;
             }
-            return false;
+            return true;
         })
     );
-    
+
+
     const allUserIds = new Set();
     const allTrainingIds = new Set();
-    
+
+    if (removeUsersData?.length > 0) {
+        const bulkUpdateOps = [];
+        const bulkDeleteOps = [];
+
+        for (const { planId, usersToRemove } of removeUsersData) {
+            if (usersToRemove.length > 0) {
+                bulkUpdateOps.push({
+                    updateMany: {
+                        filter: {
+                            learningPlan: planId,
+                            user: { $in: usersToRemove }
+                        },
+                        update: {
+                            $pull: { learningPlan: planId }
+                        }
+                    }
+                });
+
+                bulkDeleteOps.push({
+                    deleteMany: {
+                        filter: {
+                            learningPlanId: planId,
+                            assignedLearnerId: { $in: usersToRemove }
+                        }
+                    }
+                });
+            }
+        }
+
+        if (bulkUpdateOps.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkUpdateOps);
+        }
+
+        if (bulkDeleteOps.length > 0) {
+            await LearningPlanAssignment.bulkWrite(bulkDeleteOps);
+        }
+    }
+
     enrollDataSet?.forEach(data => {
         (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
         (data.trainings || [])?.forEach(trainingId => allTrainingIds.add(trainingId.toString()));
     });
-    
+
     // Convert Sets to arrays if needed
     const uniqueUserIds = Array.from(allUserIds);
     const uniqueTrainingIds = Array.from(allTrainingIds);
-    
+
     await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, context);
 
     await enrollUsers(enrollmentData, context);
@@ -842,7 +846,7 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
         const existingSetOfUserTrainings = new Set(
             nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
         );
-        
+
         const newEnrollments = [];
 
         for (const userId of userObjectIds) {
@@ -854,9 +858,7 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
             }
         }
 
-        console.log("newEnrollments", newEnrollments);
         if (newEnrollments.length === 0) {
-            console.log("No new enrollments found");
             return;
         }
 
@@ -886,7 +888,7 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
             (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
                 .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
         );
-        
+
         if (userObjectIds?.length > 0) {
             const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
                 subscriber: subscriberId,
@@ -960,7 +962,7 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
         }));
 
         // Prepare email data for insertion into SQLite queue
-        const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+        const emailData = notEnrolledUsers.filter(user => user?.isEmailNotification && user?.isRegistered).map(user => ({
             receiverEmail: user.email,
             firstName: user.firstName,
             courses: coursesDataMap,
