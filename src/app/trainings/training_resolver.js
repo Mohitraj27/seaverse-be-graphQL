@@ -638,9 +638,9 @@ module.exports.mutations = {
                 })
             })
 
-            let updatedCourses = input.map(course => course.isCourseUpdated == true);
+            let updatedCourses = input?.filter(course => course?.isCourseUpdated == true);
 
-            input = input?.filter(item => item.isCourseUpdated !== true);
+            input = input?.filter(item => item?.isCourseUpdated !== true);
 
 
             let updateTrainingProgress;
@@ -678,7 +678,6 @@ module.exports.mutations = {
                             status: 'NOT_STARTED',
                             timeSpend: 0,
                             totalDuration: 0,
-                            adminMarkedAsCompleted: false,
                         },
                         { session }
                     );
@@ -699,16 +698,16 @@ module.exports.mutations = {
                         { session }
                     );
 
+                    return true;
+
                 }
 
             });
-
-            if (updateTrainingProgress) {
+            
                 return {
                     status: 1,
                     message: "Progress updated successfully!"
                 };
-            }
 
         } catch (error) {
             throw Error(error.message);
