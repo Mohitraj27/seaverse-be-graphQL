@@ -310,7 +310,12 @@ const getMainLearnersReport = async ({ input }, context) => {
                     as: 'trainingProgresses',
                     pipeline: [
                         {
-                            $match: { isEnrolled: true }
+                            $match: {
+                                $or: [
+                                    { isEnrolled: true },
+                                    { status: "COMPLETED" }
+                                ]
+                            }
                         },
                     ],
                 },
@@ -737,8 +742,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     ...matchUsers,
@@ -4212,8 +4220,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {
@@ -4519,8 +4530,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {
