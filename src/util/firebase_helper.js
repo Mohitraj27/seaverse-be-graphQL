@@ -8,11 +8,6 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             title: title || "Test notification title",
             body: body || "Test notification body",
         },
-        android: {
-            notification: {
-                click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
-        },
     };
 
     if (content && typeof content === "object") {
