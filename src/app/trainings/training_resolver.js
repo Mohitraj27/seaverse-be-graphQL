@@ -98,7 +98,7 @@ module.exports.queries = {
                                 localField: "updatedBy",
                                 foreignField: "_id",
                                 as: "createdByDetails",
-                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1,_id:1 } }],
+                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
                             },
                         },
                         {
@@ -638,37 +638,76 @@ module.exports.mutations = {
                 })
             })
 
-            input = input?.filter(item => item.isCourseUpdated !== true);
+            let updatedCourses = input?.filter(course => course?.isCourseUpdated == true);
 
-            if (input.length === 0) {
-                return {
-                    status: 0,
-                    message: "No data to sync!"
-                };
-            }
+            input = input?.filter(item => item?.isCourseUpdated !== true);
+
+
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
 
-                //add content data to overall training progress
-                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+                if (input.length > 0) {
 
-                //updating the progress in overall training progress and the final certificate generation 
-                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+                    //add content data to overall training progress
+                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
-                if (syncContentErrors.length > 0) {
-                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    //updating the progress in overall training progress and the final certificate generation 
+                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+
+                    if (syncContentErrors.length > 0) {
+                        throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    }
+
+                }
+
+                if (updatedCourses.length > 0) {
+
+                    // Reset overall training progress and training progress if required
+                    const overallIds = updatedCourses.map(item => item.overallId);
+
+                    await OverallTrainingProgress.updateMany(
+                        { _id: { $in: overallIds } },
+                        {
+                            progressPercentage: 0,
+                            lastConsumedContent: {},
+                            startDate: null,
+                            finishedCourseFirstTime: false,
+                            endDate: null,
+                            status: 'NOT_STARTED',
+                            timeSpend: 0,
+                            totalDuration: 0,
+                        },
+                        { session }
+                    );
+
+                    await TrainingProgress.updateMany(
+                        { overallTrainingProgress: { $in: overallIds } },
+                        {
+                            progressPercentage: 0,
+                            startedAt: null,
+                            completedAt: null,
+                            status: 'NOT_STARTED',
+                            lastAccessedDuration: 0,
+                            startedAt: null,
+                            completedAt: null,
+                            quizAttemptDetails: {},
+                            videoDuration: 0,
+                        },
+                        { session }
+                    );
+
+                    return true;
+
                 }
 
             });
-
-            if (updateTrainingProgress) {
+            
                 return {
                     status: 1,
                     message: "Progress updated successfully!"
                 };
-            }
 
         } catch (error) {
             throw Error(error.message);
