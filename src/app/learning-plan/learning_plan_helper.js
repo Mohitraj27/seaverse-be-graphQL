@@ -578,7 +578,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -865,7 +865,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
