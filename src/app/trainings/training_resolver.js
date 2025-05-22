@@ -709,13 +709,11 @@ module.exports.mutations = {
                 }
 
             });
-
-            if (updateTrainingProgress) {
+            
                 return {
                     status: 1,
                     message: "Progress updated successfully!"
                 };
-            }
 
         } catch (error) {
             throw Error(error.message);
