@@ -578,11 +578,9 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    $or: [
-                                        { 'currentVessel._id': { $nin: vesselIds } },
-                                    ],
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
-                                }
+                                };
                             }
                             valueData = finalQueryValue;
                         } else if (condition.type_of_Field === "DESIGNATION") {
@@ -852,13 +850,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
