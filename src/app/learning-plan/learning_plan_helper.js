@@ -186,7 +186,7 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
-    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0 ) {
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0) {
         const groupTypeToFieldTypeMap = {
             'vesselType': 'VESSEL_TYPE',
             'vesselStatus': 'CURRENT_STATUS'
@@ -375,8 +375,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
-        if(existingLearningPlan?.status === learningPlanStatus.DRAFT){
-              return { learningPlan: existingLearningPlan, success: true };
+        if (existingLearningPlan?.status === learningPlanStatus.DRAFT) {
+            return { learningPlan: existingLearningPlan, success: true };
         }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
@@ -564,12 +564,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -850,13 +850,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
