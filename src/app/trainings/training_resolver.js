@@ -232,7 +232,57 @@ module.exports.queries = {
         const migrationCoursesId = training.migrationCoursesId || null;
         return { ...training, countOfUsers, migrationCoursesId };
     },
+    checkCourseUpdateBeforeSync: async ({ input }, context) => {
 
+        const { role, userId, userInfo } = AuthUser(context);
+
+        const overallIds = input.overallIds;
+
+        if (!overallIds || overallIds.length === 0) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course ID is required");
+        };
+
+        if (overallIds.length > 0) {
+
+
+            await OverallTrainingProgress.updateMany(
+                { _id: { $in: overallIds } },
+                {
+                    progressPercentage: 0,
+                    lastConsumedContent: {},
+                    startDate: null,
+                    finishedCourseFirstTime: false,
+                    endDate: null,
+                    status: 'NOT_STARTED',
+                    timeSpend: 0,
+                    totalDuration: 0,
+                    adminMarkedAsCompleted: false,
+                }
+            );
+
+            await TrainingProgress.updateMany(
+                { overallTrainingProgress: { $in: overallIds } },
+                {
+                    progressPercentage: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    status: 'NOT_STARTED',
+                    lastAccessedDuration: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    quizAttemptDetails: {},
+                    videoDuration: 0,
+                }
+            );
+
+            return {
+                status: 1,
+                message: "Courses cleared successfully!"
+            };
+
+        }
+
+    },
 };
 
 module.exports.mutations = {
@@ -638,10 +688,6 @@ module.exports.mutations = {
                 })
             })
 
-            let updatedCourses = input.map(course => course.isCourseUpdated == true);
-
-            input = input?.filter(item => item.isCourseUpdated !== true);
-
 
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
@@ -659,45 +705,6 @@ module.exports.mutations = {
                     if (syncContentErrors.length > 0) {
                         throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
                     }
-
-                }
-
-                if (updatedCourses.length > 0) {
-
-                    // Reset overall training progress and training progress if required
-                    const overallIds = updatedCourses.map(item => item.overallId);
-
-                    await OverallTrainingProgress.updateMany(
-                        { _id: { $in: overallIds } },
-                        {
-                            progressPercentage: 0,
-                            lastConsumedContent: {},
-                            startDate: null,
-                            finishedCourseFirstTime: false,
-                            endDate: null,
-                            status: 'NOT_STARTED',
-                            timeSpend: 0,
-                            totalDuration: 0,
-                            adminMarkedAsCompleted: false,
-                        },
-                        { session }
-                    );
-
-                    await TrainingProgress.updateMany(
-                        { overallTrainingProgress: { $in: overallIds } },
-                        {
-                            progressPercentage: 0,
-                            startedAt: null,
-                            completedAt: null,
-                            status: 'NOT_STARTED',
-                            lastAccessedDuration: 0,
-                            startedAt: null,
-                            completedAt: null,
-                            quizAttemptDetails: {},
-                            videoDuration: 0,
-                        },
-                        { session }
-                    );
 
                 }
 
