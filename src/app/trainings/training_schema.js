@@ -264,6 +264,9 @@ module.exports = {
             trainingModules: [UpdateTrainingModuleInput!]!
             isCourseUpdated: Boolean
         }
+        input courseUpdateInput {
+            overallIds: [ID]!
+        }
         type startOverRes {
             status: Int
             message: String
@@ -272,6 +275,7 @@ module.exports = {
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
         getTraining(id: ID!): Training!
+        checkCourseUpdateBeforeSync(input: courseUpdateInput!): offlineSyncRes!
     `,
     mutations: `
         createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!
