@@ -199,36 +199,19 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
             }
         ]);
 
-        const vesselStatusUsers = await UserVessel.aggregate([
+        const vesselStatusUsers = await User.aggregate([
             {
                 $match: {
-                    isActive: true
+                    isDeleted: false,
+                    firstName: { $ne: null },
+                    email: { $ne: null },
+                    isSignupAdminAprroved: true
                 }
             },
             {
                 $group: {
                     _id: "$vesselStatus",
-                    userIds: { $push: "$user" }
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "userIds",
-                    foreignField: "_id",
-                    as: "userDetails"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$userDetails",
-                    preserveNullAndEmptyArrays: false
-                }
-            },
-            {
-                $group: {
-                    _id: "$_id",
-                    userIds: { $push: "$userDetails._id" }
+                    userIds: { $push: "$_id" }
                 }
             },
             {
@@ -239,6 +222,7 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                 }
             }
         ]);
+
 
         const vesselTypeUsers = await UserVessel.aggregate([
             {
@@ -605,7 +589,7 @@ module.exports = {
                                 firstName: { $ne: null },
                                 email: { $ne: null },
                                 isSignupAdminAprroved: true,
-                                role:"LEARNER"
+                                role: "LEARNER"
                             }
                         },
                         {
