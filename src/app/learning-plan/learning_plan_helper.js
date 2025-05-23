@@ -59,7 +59,10 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'vessel':
                 case 'vesselType':
                 case 'owner':
-                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    group.groupIDs = group.groupIDs.map((groupId) =>
+                      mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
+                    );
+                    
                     break;
                 // case 'role':
                 //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
