@@ -430,7 +430,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData.courses || [],
+                            courses: coursesData[0] ?? [],
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
