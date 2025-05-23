@@ -261,8 +261,8 @@ module.exports = {
         input UpdateTrainingProgressInput {
             overallId: ID!
             completionDate: String
+            finishedCourseFirstTime: Boolean
             trainingModules: [UpdateTrainingModuleInput!]!
-            isCourseUpdated: Boolean
         }
         input courseUpdateInput {
             overallIds: [ID]!

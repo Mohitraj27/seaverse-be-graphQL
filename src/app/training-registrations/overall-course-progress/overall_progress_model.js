@@ -106,7 +106,11 @@ const overallProgressSchema = new Schema(
         version: {
             type: Number,
             default: 1
-        }
+        },
+        completionNotificationSent: {
+            type: Boolean,
+            default: false
+        },
     },
     { timestamps: true }
 )
