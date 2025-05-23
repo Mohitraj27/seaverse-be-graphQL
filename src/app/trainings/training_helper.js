@@ -623,8 +623,11 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
             const notifications = [];
             const emails = [];
+            const idsToUpdate = [];
 
             for (const item of trainingData) {
+
+                if (item.completionNotificationSent) continue;
 
                 const trainingName = item?.training?.title[0]?.value;
                 const userId = item?.user?._id;
@@ -666,6 +669,8 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                     })
                 }
 
+                idsToUpdate.push(item._id);
+
             }
 
             await NotificationHelper.createNotification(notifications);
@@ -678,6 +683,13 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         htmlContent: item.emailContent,
                     });
                 }
+            }
+
+            if (idsToUpdate.length > 0) {
+                await OverallTrainingProgress.updateMany(
+                    { _id: { $in: idsToUpdate } },
+                    { $set: { completionNotificationSent: true } }
+                ).session(session);
             }
 
         }
