@@ -107,6 +107,51 @@ const sendCredentialMail = async ({ userData }) => {
     });
 };
 
+const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) => {
+    if (!conditions || !hasValidIds) {
+        return false;
+    }
+    const { designationID, vesselID, vesselTypeID, currentStatus, _id, role } = conditions;
+    const group = await Group.findOne({ _id: hasValidIds , isDeleted: false });
+    if (!group) return false;
+
+    if (group?.groupType === 'MEMBER') {
+        const isMember = await GroupMember.findOne({ group: group._id, member: _id });
+        return Boolean(isMember);
+    }
+
+    if (group?.groupType === 'GROUP') {
+        const members = await GroupMember.find({ group: group._id, isDeleted: false });
+        for (const member of members) {
+            const innerGroup = await Group.findOne({ _id: member.member, isDeleted: false });
+            if (!innerGroup) continue;
+
+            const { groupType, groupData } = innerGroup;
+
+            switch (groupType) {
+                case 'designation':
+                    if (String(groupData) === String(designationID)) return true;
+                    break;
+                case 'vessel':
+                    if (String(groupData) === String(vesselID)) return true;
+                    break;
+                case 'vesselType':
+                    if (String(groupData) === String(vesselTypeID)) return true;
+                    break;
+                case 'vesselStatus':
+                    if (String(groupData) === String(currentStatus)) return true;
+                    break;
+                case 'role':
+                    if (groupData === 'LEARNER' && role === 'LEARNER') return true;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    return false;
+};
+
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
@@ -160,7 +205,7 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                 if (!groupIDs || groupIDs.length === 0) {
                     return false;
                 }
-                return groupIDs?.some((group) => {
+                return groupIDs?.some(async (group) => {
                     switch (group.groupType) {
                         case "designation":
                             return String(group.groupIDs?.[0]) === String(designationID);
@@ -174,9 +219,8 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                         case "custom":
                             const customGroupId = group.groupIDs?.[0];
                             if (!customGroupId) return false;
-                            const hasValidIds = group.groupIDs[0] && _id;
-                            const data = Boolean(hasValidIds);
-                            return data;
+                             const result = await checkforCustomGroupBasedAutoenrollment(customGroupId, conditions );
+                             if(result) return true;
                         default:
                             return false;
                     }
