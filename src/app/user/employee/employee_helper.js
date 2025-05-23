@@ -474,7 +474,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData.courses || [],
+                            courses: coursesData[0] ?? [],
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
@@ -884,18 +884,18 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     // Convert Sets to arrays if needed
     const uniqueUserIds = Array.from(allUserIds);
     const uniqueTrainingIds = Array.from(allTrainingIds);
-
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, context);
-
+    const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
+    
     await enrollUsers(enrollmentData, context);
+
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds,nonNotificationRecievers, context);
+
     return filteredPlans.filter(Boolean);
 }
-const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, context) => {
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds,nonNotificationRecievers, context) => {
     try {
         const { subscriberId, userInfo } = AuthUser(context);
 
-
-        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds } });
         const existingSetOfUserTrainings = new Set(
             nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
         );

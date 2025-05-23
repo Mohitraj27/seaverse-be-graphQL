@@ -1607,6 +1607,11 @@ module.exports.queries = {
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
                         html = htmlContent;
+                        await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
                     } else {
                         let generatePassword
 
