@@ -2,31 +2,20 @@ const FirebaseAdmin = require("firebase-admin");
 const {User} = require("../app/user/user_model");
 const firebaseConfig = require("./firebaseConfig");
 const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
+
     const message = {
-        notification: {
+        data: {
             title: title || "Test notification title",
             body: body || "Test notification body",
-        },
-        android: {
-            notification: {
-                click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
         },
     };
 
     if (content && typeof content === "object") {
-        message.data = { content: JSON.stringify(content) };
+        message.data.content = JSON.stringify(content);
     }
 
     if (webLink) {
-        message.webpush = {
-            notification: {
-                icon: "",
-            },
-            fcm_options: {
-                link: webLink,
-            },
-        };
+        message.data.webLink = webLink;
     }
 
     return message;

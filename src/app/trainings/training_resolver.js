@@ -98,6 +98,7 @@ module.exports.queries = {
                                 localField: "updatedBy",
                                 foreignField: "_id",
                                 as: "createdByDetails",
+                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
                             },
                         },
                         {
@@ -231,7 +232,57 @@ module.exports.queries = {
         const migrationCoursesId = training.migrationCoursesId || null;
         return { ...training, countOfUsers, migrationCoursesId };
     },
+    checkCourseUpdateBeforeSync: async ({ input }, context) => {
 
+        const { role, userId, userInfo } = AuthUser(context);
+
+        const overallIds = input.overallIds;
+
+        if (!overallIds || overallIds.length === 0) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course ID is required");
+        };
+
+        if (overallIds.length > 0) {
+
+
+            await OverallTrainingProgress.updateMany(
+                { _id: { $in: overallIds } },
+                {
+                    progressPercentage: 0,
+                    lastConsumedContent: {},
+                    startDate: null,
+                    finishedCourseFirstTime: false,
+                    endDate: null,
+                    status: 'NOT_STARTED',
+                    timeSpend: 0,
+                    totalDuration: 0,
+                    adminMarkedAsCompleted: false,
+                }
+            );
+
+            await TrainingProgress.updateMany(
+                { overallTrainingProgress: { $in: overallIds } },
+                {
+                    progressPercentage: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    status: 'NOT_STARTED',
+                    lastAccessedDuration: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    quizAttemptDetails: {},
+                    videoDuration: 0,
+                }
+            );
+
+            return {
+                status: 1,
+                message: "Courses cleared successfully!"
+            };
+
+        }
+
+    },
 };
 
 module.exports.mutations = {
@@ -637,29 +688,32 @@ module.exports.mutations = {
                 })
             })
 
+
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
 
-                //add content data to overall training progress
-                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+                if (input.length > 0) {
 
-                //updating the progress in overall training progress and the final certificate generation 
-                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+                    //add content data to overall training progress
+                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
-                if (syncContentErrors.length > 0) {
-                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    //updating the progress in overall training progress and the final certificate generation 
+                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+
+                    if (syncContentErrors.length > 0) {
+                        throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    }
+
                 }
 
             });
 
-            if (updateTrainingProgress) {
-                return {
-                    status: 1,
-                    message: "Progress updated successfully!"
-                };
-            }
+            return {
+                status: 1,
+                message: "Progress updated successfully!"
+            };
 
         } catch (error) {
             throw Error(error.message);

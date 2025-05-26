@@ -107,10 +107,55 @@ const sendCredentialMail = async ({ userData }) => {
     });
 };
 
+const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) => {
+    if (!conditions || !hasValidIds) {
+        return false;
+    }
+    const { designationID, vesselID, vesselTypeID, currentStatus, _id, role } = conditions;
+    const group = await Group.findOne({ _id: hasValidIds , isDeleted: false });
+    if (!group) return false;
+
+    if (group?.groupType === 'MEMBER') {
+        const isMember = await GroupMember.findOne({ group: group._id, member: _id });
+        return Boolean(isMember);
+    }
+
+    if (group?.groupType === 'GROUP') {
+        const members = await GroupMember.find({ group: group._id, isDeleted: false });
+        for (const member of members) {
+            const innerGroup = await Group.findOne({ _id: member.member, isDeleted: false });
+            if (!innerGroup) continue;
+
+            const { groupType, groupData } = innerGroup;
+
+            switch (groupType) {
+                case 'designation':
+                    if (String(groupData) === String(designationID)) return true;
+                    break;
+                case 'vessel':
+                    if (String(groupData) === String(vesselID)) return true;
+                    break;
+                case 'vesselType':
+                    if (String(groupData) === String(vesselTypeID)) return true;
+                    break;
+                case 'vesselStatus':
+                    if (String(groupData) === String(currentStatus)) return true;
+                    break;
+                case 'role':
+                    if (groupData === 'LEARNER' && role === 'LEARNER') return true;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    return false;
+};
+
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, email,_id } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, owner, email, _id } = conditions;
     const matches = conditionalCustomFields.map((field) => {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
         switch (type_of_Field) {
@@ -157,7 +202,10 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
               
                 return data;
             case "GROUP":
-                return groupIDs?.some((group) => {
+                if (!groupIDs || groupIDs.length === 0) {
+                    return false;
+                }
+                return groupIDs?.some(async (group) => {
                     switch (group.groupType) {
                         case "designation":
                             return String(group.groupIDs?.[0]) === String(designationID);
@@ -167,7 +215,17 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+                        case 'owner':
+                            group.groupIDs = group.groupIDs.map((groupId) =>
+                                mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : String(groupId)
+                            );
+                            return group.groupIDs?.includes(owner);
 
+                        case "custom":
+                            const customGroupId = group.groupIDs?.[0];
+                            if (!customGroupId) return false;
+                             const result = await checkforCustomGroupBasedAutoenrollment(customGroupId, conditions );
+                             if(result) return true;
                         default:
                             return false;
                     }
@@ -206,7 +264,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     currentCertificateLayout: currentCertificateLayout ?? null
 });
 
-async function enrollUsers(enrollDataArray,context) {
+async function enrollUsers(enrollDataArray, context) {
     try {
         const { userInfo } = AuthUser(context);
         const allUserIds = [];
@@ -229,21 +287,6 @@ async function enrollUsers(enrollDataArray,context) {
         const subscriber = await Subscriber.findOne();
         if (subscriber) {
             subscriberId = subscriber._id;
-        }
-
-        let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: trainingObjectIds }, user: { $in: userObjectIds }, isEnrolled: { $ne: true } });
-        const existingSetOfUserTrainings = new Set(
-            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
-        );
-        const newEnrollments = [];
-
-        for (const userId of userObjectIds) {
-            for (const trainingId of trainingObjectIds) {
-                const key = `${userId}-${trainingId}`;
-                if (!existingSetOfUserTrainings.has(key)) {
-                    newEnrollments.push({ userId, trainingId });
-                }
-            }
         }
 
         const existingRegistrations = await TrainingRegistration.find({ training: { $in: trainingObjectIds } });
@@ -407,118 +450,6 @@ async function enrollUsers(enrollDataArray,context) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
-        try {
-            const trainingProgressDocuments = await OverallTrainingProgress.find({
-                user: { $in:  userObjectIds },
-                training: { $in: trainingObjectIds }
-            });
-    
-            const trainingProgressMap = new Map();
-    
-            trainingProgressDocuments.forEach(doc => {
-                const key = `${doc.user.toString()}_${doc.training.toString()}`;
-                trainingProgressMap.set(key, doc._id);
-            });
-    
-            // Precompute training progress IDs for quick lookup
-            const trainingProgressMapComputed = new Map(
-                userObjectIds.flatMap(userId =>
-                    trainingObjectIds.map(trainingId => {
-                        const key = `${userId}_${trainingId}`;
-                        return [key, trainingProgressMap.get(key)];
-                    })
-                )
-            );
-    
-            const trainingTitlesMap = new Map(
-                (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
-                    .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
-            );
-    
-            if (userObjectIds?.length > 0) { 
-                const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
-                    subscriber: subscriberId,
-                    title: [
-                        {
-                            lang: "en",
-                            value: `${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )} has been enrolled to you`,
-                        },
-                    ],
-                    message: [
-                        {
-                            lang: "en",
-                            value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
-                                trainingId.toString()
-                            )}.`,
-                        },
-                    ],
-                    notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
-                    notifyAllAdmin: false,
-                    isNotificatonForAdmin: false,
-                    notifiers: [userId],
-                    employeeNotifiers: [userId],
-                    affected: [],
-                    status: "SENT",
-                    icon: notificationiconEnum.SUCCESS,
-                    createdBy: userInfo,
-                    additionalInfo: [
-                        {
-                            infoType: "VIEW_COURSE",
-                            infoData: {
-                                filePath: trainingId,
-                                trainingProgressId: trainingProgressMapComputed.get(
-                                    `${userId}_${trainingId}`
-                                ),
-                            },
-                        },
-                    ],
-                }));
-    
-                if (notifications?.length > 0) {
-                    await NotificationHelper.createNotification(notifications);
-                }
-            }
-        } catch (error) {
-            console.log(error);
-        }
-
-        try {
-
-            //send enrollment email
-            const imageUrlMap = new Map(await Promise.all(
-                trainingData.map(async training => [
-                    training?._id,
-                    await fetchFile(training?.coverImage?.url) ||
-                    'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
-                ])
-                ));
-
-            // Preprocess course data once
-            const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
-            const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
-            const coursesDataMap = trainingData.map(training => ({
-                trainingTitle: training?.title?.[0]?.value || ' ',
-                durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                courseImage: imageUrlMap.get(training?._id),
-            }));
-            // Prepare email data for insertion into SQLite queue
-            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                receiverEmail: user.email,
-                firstName: user.firstName,
-                courses: coursesDataMap,
-                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-            }));
-            console.log("emailData", emailData.length);
-            // Insert emails into the course_emails table
-            /* insertCourseEmails(emailData);
-            // Send the emails batch by batch
-            await sendCourseEmailBulk(); */
-        } catch (error) {
-            console.log(error);
-        }
-       
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }
@@ -548,7 +479,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData.courses || [],
+                            courses: coursesData[0] ?? [],
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
@@ -662,6 +593,11 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
                             matches = groupIDsList.includes(user.currentStatus);
                         }
                         break;
+                    case groupTypes.role:
+                        if (user?.role) {
+                            matches = groupIDsList.includes(user.role);
+                        }
+                        break;
                 }
 
                 if (matches) {
@@ -722,9 +658,12 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         throw new Error("userConditions should be an array");
     }
 
+    const usersToEnroll = [];
+    let enrollDataSet = [];
+    let enrollmentData = [];
+    let removeUsersData = [];
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
-            const usersToEnroll = [];
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
@@ -749,16 +688,23 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-                console.log(userConditions, 'data reciverd from user conditions');
+
                 const validUsers = userConditions.filter(user =>
                     evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                 );
-                console.log('valid users ', validUsers);
+
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
                     .map(user => user._id);
+
+                if (usersToRemove.length > 0) {
+                    removeUsersData.push({
+                        usersToRemove,
+                        planId: plan._id
+                    });
+                }
 
                 const userIds = validUsers.map(user => user._id);
 
@@ -788,62 +734,25 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                         const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
 
-                    // const assignments = userIds.map(userId => ({
-                    //     learningPlanId: plan._id,
-                    //     assignedLearnerId: userId,
-                    //     isMannuallyAdded: false,
-                    //     createdBy: context.user.userId,
-                    //     updatedBy: context.user.userId
-                    // }));
-
-                    // if (assignments?.length) {
-                    //     const dataenrolled = await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                    // }
                     usersToEnroll.push(...userIds);
                 }
-
-                if (usersToRemove.length > 0) {
-
-                    await OverallTrainingProgress.updateMany(
-                        {
-                            learningPlan: plan._id,
-                            user: { $in: usersToRemove }
-                        },
-                        {
-                            $pull: { learningPlan: plan._id }
-                        }
-                    );
-                    const deleteResult = await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan._id,
-                        assignedLearnerId: { $in: usersToRemove }
-                    });
-
-                }
             }
+
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
 
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
 
-                
+
                 if (resultforGroup?.success) {
 
                     const usersToRemove = userConditions
                         .filter(user => !resultforGroup?.allMatchedUsers.includes(user._id))
                         .map(user => user._id);
-    
+
                     if (usersToRemove.length > 0) {
-                        await OverallTrainingProgress.updateMany(
-                            {
-                                learningPlan: plan._id,
-                                user: { $in: usersToRemove }
-                            },
-                            {
-                                $pull: { learningPlan: plan._id }
-                            }
-                        );
-                        const deleteResult = await LearningPlanAssignment.deleteMany({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: usersToRemove }
+                        removeUsersData.push({
+                            usersToRemove,
+                            planId: plan._id
                         });
                     }
 
@@ -860,11 +769,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...resultforGroup?.allMatchedUsers);
                 }
             } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
+
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-                console.log('result for Group ', resultforGroup);
+
                 if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
-                    // Filter group-matched users by conditional custom fields
-                    // const validUsers = userConditions.filter(user =>resultforGroup.allMatchedUsers.includes(user._id) && evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user));
+
                     const validUsers = userConditions.filter(user =>
                         evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                     );
@@ -872,6 +781,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     const usersToRemove = userConditions
                         .filter(user => !validUserIds.has(user._id))
                         .map(user => user._id);
+
+                    if (usersToRemove.length > 0) {
+                        removeUsersData.push({
+                            usersToRemove,
+                            planId: plan._id
+                        });
+                    }
 
                     const userIds = validUsers.map(user => user._id);
 
@@ -899,28 +815,15 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                         if (newAssignments.length > 0) {
                             const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                            console.log('data enrolled ', dataEnrolled);
                         }
                         usersToEnroll.push(...userIds);
                     }
-                    if (usersToRemove.length > 0) {
-                        await OverallTrainingProgress.updateMany(
-                            {
-                                learningPlan: plan._id,
-                                user: { $in: usersToRemove }
-                            },
-                            {
-                                $pull: { learningPlan: plan._id }
-                            }
-                        );
-                        const deleteResult = await LearningPlanAssignment.deleteMany({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: usersToRemove }
-                        });
-                    }
+
                 }
             }
+
             if (usersToEnroll.length > 0) {
+
                 const enrollData = {
                     trainings: plan.selectCourses,
                     users: usersToEnroll,
@@ -928,13 +831,211 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     learningPlan: plan._id,
                     session
                 };
-                await enrollUsers([enrollData], context);
+                enrollDataSet.push(enrollData);
+                enrollmentData.push(enrollData);
                 return true;
             }
-            return false;
+            return true;
         })
     );
+
+
+    const allUserIds = new Set();
+    const allTrainingIds = new Set();
+
+    if (removeUsersData?.length > 0) {
+        const bulkUpdateOps = [];
+        const bulkDeleteOps = [];
+
+        for (const { planId, usersToRemove } of removeUsersData) {
+            if (usersToRemove.length > 0) {
+                bulkUpdateOps.push({
+                    updateMany: {
+                        filter: {
+                            learningPlan: planId,
+                            user: { $in: usersToRemove }
+                        },
+                        update: {
+                            $pull: { learningPlan: planId }
+                        }
+                    }
+                });
+
+                bulkDeleteOps.push({
+                    deleteMany: {
+                        filter: {
+                            learningPlanId: planId,
+                            assignedLearnerId: { $in: usersToRemove }
+                        }
+                    }
+                });
+            }
+        }
+
+        if (bulkUpdateOps.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkUpdateOps);
+        }
+
+        if (bulkDeleteOps.length > 0) {
+            await LearningPlanAssignment.bulkWrite(bulkDeleteOps);
+        }
+    }
+
+    enrollDataSet?.forEach(data => {
+        (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
+        (data.trainings || [])?.forEach(trainingId => allTrainingIds.add(trainingId.toString()));
+    });
+
+    // Convert Sets to arrays if needed
+    const uniqueUserIds = Array.from(allUserIds);
+    const uniqueTrainingIds = Array.from(allTrainingIds);
+    const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
+    
+    await enrollUsers(enrollmentData, context);
+
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds,nonNotificationRecievers, context);
+
     return filteredPlans.filter(Boolean);
+}
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds,nonNotificationRecievers, context) => {
+    try {
+        const { subscriberId, userInfo } = AuthUser(context);
+
+        const existingSetOfUserTrainings = new Set(
+            nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
+        );
+
+        const newEnrollments = [];
+
+        for (const userId of userObjectIds) {
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    newEnrollments.push({ userId, trainingId });
+                }
+            }
+        }
+
+        if (newEnrollments.length === 0) {
+            return;
+        }
+
+        const trainingProgressDocuments = await OverallTrainingProgress.find({
+            user: { $in: userObjectIds },
+            training: { $in: trainingObjectIds }
+        });
+
+        const trainingProgressMap = new Map();
+
+        trainingProgressDocuments.forEach(doc => {
+            const key = `${doc.user.toString()}_${doc.training.toString()}`;
+            trainingProgressMap.set(key, doc._id);
+        });
+
+        // Precompute training progress IDs for quick lookup
+        const trainingProgressMapComputed = new Map(
+            userObjectIds.flatMap(userId =>
+                trainingObjectIds.map(trainingId => {
+                    const key = `${userId}_${trainingId}`;
+                    return [key, trainingProgressMap.get(key)];
+                })
+            )
+        );
+
+        const trainingTitlesMap = new Map(
+            (await Training.find({ _id: { $in: trainingObjectIds } }).select('title'))
+                .map(({ _id, title }) => [_id.toString(), title?.[0]?.value || "a new course"])
+        );
+
+        if (userObjectIds?.length > 0) {
+            const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
+                subscriber: subscriberId,
+                title: [
+                    {
+                        lang: "en",
+                        value: `${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )} has been enrolled to you`,
+                    },
+                ],
+                message: [
+                    {
+                        lang: "en",
+                        value: `You have been successfully enrolled to a new Course: ${trainingTitlesMap.get(
+                            trainingId.toString()
+                        )}.`,
+                    },
+                ],
+                notificationType: NotificationType.NEW_COURSE_ENROLLMENT,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
+                notifiers: [userId],
+                employeeNotifiers: [userId],
+                affected: [],
+                status: "SENT",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+                additionalInfo: [
+                    {
+                        infoType: "VIEW_COURSE",
+                        infoData: {
+                            filePath: trainingId,
+                            trainingProgressId: trainingProgressMapComputed.get(
+                                `${userId}_${trainingId}`
+                            ),
+                        },
+                    },
+                ],
+            }));
+
+            if (notifications?.length > 0) {
+                await NotificationHelper.createNotification(notifications);
+            }
+        }
+
+
+        const trainingData = await Training.find({ _id: { $in: trainingObjectIds } }).lean();
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        //send enrollment email
+        const imageUrlMap = new Map(await Promise.all(
+            trainingData.map(async training => [
+                training?._id,
+                await fetchFile(training?.coverImage?.url) ||
+                'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
+            ])
+        ));
+
+        // Preprocess course data once
+        const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
+        const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
+        const coursesDataMap = trainingData.map(training => ({
+            trainingTitle: training?.title?.[0]?.value || ' ',
+            durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+            courseImage: imageUrlMap.get(training?._id),
+        }));
+
+        // Prepare email data for insertion into SQLite queue
+        const emailData = notEnrolledUsers.filter(user => user?.isEmailNotification && user?.isRegistered).map(user => ({
+            receiverEmail: user.email,
+            firstName: user.firstName,
+            courses: coursesDataMap,
+            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+        }));
+
+        // Insert emails into the course_emails table
+        insertCourseEmails(emailData);
+        // Send the emails batch by batch
+        await sendCourseEmailBulk();
+
+    } catch (error) {
+        console.log(error);
+        throw CustomError(ErrorName.FAILED, error.message);
+    }
 }
 const sendInvitationMail = async ({ userData, token, emailOrCivilIdOrPassport }) => {
     let subscriberLogo = null;
@@ -2666,11 +2767,12 @@ module.exports = {
 
 
         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
+        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('ownerName typeOfVessel -_id').lean();
         const conditions = [{
             designationID: input?.empDesignation || existingEmployee.empDesignation,
             vesselID: ((input?.user?.currentVessel !== '') ? input?.user?.currentVessel : existingEmployee.currentVessel?._id) || "",
             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel._id : "",
+            owner : existingVesselType ? existingVesselType?.ownerName : "",
             currentStatus: ((input?.user?.vesselStatus !== '') ? input?.user?.vesselStatus : existingEmployee.vesselStatus) || "",
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
@@ -3616,7 +3718,10 @@ module.exports = {
             const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
             const vesselTypeMap = {};
             vessels.forEach(vessel => {
-                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+                vesselTypeMap[vessel._id] = {
+                    typeOfVessel: vessel.typeOfVessel,
+                    ownerName : vessel.ownerName,
+                };
             });
 
 
@@ -3627,16 +3732,17 @@ module.exports = {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
                     const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
-                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
-
+                    const typeOfVesselIds = vesselTypeMap[user.currentVessel]?.typeOfVessel;
+                    const vesselOwnerName = vesselTypeMap[user.currentVessel]?.ownerName;
                     const conditions = {
                         designationID: empDesignation,
                         vesselID: user.currentVessel ?? null,
                         vesselTypeID: typeOfVesselIds ?? null,
-                        currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
-                        email: user.email,
-                        _id: user._id
-
+                        owner : vesselOwnerName ?? null,
+                        currentStatus: user?.vesselStatus ?? VesselStatus?.ONSHORE,
+                        email: user?.email,
+                        _id: user?._id,
+                        role: 'LEARNER'
                     };
 
                     conditionsList.push(conditions);

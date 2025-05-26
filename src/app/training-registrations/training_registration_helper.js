@@ -870,7 +870,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData.courses || [],
+                            courses: coursesData[0] ?? [],
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
@@ -1458,30 +1458,30 @@ module.exports = {
                         //     });
                         // });
 
-                        // Create a map of training IDs to titles
-                        const trainingMap = new Map(
-                            trainings.map(training => [
-                                training._id.toString(),
-                                training.title?.[0]?.value || ' '
-                            ])
-                        );
+                        // // Create a map of training IDs to titles
+                        // const trainingMap = new Map(
+                        //     trainings.map(training => [
+                        //         training._id.toString(),
+                        //         training.title?.[0]?.value || ' '
+                        //     ])
+                        // );
 
-                        // Generate email payloads
-                        const emailData = inputUsers.flatMap(user =>
-                            input.trainings.map(trainingId => ({
-                                receiverEmail: user.email,
-                                subject: `Unenrolled from ${trainingMap.get(trainingId.toString()) || ' '}`,
-                                firstName: user.firstName,
-                                courses: JSON.stringify({ courseTitle: trainingMap.get(trainingId.toString()) || ' ' }),
-                                action: 'UNENROLL',
-                                status: 'PENDING'
-                            }))
-                        );
+                        // // Generate email payloads
+                        // const emailData = inputUsers.flatMap(user =>
+                        //     input.trainings.map(trainingId => ({
+                        //         receiverEmail: user.email,
+                        //         subject: `Unenrolled from ${trainingMap.get(trainingId.toString()) || ' '}`,
+                        //         firstName: user.firstName,
+                        //         courses: JSON.stringify({ courseTitle: trainingMap.get(trainingId.toString()) || ' ' }),
+                        //         action: 'UNENROLL',
+                        //         status: 'PENDING'
+                        //     }))
+                        // );
 
-                        // Insert emails into the course_emails table
-                        SqliteEmailHelper.insertCourseEmails(emailData);
-                        // Send the emails batch by batch
-                        await sendCourseEmailBulk(action = 'UNENROLL');
+                        // // Insert emails into the course_emails table
+                        // SqliteEmailHelper.insertCourseEmails(emailData);
+                        // // Send the emails batch by batch
+                        // await sendCourseEmailBulk(action = 'UNENROLL');
 
                         return updateTrainingRegistration;
                     }

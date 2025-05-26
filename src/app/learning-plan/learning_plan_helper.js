@@ -59,7 +59,10 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'vessel':
                 case 'vesselType':
                 case 'owner':
-                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    group.groupIDs = group.groupIDs.map((groupId) =>
+                      mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
+                    );
+                    
                     break;
                 // case 'role':
                 //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
@@ -186,12 +189,17 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
-    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
-        const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0) {
+        const groupTypeToFieldTypeMap = {
+            'vesselType': 'VESSEL_TYPE',
+            'vesselStatus': 'CURRENT_STATUS'
+        };
+        const normalizedTopLevelFields = input.groupIDs.map(group => groupTypeToFieldTypeMap[group.groupType?.trim()] || group.groupType?.toUpperCase()).filter(Boolean);
 
         for (const field of input.conditionalCustomFields || []) {
-            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) {
-                errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
+            const fieldType = field.type_of_Field?.trim()?.toUpperCase();
+            if (normalizedTopLevelFields.includes(fieldType)) {
+                errorList.push(`An auto-synced group of the same type has already been selected as a primary condition. Please choose a different group or condition`);
             }
         }
     }
@@ -370,8 +378,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
-        if(existingLearningPlan?.status === learningPlanStatus.DRAFT){
-              return { learningPlan: existingLearningPlan, success: true };
+        if (existingLearningPlan?.status === learningPlanStatus.DRAFT) {
+            return { learningPlan: existingLearningPlan, success: true };
         }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
@@ -559,12 +567,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -573,7 +581,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -845,13 +853,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -860,7 +867,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }

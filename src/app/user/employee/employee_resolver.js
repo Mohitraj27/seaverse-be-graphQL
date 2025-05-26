@@ -1607,6 +1607,11 @@ module.exports.queries = {
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
                         html = htmlContent;
+                        await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
                     } else {
                         let generatePassword
 
@@ -2002,17 +2007,21 @@ const changeRegisterEmployees = async ({ input }, context) => {
         const userVesselIds = users.filter(u => u.currentVessel).map(u => u.currentVessel);
         const vessels = await Vessel.find(
             { _id: { $in: userVesselIds }, isDeleted: false, isActive: true }
-        ).select('typeOfVessel');
+        ).select('typeOfVessel ownerName');
 
         const vesselTypeMap = {};
         vessels.forEach(v => {
-            vesselTypeMap[v._id.toString()] = v.typeOfVessel;
+            vesselTypeMap[v._id.toString()] = {
+                typeOfVessel: v.typeOfVessel,
+                ownerName: v.ownerName
+            };
         });
 
         const conditions = users.map(user => ({
             designationID: designationMap[user?._id?.toString()] || null,
             vesselID: user?.currentVessel || null,
-            vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()] || null : null,
+            vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.vesselType || null : null,
+            owner : user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.ownerName || null : null,
             currentStatus: user?.vesselStatus || null,
             email: user?.email,
             _id: user?._id
@@ -2797,9 +2806,11 @@ module.exports.mutations = {
                     designationID: input.empDesignation,
                     vesselID: savedUserVessel?.vessel ?? null,
                     vesselTypeID: vessel?.typeOfVessel?._id ?? null,
+                    owner : vessel?.ownerName ?? null,
                     currentStatus: savedUserVessel?.vesselStatus ?? null,
                     email: savedUser.email,
-                    _id: savedUser._id
+                    _id: savedUser._id,
+                    role: 'LEARNER',
                 }];
 
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);

@@ -181,14 +181,16 @@ module.exports.mutations = {
                         
                         // Conditions for auto enrollment
                         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('typeOfVessel -_id').lean();
+                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
                         const conditions = [{
                             designationID: designation,
                             vesselID: vesselName || "",
                             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
+                            owner : existingVesselType ? existingVesselType?.ownerName : "",
                             currentStatus: vesselStatus || "",
                             email: signupRequest?.email,
-                            _id: signupRequest?.userId
+                            _id: signupRequest?.userId,
+                            role: 'LEARNER',
                         }];
     
                         if (learningPlans.length > 0) {
