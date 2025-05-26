@@ -37,11 +37,18 @@ const { enrollUsers } = require('../employee/employee_helper');
 const { filterLearningPlans } = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
-    if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
-    for (const field of plan?.conditionalCustomFields) {
+
+    if (!plan?.conditionalCustomFields) {
+        return { matchFound: false, learningPlanId: [] };
+    }
+    for (const field of plan.conditionalCustomFields) {
         if (field.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field.groupIDs)) {
             for (const group of field.groupIDs) {
-                if (group.groupType === groupTypes.custom && group.groupIDs.includes(customGroupId)) {
+                if (
+                    group.groupType === groupTypes.custom &&
+                    Array.isArray(group.groupIDs) &&
+                    group.groupIDs.some(id => id.toString() === customGroupId.toString())
+                ) {
                     return { matchFound: true, learningPlanId: plan._id };
                 }
             }
@@ -55,29 +62,44 @@ async function checkIfGroupMatchedInPlanAutomaticFields(plan, customGroupId) {
         group.groupIDs.includes(customGroupId.toString()));
     return match ? { matchFound: true, learningPlanId: plan._id } : { matchFound: false, learningPlanId: [] };
 }
-async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userIdToAutoenroll, context) {
+async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userIdToAutoenroll, excludedMembers, context) {
+
+    const removedLearnersID = excludedMembers;
+    const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
 
     const filteredPlans = await Promise.allSettled(
         learningPlans.map(async (plan) => {
             const usersToEnroll = [];
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
                 const { matchFound, learningPlanId } = await checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId);
+
                 if (matchFound) {
                     const userIds = userIdToAutoenroll.map(id => id.toString());
                     await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan?._id,
+                        learningPlanId: learningPlanId,
                     });
-                    const newAssignments = userIds.map(userId => ({
+
+                    const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                        { user: { $in: removedLearnersIDToObject }, learningPlan: learningPlanId, isDeleted: { $ne: true } },
+                        {
+                            $pull: {
+                                learningPlan: learningPlanId,
+                            }
+                        }
+                    );
+
+                    const newAssignments = userIdToAutoenroll.map(userId => ({
                         learningPlanId: plan?._id,
                         assignedLearnerId: userId,
                         isMannuallyAdded: false,
-                        createdBy: context?.user?._id,
-                        updatedBy: context?.user?._id
+                        createdBy: context?.user?.userId,
+                        updatedBy: context?.user?.userId
                     }));
+
                     if (newAssignments?.length > 0) {
                         const dataenrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
-                    usersToEnroll.push(...userIds);
+                    usersToEnroll.push(...userIdToAutoenroll);
                 }
             }
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
@@ -86,16 +108,25 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
                 if (matchFound) {
                     const userIds = userIdToAutoenroll.map(id => id.toString());
                     await LearningPlanAssignment.deleteMany({
-                        learningPlanId: plan?._id,
+                        learningPlanId: learningPlanId,
                     });
+
+                    const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+                        { user: { $in: removedLearnersIDToObject }, learningPlan: learningPlanId, isDeleted: { $ne: true } },
+                        {
+                            $pull: {
+                                learningPlan: learningPlanId,
+                            }
+                        }
+                    );
 
                     // 2. Create new assignments
                     const newAssignments = userIdToAutoenroll.map(userId => ({
                         learningPlanId: plan?._id,
                         assignedLearnerId: userId,
                         isMannuallyAdded: false,
-                        createdBy: context.user.userId,
-                        updatedBy: context.user.userId
+                        createdBy: context?.user?.userId,
+                        updatedBy: context?.user?.userId
                     }));
                     if (newAssignments?.length > 0) {
                         const insertedAssignments = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
@@ -111,7 +142,7 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
                     type: "ENROLL",
                     learningPlan: plan?._id,
                 };
-                const data = await enrollUsers([enrollData]);
+                const data = await enrollUsers([enrollData], context);
                 return true;
             }
             return false;
@@ -1114,47 +1145,17 @@ module.exports.mutations = {
 
         if (input?._id) {
 
-            const groupIdInString = input?._id.toString();
-
             const learningPlans = await LearningPlan.find({
                 status: LearningPlanStatus.ACTIVE,
                 isDeleted: false,
-                groupIDs: {
-                    $elemMatch: {
-                        groupIDs: Array.isArray(groupIdInString) ? { $in: groupIdInString } : groupIdInString
-                    }
-                },
             });
 
-            if (excludedMembers.length > 0) {
-
-                const removedLearnersID = excludedMembers;
-
-                const removedLearnersIDToObject = removedLearnersID.map(id => ObjectId(id));
-
-                const learningPlanIds = learningPlans.map(learningPlan => learningPlan._id);
-
-                await LearningPlanAssignment.deleteMany({
-                    learningPlanId: { $in: learningPlanIds },
-                    assignedLearnerId: { $in: removedLearnersIDToObject },
-                });
-
-                const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-                    { user: { $in: removedLearnersIDToObject }, learningPlan: { $in: learningPlanIds }, isDeleted: { $ne: true } },
-                    {
-                        $pull: {
-                            learningPlan: { $in: learningPlanIds },
-                        }
-                    }
-                );
-
-            }
 
             if (input?.groupType === "GROUP" && learningPlans?.length > 0 && membersToInsert?.length > 0) {
-                await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, context);
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, excludedMembers, context);
             }
             if (input?.groupType === "MEMBER" && learningPlans?.length > 0 && input?.members?.length > 0) {
-                await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, context);
+                await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, excludedMembers, context);
             }
         }
 

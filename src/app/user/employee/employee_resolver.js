@@ -99,7 +99,7 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
 }
-async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operationType, userInfo) {
+async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operationType, userInfo,context) {
     const filterLearningPlans = await Promise.allSettled(learningPlans.map(async (plan) => {
         const usersToEnroll = [];
         if (plan?.targetAudience === targetAudienceEnum?.GROUP_BASED && plan?.audienceSelection === audienceSelectionEnum?.ALL_EMPLOYEES) {
@@ -146,7 +146,7 @@ async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operat
                 type: "ENROLL",
                 learningPlan: plan?._id,
             };
-            const datagoingtoenrollUsers = await enrollUsers([enrollData]);
+            const datagoingtoenrollUsers = await enrollUsers([enrollData],context);
             return true;
         }
         return false;
@@ -1088,19 +1088,28 @@ module.exports.queries = {
                     : []),
                 ...(filterInput?.role?.length > 0
                     ? [
+                        // commented out as Every Admin is Leaner, Bug by astitva 13/5/25
+                        //  {
+                        //     $match:
+                        //         filterInput.role.includes("LEARNER") &&
+                        //             filterInput.role.includes("ADMIN")
+                        //             ? {}
+                        //             : filterInput.role.includes("LEARNER")
+                        //                 ? {
+                        //                     "user.role": "LEARNER",
+                        //                     "user.subRoles.name": { $ne: "ADMIN" },
+                        //                 }
+                        //                 : filterInput.role.includes("ADMIN")
+                        //                     ? { "user.subRoles.name": "ADMIN" }
+                        //                     : { "user.role": { $in: filterInput.role } },
+                        // },
                         {
                             $match:
-                                filterInput.role.includes("LEARNER") &&
-                                    filterInput.role.includes("ADMIN")
+                                filterInput.role.includes("LEARNER")
                                     ? {}
-                                    : filterInput.role.includes("LEARNER")
-                                        ? {
-                                            "user.role": "LEARNER",
-                                            "user.subRoles.name": { $ne: "ADMIN" },
-                                        }
-                                        : filterInput.role.includes("ADMIN")
-                                            ? { "user.subRoles.name": "ADMIN" }
-                                            : { "user.role": { $in: filterInput.role } },
+                                    : filterInput.role.includes("ADMIN")
+                                        ? { "user.subRoles.name": "ADMIN" }
+                                        : { "user.role": { $in: filterInput.role } },
                         },
                     ]
                     : []),
@@ -1599,6 +1608,11 @@ module.exports.queries = {
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
                         html = htmlContent;
+                        await SendEmail({
+                            receiverEmail: currentUserData?.email,
+                            subject: "Registration Invitation",
+                            htmlContent: html,
+                        });
                     } else {
                         let generatePassword
 
@@ -1994,17 +2008,21 @@ const changeRegisterEmployees = async ({ input }, context) => {
         const userVesselIds = users.filter(u => u.currentVessel).map(u => u.currentVessel);
         const vessels = await Vessel.find(
             { _id: { $in: userVesselIds }, isDeleted: false, isActive: true }
-        ).select('typeOfVessel');
+        ).select('typeOfVessel ownerName');
 
         const vesselTypeMap = {};
         vessels.forEach(v => {
-            vesselTypeMap[v._id.toString()] = v.typeOfVessel;
+            vesselTypeMap[v._id.toString()] = {
+                typeOfVessel: v.typeOfVessel,
+                ownerName: v.ownerName
+            };
         });
 
         const conditions = users.map(user => ({
             designationID: designationMap[user?._id?.toString()] || null,
             vesselID: user?.currentVessel || null,
-            vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()] || null : null,
+            vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.vesselType || null : null,
+            owner : user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.ownerName || null : null,
             currentStatus: user?.vesselStatus || null,
             email: user?.email,
             _id: user?._id
@@ -2019,7 +2037,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { _id: { $in: input.users } },
                 { isRegistered: true }
             );
-            const emailContentforAdmin = registered_statusforAdmin(
+            /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
                     userfirstName: users[0].firstName
@@ -2029,7 +2047,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 receiverEmail: userInfo.email,
                 subject: `User Status Update: ${input.type}`,
                 htmlContent: emailContentforAdmin,
-            });
+            }); */
             if (learningPlans?.length > 0) {
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
@@ -2127,7 +2145,7 @@ const manageRole = async ({ input }, context) => {
                 { $set: { role: "EMPLOYEE" } }
             );
             if (updateUserRole?.nModified > 0) {
-                const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo);
+                const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo,context);
             }
             operationType = "Removed role as AUTHOR";
             notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
@@ -2140,7 +2158,7 @@ const manageRole = async ({ input }, context) => {
             );
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
-                const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo);
+                const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo,context);
             }
             operationType = "Removed Roles for LEARNER";
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
@@ -2169,6 +2187,7 @@ const manageRole = async ({ input }, context) => {
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: affectedUsers.map(user => ({
@@ -2797,9 +2816,11 @@ module.exports.mutations = {
                     designationID: input.empDesignation,
                     vesselID: savedUserVessel?.vessel ?? null,
                     vesselTypeID: vessel?.typeOfVessel?._id ?? null,
+                    owner : vessel?.ownerName ?? null,
                     currentStatus: savedUserVessel?.vesselStatus ?? null,
                     email: savedUser.email,
-                    _id: savedUser._id
+                    _id: savedUser._id,
+                    role: 'LEARNER',
                 }];
 
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
@@ -3231,14 +3252,14 @@ module.exports.mutations = {
             if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-            /*
+            
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-            */
+            
             const emailContentForAdmin = roleUpdateNotifyAdmin({
                 firstName: userInfo?.firstName,
                 usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
@@ -3314,7 +3335,7 @@ module.exports.mutations = {
             const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
             if (validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0) {
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
-                await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo);
+                await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo,context);
             }
 
             return {

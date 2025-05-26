@@ -310,7 +310,12 @@ const getMainLearnersReport = async ({ input }, context) => {
                     as: 'trainingProgresses',
                     pipeline: [
                         {
-                            $match: { isEnrolled: true }
+                            $match: {
+                                $or: [
+                                    { isEnrolled: true },
+                                    { status: "COMPLETED" }
+                                ]
+                            }
                         },
                     ],
                 },
@@ -737,8 +742,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     ...matchUsers,
@@ -2601,7 +2609,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const parsedItem = {
                             LearnerName: learnerName,
                             Email: item.email || '',
-                            EmployeeId: item.empId || '',
+                            'User Id': item.empId || '',
                             Designation: item.designation || '',
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
@@ -4212,8 +4220,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {
@@ -4490,7 +4501,7 @@ const generateCustomReport = async ({ input }, context) => {
                     Name: learnerName ?? "-",
                     Email: item.email || null,
                     Country: country,
-                    employeeId: item.employeeId || null,
+                    'User Id': item.employeeId || null,
                     Designation: item.designation || null,
                     'Current Vessel': currentVessel,
                     'Vessel Type': vesselType,
@@ -4519,8 +4530,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {

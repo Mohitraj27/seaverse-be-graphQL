@@ -140,6 +140,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
             title: [{ lang: "en", value: `DELETE_REQUEST ${notificationData.action}` }],
             notificationType: NotificationType.DELETE_APPROVAL_REQUEST,
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: adminUsers.map(admin => admin._id),
             employeeNotifiers: [],
             affected: [

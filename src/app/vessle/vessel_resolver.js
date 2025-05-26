@@ -18,9 +18,68 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../email-template/vesselStatusUpdate");
 const { sendNotifications } = require("../../util/firebase_helper");
-
+const {LearningPlan} = require('../learning-plan/learning_plan_model');
 const { Owner } = require("../vessle/owner/owner_model");
-
+const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_status.json')
+const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
+const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
+const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
+    try {
+        const result = await LearningPlan.aggregate([
+            {
+                $match: {
+                    status: LearningPlanStatus.ACTIVE,
+                    isDeleted: false,
+                    $or: [
+                        {
+                            targetAudience: targetAudienceEnum.GROUP_BASED,
+                            "groupIDs.groupType": "vessel",
+                            "groupIDs.groupIDs": vesselId
+                        },
+                        {
+                            targetAudience: targetAudienceEnum.GROUP_BASED,
+                            "groupIDs.groupType": "vesselType",
+                            "groupIDs.groupIDs": vesselTypeId
+                        },
+                        {
+                            targetAudience: targetAudienceEnum.EVERYONE_IN_ORGANIZATION,
+                            "conditionalCustomFields.type_of_Field": typeOfConditionalCustomFieldEnum.VESSEL,
+                            "conditionalCustomFields.valueOfField": vesselId,
+                            "conditionalCustomFields.isOrIsNot": "IS"
+                        },
+                        {
+                            targetAudience: targetAudienceEnum.EVERYONE_IN_ORGANIZATION,
+                            "conditionalCustomFields.type_of_Field": typeOfConditionalCustomFieldEnum.VESSEL_TYPE,
+                            "conditionalCustomFields.valueOfField": vesselTypeId,
+                            "conditionalCustomFields.isOrIsNot": "IS"
+                        },
+                        {
+                            targetAudience: targetAudienceEnum.EVERYONE_IN_ORGANIZATION,
+                            "conditionalCustomFields.type_of_Field": typeOfConditionalCustomFieldEnum.VESSEL,
+                            "conditionalCustomFields.valueOfField": vesselId,
+                            "conditionalCustomFields.isOrIsNot": "IS_NOT"
+                        },
+                        {
+                            targetAudience: targetAudienceEnum.EVERYONE_IN_ORGANIZATION,
+                            "conditionalCustomFields.type_of_Field": typeOfConditionalCustomFieldEnum.VESSEL_TYPE,
+                            "conditionalCustomFields.valueOfField": vesselTypeId,
+                            "conditionalCustomFields.isOrIsNot": "IS_NOT"
+                        }
+                    ]
+                }
+            },
+            {
+                $limit: 1 
+            },
+            {
+                $count: "count"
+            }
+        ]);
+        return result.length > 0 && result[0].count > 0;
+    } catch (error) {
+        throw new Error('Failed to check vessel Learning Plan association', error);
+    }
+};
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -293,6 +352,16 @@ module.exports.mutations = {
             if (!input.imoNumber) throw CustomError(ErrorName.FIELD_REQUIRED, 'IMO number is required.');
             if (input.isActive === undefined || input.isActive === null) throw CustomError(ErrorName.FIELD_REQUIRED, 'Is Active is required.');
 
+            if (vessel.isActive === true && input.isActive === false) {
+                const isLinkedToActiveLearningPlan = await checkVesselLinkedToActiveLearningPlan(
+                    vessel._id.toString(), 
+                    vessel.typeOfVessel?.toString() || typeOfVessel?.toString()
+                );
+                if (isLinkedToActiveLearningPlan) {
+                    throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN,'This vessel is linked to an active Learning Plan and cannot be deactivated or deleted');
+                }
+            }
+
             const existingImoNumber = await Vessel.findOne({ _id: { $ne: vessel._id }, imoNumber: imoNumber });
             if (existingImoNumber) {
                 throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
@@ -450,6 +519,24 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             const result = await DbTransactionHelper.performDbTransaction(async (session) => {
+             const vesselsToCheck = await Vessel.find({ 
+                  _id: { $in: ids },
+                isActive: true 
+             }).populate('typeOfVessel');
+        if(vesselsToCheck?.length > 0 ){
+            const checkPromises = vesselsToCheck.map(vessel => {
+             const vesselTypeId = vessel.typeOfVessel?._id?.toString() || vessel.typeOfVessel?.toString();
+                return checkVesselLinkedToActiveLearningPlan(
+                        vessel._id.toString(), 
+                        vesselTypeId
+                    );
+            });
+            const results = await Promise.all(checkPromises);
+            const hasLinkedVessel = results.some(isLinked => isLinked === true);
+            if (hasLinkedVessel) {
+             throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN,'One or more vessels are linked to active Learning Plans and cannot be deactivated or deleted' );
+             }
+        }                                
                 let vessel;
                 const updatedVessels = [];
                 for (let id of ids) {

@@ -76,7 +76,7 @@ function sendUserSupportAcknowledgment(email, subject, message) {
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         <p>Thank you for your patience and understanding.</p>
                                         <p>Best regards,</p>
-                                        <p>Your Seaverse Support Team</p>
+                                        <p>Seaverse Team</p>
                                     </td>
                                 </tr>
                             </table>
@@ -168,7 +168,7 @@ function sendAdminSupportNotification(email, subject, message) {
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         <p>Thank you for your prompt action.</p>
                                         <p>Best regards,</p>
-                                        <p>Your Seaverse Support Notification</p>
+                                        <p>Seaverse Team</p>
                                     </td>
                                 </tr>
                             </table>

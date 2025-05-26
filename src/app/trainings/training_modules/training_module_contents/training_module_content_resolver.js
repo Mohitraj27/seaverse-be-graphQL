@@ -92,7 +92,10 @@ module.exports.queries = {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
-                        as: "createdByUser"
+                        as: "createdByUser",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
                     },
                 },
                 {
@@ -100,7 +103,10 @@ module.exports.queries = {
                         from: "users",
                         localField: "updatedBy",
                         foreignField: "_id",
-                        as: "updatedByUser"
+                        as: "updatedByUser",
+                        pipeline: [
+                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                        ]
                     },
                 },
                 {
@@ -942,16 +948,16 @@ module.exports.mutations = {
             if (questions.length > 0) {
                 for (const questionDetails of questions) {
                     const questionId = ObjectId();
-                    const choiceDocs = questionDetails.choices.map(choiceDetail => ({
+                    const choiceDocs = questionDetails?.choices?.map(choiceDetail => ({
                         subscriber: subscriberId,
                         question: questionId,
-                        choice: choiceDetail.choice.map(item => ({ lang: item.lang, value: item.value })),
+                        choice: choiceDetail?.choice?.map(item => ({ lang: item.lang, value: item.value })),
                         createdBy: userId,
                         updatedBy: userId,
                     }));
 
                     const savedChoices = await AnswerChoice.insertMany(choiceDocs);
-                    const choiceIds = savedChoices.map(choice => choice._id);
+                    const choiceIds = savedChoices?.map(choice => choice._id);
 
                     const questionDoc = new Question({
                         subscriber: subscriberId,
@@ -1048,7 +1054,7 @@ module.exports.mutations = {
               */
             return savedContent;
         } catch (error) {
-            throw Error(error.message);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
     },
 
@@ -1063,9 +1069,9 @@ module.exports.mutations = {
             throw CustomError(ErrorName.CONTENT_NOT_FOUND);
         }
 
-     
 
-     
+
+
 
 
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
@@ -1159,7 +1165,7 @@ module.exports.mutations = {
 
         if (deletedVideos?.length > 0 && Array.isArray(deletedVideos)) {
 
-            
+
             const deletedIds = deletedVideos.map(id => id.toString());
             updateData.videos = updateData.videos.filter(video => {
                 const videoIdStr = video._id?.toString?.();
@@ -1186,15 +1192,15 @@ module.exports.mutations = {
 
         if (videoFiles?.length > 0 && videoMetas?.length > 0) {
             updateData.videos = updateData.videos.map(v => v.toObject?.() || v);
-           
+
 
             const uploadedVideos = (await Promise.all(
                 videoMetas.map(async (videoMeta) => {
                     const videoIndex = videoMeta.index;
-                         console.log(videoIndex, "videoIndex")
-                   
-                    const videoFile = videoFiles[videoIndex];  
-                   
+                    console.log(videoIndex, "videoIndex")
+
+                    const videoFile = videoFiles[videoIndex];
+
 
                     if (!videoFile) {
                         console.log(`Skipping videoMeta: ${JSON.stringify(videoMeta)}, no  video file`);
@@ -1213,9 +1219,9 @@ module.exports.mutations = {
                         meta: videoMeta
                     };
                 })
-            )).filter(Boolean);  
+            )).filter(Boolean);
 
-         
+
 
             for (const uploaded of uploadedVideos) {
                 const { url, meta } = uploaded;
@@ -1228,7 +1234,7 @@ module.exports.mutations = {
                     existingVideo.isDefault = meta.isDefault;
                     existingVideo.isShowSubtitle = meta.isShowSubtitle;
                     existingVideo.duration = meta.duration;
-                    
+
                 } else {
                     //only push if not exists
                     updateData.videos.push({
@@ -1677,6 +1683,19 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
 
+            const trainingsUsedTheContent = fetchCurrentContents.map((currentContent) => currentContent.training);
+            if (trainingsUsedTheContent.length > 0) {
+                // Update not started OVerall Training Progresses
+                await OverallTrainingProgress.updateMany(
+                    { training: { $in: trainingsUsedTheContent }, status: 'NOT_STARTED' },
+                    {
+                        $inc: {
+                            version: 1
+                        }
+                    },
+                )
+            }
+
             const bridgesToUpdate = fetchCurrentContents.map(content => ({
                 bridgeId: content._id,
                 trainingContentId: inputContents.find(ic => ic.UID === content.trainingContent.UID)._id,
@@ -1722,6 +1741,9 @@ module.exports.mutations = {
                     {
                         $set: {
                             "contentData.$[outer].contentIds.$[inner]": trainingContentId
+                        },
+                        $inc: {
+                            version: 1
                         }
                     },
                     {

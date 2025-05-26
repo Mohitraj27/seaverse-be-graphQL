@@ -59,7 +59,10 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'vessel':
                 case 'vesselType':
                 case 'owner':
-                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    group.groupIDs = group.groupIDs.map((groupId) =>
+                      mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
+                    );
+                    
                     break;
                 // case 'role':
                 //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
@@ -186,12 +189,17 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
-    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
-        const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0) {
+        const groupTypeToFieldTypeMap = {
+            'vesselType': 'VESSEL_TYPE',
+            'vesselStatus': 'CURRENT_STATUS'
+        };
+        const normalizedTopLevelFields = input.groupIDs.map(group => groupTypeToFieldTypeMap[group.groupType?.trim()] || group.groupType?.toUpperCase()).filter(Boolean);
 
         for (const field of input.conditionalCustomFields || []) {
-            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) {
-                errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
+            const fieldType = field.type_of_Field?.trim()?.toUpperCase();
+            if (normalizedTopLevelFields.includes(fieldType)) {
+                errorList.push(`An auto-synced group of the same type has already been selected as a primary condition. Please choose a different group or condition`);
             }
         }
     }
@@ -278,15 +286,17 @@ const createLearningPlanHelper = async (input, context) => {
         if (!newLearningPlan._id) {
             return { success: false, errors: [errorMessages.FAILED_TO_SAVE_LEARNING_PLAN] };
         }
-        const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
-        if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
-            const enrollData = {
-                trainings: newLearningPlan.selectCourses,
-                users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
-                type: "ENROLL",
-                learningPlan: newLearningPlan._id
+        if (newLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE) {
+            const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
+            if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
+                const enrollData = {
+                    trainings: newLearningPlan.selectCourses,
+                    users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
+                    type: "ENROLL",
+                    learningPlan: newLearningPlan._id
+                }
+                await createTrainingRegistration(enrollData, context);
             }
-            await createTrainingRegistration(enrollData, context);
         }
         return { success: true, learningPlan: newLearningPlan };
     } catch (error) {
@@ -365,9 +375,12 @@ const updateLearningPlanHelper = async (id, input, context) => {
             groupIDs: input.groupIDs || existingLearningPlan.groupIDs
         });
         if (input.audienceSelection === audienceSelection.EVERYONE_IN_ORGANIZATION) {
-            existingLearningPlan.groupIDs = []; 
+            existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
+        if (existingLearningPlan?.status === learningPlanStatus.DRAFT) {
+            return { learningPlan: existingLearningPlan, success: true };
+        }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         await LearningPlanAssignment.deleteMany({
@@ -397,14 +410,14 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 groupIDs: input.groupIDs
             });
             learnersToAssign = userIds;
-            
+
         }
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
 
         if (learnersToAssign?.length > 0) {
-               const existingAssignments = await LearningPlanAssignment.find({
+            const existingAssignments = await LearningPlanAssignment.find({
                 learningPlanId: existingLearningPlan._id,
                 assignedLearnerId: { $in: learnersToAssign },
                 isDeleted: false,
@@ -439,13 +452,25 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
 
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
-            const enrollData = {
-                trainings: existingLearningPlan.selectCourses,
-                users: learnersToAssign.map(learner => learner._id),
-                type: "ENROLL",
-                learningPlan: existingLearningPlan._id
-            };
-            await createTrainingRegistration(enrollData, context);
+            const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
+            if(courseIds?.length > 0){            
+            const publishedCourses = await Training.find({
+                _id: { $in: courseIds },
+                status: "PUBLISHED",
+                isDeleted: false
+            }).select('_id'); 
+
+            const publishedCourseIds = publishedCourses?.map(course => course._id);
+            if (publishedCourseIds?.length > 0) {
+                const enrollData = {
+                    trainings: publishedCourseIds,
+                    users: learnersToAssign?.map(learner => learner._id) || [],
+                    type: "ENROLL",
+                    learningPlan: existingLearningPlan._id
+                };
+                await createTrainingRegistration(enrollData, context);
+            }
+        }
         }
         let inputCourses = [], excludedCourses = [];
         if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
@@ -542,12 +567,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -556,7 +581,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -647,7 +672,7 @@ const getUsersAndCount = async (input) => {
                                 : { [field]: { $nin: groupIDs } };
                         } else {
                             const value = condition.valueOfField.map(status => status);
-                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value, $ne: null } };
                         }
                         return valueData;
                     }));
@@ -828,13 +853,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -843,7 +867,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -1033,7 +1057,7 @@ const mergeUsersData = (inputData) => {
 const getLearningPlanAverageProgress = async (learningPlanId, status = [], search = '', lastActivity, filteredLearnerData = [], pageInput) => {
 
     try {
-        const matchCriteria = { learningPlan: { $in: [learningPlanId] } };
+        const matchCriteria = { learningPlan: { $in: [learningPlanId] }, isEnrolled: { $ne: false } };
 
         const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
