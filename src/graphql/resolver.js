@@ -114,10 +114,8 @@ module.exports = {
             if (parent.duration && typeof parent.duration == "number") {
                 return convertMinutesToHHMMSS(parent.duration);
             }
-            console.log(parent);
-            if (parent.videos.map((video) => video.duration && typeof video.duration == "number")) {
-                console.log("video duration", parent.videos);
-                return convertMinutesToHHMMSS(video.duration);
+            if (Array.isArray(parent?.videos) && parent.videos.length > 0) {
+                return parent.videos.map(video => convertMinutesToHHMMSS(video?.duration || 0));
             }
             return parent.duration;
         },
