@@ -525,7 +525,7 @@ module.exports.mutations = {
              }).populate('typeOfVessel');
         if(vesselsToCheck?.length > 0 ){
             const checkPromises = vesselsToCheck.map(vessel => {
-             const vesselTypeId = vessel.typeOfVessel?._id?.toString() || vessel.typeOfVessel?.toString() || null;
+             const vesselTypeId = vessel.typeOfVessel?._id?.toString() || vessel.typeOfVessel?.toString();
                 return checkVesselLinkedToActiveLearningPlan(
                         vessel._id.toString(), 
                         vesselTypeId
