@@ -36,6 +36,7 @@ const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assi
 const { enrollUsers } = require('../employee/employee_helper');
 const { filterLearningPlans } = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+const { decrypt, encrypt } = require('../../../util/encryption_helper');
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
     if (!plan?.conditionalCustomFields) return { matchFound: false, learningPlanId: [] };
     for (const field of plan?.conditionalCustomFields) {
@@ -662,6 +663,19 @@ module.exports.queries = {
             }
 
             paginatedMembers = members.slice(skip, skip + limit);
+            paginatedMembers = paginatedMembers.map((member) => {
+                const decryptedMember = { ...member };
+                if (decryptedMember.firstName) {
+                    decryptedMember.firstName = decrypt(decryptedMember.firstName);
+                }
+                if (decryptedMember.lastName) {
+                    decryptedMember.lastName = decrypt(decryptedMember.lastName);
+                }
+                if(decryptedMember.email) {
+                    decryptedMember.email = decrypt(decryptedMember.email);
+                }
+                return decryptedMember;
+            });
             return {
                 status: "Success",
                 totalCount: members.length,
