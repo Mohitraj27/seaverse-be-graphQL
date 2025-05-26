@@ -12,6 +12,7 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
+const { decrypt } = require('../../util/encryption_helper')
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -489,6 +490,14 @@ module.exports.queries = {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
+            }
             function filterData(data, statuses) {
 
                 if (!statuses || statuses.length === 0) {
@@ -525,6 +534,14 @@ module.exports.queries = {
                     learningPlans: lpData,
                     totalCount: lpData?.length,
                 };
+            }
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
             }
             return {
                 learningPlans: learningPlans,

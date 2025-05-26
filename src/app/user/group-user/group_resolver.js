@@ -368,7 +368,18 @@ module.exports.queries = {
                     totalCount = paginatedGroups.length;
                     break;
             }
+            groups = groups.map(group => {
+                const decryptedGroup = { ...group };
 
+                if (decryptedGroup.createdBy) {
+                    decryptedGroup.createdBy = {
+                        ...decryptedGroup.createdBy,
+                        firstName: decryptedGroup.createdBy.firstName ? decrypt(decryptedGroup.createdBy.firstName) : '',
+                        lastName: decryptedGroup.createdBy.lastName ? decrypt(decryptedGroup.createdBy.lastName) : ''
+                    };
+                }
+                return decryptedGroup;
+            });
             return {
                 status: "Success",
                 totalCount,
