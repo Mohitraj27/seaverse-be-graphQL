@@ -111,7 +111,7 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
     if (!conditions || !hasValidIds) {
         return false;
     }
-    const { designationID, vesselID, vesselTypeID, currentStatus, _id, role } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, _id, owner, role } = conditions;
     const group = await Group.findOne({ _id: hasValidIds , isDeleted: false });
     if (!group) return false;
 
@@ -143,6 +143,9 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
                     break;
                 case 'role':
                     if (groupData === 'LEARNER' && role === 'LEARNER') return true;
+                    break;
+                case 'owner':
+                    if (String(groupData) === String(owner)) return true;
                     break;
                 default:
                     break;
