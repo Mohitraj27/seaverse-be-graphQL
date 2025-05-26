@@ -71,7 +71,7 @@ const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => 
                 }
             },
             {
-                $limit: 1 
+                $limit: 1
             },
             {
                 $count: "count"
@@ -269,7 +269,7 @@ module.exports.mutations = {
 
             if (ownerId && ownerId !== '') {
                 const existingOwner = await Owner.findById(ownerId);
-                if (!existingOwner) throw CustomError(ErrorName.FAILED,'Owner does not exist');
+                if (!existingOwner) throw CustomError(ErrorName.FAILED, 'Owner does not exist');
                 if (address) {
                     existingOwner.address = address;
                     await existingOwner.save();
@@ -278,7 +278,7 @@ module.exports.mutations = {
                 ownerName = existingOwner?.name;
 
                 if (!ownerName) {
-                    throw CustomError(ErrorName.FAILED,'Owner Name does not exist');
+                    throw CustomError(ErrorName.FAILED, 'Owner Name does not exist');
                 }
             }
 
@@ -356,11 +356,11 @@ module.exports.mutations = {
 
             if (vessel.isActive === true && input.isActive === false) {
                 const isLinkedToActiveLearningPlan = await checkVesselLinkedToActiveLearningPlan(
-                    vessel._id.toString(), 
+                    vessel._id.toString(),
                     vessel.typeOfVessel?.toString() || typeOfVessel?.toString()
                 );
                 if (isLinkedToActiveLearningPlan) {
-                    throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN,'This vessel is linked to an active Learning Plan and cannot be deactivated or deleted');
+                    throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN, 'This vessel is linked to an active Learning Plan and cannot be deactivated or deleted');
                 }
             }
 
@@ -415,9 +415,9 @@ module.exports.mutations = {
             }
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
-        
+
             //AUTO ENROLLMENT
-            const userIds = await User.findOne({ currentVessel: vessel._id }).select('_id').lean();
+            const userIds = await User.find({ currentVessel: vessel._id }).select('_id').lean();
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             const userConditions = await Employee.find({
                 'user': { $in: userIds },
@@ -445,7 +445,7 @@ module.exports.mutations = {
                         currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
                         owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
                         email: employee.user ? employee.user.email : null,
-                        _id: employee._id
+                        _id: employee?.user?._id
                     }));
 
                     return result;
@@ -454,10 +454,10 @@ module.exports.mutations = {
                     console.error(error);
                 });
 
-                if (learningPlans && learningPlans.length > 0 && userConditions && userConditions.length > 0) {
-                    await filterLearningPlans(learningPlans, userConditions, context);
-                }
-            
+            if (learningPlans && learningPlans.length > 0 && userConditions && userConditions.length > 0) {
+                await filterLearningPlans(learningPlans, userConditions, context);
+            }
+
 
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -661,23 +661,23 @@ module.exports.mutations = {
                         session,
                     });
 
-                   /*  await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `Your Vessels have been Updated`,
-                        messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAllAdmin: false,
-                        affected: updatedVessels.map(v => ({
-                            targetRef: "Vessel",
-                            target: v.id,
-                        })),
-                        notifiers: updatedVessels.map(v => v.id),
-                        employeeNotifiers: updatedVessels.map(v => v.id),
-                        icon: notificationiconEnum.SUCCESS,
-                        status: "SENT",
-                        createdBy: userInfo,
-                        session,
-                    }); */
+                    /*  await NotificationHelper.createNotificationhelper({
+                         subscriber: subscriberId,
+                         titleValue: `Your Vessels have been Updated`,
+                         messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                         notifyAllAdmin: false,
+                         affected: updatedVessels.map(v => ({
+                             targetRef: "Vessel",
+                             target: v.id,
+                         })),
+                         notifiers: updatedVessels.map(v => v.id),
+                         employeeNotifiers: updatedVessels.map(v => v.id),
+                         icon: notificationiconEnum.SUCCESS,
+                         status: "SENT",
+                         createdBy: userInfo,
+                         session,
+                     }); */
 
                     const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
                     /*

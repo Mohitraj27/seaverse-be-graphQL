@@ -111,8 +111,10 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
     if (!conditions || !hasValidIds) {
         return false;
     }
-    const { designationID, vesselID, vesselTypeID, currentStatus, _id, owner, role } = conditions;
-    const group = await Group.findOne({ _id: hasValidIds , isDeleted: false });
+    const { designationID, vesselID, vesselTypeID, currentStatus, _id, owner, role: roleFromConditions } = conditions;
+    let role = [];
+    if (roleFromConditions && roleFromConditions.length > 0) role = [...roleFromConditions];
+    const group = await Group.findOne({ _id: ObjectId(hasValidIds), isDeleted: { $ne: true } });
     if (!group) return false;
 
     if (group?.groupType === 'MEMBER') {
@@ -123,10 +125,8 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
     if (group?.groupType === 'GROUP') {
         const members = await GroupMember.find({ group: group._id, isDeleted: false });
         for (const member of members) {
-            const innerGroup = await Group.findOne({ _id: member.member, isDeleted: false });
-            if (!innerGroup) continue;
 
-            const { groupType, groupData } = innerGroup;
+            const { groupType, groupData } = member;
 
             switch (groupType) {
                 case 'designation':
@@ -142,7 +142,7 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
                     if (String(groupData) === String(currentStatus)) return true;
                     break;
                 case 'role':
-                    if (groupData === 'LEARNER' && role === 'LEARNER') return true;
+                    if (role.length > 0 && role.includes(groupData)) return true;
                     break;
                 case 'owner':
                     if (String(groupData) === String(owner)) return true;
@@ -157,98 +157,134 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
 
 
 
-const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, owner, email, _id } = conditions;
-    const matches = conditionalCustomFields.map((field) => {
+const evaluateConditionalCustomFields = async (conditionType, conditionalCustomFields, conditions) => {
+    const results = [];
+
+    for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
+        const { designationID, vesselID, vesselTypeID, currentStatus, _id, owner, role: roleFromConditions } = conditions;
+
+        let role = [];
+        if (roleFromConditions && roleFromConditions.length > 0) role = [...roleFromConditions];
+
+        let match = false;
+
         switch (type_of_Field) {
             case "DESIGNATION":
-                if (designationID === null || designationID === undefined) {
-                    return true;
+                if (designationID == null) {
+                    match = true;
+                } else {
+                    console.log("valueOfField", valueOfField, "designationID", designationID);
+                    console.log(valueOfField.includes(designationID));
+                    match = isOrIsNot === "IS"
+                        ? valueOfField.includes(designationID)
+                        : !valueOfField.includes(designationID);
+                    console.log(match, "match for designation");
                 }
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(designationID)
-                    : !valueOfField.includes(designationID);
+                break;
+
+            case "ROLE":
+                if (isOrIsNot === "IS") {
+                    match = valueOfField.some(r => role.includes(r));
+                    console.log(match, "match for role");
+                } else {
+                    match = valueOfField.every(r => !role.includes(r));
+                    console.log(match, "!match for role");
+                }
+                break;
 
             case "VESSEL":
-                if (vesselID === null || vesselID === undefined) {
-                    return true;
+                if (vesselID == null) {
+                    match = true;
+                } else {
+                    match = isOrIsNot === "IS"
+                        ? valueOfField.includes(vesselID)
+                        : !valueOfField.includes(vesselID);
                 }
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(vesselID)
-                    : !valueOfField.includes(vesselID);
+                break;
 
             case "VESSEL_TYPE":
-                if (vesselTypeID === null || vesselTypeID === undefined) {
-                    return true;
+                if (vesselTypeID == null) {
+                    match = true;
+                } else {
+                    match = isOrIsNot === "IS"
+                        ? valueOfField.includes(vesselTypeID)
+                        : !valueOfField.includes(vesselTypeID);
                 }
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(vesselTypeID)
-                    : !valueOfField.includes(vesselTypeID);
+                break;
 
             case "CURRENT_STATUS":
-                if (currentStatus === null || currentStatus === undefined) {
-                    return true;
+                if (currentStatus == null) {
+                    match = true;
+                } else {
+                    match = isOrIsNot === "IS"
+                        ? valueOfField.includes(currentStatus)
+                        : !valueOfField.includes(currentStatus);
                 }
-                return isOrIsNot === "IS"
-                    ? valueOfField.includes(currentStatus)
-                    : !valueOfField.includes(currentStatus);
+                break;
 
             case "EMAIL":
-                if (_id === null || _id === undefined) {
-                    return true;
+                if (_id == null) {
+                    match = true;
+                } else {
+                    match = isOrIsNot === "IS"
+                        ? valueOfField.includes(_id)
+                        : !valueOfField.includes(_id);
                 }
-                
-                const data = isOrIsNot === "IS"
-                    ? valueOfField.map((el) => el == _id).some((el) => el === true)
-                    : valueOfField.map((el) => el != _id).some((el) => el === false);
-              
-                return data;
+                break;
+
             case "GROUP":
-                if (!groupIDs || groupIDs.length === 0) {
-                    return false;
-                }
-                return groupIDs?.some(async (group) => {
-                    switch (group.groupType) {
-                        case "designation":
-                            return String(group.groupIDs?.[0]) === String(designationID);
-                        case "vessel":
-                            return String(group.groupIDs?.[0]) === String(vesselID);
-                        case "vesselType":
-                            return String(group.groupIDs?.[0]) === String(vesselTypeID);
-                        case "vesselStatus":
-                            return String(group.groupIDs?.[0]) === String(currentStatus);
-                        case 'owner':
-                            group.groupIDs = group.groupIDs.map((groupId) =>
-                                mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : String(groupId)
-                            );
-                            return group.groupIDs?.includes(owner);
+                match = await (async () => {
+                    if (!groupIDs || groupIDs.length === 0) return false;
 
-                        case "custom":
-                            const customGroupId = group.groupIDs?.[0];
-                            if (!customGroupId) return false;
-                             const result = await checkforCustomGroupBasedAutoenrollment(customGroupId, conditions );
-                             if(result) return true;
-                        default:
-                            return false;
+                    for (const group of groupIDs) {
+                        switch (group.groupType) {
+                            case "designation":
+                                if (String(group.groupIDs?.[0]) === String(designationID)) return true;
+                                break;
+                            case "vessel":
+                                if (String(group.groupIDs?.[0]) === String(vesselID)) return true;
+                                break;
+                            case "vesselType":
+                                if (String(group.groupIDs?.[0]) === String(vesselTypeID)) return true;
+                                break;
+                            case "vesselStatus":
+                                if (String(group.groupIDs?.[0]) === String(currentStatus)) return true;
+                                break;
+                            case 'role':
+                                return role.length > 0 && role.includes(String(group.groupIDs?.[0]));
+                                break;
+                            case 'owner':
+                                group.groupIDs = group.groupIDs.map((groupId) =>
+                                    mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : String(groupId)
+                                );
+                                return group.groupIDs?.includes(owner);
+                            case "custom":
+                                const customGroupId = group.groupIDs?.[0];
+                                if (!customGroupId) break;
+
+                                const result = await checkforCustomGroupBasedAutoenrollment(customGroupId, conditions);
+                                if (result) return true;
+                                break;
+                            default:
+                                break;
+                        }
                     }
-                });
+
+                    return false;
+                })();
+                break;
+
             default:
-                return false;
+                match = false;
         }
-    });
 
-    if (conditionType === "MATCH_ANY_CONDITION") {
-        const res = matches.some((match) => match === true);
-        return res;
+        results.push(match);
     }
 
-    if (conditionType === "MATCH_ALL_CONDITION") {
-        const resp = matches.every((match) => match === true);
-        return resp;
-    }
-
-    return false;
+    return conditionType === "MATCH_ALL_CONDITION"
+        ? results.every(Boolean)
+        : results.some(Boolean);
 };
 
 const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
@@ -665,8 +701,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     let enrollDataSet = [];
     let enrollmentData = [];
     let removeUsersData = [];
-    const filteredPlans = await Promise.allSettled(
-        learningPlans.map(async (plan) => {
+    // const filteredPlans = await Promise.allSettled(
+    //     learningPlans.map(async (plan) => {
+    const filteredPlans = [];
+
+    for (const plan of learningPlans) {
+
+        try {
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
                 const userIds = userConditions.map(user => user._id);
@@ -692,9 +733,24 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
 
-                const validUsers = userConditions.filter(user =>
-                    evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                );
+                console.log(plan?._id, "plan id in automatic audience selection");
+
+                let evaluations;
+                try {
+
+                    evaluations = await Promise.all(
+                        userConditions.map(user =>
+                            evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
+                        )
+                    );
+
+                } catch (error) {
+                    console.log(error);
+                }
+
+                console.log(evaluations, "evaluations for automatic audience selection");
+
+                const validUsers = userConditions.filter((_, index) => evaluations[index]);
 
                 const validUserIds = new Set(validUsers.map(user => user._id));
 
@@ -836,53 +892,22 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 };
                 enrollDataSet.push(enrollData);
                 enrollmentData.push(enrollData);
-                return true;
+                // return true;
             }
-            return true;
-        })
-    );
 
+            filteredPlans.push(true);
+
+        } catch (error) {
+            console.log('error');
+            console.log(error);
+        }
+        // return true;
+    };
+    //     })
+    // );
 
     const allUserIds = new Set();
     const allTrainingIds = new Set();
-
-    if (removeUsersData?.length > 0) {
-        const bulkUpdateOps = [];
-        const bulkDeleteOps = [];
-
-        for (const { planId, usersToRemove } of removeUsersData) {
-            if (usersToRemove.length > 0) {
-                bulkUpdateOps.push({
-                    updateMany: {
-                        filter: {
-                            learningPlan: planId,
-                            user: { $in: usersToRemove }
-                        },
-                        update: {
-                            $pull: { learningPlan: planId }
-                        }
-                    }
-                });
-
-                bulkDeleteOps.push({
-                    deleteMany: {
-                        filter: {
-                            learningPlanId: planId,
-                            assignedLearnerId: { $in: usersToRemove }
-                        }
-                    }
-                });
-            }
-        }
-
-        if (bulkUpdateOps.length > 0) {
-            await OverallTrainingProgress.bulkWrite(bulkUpdateOps);
-        }
-
-        if (bulkDeleteOps.length > 0) {
-            await LearningPlanAssignment.bulkWrite(bulkDeleteOps);
-        }
-    }
 
     enrollDataSet?.forEach(data => {
         (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
@@ -893,14 +918,59 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     const uniqueUserIds = Array.from(allUserIds);
     const uniqueTrainingIds = Array.from(allTrainingIds);
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
-    
+
     await enrollUsers(enrollmentData, context);
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds,nonNotificationRecievers, context);
+    if (removeUsersData?.length > 0) {
+        const bulkUpdateOps = [];
+        const bulkDeleteOps = [];
+
+        for (const { planId, usersToRemove } of removeUsersData) {
+            if (usersToRemove.length > 0) {
+                bulkUpdateOps.push({
+                    updateMany: {
+                        filter: {
+                            learningPlan: ObjectId(planId),
+                            user: { $in: usersToRemove }
+                        },
+                        update: {
+                            $pull: { learningPlan: ObjectId(planId) }
+                        }
+                    }
+                });
+
+                bulkDeleteOps.push({
+                    deleteMany: {
+                        filter: {
+                            learningPlanId: ObjectId(planId),
+                            assignedLearnerId: { $in: usersToRemove }
+                        }
+                    }
+                });
+            }
+        }
+
+        try {
+
+            if (bulkUpdateOps.length > 0) {
+                await OverallTrainingProgress.bulkWrite(bulkUpdateOps);
+            }
+
+            if (bulkDeleteOps.length > 0) {
+                await LearningPlanAssignment.bulkWrite(bulkDeleteOps);
+            }
+
+        } catch (error) {
+            console.log(error);
+        }
+
+    }
+
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, context);
 
     return filteredPlans.filter(Boolean);
 }
-const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds,nonNotificationRecievers, context) => {
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, nonNotificationRecievers, context) => {
     try {
         const { subscriberId, userInfo } = AuthUser(context);
 
@@ -2775,7 +2845,7 @@ module.exports = {
             designationID: input?.empDesignation || existingEmployee.empDesignation,
             vesselID: ((input?.user?.currentVessel !== '') ? input?.user?.currentVessel : existingEmployee.currentVessel?._id) || "",
             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel._id : "",
-            owner : existingVesselType ? existingVesselType?.ownerName : "",
+            owner: existingVesselType ? existingVesselType?.ownerName : "",
             currentStatus: ((input?.user?.vesselStatus !== '') ? input?.user?.vesselStatus : existingEmployee.vesselStatus) || "",
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
@@ -3723,7 +3793,7 @@ module.exports = {
             vessels.forEach(vessel => {
                 vesselTypeMap[vessel._id] = {
                     typeOfVessel: vessel.typeOfVessel,
-                    ownerName : vessel.ownerName,
+                    ownerName: vessel.ownerName,
                 };
             });
 
@@ -3741,7 +3811,7 @@ module.exports = {
                         designationID: empDesignation,
                         vesselID: user.currentVessel ?? null,
                         vesselTypeID: typeOfVesselIds ?? null,
-                        owner : vesselOwnerName ?? null,
+                        owner: vesselOwnerName ?? null,
                         currentStatus: user?.vesselStatus ?? VesselStatus?.ONSHORE,
                         email: user?.email,
                         _id: user?._id,

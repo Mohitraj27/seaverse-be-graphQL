@@ -98,7 +98,7 @@ async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId
     const userIds = userVessels.map(vessel => vessel.user);
     return userIds;
 }
-async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operationType, userInfo,context) {
+async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operationType, userInfo, context) {
     const filterLearningPlans = await Promise.allSettled(learningPlans.map(async (plan) => {
         const usersToEnroll = [];
         if (plan?.targetAudience === targetAudienceEnum?.GROUP_BASED && plan?.audienceSelection === audienceSelectionEnum?.ALL_EMPLOYEES) {
@@ -145,7 +145,7 @@ async function autoenrollRoleBasedLP(learningPlans, userIdsToSend, roles, operat
                 type: "ENROLL",
                 learningPlan: plan?._id,
             };
-            const datagoingtoenrollUsers = await enrollUsers([enrollData],context);
+            const datagoingtoenrollUsers = await enrollUsers([enrollData], context);
             return true;
         }
         return false;
@@ -2021,7 +2021,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             designationID: designationMap[user?._id?.toString()] || null,
             vesselID: user?.currentVessel || null,
             vesselTypeID: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.vesselType || null : null,
-            owner : user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.ownerName || null : null,
+            owner: user?.currentVessel ? vesselTypeMap[user?.currentVessel?.toString()]?.ownerName || null : null,
             currentStatus: user?.vesselStatus || null,
             email: user?.email,
             _id: user?._id
@@ -2138,17 +2138,17 @@ const manageRole = async ({ input }, context) => {
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
-        if (input.removeType === operationTypeRoleEnum.REMOVE_AS_AUTHOR) {
-            updateUserRole = await User.updateMany(
-                { _id: { $in: input.users }, superAdmin: false, role: "AUTHOR" },
-                { $set: { role: "EMPLOYEE" } }
-            );
-            if (updateUserRole?.nModified > 0) {
-                const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo,context);
-            }
-            operationType = "Removed role as AUTHOR";
-            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
-        }
+        // if (input.removeType === operationTypeRoleEnum.REMOVE_AS_AUTHOR) {
+        //     updateUserRole = await User.updateMany(
+        //         { _id: { $in: input.users }, superAdmin: false, role: "AUTHOR" },
+        //         { $set: { role: "EMPLOYEE" } }
+        //     );
+        //     if (updateUserRole?.nModified > 0) {
+        //         const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo,context);
+        //     }
+        //     operationType = "Removed role as AUTHOR";
+        //     notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+        // }
 
         if (input.removeType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
             updateUserRole = await User.updateMany(
@@ -2157,7 +2157,59 @@ const manageRole = async ({ input }, context) => {
             );
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
-                const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo,context);
+
+                const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
+
+                const userIds = input?.users;
+
+                console.log(userIds, "userIds");
+
+                const userConditions = await Employee.find({
+                    'user': { $in: userIds },
+                    'isDeleted': false
+                })
+                    .populate({
+                        path: 'empDesignation',
+                        select: '_id',
+                    })
+                    .populate({
+                        path: 'user',
+                        select: '_id email currentVessel vesselStatus vesselType isDeleted',
+                        match: { 'isDeleted': false },
+                        populate: [
+                            {
+                                path: 'currentVessel',
+                                select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                                match: { 'isDeleted': false }
+                            },
+                            {
+                                path: 'subRoles',
+                                select: 'name'
+                            }
+                        ]
+                    })
+                    .then((employees) => {
+                        const result = employees.map(employee => ({
+                            designationID: employee.empDesignation ? employee.empDesignation._id : null,
+                            vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
+                            vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
+                            currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
+                            owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                            email: employee.user ? employee.user.email : null,
+                            role: ['LEARNER', ...employee.user?.subRoles?.map(role => role?.name)] || ['LEARNER'],
+                            _id: employee?.user?._id
+                        }));
+                        return result;
+
+                    })
+                    .catch((error) => {
+                        console.error(error);
+                    });
+
+                console.log(userConditions, "userConditions");
+
+                await filterLearningPlans(learningPlans, userConditions, context);
+                // const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo, context);
             }
             operationType = "Removed Roles for LEARNER";
             notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
@@ -2753,7 +2805,7 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
-                country: input.user.country.toUpperCase() ?? null,    
+                country: input.user.country.toUpperCase() ?? null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
@@ -2806,7 +2858,7 @@ module.exports.mutations = {
                     designationID: input.empDesignation,
                     vesselID: savedUserVessel?.vessel ?? null,
                     vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                    owner : vessel?.ownerName ?? null,
+                    owner: vessel?.ownerName ?? null,
                     currentStatus: savedUserVessel?.vesselStatus ?? null,
                     email: savedUser.email,
                     _id: savedUser._id,
@@ -3232,14 +3284,14 @@ module.exports.mutations = {
             if (!usersToUpdate.length) {
                 throw new Error("No valid users found");
             }
-            
+
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
                 receiverEmail: usersToUpdate[0].email,
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
-            
+
             const emailContentForAdmin = roleUpdateNotifyAdmin({
                 firstName: userInfo?.firstName,
                 usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
@@ -3313,9 +3365,56 @@ module.exports.mutations = {
                 });
             } */
             const sendOnlyRegisteredUsers = usersToUpdate.filter(user => user.isRegistered === true);
+
             if (validSubRole.name === Roles.ADMIN && sendOnlyRegisteredUsers?.length > 0) {
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: LearningPlanStatus.ACTIVE });
-                await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo,context);
+
+                const userIds = users;
+
+                const userConditions = await Employee.find({
+                    'user': { $in: userIds },
+                    'isDeleted': false
+                })
+                    .populate({
+                        path: 'empDesignation',
+                        select: '_id',
+                    })
+                    .populate({
+                        path: 'user',
+                        select: '_id email currentVessel vesselStatus vesselType isDeleted',
+                        match: { 'isDeleted': false },
+                        populate: [
+                            {
+                                path: 'currentVessel',
+                                select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                                match: { 'isDeleted': false }
+                            },
+                            {
+                                path: 'subRoles',
+                                select: 'name'
+                            }
+                        ]
+                    })
+                    .then((employees) => {
+                        const result = employees.map(employee => ({
+                            designationID: employee.empDesignation ? employee.empDesignation._id : null,
+                            vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
+                            vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
+                            currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
+                            owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                            email: employee.user ? employee.user.email : null,
+                            role: ['LEARNER', ...employee.user?.subRoles?.map(role => role?.name)] || ['LEARNER'],
+                            _id: employee?.user?._id
+                        }));
+                        return result;
+
+                    })
+                    .catch((error) => {
+                        console.error(error);
+                    });
+
+                await filterLearningPlans(learningPlans, userConditions, context);
+                // await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo,context);
             }
 
             return {
