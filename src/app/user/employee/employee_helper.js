@@ -155,7 +155,7 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
 
 
 const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields, conditions) => {
-    const { designationID, vesselID, vesselTypeID, currentStatus, email, _id } = conditions;
+    const { designationID, vesselID, vesselTypeID, currentStatus, owner, email, _id } = conditions;
     const matches = conditionalCustomFields.map((field) => {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
         switch (type_of_Field) {
@@ -215,6 +215,11 @@ const evaluateConditionalCustomFields = (conditionType, conditionalCustomFields,
                             return String(group.groupIDs?.[0]) === String(vesselTypeID);
                         case "vesselStatus":
                             return String(group.groupIDs?.[0]) === String(currentStatus);
+                        case 'owner':
+                            group.groupIDs = group.groupIDs.map((groupId) =>
+                                mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : String(groupId)
+                            );
+                            return group.groupIDs?.includes(owner);
 
                         case "custom":
                             const customGroupId = group.groupIDs?.[0];
@@ -2762,11 +2767,12 @@ module.exports = {
 
 
         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('typeOfVessel -_id').lean();
+        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('ownerName typeOfVessel -_id').lean();
         const conditions = [{
             designationID: input?.empDesignation || existingEmployee.empDesignation,
             vesselID: ((input?.user?.currentVessel !== '') ? input?.user?.currentVessel : existingEmployee.currentVessel?._id) || "",
             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel._id : "",
+            owner : existingVesselType ? existingVesselType?.ownerName : "",
             currentStatus: ((input?.user?.vesselStatus !== '') ? input?.user?.vesselStatus : existingEmployee.vesselStatus) || "",
             email: input?.user?.email,
             _id: existingEmployee?.user?._id
@@ -3712,7 +3718,10 @@ module.exports = {
             const vessels = await Vessel.find({ _id: { $in: vesselIDs } });
             const vesselTypeMap = {};
             vessels.forEach(vessel => {
-                vesselTypeMap[vessel._id] = vessel.typeOfVessel;
+                vesselTypeMap[vessel._id] = {
+                    typeOfVessel: vessel.typeOfVessel,
+                    ownerName : vessel.ownerName,
+                };
             });
 
 
@@ -3723,15 +3732,16 @@ module.exports = {
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
 
                     const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
-                    const typeOfVesselIds = vesselTypeMap[user.currentVessel];
-
+                    const typeOfVesselIds = vesselTypeMap[user.currentVessel]?.typeOfVessel;
+                    const vesselOwnerName = vesselTypeMap[user.currentVessel]?.ownerName;
                     const conditions = {
                         designationID: empDesignation,
                         vesselID: user.currentVessel ?? null,
                         vesselTypeID: typeOfVesselIds ?? null,
-                        currentStatus: user.vesselStatus ?? VesselStatus.ONSHORE,
-                        email: user.email,
-                        _id: user._id,
+                        owner : vesselOwnerName ?? null,
+                        currentStatus: user?.vesselStatus ?? VesselStatus?.ONSHORE,
+                        email: user?.email,
+                        _id: user?._id,
                         role: 'LEARNER'
                     };
 
