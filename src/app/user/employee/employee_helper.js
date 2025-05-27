@@ -532,8 +532,6 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
 
             // Send emails (use sendWithRetry logic from existing code)
             const batchResults = await sendCourseMailsWithRetry(emailsToSend);
-            console.log('batchResults');
-            console.log(batchResults);
             results = results.concat(batchResults);
             await delay(200);
             // Delete processed emails
