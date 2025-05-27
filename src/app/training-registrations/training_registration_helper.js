@@ -1076,7 +1076,7 @@ module.exports = {
                         );
                     }
                 }
-
+                
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
@@ -1257,7 +1257,7 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                if (userObjectIds?.length > 0) { 
+                if (userObjectIds?.length > 0) {
                     const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
                         subscriber: subscriberId,
                         title: [
@@ -1325,6 +1325,7 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
+
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",
