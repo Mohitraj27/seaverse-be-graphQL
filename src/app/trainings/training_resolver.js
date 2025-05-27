@@ -256,23 +256,13 @@ module.exports.queries = {
                     status: 'NOT_STARTED',
                     timeSpend: 0,
                     totalDuration: 0,
+                    contentData: [],
                     adminMarkedAsCompleted: false,
                 }
             );
 
-            await TrainingProgress.updateMany(
-                { overallTrainingProgress: { $in: overallIds } },
-                {
-                    progressPercentage: 0,
-                    startedAt: null,
-                    completedAt: null,
-                    status: 'NOT_STARTED',
-                    lastAccessedDuration: 0,
-                    startedAt: null,
-                    completedAt: null,
-                    quizAttemptDetails: {},
-                    videoDuration: 0,
-                }
+            await TrainingProgress.deleteMany(
+                { overallTrainingProgress: { $in: overallIds } }
             );
 
             return {
