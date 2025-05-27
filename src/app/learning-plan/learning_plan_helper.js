@@ -59,7 +59,10 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'vessel':
                 case 'vesselType':
                 case 'owner':
-                    group.groupIDs = group.groupIDs.map((groupId) => new mongoose.Types.ObjectId(groupId));
+                    group.groupIDs = group.groupIDs.map((groupId) =>
+                        mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
+                    );
+
                     break;
                 // case 'role':
                 //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
@@ -186,12 +189,17 @@ const additionalValidationConditionalCustomFields = async (input, errorList) => 
     }
 };
 const validateGroupAndConditionalFields = async (input, errorList) => {
-    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && input.groupIDs?.length > 0) {
-        const topLevelGroupTypes = input.groupIDs.map(group => group.groupType.toLowerCase());
+    if (input.targetAudience === targetAudienceEnum.GROUP_BASED && Array.isArray(input.groupIDs) && input.groupIDs.length > 0) {
+        const groupTypeToFieldTypeMap = {
+            'vesselType': 'VESSEL_TYPE',
+            'vesselStatus': 'CURRENT_STATUS'
+        };
+        const normalizedTopLevelFields = input.groupIDs.map(group => groupTypeToFieldTypeMap[group.groupType?.trim()] || group.groupType?.toUpperCase()).filter(Boolean);
 
         for (const field of input.conditionalCustomFields || []) {
-            if (topLevelGroupTypes.includes(field.type_of_Field.toLowerCase())) {
-                errorList.push(`Invalid conditionalCustomField: ${field.type_of_Field} cannot be the same as any top-level groupType.`);
+            const fieldType = field.type_of_Field?.trim()?.toUpperCase();
+            if (normalizedTopLevelFields.includes(fieldType)) {
+                errorList.push(`An auto-synced group of the same type has already been selected as a primary condition. Please choose a different group or condition`);
             }
         }
     }
@@ -370,6 +378,9 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
+        if (existingLearningPlan?.status === learningPlanStatus.DRAFT) {
+            return { learningPlan: existingLearningPlan, success: true };
+        }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
         const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         await LearningPlanAssignment.deleteMany({
@@ -442,15 +453,15 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
             const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
-            if(courseIds?.length > 0){            
-            const publishedCourses = await Training.find({
-                _id: { $in: courseIds },
-                status: "PUBLISHED",
-                isDeleted: false
-            }).select('_id'); 
+            if (courseIds?.length > 0) {
+                const publishedCourses = await Training.find({
+                    _id: { $in: courseIds },
+                    status: "PUBLISHED",
+                    isDeleted: false
+                }).select('_id');
 
             const publishedCourseIds = publishedCourses?.map(course => course._id);
-            if (publishedCourseIds?.length > 0) {
+            if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
                 const enrollData = {
                     trainings: publishedCourseIds,
                     users: learnersToAssign?.map(learner => learner._id) || [],
@@ -556,12 +567,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -570,7 +581,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -661,7 +672,7 @@ const getUsersAndCount = async (input) => {
                                 : { [field]: { $nin: groupIDs } };
                         } else {
                             const value = condition.valueOfField.map(status => status);
-                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value } };
+                            valueData = condition.isOrIsNot === 'IS' ? { [field]: { $in: value } } : { [field]: { $nin: value, $ne: null } };
                         }
                         return valueData;
                     }));
@@ -842,13 +853,12 @@ const getUsersAndCount = async (input) => {
                             ).exec();
 
                             const vesselIds = vessels.map(vessel => vessel._id);
-
-                            if (vesselIds.length === 0) {
-                                return {
-                                    userIds: [],
-                                    count: 0
-                                };
-                            }
+                            // if (vesselIds.length === 0) {
+                            //     return {
+                            //         userIds: [],
+                            //         count: 0
+                            //     };
+                            // }
                             let finalQueryValue;
                             if (condition.isOrIsNot === 'IS') {
                                 finalQueryValue = {
@@ -857,7 +867,7 @@ const getUsersAndCount = async (input) => {
                                 };
                             } else {
                                 finalQueryValue = {
-                                    'currentVessel_id': { $nin: vesselIds },
+                                    'currentVessel._id': { $nin: vesselIds },
                                     'currentVessel.isDeleted': false,
                                 };
                             }
@@ -1049,7 +1059,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] }, isEnrolled: { $ne: false } };
 
-        const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
+        // const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
 
         let startDate, endDate;
@@ -1094,12 +1104,12 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             {
                 $match: matchCriteria,
             },
-            {
-                $skip: skip
-            },
-            {
-                $limit: limit
-            },
+            // {
+            //     $skip: skip
+            // },
+            // {
+            //     $limit: limit
+            // },
             {
                 $unwind: "$learningPlan"
             },
@@ -1115,8 +1125,20 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     pipeline: [
                         ...(lastActivity && startDate && endDate
                             ? [{ $match: { lastLoginAt: { $gte: startDate, $lte: endDate } } }]
-                            : [])
-                    ]
+                            : []),
+                        {
+                            $project: {
+                                _id: 1,
+                                email: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                lastLoginAt: 1,
+                                isRegistered: 1,
+                                isDeleted: 1
+                            }
+                        }
+                    ],
+
                 }
             },
             {

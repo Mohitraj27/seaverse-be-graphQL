@@ -2,35 +2,31 @@ function truncateString(str) {
     return str.length > 50 ? `${str.slice(0, 100)}...` : str;
 }
 function courseEnrollment({ firstName, courses, isAdmin }) {
+    if(!Array.isArray(courses)) {
+        courses = [courses];
+    }
     const coursesHTML = courses
         .map(
             course => `
-        <tr>
-            <td style="padding: 10px 100px;" class="content-inner">
-                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+
                     <tr>
-                        <td style="padding-left: 24px; vertical-align: top; width: 100%; max-width: 500px; text-align: center;">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <td style="padding: 1px 40px;" class="content-inner">
+                            <table
+                                style="margin: 0 auto; width: 100%; max-width: 560px; background-color: white; border-radius: 8px; border: 1px solid white;"
+                                border="0" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="text-align: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
-                                        ${truncateString(course.trainingTitle)}
+                                    <td
+                                        style="padding: 8px 24px;  font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
+                                        ${truncateString(course?.trainingTitle)}
                                     </td>
-                                </tr>
-                                <tr>
-                                    <td style="text-align: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
-                                        Duration: ${course.durationHours} Hours
-                                    </td>
-                                </tr>
+                                </tr> 
                             </table>
+                            <hr>
                         </td>
                     </tr>
-                </table>
-            </td>
-        </tr>
-      `
+        `
         )
         .join("");
-
     return `
       <html lang="en">
       <head>
@@ -142,3 +138,42 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
 }
 
 module.exports = courseEnrollment;
+
+
+
+
+/*  
+// BACKUP CODE FOR DURATIONS IN HRS
+
+const coursesHTML = courses
+        .map(
+            course => `
+        <tr>
+            <td style="padding: 10px 100px;" class="content-inner">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td style="padding-left: 24px; vertical-align: top; width: 100%; max-width: 500px; justify-content: center; text-align: center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td style="text-align: center; justify-content: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
+                                        ${truncateString(course.trainingTitle)}
+                                    </td>
+                                </tr>
+                                <!--
+                                <tr>
+                                    <td style="text-align: center; padding: 5px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; line-height: 21px; color: #727478;">
+                                        Duration: ${course.durationHours} Hours
+                                    </td>
+                                </tr>
+                                -->
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+      `
+        )
+        .join(""); 
+        
+*/

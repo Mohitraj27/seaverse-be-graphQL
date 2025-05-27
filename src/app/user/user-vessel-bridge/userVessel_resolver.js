@@ -153,13 +153,14 @@ module.exports.mutations = {
                 const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
                 let typeOfVessel;
                 if(input?.vesselId){
-                    typeOfVessel = await Vessel.find({_id: input?.vesselId}).select('typeOfVessel -_id');
+                    typeOfVessel = await Vessel.find({_id: input?.vesselId}).select('ownerName typeOfVessel -_id');
                 }
                 const emailData = await User.find({_id: input?.userId}).select('email -_id');
                 const conditions = [{
                     designationID: designation?.[0]?.empDesignation ?? null,
                     vesselID: input?.vesselId ?? null, 
                     vesselTypeID: typeOfVessel?.[0]?.typeOfVessel ?? null,
+                    owner : typeOfVessel?.[0]?.ownerName ?? null,
                     currentStatus: input?.vesselStatus ?? null,
                     email: emailData,
                     _id: input?.userId ,

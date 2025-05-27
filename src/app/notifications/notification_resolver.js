@@ -197,7 +197,7 @@ module.exports.queries = {
             const checkIfAdmin = await User.findOne({
                 _id: userId,
                 subRoles: subRoleAdminId._id
-            }).lean();
+            }).lean().select("roleAssignmentDate");
 
             if (context.platform === Role.ADMIN) {
                 filterConditions.$or = [
@@ -588,10 +588,12 @@ module.exports.subscriptions = {
                     AuthUser(context, false);
 
                 const notification = payload.onNotification;
+                console.log("notifiers: ",notification.notifiers);
+                const isTargetedNotifier = (notification.notifiers || [])
+                    .filter(x => x != null)
+                    .map(x => x?.toString())
+                    .includes(userId?.toString());
 
-                const isTargetedNotifier = notification.notifiers
-                    ?.map(x => x.toString())
-                    ?.includes(userId.toString());
 
                 const isAdminNotification =
                     notification.notifyAllAdmin === true ||
@@ -634,3 +636,22 @@ module.exports.subscriptions = {
         ),
     },
 };
+
+
+
+
+/**
+ * 
+ * 
+ * AUTO ENROLLMENT NOTIFICATIONS -> BASIC TEST CASES 
+ * --------------------------------------------------
+ * 
+ * created a course -> enrolled a learner -> notification should be triggered , send mail 
+ * unenrolled the user from the course -> no notification should be triggered
+ * re-enroll users to the same course -> notifications should be triggered , send mail
+ * created a learning plan -> enrolled a learner -> notification should be triggered , send mail
+ * manually unenrolled user is present for a course  -> not supposed to be enrolled automatically -> no notification should be triggered
+ * updated a learner -> after updation the learner is part of a learning plan -> notification should be triggered , send mail
+ * if the udpated learner is part of a learning plan with a course which he was unenrolled from - > the user shouldnt be enrolled , so no notification should be triggered
+ * 
+ */
