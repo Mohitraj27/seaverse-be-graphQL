@@ -1,5 +1,5 @@
 const FirebaseAdmin = require("firebase-admin");
-const {User} = require("../app/user/user_model");
+const { User } = require("../app/user/user_model");
 const firebaseConfig = require("./firebaseConfig");
 const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
 
@@ -23,7 +23,7 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
 
 module.exports = {
     init: () => {
-        FirebaseAdmin.initializeApp({  
+        FirebaseAdmin.initializeApp({
             credential: FirebaseAdmin.credential.cert(firebaseConfig),
         });
     },
@@ -64,7 +64,7 @@ module.exports = {
                                     }
                                 });
 
-                          
+
                             }
                         })
                         .catch(error => {
@@ -105,8 +105,9 @@ module.exports = {
             console.log("firebase_helper.subscribeTokenToTopic:exception:", e.message);
         }
     },
-     sendNotifications : async ({userIds, title, body, content, webLink}) => {
-        const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
+    sendNotifications: async ({ userIds, title, body, content, webLink }) => {
+
+        const usersWithTokens = await User.find({ _id: { $in: userIds }, isPushNotification: { $ne: false } }, { firebaseTokens: 1 });
         const tokens = usersWithTokens.reduce((acc, user) => {
             if (user.firebaseTokens && user.firebaseTokens.length > 0) {
                 acc.push(...user.firebaseTokens);
