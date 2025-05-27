@@ -831,7 +831,7 @@ module.exports.queries = {
                         return moduleAcc;
                     }, 0);
 
-                    acc += Math.floor(moduleDurationInSeconds);
+                    acc += moduleDurationInSeconds;
 
                     const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
 
