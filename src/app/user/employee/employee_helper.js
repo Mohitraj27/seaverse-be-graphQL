@@ -162,7 +162,11 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
 
     for (const field of conditionalCustomFields) {
         const { type_of_Field, valueOfField, isOrIsNot, groupIDs } = field;
-        const { designationID, vesselID, vesselTypeID, currentStatus, _id, owner, role: roleFromConditions } = conditions;
+        const { designationID, vesselID: vesselIDFromCondition, vesselTypeID: vesselFromCondition, currentStatus: statusFromCondition, _id, owner, role: roleFromConditions } = conditions;
+
+        let vesselTypeID = vesselFromCondition;
+        let vesselID = vesselIDFromCondition;
+        let currentStatus = statusFromCondition;
 
         let role = [];
         if (roleFromConditions && roleFromConditions.length > 0) role = [...roleFromConditions];
@@ -174,53 +178,51 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
                 if (designationID == null) {
                     match = true;
                 } else {
-                    console.log("valueOfField", valueOfField, "designationID", designationID);
-                    console.log(valueOfField.includes(designationID));
                     match = isOrIsNot === "IS"
                         ? valueOfField.includes(designationID)
                         : !valueOfField.includes(designationID);
-                    console.log(match, "match for designation");
                 }
                 break;
 
             case "ROLE":
                 if (isOrIsNot === "IS") {
                     match = valueOfField.some(r => role.includes(r));
-                    console.log(match, "match for role");
                 } else {
                     match = valueOfField.every(r => !role.includes(r));
-                    console.log(match, "!match for role");
                 }
                 break;
 
             case "VESSEL":
-                if (vesselID == null) {
-                    match = true;
-                } else {
-                    match = isOrIsNot === "IS"
+                if (vesselID == null || !vesselID) {
+                    vesselID = 'N/A';
+                }
+                match = vesselID === 'N/A'
+                    ? false
+                    : isOrIsNot === "IS"
                         ? valueOfField.includes(vesselID)
                         : !valueOfField.includes(vesselID);
-                }
                 break;
 
             case "VESSEL_TYPE":
                 if (vesselTypeID == null) {
-                    match = true;
-                } else {
-                    match = isOrIsNot === "IS"
+                    vesselTypeID = 'N/A';
+                }
+                match = vesselTypeID === 'N/A'
+                    ? false
+                    : isOrIsNot === "IS"
                         ? valueOfField.includes(vesselTypeID)
                         : !valueOfField.includes(vesselTypeID);
-                }
                 break;
 
             case "CURRENT_STATUS":
-                if (currentStatus == null) {
-                    match = true;
-                } else {
-                    match = isOrIsNot === "IS"
+                if (currentStatus == null || !currentStatus) {
+                    currentStatus = 'N/A';
+                }
+                match = currentStatus === 'N/A'
+                    ? false
+                    : isOrIsNot === "IS"
                         ? valueOfField.includes(currentStatus)
                         : !valueOfField.includes(currentStatus);
-                }
                 break;
 
             case "EMAIL":
@@ -733,8 +735,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
 
-                console.log(plan?._id, "plan id in automatic audience selection");
-
                 let evaluations;
                 try {
 
@@ -747,8 +747,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 } catch (error) {
                     console.log(error);
                 }
-
-                console.log(evaluations, "evaluations for automatic audience selection");
 
                 const validUsers = userConditions.filter((_, index) => evaluations[index]);
 
@@ -2839,18 +2837,44 @@ module.exports = {
 
 
 
+
+        const userIds = await User.find({ _id: id }).select('_id').lean();
         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-        const existingVesselType = await Vessel.findOne({ _id: existingEmployee?.user?.currentVessel?._id }).select('ownerName typeOfVessel -_id').lean();
-        const conditions = [{
-            designationID: input?.empDesignation || existingEmployee.empDesignation,
-            vesselID: ((input?.user?.currentVessel !== '') ? input?.user?.currentVessel : existingEmployee.currentVessel?._id) || "",
-            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel._id : "",
-            owner: existingVesselType ? existingVesselType?.ownerName : "",
-            currentStatus: ((input?.user?.vesselStatus !== '') ? input?.user?.vesselStatus : existingEmployee.vesselStatus) || "",
-            email: input?.user?.email,
-            _id: existingEmployee?.user?._id
-        }];
-        const result = await filterLearningPlans(learningPlans, conditions, context, session);
+        const userConditions = await Employee.find({
+            'user': { $in: userIds },
+            'isDeleted': false
+        })
+            .populate({
+                path: 'empDesignation',
+                select: '_id',
+            })
+            .populate({
+                path: 'user',
+                select: '_id email currentVessel vesselStatus vesselType isDeleted',
+                match: { 'isDeleted': false },
+                populate: {
+                    path: 'currentVessel',
+                    select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                    match: { 'isDeleted': false }
+                }
+            })
+            .then((employees) => {
+                const result = employees.map(employee => ({
+                    designationID: employee.empDesignation ? employee.empDesignation._id : null,
+                    vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
+                    vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
+                    currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
+                    owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                    email: employee.user ? employee.user.email : null,
+                    _id: employee?.user?._id
+                }));
+
+                return result;
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+        const result = await filterLearningPlans(learningPlans, userConditions, context, session);
         return savedEmployee;
 
     },
