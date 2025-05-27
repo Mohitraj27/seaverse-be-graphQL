@@ -1155,7 +1155,63 @@ module.exports.mutations = {
                 await autoenrollmentfromCustomGroup(learningPlans, input?._id, membersToInsert, excludedMembers, context);
             }
             if (input?.groupType === "MEMBER" && learningPlans?.length > 0 && input?.members?.length > 0) {
-                await autoenrollmentfromCustomGroup(learningPlans, input?._id, input?.members, excludedMembers, context);
+
+                const excludedMemberUserIds = excludedMembers.map(member => {
+                    if (typeof member === 'string' || member instanceof String) {
+                        return ObjectId(member);
+                    };
+                    return member;
+                });
+
+                const allUniqueUsers = [...new Set([...input?.members, ...excludedMemberUserIds])];
+
+                // Convert allUniqueUsers to object IDs
+                const allUniqueUserIds = allUniqueUsers.map(user => {
+                    if (typeof user === 'string' || user instanceof String) {
+                        return ObjectId(user);
+                    }
+                    return user;
+                });
+
+                const userConditions = await Employee.find({
+                    'user': { $in: allUniqueUserIds },
+                    'isDeleted': false
+                })
+                    .populate({
+                        path: 'empDesignation',
+                        select: '_id',
+                    })
+                    .populate({
+                        path: 'user',
+                        select: '_id email currentVessel vesselStatus vesselType isDeleted',
+                        match: { 'isDeleted': false },
+                        populate: {
+                            path: 'currentVessel',
+                            select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                            match: { 'isDeleted': false }
+                        }
+                    })
+                    .then((employees) => {
+                        const result = employees.map(employee => ({
+                            designationID: employee.empDesignation ? employee.empDesignation._id : null,
+                            vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
+                            vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
+                            currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
+                            owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                            email: employee.user ? employee.user.email : null,
+                            _id: employee?.user?._id
+                        }));
+
+                        return result;
+                    })
+                    .catch((error) => {
+                        console.error(error);
+                    });
+
+                if (learningPlans?.length > 0 && userConditions?.length > 0) {
+                    await filterLearningPlans(learningPlans, userConditions, context);
+                }
+
             }
         }
 
