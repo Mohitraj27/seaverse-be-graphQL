@@ -26,6 +26,7 @@ const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 const learningPlanStatus = require('./enumFields/learning_plan_status.json')
+const { decrypt } = require("../../util/encryption_helper");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -1207,6 +1208,13 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             );
         }
 
+        if(mergedData.users?.length > 0 ){
+            mergedData.users = mergedData.users.map(user => ({
+                ...user,
+                firstName: decrypt(user?.firstName),
+                email: decrypt(user?.email)
+            }));
+        }
         return mergedData || [];
 
     } catch (error) {
