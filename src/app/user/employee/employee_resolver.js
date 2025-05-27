@@ -1139,6 +1139,25 @@ module.exports.queries = {
                 ] : []),
                 ...sortingStage,
             ]);
+            try {
+                results.employees = results.employees.map(employee => {
+                    if (employee?.user) {
+                        return {
+                            ...employee,
+                            user: {
+                                ...employee.user,
+                                firstName: decrypt(employee.user.firstName),
+                                lastName: decrypt(employee.user.lastName),
+                                civilIdOrPassport: decrypt(employee.user.civilIdOrPassport),
+                                email: decrypt(employee.user.email),
+                            }
+                        };
+                    }
+                    return employee;
+                });
+            } catch (error) {
+                console.log(error);
+            }
 
             return {
                 employees: results.employees,
@@ -2701,7 +2720,7 @@ module.exports.mutations = {
         //replace the original fields with encrypted ones
         input.user.firstName = encrypt(input?.user?.firstName);
         input.user.lastName = encrypt(input?.user?.lastName);
-        input.user.civilIdOrPassport = encrypt(input?.user?.civilIdOrPassport);
+        input.user.civilIdOrPassport = encrypt(input?.user?.civilIdOrPassport?.toUpperCase());
         input.user.email = encrypt(input?.user?.email);
 
 
@@ -2755,7 +2774,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport?.toUpperCase(),
+                civilIdOrPassport: input.user.civilIdOrPassport,
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
