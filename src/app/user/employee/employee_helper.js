@@ -118,7 +118,7 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
     if (!group) return false;
 
     if (group?.groupType === 'MEMBER') {
-        const isMember = await GroupMember.findOne({ group: group._id, member: _id });
+        const isMember = await GroupMember.findOne({ group: group._id, member: _id, isDeleted: { $ne: true } });
         return Boolean(isMember);
     }
 
