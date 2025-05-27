@@ -520,7 +520,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData[0] ?? [],
+                            courses: coursesData ?? [],
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
@@ -906,15 +906,36 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     const allUserIds = new Set();
     const allTrainingIds = new Set();
+    const userToLearningPlansMap = new Map();
 
     enrollDataSet?.forEach(data => {
         (data.users || [])?.forEach(userId => allUserIds.add(userId.toString()));
         (data.trainings || [])?.forEach(trainingId => allTrainingIds.add(trainingId.toString()));
     });
 
+
+    enrollDataSet?.forEach(data => {
+        const learningPlanId = data.learningPlan;
+        (data.users || []).forEach(userId => {
+            const id = userId.toString();
+
+            if (!userToLearningPlansMap.has(id)) {
+                userToLearningPlansMap.set(id, new Set());
+            }
+
+            userToLearningPlansMap.get(id).add(learningPlanId.toString());
+        });
+    });
+
+
     // Convert Sets to arrays if needed
     const uniqueUserIds = Array.from(allUserIds);
     const uniqueTrainingIds = Array.from(allTrainingIds);
+
+    const userToLearningPlansObject = {};
+    userToLearningPlansMap.forEach((planIds, userId) => {
+        userToLearningPlansObject[userId] = Array.from(planIds);
+    });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
 
     await enrollUsers(enrollmentData, context);
@@ -964,17 +985,45 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
-const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, nonNotificationRecievers, context) => {
+const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingObjectIds, nonNotificationRecievers, userToLearningPlansObject, context) => {
     try {
         const { subscriberId, userInfo } = AuthUser(context);
 
         const existingSetOfUserTrainings = new Set(
             nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
         );
+
+        const uniqueLearningPlanIdsSet = new Set();
+
+        Object.values(userToLearningPlansObject).forEach(planIdsArray => {
+            planIdsArray.forEach(planId => {
+                uniqueLearningPlanIdsSet.add(planId.toString());
+            });
+        });
+
+        const uniqueLearningPlanIds = Array.from(uniqueLearningPlanIdsSet);
+
+        const coursesList = await LearningPlan.find({ _id: { $in: uniqueLearningPlanIds } }).select("_id selectCourses").lean();
+        const learningPlanToCoursesMap = new Map();
+
+        coursesList.forEach(plan => {
+            if (plan._id && plan.selectCourses) {
+                learningPlanToCoursesMap.set(plan._id.toString(), plan.selectCourses);
+            }
+        });
+
+
+
+
+        const uniqueCourseIds = [
+            ...new Set(
+                coursesList.flatMap(plan => plan.selectCourses.map(courseId => courseId.toString()))
+            )
+        ];
 
         const newEnrollments = [];
 
@@ -984,6 +1033,24 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
                 if (!existingSetOfUserTrainings.has(key)) {
                     newEnrollments.push({ userId, trainingId });
                 }
+            }
+        }
+
+        const emailsToSend = [];
+
+        for (const userId of userObjectIds) {
+            let hasAnyNewCourse = false;
+
+            for (const trainingId of trainingObjectIds) {
+                const key = `${userId}-${trainingId}`;
+                if (!existingSetOfUserTrainings.has(key)) {
+                    hasAnyNewCourse = true;
+                    break;
+                }
+            }
+
+            if (hasAnyNewCourse) {
+                emailsToSend.push(userId);
             }
         }
 
@@ -1064,8 +1131,9 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
             }
         }
 
+        //SENDING EMAIL NOTIFICATIONS
 
-        const trainingData = await Training.find({ _id: { $in: trainingObjectIds } }).lean();
+        const trainingData = await Training.find({ _id: { $in: uniqueCourseIds } }).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -1082,7 +1150,7 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
         ));
 
         // Preprocess course data once
-        const notEnrolledUsers = await User.find({ _id: { $in: newEnrollments.map(enrollment => enrollment.userId) } }).lean();
+        const notEnrolledUsers = await User.find({ _id: { $in: emailsToSend } }).lean();
         const subRoleAdminId = await SubRole.findOne({ name: Role.ADMIN, primaryRole: Role.ADMIN }).select("_id");
         const coursesDataMap = trainingData.map(training => ({
             trainingTitle: training?.title?.[0]?.value || ' ',
@@ -1090,13 +1158,53 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
             courseImage: imageUrlMap.get(training?._id),
         }));
 
-        // Prepare email data for insertion into SQLite queue
-        const emailData = notEnrolledUsers.filter(user => user?.isEmailNotification && user?.isRegistered).map(user => ({
-            receiverEmail: user.email,
-            firstName: user.firstName,
-            courses: coursesDataMap,
-            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-        }));
+        const emailData = [];
+
+        notEnrolledUsers.forEach(user => {
+            const userIdStr = user._id.toString();
+            const plans = userToLearningPlansObject[userIdStr];
+
+
+            if (!user.isEmailNotification || !user.isRegistered) {
+                console.log(`Skipping ${user.email} due to email/settings`);
+                return;
+            }
+
+            if (!plans || !plans.length) {
+
+                return;
+            }
+
+            plans.forEach(lpId => {
+                const courseIds = learningPlanToCoursesMap.get(lpId);
+
+
+                if (!courseIds || !courseIds.length) return;
+
+                const courses = courseIds.map(courseId => {
+                    const course = trainingDataById[courseId.toString()];
+                    if (!course) {
+
+                        return null;
+                    }
+                    return {
+                        trainingTitle: course?.title?.[0]?.value || ' ',
+                        durationHours: ((course?.durationHours || 0) / 60).toFixed(1),
+                        courseImage: imageUrlMap.get(courseId.toString()) ||
+                            'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png'
+                    };
+                }).filter(Boolean);
+
+                if (courses.length) {
+                    emailData.push({
+                        receiverEmail: user.email,
+                        firstName: user.firstName,
+                        isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                        courses
+                    });
+                }
+            });
+        });
 
         // Insert emails into the course_emails table
         insertCourseEmails(emailData);
