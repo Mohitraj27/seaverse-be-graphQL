@@ -461,7 +461,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }).select('_id'); 
 
             const publishedCourseIds = publishedCourses?.map(course => course._id);
-            if (publishedCourseIds?.length > 0) {
+            if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
                 const enrollData = {
                     trainings: publishedCourseIds,
                     users: learnersToAssign?.map(learner => learner._id) || [],
