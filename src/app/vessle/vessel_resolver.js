@@ -18,11 +18,13 @@ const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../email-template/vesselStatusUpdate");
 const { sendNotifications } = require("../../util/firebase_helper");
-const {LearningPlan} = require('../learning-plan/learning_plan_model');
+const { Employee } = require("../user/employee/employee_model");
+const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Owner } = require("../vessle/owner/owner_model");
 const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_status.json')
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
+const { filterLearningPlans } = require("../user/employee/employee_helper");
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
         const result = await LearningPlan.aggregate([
@@ -69,7 +71,7 @@ const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => 
                 }
             },
             {
-                $limit: 1 
+                $limit: 1
             },
             {
                 $count: "count"
@@ -267,7 +269,7 @@ module.exports.mutations = {
 
             if (ownerId && ownerId !== '') {
                 const existingOwner = await Owner.findById(ownerId);
-                if (!existingOwner) throw CustomError(ErrorName.FAILED,'Owner does not exist');
+                if (!existingOwner) throw CustomError(ErrorName.FAILED, 'Owner does not exist');
                 if (address) {
                     existingOwner.address = address;
                     await existingOwner.save();
@@ -276,7 +278,7 @@ module.exports.mutations = {
                 ownerName = existingOwner?.name;
 
                 if (!ownerName) {
-                    throw CustomError(ErrorName.FAILED,'Owner Name does not exist');
+                    throw CustomError(ErrorName.FAILED, 'Owner Name does not exist');
                 }
             }
 
@@ -354,11 +356,11 @@ module.exports.mutations = {
 
             if (vessel.isActive === true && input.isActive === false) {
                 const isLinkedToActiveLearningPlan = await checkVesselLinkedToActiveLearningPlan(
-                    vessel._id.toString(), 
+                    vessel._id.toString(),
                     vessel.typeOfVessel?.toString() || typeOfVessel?.toString()
                 );
                 if (isLinkedToActiveLearningPlan) {
-                    throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN,'This vessel is linked to an active Learning Plan and cannot be deactivated or deleted');
+                    throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN, 'This vessel is linked to an active Learning Plan and cannot be deactivated or deleted');
                 }
             }
 
@@ -413,6 +415,49 @@ module.exports.mutations = {
             }
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
+
+            //AUTO ENROLLMENT
+            const userIds = await User.find({ currentVessel: vessel._id }).select('_id').lean();
+            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
+            const userConditions = await Employee.find({
+                'user': { $in: userIds },
+                'isDeleted': false
+            })
+                .populate({
+                    path: 'empDesignation',
+                    select: '_id',
+                })
+                .populate({
+                    path: 'user',
+                    select: '_id email currentVessel vesselStatus vesselType isDeleted',
+                    match: { 'isDeleted': false },
+                    populate: {
+                        path: 'currentVessel',
+                        select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                        match: { 'isDeleted': false }
+                    }
+                })
+                .then((employees) => {
+                    const result = employees.map(employee => ({
+                        designationID: employee.empDesignation ? employee.empDesignation._id : null,
+                        vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
+                        vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
+                        currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
+                        owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                        email: employee.user ? employee.user.email : null,
+                        _id: employee?.user?._id
+                    }));
+
+                    return result;
+                })
+                .catch((error) => {
+                    console.error(error);
+                });
+
+            if (learningPlans && learningPlans.length > 0 && userConditions && userConditions.length > 0) {
+                await filterLearningPlans(learningPlans, userConditions, context);
+            }
+
 
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -616,23 +661,23 @@ module.exports.mutations = {
                         session,
                     });
 
-                   /*  await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `Your Vessels have been Updated`,
-                        messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        notificationType: NotificationType.VESSEL_STATUS_UPDATE,
-                        notifyAllAdmin: false,
-                        affected: updatedVessels.map(v => ({
-                            targetRef: "Vessel",
-                            target: v.id,
-                        })),
-                        notifiers: updatedVessels.map(v => v.id),
-                        employeeNotifiers: updatedVessels.map(v => v.id),
-                        icon: notificationiconEnum.SUCCESS,
-                        status: "SENT",
-                        createdBy: userInfo,
-                        session,
-                    }); */
+                    /*  await NotificationHelper.createNotificationhelper({
+                         subscriber: subscriberId,
+                         titleValue: `Your Vessels have been Updated`,
+                         messageValue: `The vessels ${vesselNames} have been updated by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
+                         notifyAllAdmin: false,
+                         affected: updatedVessels.map(v => ({
+                             targetRef: "Vessel",
+                             target: v.id,
+                         })),
+                         notifiers: updatedVessels.map(v => v.id),
+                         employeeNotifiers: updatedVessels.map(v => v.id),
+                         icon: notificationiconEnum.SUCCESS,
+                         status: "SENT",
+                         createdBy: userInfo,
+                         session,
+                     }); */
 
                     const assignedUsers = await User.find({ currentVessel: vessel._id }).session(session);
                     /*
