@@ -1076,7 +1076,8 @@ module.exports = {
                         );
                     }
                 }
-
+                
+                let notEnrolledUsers = [];
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
@@ -1098,7 +1099,6 @@ module.exports = {
 
                         let savedTrainingRegistration;
                         let trainingRegistrationIds = [];
-                        let notEnrolledUsers = [];
 
                         if (existingTrainingRegs?.length) {
 
@@ -1257,7 +1257,7 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                if (userObjectIds?.length > 0) { 
+                if (userObjectIds?.length > 0) {
                     const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
                         subscriber: subscriberId,
                         title: [
@@ -1325,8 +1325,15 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
+
+                let userIdsWithNotificationEnabled = [];
+
+                if (notEnrolledUsers.length > 0) {
+                    userIdsWithNotificationEnabled = notEnrolledUsers.filter(user => user.isPushNotification).map(user => user._id);
+                }
+
                 await sendNotifications({
-                    userIds: userObjectIds,
+                    userIds: userIdsWithNotificationEnabled,
                     title: "Course Enrollment",
                     body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName || ''}.`,
                     content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
