@@ -49,9 +49,13 @@ const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
 const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
+const { decrypt, encrypt } = require("../../util/encryption_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
-
+        if (input?.search) {
+            input.search = encrypt(input?.search);
+        }
+        console.log(input?.search, "input.search");
         const { subscriberId } = AuthUser(context);
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
@@ -75,14 +79,14 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                   /*  pipeline: [
-                        {
-                            $match: {
-                                isDeleted: false,
-                                isSignupAdminAprroved: { $ne: false },
-                            }
-                        }
-                    ] */
+                    /*  pipeline: [
+                         {
+                             $match: {
+                                 isDeleted: false,
+                                 isSignupAdminAprroved: { $ne: false },
+                             }
+                         }
+                     ] */
                 }
             },
             {
@@ -170,11 +174,11 @@ module.exports.queries = {
                 }
             }
         ]);
-        
+
         const formattedResults = results.map(user => ({
             id: user.id,
-            firstName: user.firstName,
-            lastName: user.lastName,
+            firstName: decrypt(user.firstName),
+            lastName: decrypt(user.lastName),
             status: user.status,
             email: user.email ?? "",
             isRegistered: user.isRegistered,
@@ -363,7 +367,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
-        
+
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
@@ -1417,7 +1421,7 @@ module.exports.mutations = {
         }
     },
     verifyRegistrationEmails: async ({ input }, context) => {
-
+        console.log(input?.email, "input in verifyRegistrationEmails");
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -1828,7 +1832,7 @@ module.exports.mutations = {
                                 endDate: new Date(),
                                 assignedCertificateLayout: trainingDataById[record.training?.toString()].layout ?? null,
                                 assignedCertificateLayoutId: trainingDataById[record.training?.toString()].layoutId ?? null,
-                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ??null,
+                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ?? null,
                             },
                         },
                     },
@@ -1867,11 +1871,11 @@ module.exports.mutations = {
                             const certificateValidity = overallTrainingProgress?.certificateExpiry;
                             const expiresAt = overallTrainingProgress.certificateExpiry
                                 ? await calculateExpiryDate(
-                                      completedAt,
-                                      overallTrainingProgress.certificateExpiry ?? null
-                                  )
+                                    completedAt,
+                                    overallTrainingProgress.certificateExpiry ?? null
+                                )
                                 : null;
-                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ? 
+                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ?
                                 overallTrainingProgress?.assignedCertificateLayoutId : trainingDataById[overallTrainingProgress.training?.toString()].layoutId;
                             const certificateNumber = await generateUniqueCertificateId();
 
@@ -1906,7 +1910,7 @@ module.exports.mutations = {
             );
             const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-            if(overallTrainingProgressUsers[0].user.isEmailNotification){
+            if (overallTrainingProgressUsers[0].user.isEmailNotification) {
                 const emailContent = courseCompletion({
                     firstName: overallTrainingProgressUsers[0].user.firstName,
                     trainingTitle: trainingData[0].title[0]?.value,
@@ -1919,7 +1923,7 @@ module.exports.mutations = {
                     subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                     htmlContent: emailContent,
                 });
-            }            
+            }
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1937,19 +1941,19 @@ module.exports.mutations = {
                 });
             }));
 
-           /*  await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Course Completion Notification`,
-                messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
-                notificationType: NotificationType.COURSE_COMPLETION,
-                notifyAllAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                affected: [],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            }); */
+            /*  await NotificationHelper.createNotificationhelper({
+                 subscriber: subscriberId,
+                 titleValue: `Course Completion Notification`,
+                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
+                 notificationType: NotificationType.COURSE_COMPLETION,
+                 notifyAllAdmin: true,
+                 notifiers: [],
+                 employeeNotifiers: [],
+                 affected: [],
+                 status: 'SENT',
+                 icon: notificationiconEnum.SUCCESS,
+                 createdBy: userInfo,
+             }); */
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
@@ -2000,7 +2004,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
+                            assignedCertificateLayout: trainingData?.currentCertificateLayout,
 
                         }
                     },
@@ -2039,7 +2043,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
+                            assignedCertificateLayout: trainingData?.currentCertificateLayout,
                         }
                     }
                 );

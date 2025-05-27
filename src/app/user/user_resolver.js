@@ -41,6 +41,7 @@ const mongoose = require('mongoose');
 const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
+const { encrypt } = require("../../util/encryption_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
