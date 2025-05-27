@@ -118,7 +118,7 @@ const checkforCustomGroupBasedAutoenrollment = async (hasValidIds, conditions) =
     if (!group) return false;
 
     if (group?.groupType === 'MEMBER') {
-        const isMember = await GroupMember.findOne({ group: group._id, member: _id });
+        const isMember = await GroupMember.findOne({ group: group._id, member: _id, isDeleted: { $ne: true } });
         return Boolean(isMember);
     }
 
@@ -532,6 +532,8 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
 
             // Send emails (use sendWithRetry logic from existing code)
             const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            console.log('batchResults');
+            console.log(batchResults);
             results = results.concat(batchResults);
             await delay(200);
             // Delete processed emails
