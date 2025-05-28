@@ -1,7 +1,7 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress } = require("./learning_plan_helper");
+const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress,updateLearningPlanStatusActivationHelper } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const { Moment } = require("../../tools");
@@ -87,6 +87,13 @@ module.exports.mutations = {
                 { new: true }
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
+            console.log('data recied', existingLearningPlans);
+               
+            if(existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE){
+                console.log('data received', existingLearningPlans[0]);
+                const data = existingLearningPlans[0];
+                await updateLearningPlanStatusActivationHelper(data, context);
+            }
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.LEARNING_PLAN_LOG,
@@ -259,6 +266,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
+            console.log('updated Learning Plan', updatedLearningPlan);
             return updatedLearningPlan;
         } catch (error) {
             throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
