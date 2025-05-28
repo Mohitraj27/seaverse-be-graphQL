@@ -42,7 +42,7 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
             errors.push(`Invalid isOrIsNot value for type ${type_of_Field}.`);
         }
         if (type_of_Field === typeOfConditionalCustomFieldEnum.GROUP) {
-            let group = Array.isArray(field.groupIDs) ? field.groupIDs : field.groupIDs;
+            let group = Array.isArray(field.groupIDs) ? field.groupIDs[0] : field.groupIDs;
             if (!group || !group.groupType || !group.groupIDs) {
                 errors.push(errorMessages.GROUP_IDS_GROUP_TYPE_REQUIRED_FOR_GROUP_BASED)
             }
