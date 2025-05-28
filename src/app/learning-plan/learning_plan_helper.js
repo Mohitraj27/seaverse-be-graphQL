@@ -60,9 +60,9 @@ const validateConditionalCustomFields = async (conditionalCustomFields) => {
                 case 'vesselType':
                 case 'owner':
                     group.groupIDs = group.groupIDs.map((groupId) =>
-                      mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
+                        mongoose.isValidObjectId(groupId) ? new mongoose.Types.ObjectId(groupId) : groupId
                     );
-                    
+
                     break;
                 // case 'role':
                 //     if (!group.groupIDs.every(role => validRoles.includes(role))) {
@@ -456,12 +456,12 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
             const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
-            if(courseIds?.length > 0){            
-            const publishedCourses = await Training.find({
-                _id: { $in: courseIds },
-                status: "PUBLISHED",
-                isDeleted: false
-            }).select('_id'); 
+            if (courseIds?.length > 0) {
+                const publishedCourses = await Training.find({
+                    _id: { $in: courseIds },
+                    status: "PUBLISHED",
+                    isDeleted: false
+                }).select('_id');
 
             const publishedCourseIds = publishedCourses?.map(course => course._id);
             if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
@@ -1127,8 +1127,20 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
                     pipeline: [
                         ...(lastActivity && startDate && endDate
                             ? [{ $match: { lastLoginAt: { $gte: startDate, $lte: endDate } } }]
-                            : [])
-                    ]
+                            : []),
+                        {
+                            $project: {
+                                _id: 1,
+                                email: 1,
+                                firstName: 1,
+                                lastName: 1,
+                                lastLoginAt: 1,
+                                isRegistered: 1,
+                                isDeleted: 1
+                            }
+                        }
+                    ],
+
                 }
             },
             {

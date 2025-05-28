@@ -447,8 +447,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
         let overallIds = [];
         if (trainingId) {
 
-            console.log('inside first if');
-
             const trainingModules = await TrainingModule.find({ training: trainingId, isDeleted: { $ne: true } }).session(session).lean();
 
             trainingModuleCount = trainingModules.length;
@@ -501,8 +499,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             return acc;
         }, {});
 
-        console.log('reached here before newProgressEntries!');
-
         const newProgressEntries = userIds.map(user => {
             // const progressKey = `${trainingId.toString()}-${user._id.toString()}`;
 
@@ -537,9 +533,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             };
         });
 
-        console.log('newProgressEntries')
-        console.log(newProgressEntries)
-
         if (newProgressEntries.length > 0) {
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
 
@@ -567,7 +560,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             if (contentInsertDocs.length > 0) {
                 await TrainingProgress.insertMany(contentInsertDocs, { session });
             }
-            console.log(overallIds)
             return overallIds;
         }
 
@@ -870,7 +862,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     case 'ENROLL':
                         html = courseEnrollment({
                             firstName: email.firstName,
-                            courses: coursesData[0] ?? [],
+                            courses: coursesData,
                             isAdmin: Boolean(email.isAdmin),
                         });
                         break;
@@ -956,7 +948,6 @@ module.exports = {
 
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
-
             if (!input.groups && !input.users) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
@@ -1076,7 +1067,7 @@ module.exports = {
                         );
                     }
                 }
-
+                
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
@@ -1200,24 +1191,81 @@ module.exports = {
 
                         // Preprocess course data once
 
-                        const coursesDataMap = trainingsData.map(training => ({
-                            trainingTitle: training?.title?.[0]?.value || ' ',
-                            durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
-                            courseImage: imageUrlMap.get(training?._id),
-                        }));
+                        if (!input.learningPlan) {
+                            const coursesDataMap = trainingsData.map(training => ({
+                                trainingTitle: training?.title?.[0]?.value || ' ',
+                                durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                                courseImage: imageUrlMap.get(training?._id),
+                            }));
 
-                        // Prepare email data for insertion into SQLite queue
-                        const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                            receiverEmail: user.email,
-                            firstName: user.firstName,
-                            courses: coursesDataMap,
-                            isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                        }));
+                            // Prepare email data for insertion into SQLite queue
+                            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
+                                receiverEmail: user.email,
+                                firstName: user.firstName,
+                                courses: coursesDataMap,
+                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                            }));
 
-                        // Insert emails into the course_emails table
-                        SqliteEmailHelper.insertCourseEmails(emailData);
-                        // Send the emails batch by batch
-                        await sendCourseEmailBulk();
+                            // Insert emails into the course_emails table
+                            SqliteEmailHelper.insertCourseEmails(emailData);
+                            // Send the emails batch by batch
+                            await sendCourseEmailBulk();
+                        }
+                        if (input.learningPlan) {
+
+                            const usersData = await User.find({ _id: { $in: userIds } });
+                            const trainingsData = await Training.find({ _id: { $in: input.trainings } });
+                            const progressEntries = await OverallTrainingProgress.find({
+                                user: { $in: userIds },
+                                training: { $in: input.trainings },
+                            }).select("user training").lean();
+
+                            // Step 2: Map user -> Set of enrolled trainingIds
+                            const userProgressMap = new Map(); // userId -> Set of trainingIds
+
+                            for (const entry of progressEntries) {
+                                const userId = entry.user.toString();
+                                const trainingId = entry.training.toString();
+                                if (!userProgressMap.has(userId)) {
+                                    userProgressMap.set(userId, new Set());
+                                }
+                                userProgressMap.get(userId).add(trainingId);
+                            }
+
+                            // Step 3: Prepare email data
+                            const emailData = [];
+
+                            for (const user of usersData) {
+                                if (!user.isEmailNotification) continue;
+
+                                const userId = user._id.toString();
+                                const enrolledTrainings = userProgressMap.get(userId) || new Set();
+
+                                const isMissingAnyTraining = input?.trainings?.some(
+                                    tId => !enrolledTrainings.has(tId)
+                                );
+
+                                if (!isMissingAnyTraining) continue; // skip if already enrolled in all
+
+                                // ⬇️ ✅ Send all trainings, not just missing ones
+                                const courses = trainingsData?.map(training => ({
+                                    trainingTitle: training?.title?.[0]?.value || ' ',
+                                    durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
+                                    courseImage: imageUrlMap.get(training._id.toString())
+                                }));
+
+                                emailData.push({
+                                    receiverEmail: user.email,
+                                    firstName: user.firstName,
+                                    isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                                    courses
+                                });
+                            }
+
+                            // Step 4: Insert into SQLite queue and send
+                            SqliteEmailHelper.insertCourseEmails(emailData);
+                            await sendCourseEmailBulk();
+                        }
 
                         return savedTrainingRegistration;
                     }
@@ -1257,7 +1305,7 @@ module.exports = {
                     )
                 );
                 // Generate notifications using flatMap()
-                if (userObjectIds?.length > 0) { 
+                if (userObjectIds?.length > 0) {
                     const notifications = newEnrollments?.map(({ userId, trainingId }) => ({
                         subscriber: subscriberId,
                         title: [
@@ -1325,6 +1373,7 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
+
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",

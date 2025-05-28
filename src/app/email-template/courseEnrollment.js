@@ -8,17 +8,22 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
     const coursesHTML = courses
         .map(
             course => `
-            <tr>
-                <td style="padding: 10px 40px;" class="content-inner">
-                    <table style="margin: 0 auto; width: 100%; max-width: 560px; background-color: white; border-radius: 8px; border: 1px solid white;" border="0" cellpadding="0" cellspacing="0">
-                        <tr>
-                            <td style="padding: 16px 24px; text-align: center; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; color: #121A26;">
-                                ${truncateString(course?.trainingTitle)}
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
+
+                    <tr>
+                        <td style="padding: 1px 40px;" class="content-inner">
+                            <table
+                                style="margin: 0 auto; width: 100%; max-width: 560px; background-color: white; border-radius: 8px; border: 1px solid white;"
+                                border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td
+                                        style="padding: 8px 24px;  font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; line-height: 24px; color: #121A26;">
+                                        ${truncateString(course?.trainingTitle)}
+                                    </td>
+                                </tr> 
+                            </table>
+                            <hr>
+                        </td>
+                    </tr>
         `
         )
         .join("");
