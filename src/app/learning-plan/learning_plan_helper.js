@@ -379,7 +379,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
             existingLearningPlan.groupIDs = [];
         }
         await existingLearningPlan.save();
-        if (existingLearningPlan?.status === learningPlanStatus.DRAFT || existingLearningPlan?.status === learningPlanStatus.INACTIVE) {
+        if (existingLearningPlan?.status === learningPlanStatus.DRAFT) {
             return { learningPlan: existingLearningPlan, success: true };
         }
         const removedLearnersID = await LearningPlanAssignment.find({ learningPlanId: existingLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId -_id');
@@ -435,17 +435,19 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     createdBy: existingLearningPlan.createdBy,
                     updatedBy: existingLearningPlan.updatedBy,
                 }));
-
-            await OverallTrainingProgress.updateMany(
-                {
-                    user: { $in: learnersToAssign },
-                    isDeleted: { $ne: true },
-                    training: { $in: existingLearningPlan?.selectCourses },
-                },
-                {
-                    $addToSet: { learningPlan: existingLearningPlan._id },
-                }
-            );
+            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE  
+ ) {                   
+                await OverallTrainingProgress.updateMany(
+                    {
+                        user: { $in: learnersToAssign },
+                        isDeleted: { $ne: true },
+                        training: { $in: existingLearningPlan?.selectCourses },
+                    },
+                    {
+                        $addToSet: { learningPlan: existingLearningPlan._id },
+                    }
+                );
+            }
             if (newAssignments.length > 0) {
                 await LearningPlanAssignment.insertMany(newAssignments);
             }
@@ -1242,8 +1244,6 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
     let errorList = [];
     try {
         const { userId, userInfo } = AuthUser(context);
-        console.log('reached here');
-        console.log('this is userId',userId);
         // Use existing learning plan data to construct input-like object
         const input = {
             title: existingLearningPlans.title,
@@ -1255,7 +1255,10 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
             status: learningPlanStatus.ACTIVE, // Force to ACTIVE
             emailNotification: existingLearningPlans.emailNotification,
             pushNotification: existingLearningPlans.pushNotification,
-            groupIDs: existingLearningPlans.groupIDs || []
+            groupIDs: existingLearningPlans.groupIDs || [],
+            isUpdated: true,
+            updatedBy: userId,
+            updatedAt: new Date()
         };
 
         console.log('input received for status activation', input);
@@ -1295,37 +1298,22 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         }
 
         await existingLearningPlans.save();
-        console.log('This is the ID recieved',existingLearningPlans._id);
-        // Since we're activating, we need to process assignments
-        const removedLearnersID = await LearningPlanAssignment.find({ 
-            learningPlanId: existingLearningPlans._id, 
-            isDeleted: { $ne: true } 
-        }).select('assignedLearnerId -_id');
         
-        const removedLearnerIdsArray = removedLearnersID.map(item => item.assignedLearnerId._id.toString());
         
-        await LearningPlanAssignment.deleteMany({
-            learningPlanId: existingLearningPlans._id
-        });
-
-        const updatedOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-            { user: { $in: removedLearnerIdsArray }, learningPlan: { $in: existingLearningPlans._id }, isDeleted: { $ne: true } },
-            {
-                $pull: {
-                    learningPlan: existingLearningPlans._id
-                }
-            }
-        );
-        console.log('updatedOverallTrainingProgress', updatedOverallTrainingProgress);
+       const userObjectIds = await LearningPlanAssignment.find({
+            learningPlanId: ObjectId(existingLearningPlans._id),
+            isDeleted: false,
+            isManuallyAdded: true
+            }).select('assignedLearnerId -_id');
+            const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
             // For manual selection, we need to get users based on existing assignments or criteria
             learnersToAssign = await User.find({
-                _id: { $in: input.userObjectIds || [] },
+                _id: { $in: userIds || [] },
                 isDeleted: false,
                 isSignupAdminAprroved: { $ne: false }
             }).select('_id');
-            console.log('learnersToAssign', learnersToAssign);
         } else {
             const { userIds } = await getUsersAndCount({
                 targetAudience: input.targetAudience,
@@ -1335,25 +1323,15 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
                 groupIDs: input.groupIDs
             });
 
-            console.log('userIds', userIds);
-            console.log('objectcout', {
-                targetAudience: input.targetAudience,
-                audienceSelection: input.audienceSelection,
-                conditionType: input.conditionType,
-                conditionalCustomFields: input.conditionalCustomFields,
-                groupIDs: input.groupIDs
-            });
- 
             learnersToAssign = userIds;
         }
 
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
-        console.log('learnersToAssign', learnersToAssign.length);
         if (learnersToAssign?.length > 0) {
             const existingAssignments = await LearningPlanAssignment.find({
-                learningPlanId: existingLearningPlans._id,
+                learningPlanId: ObjectId(existingLearningPlans._id),
                 assignedLearnerId: { $in: learnersToAssign },
                 isDeleted: false,
             }).select('assignedLearnerId');
@@ -1362,13 +1340,12 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
             const newAssignments = learnersToAssign
                 .filter(learnerId => !existingLearnerIds.has(learnerId.toString()))
                 .map(learnerId => ({
-                    learningPlanId: existingLearningPlans._id,
+                    learningPlanId: ObjectId(existingLearningPlans._id),
                     assignedLearnerId: learnerId,
                     isManuallyAdded: input.audienceSelection === audienceSelection.MANUAL,
                     createdBy: existingLearningPlans.createdBy,
                     updatedBy: userId,
                 }));
-                console.log('newAssignments', newAssignments.length);
             await OverallTrainingProgress.updateMany(
                 {
                     user: { $in: learnersToAssign },
@@ -1376,12 +1353,11 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
                     training: { $in: existingLearningPlans?.selectCourses },
                 },
                 {
-                    $addToSet: { learningPlan: existingLearningPlans._id },
+                    $addToSet: { learningPlan: ObjectId(existingLearningPlans._id) },
                 }
             );
 
             if (newAssignments?.length > 0) {
-                console.log('this was new Assignments', newAssignments);
                 await LearningPlanAssignment.insertMany(newAssignments);
             }
         }
@@ -1394,16 +1370,14 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
                     status: "PUBLISHED",
                     isDeleted: false
                 }).select('_id');
-                
                 const publishedCourseIds = publishedCourses?.map(course => course._id);
                 if (publishedCourseIds?.length > 0) {
                     const enrollData = {
                         trainings: publishedCourseIds,
                         users: learnersToAssign?.map(learner => learner._id) || [],
                         type: "ENROLL",
-                        learningPlan: existingLearningPlans._id
+                        learningPlan: ObjectId(existingLearningPlans._id)
                     };
-                    console.log('this is enroll Data', enrollData);
                     await createTrainingRegistration(enrollData, context);
                 }
             }
@@ -1421,11 +1395,10 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
             { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
             {
                 $pull: {
-                    learningPlan: existingLearningPlans._id
+                    learningPlan: ObjectId(existingLearningPlans._id)
                 }
             }
         );
-        console.log('data received', existingLearningPlans);
         return { learningPlan: existingLearningPlans, success: true };
     } catch (error) {
         throw new Error(error.message);

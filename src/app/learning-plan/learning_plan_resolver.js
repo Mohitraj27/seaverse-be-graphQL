@@ -89,10 +89,9 @@ module.exports.mutations = {
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
             console.log('data recied', existingLearningPlans);
                
-            if(existingLearningPlans[0].status === LearningPlanStatus.ACTIVE && newStatus === LearningPlanStatus.INACTIVE){
+            if(existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE){
                 console.log('data received', existingLearningPlans[0]);
                 const data = existingLearningPlans[0];
-                console.log('data received', data);
                 await updateLearningPlanStatusActivationHelper(data, context);
             }
             LogHelper.logActivity({
