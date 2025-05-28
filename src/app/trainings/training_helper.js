@@ -713,7 +713,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         sendCertificateNotification.push({
                             subscriber: subscriberId,
                             title: [{ lang: "en", value: `Your course certificate issued` }],
-                            message: [{ lang: "en", value: `Cogratulations !! Certificate for the ${courseTitle ?? ''} has been issued.` }],
+                            message: [{ lang: "en", value: `Congratulations! Certificate for the ${courseTitle ?? ''} has been issued.` }],
                             notificationType: NotificationType.COURSE_COMPLETION,
                             notifyAllAdmin: false,
                             isNotificatonForAdmin: false,
