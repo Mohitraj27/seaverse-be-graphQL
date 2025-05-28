@@ -202,6 +202,7 @@ module.exports = {
         input UpdateLearningPlanStatusInput {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
+            
         }
         input pageInput {
             limit: Int
