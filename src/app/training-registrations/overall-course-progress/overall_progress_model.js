@@ -111,6 +111,16 @@ const overallProgressSchema = new Schema(
             type: Boolean,
             default: false
         },
+        contentFromDownload: [
+            {
+                moduleId: ObjectId,
+                contentIds: [ObjectId],
+                version: {
+                    type: Number,
+                    default: 1
+                }
+            },
+        ],
     },
     { timestamps: true }
 )

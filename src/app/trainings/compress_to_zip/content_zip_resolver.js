@@ -35,14 +35,16 @@ module.exports.mutations = {
             await validateInputData(input, userId);
             const trainingModuleContentsFromContentData = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
 
-            // let syncContentErrors = [];
+            let syncContentErrors = [];
             // //add content data to overall training progress
-            // const overallTrainingProgress = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
-            // if (!overallTrainingProgress) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
-            // const overallIdArray = [{ overallId: overallTrainingProgress?._id }];
-            // const fromDownload = true;
-            // const overallProgressesWithContentData = await TrainingHelper.addDataToOverallTrainingProgress(overallIdArray, syncContentErrors, null, fromDownload);
+            const overallTrainingProgress = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
+            if (!overallTrainingProgress) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
+            const overallIdArray = [{ overallId: overallTrainingProgress?._id }];
+            const fromDownload = true;
+            if (overallIdArray.length > 0) await TrainingHelper.addDataToOverallTrainingProgress(overallIdArray, syncContentErrors, null, fromDownload);
             // const singleOverallProgressWithContentData = overallProgressesWithContentData[0];
+
+            if (syncContentErrors.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Course download failed.");
 
             let trainingContentIds = [];
 
@@ -99,6 +101,8 @@ module.exports.mutations = {
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
 
             const zip = await AwsHelper.fetchFile(getContent);
+
+            console.log(zip);
 
             return {
                 status: "01",

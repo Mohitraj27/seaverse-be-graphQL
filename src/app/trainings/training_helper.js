@@ -398,12 +398,22 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                 //     },
                 // });
 
-                const updateFields = {
-                    status: (doc?.adminMarkedAsCompleted || fromDownload) ? doc.status : "IN_PROGRESS",
-                    contentData,
-                    startDate: new Date(),
-                    totalTrainingModules: contentData?.length,
+                let updateFields = {
+                    contentFromDownload: [],
                 };
+                if (fromDownload) {
+                    updateFields.contentFromDownload = [
+                        ...(updateFields.contentFromDownload || []),
+                        ...contentData
+                    ];
+                } else {
+                    updateFields = {
+                        status: "IN_PROGRESS",
+                        contentData,
+                        startDate: new Date(),
+                        totalTrainingModules: contentData?.length,
+                    };
+                }
 
                 if (doc.status !== "COMPLETED") {
                     updateFields.isCertificatePresent = trainingDataById[doc.training.toString()]?.isCertificate;
