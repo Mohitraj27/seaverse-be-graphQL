@@ -119,6 +119,7 @@ const trainingModuleContentSchema = new Schema(
             type: Number,
             min: 0,
             max: 100,
+            default: null,
         },
         totalQuestions: {
             type: Number,
