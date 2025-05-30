@@ -569,8 +569,16 @@ module.exports.queries = {
                 group.groupName && regex.test(group.groupName)
             );
         }
+        const decryptedItems = users?.map(user => {
+            return {
+                ...user,
+                firstName: decrypt(user?.firstName),
+                lastName: decrypt(user?.lastName),
+                email: decrypt(user?.email?.trim())
+            };
+        });
         return {
-            users: users,
+            users: decryptedItems,
             autoSyncedGroups: filteredAutoSyncedGroups,
         };
 

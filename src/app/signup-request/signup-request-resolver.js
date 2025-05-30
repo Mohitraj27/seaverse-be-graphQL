@@ -18,7 +18,7 @@ const aws_helper = require("../../util/aws_helper");
 const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Vessel } = require('../vessle/vessel_model');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
-
+const { decrypt ,encrypt} = require('../../util/encryption_helper');
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -66,9 +66,17 @@ module.exports.queries = {
                 .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
-
+                const decryptedItems = items?.map(item => {
+                    const obj = item.toObject();
+                    return {
+                        ...obj,
+                        firstName: decrypt(obj?.firstName),
+                        lastName: decrypt(obj?.lastName),
+                        email: decrypt(obj?.email?.trim())
+                    };
+                });
             return {
-                items,
+                items: decryptedItems,
                 pendingStatusCount
             };
         } catch (error) {
@@ -81,7 +89,13 @@ module.exports.queries = {
         try {
             const user = await SignupRequest.findOne({ userId: id, isDeleted: false });
             if (!user) throw CustomError(ErrorName.SIGNUP_REQUEST_DATA_NOT_FOUND, 'Signup request data not found');
-            return user;
+            const decryptedUserDetails = {
+                ...user.toObject(),
+                firstName: decrypt(user.firstName),
+                lastName: decrypt(user.lastName),
+                email: decrypt(user.email.trim())
+            };
+            return decryptedUserDetails;
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_SIGNUP_REQUEST, error.message);
@@ -167,12 +181,13 @@ module.exports.mutations = {
                     }], { session });
 
                     await SignupRequest.deleteOne({ userId }, { session });
+                    const decryptfirstNameforEmail =  decrypt(signupRequest?.firstName);
 
                     const sendmailforApproval = await aws_helper.sendEmail({
-                        receiverEmail: signupRequest?.email,
+                        receiverEmail: decrypt(signupRequest?.email),
                         subject: 'Signup request APPROVED',
                         htmlContent: approvalEmailTemplate({
-                            firstName: signupRequest?.firstName,
+                            firstName: decryptfirstNameforEmail,
                             loginLink: `${process.env.APP_URL}/login`
                         })
                     });
@@ -187,7 +202,7 @@ module.exports.mutations = {
                             vesselID: vesselName || "",
                             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
                             currentStatus: vesselStatus || "",
-                            email: signupRequest?.email,
+                            email: decrypt(signupRequest?.email),
                             _id: signupRequest?.userId
                         }];
     
@@ -200,7 +215,7 @@ module.exports.mutations = {
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
-                    const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
+                    const userName = `${decrypt(signupRequest?.firstName)} ${decrypt(signupRequest?.lastName) || ''}`.trim();
                     return {
                         status: true,
                         message: `Signup request for ${userName} has been APPROVED successfully.`
@@ -232,12 +247,13 @@ module.exports.mutations = {
                         isRegistered: input?.isRegistered
                     }], { session });
                     await SignupRequest.deleteOne({ userId }, { session });
-                    const userName = `${signupRequest?.firstName} ${signupRequest?.lastName || ''}`.trim();
+                    const userName = `${decrypt(signupRequest?.firstName)} ${decrypt(signupRequest?.lastName) || ''}`.trim();
+                    const decryptfirstNameforEmail =  decrypt(signupRequest?.firstName);
                     const sendmailforRejection = await aws_helper.sendEmail({
-                        receiverEmail: signupRequest?.email,
+                        receiverEmail: decrypt(signupRequest?.email),
                         subject: 'Signup request REJECTED',
                         htmlContent: rejectionEmailTemplate({
-                            firstName: signupRequest?.firstName,
+                            firstName: decryptfirstNameforEmail,
                         })
                     });
                     if (!sendmailforRejection) {

@@ -41,6 +41,7 @@ const mongoose = require('mongoose');
 const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
+const { encrypt,decrypt }= require("../../util/encryption_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -188,11 +189,7 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { password, confirmPassword, country, TermsAndConditions } = input;
-
-                const firstName  = encrypt(input.firstName);
-                const lastName  = encrypt(input.lastName);
-                const email = encrypt(input.email);
+                const { password, confirmPassword, country, TermsAndConditions ,email,firstName,lastName } = input;
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
@@ -225,10 +222,10 @@ module.exports.mutations = {
                 const createUser = await User.create([
                     {
                         subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
+                        firstName: encrypt(firstName),
+                        lastName: encrypt(lastName) ?? null,
                         password: encryptedPassword,
-                        email: lowerCaseEmail,
+                        email: encrypt(lowerCaseEmail),
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
@@ -254,9 +251,9 @@ module.exports.mutations = {
                 });
                 if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
                 const result = await SignupRequest.create([{
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: lowerCaseEmail,
+                    firstName: encrypt(firstName),
+                    lastName: encrypt(lastName),
+                    email: encrypt(lowerCaseEmail),
                     country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
