@@ -679,7 +679,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 200;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });

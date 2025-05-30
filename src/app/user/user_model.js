@@ -159,14 +159,10 @@ const userSchema = new Schema(
         roleAssignmentDate: {
             type: Date
         },
-        contentlanguages:
-        [
-            { 
-                type: String,
-                ref:"ContentLanguage",
-                default: "en"
-            }
-        ],
+        contentlanguages: {
+            type: [String],
+            default: ["english"]
+        },
         consents: [
             {
                 consentType: { type: String },

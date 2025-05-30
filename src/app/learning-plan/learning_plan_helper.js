@@ -338,6 +338,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
         //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
         //     return { success: false, errors: errorList };
         // }
+        console.log('input recived', input);
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
@@ -434,17 +435,19 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     createdBy: existingLearningPlan.createdBy,
                     updatedBy: existingLearningPlan.updatedBy,
                 }));
-
-            await OverallTrainingProgress.updateMany(
-                {
-                    user: { $in: learnersToAssign },
-                    isDeleted: { $ne: true },
-                    training: { $in: existingLearningPlan?.selectCourses },
-                },
-                {
-                    $addToSet: { learningPlan: existingLearningPlan._id },
-                }
-            );
+            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE  
+ ) {                   
+                await OverallTrainingProgress.updateMany(
+                    {
+                        user: { $in: learnersToAssign },
+                        isDeleted: { $ne: true },
+                        training: { $in: existingLearningPlan?.selectCourses },
+                    },
+                    {
+                        $addToSet: { learningPlan: existingLearningPlan._id },
+                    }
+                );
+            }
             if (newAssignments.length > 0) {
                 await LearningPlanAssignment.insertMany(newAssignments);
             }
@@ -508,7 +511,6 @@ const getUsersAndCount = async (input) => {
         filter.isSignupAdminAprroved = true;
         filter.isActive = true;
         filter.isRegistered = true;
-
         if (input.targetAudience === targetAudienceEnum.EVERYONE_IN_ORGANIZATION) {
             if (input.audienceSelection === audienceSelection.AUTOMATIC) {
                 if (!input.conditionType || input.conditionalCustomFields.length === 0) {
@@ -1250,4 +1252,169 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
     }
 };
 
-module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress };
+const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, context) => {
+    let errorList = [];
+    try {
+        const { userId, userInfo } = AuthUser(context);
+        // Use existing learning plan data to construct input-like object
+        const input = {
+            title: existingLearningPlans.title,
+            targetAudience: existingLearningPlans.targetAudience,
+            audienceSelection: existingLearningPlans.audienceSelection,
+            conditionType: existingLearningPlans.conditionType,
+            conditionalCustomFields: existingLearningPlans.conditionalCustomFields || [],
+            selectCourses: existingLearningPlans.selectCourses,
+            status: learningPlanStatus.ACTIVE, // Force to ACTIVE
+            emailNotification: existingLearningPlans.emailNotification,
+            pushNotification: existingLearningPlans.pushNotification,
+            groupIDs: existingLearningPlans.groupIDs || [],
+            isUpdated: true,
+            updatedBy: userId,
+            updatedAt: new Date()
+        };
+
+        console.log('input received for status activation', input);
+        
+        await basicValidations(input, errorList);
+        await audienceSelectionValidation(input, errorList);
+        await additionalValidationConditionalCustomFields(input, errorList);
+        await clearFieldsBasedOnConditions(input, errorList);
+        await validateGroupAndConditionalFields(input, errorList);
+        
+        if (errorList?.length > 0) {
+            return { success: false, errors: errorList };
+        }
+
+        const existingCourses = existingLearningPlans?.selectCourses || [];
+        const existingCoursesToString = existingCourses?.map(course => course.toString());
+
+        // Update the existing learning plan object
+        Object.assign(existingLearningPlans, {
+            title: input.title, 
+            targetAudience: input.targetAudience,
+            audienceSelection: input.audienceSelection,
+            conditionType: input.conditionType || null,
+            conditionalCustomFields: input.conditionalCustomFields || [],
+            selectCourses: input.selectCourses,
+            status: learningPlanStatus.ACTIVE,
+            emailNotification: input.emailNotification,
+            pushNotification: input.pushNotification,
+            isUpdated: true,
+            groupIDs: input.groupIDs,
+            updatedBy: userId,
+            updatedAt: new Date()
+        });
+
+        if (input.audienceSelection === audienceSelection.EVERYONE_IN_ORGANIZATION) {
+            existingLearningPlans.groupIDs = [];
+        }
+
+        await existingLearningPlans.save();
+        
+        
+       const userObjectIds = await LearningPlanAssignment.find({
+            learningPlanId: ObjectId(existingLearningPlans._id),
+            isDeleted: false,
+            isManuallyAdded: true
+            }).select('assignedLearnerId -_id');
+            const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
+        let learnersToAssign = [];
+        if (input.audienceSelection === audienceSelection.MANUAL) {
+            // For manual selection, we need to get users based on existing assignments or criteria
+            learnersToAssign = await User.find({
+                _id: { $in: userIds || [] },
+                isDeleted: false,
+                isSignupAdminAprroved: { $ne: false }
+            }).select('_id');
+        } else {
+            const { userIds } = await getUsersAndCount({
+                targetAudience: input.targetAudience,
+                audienceSelection: input.audienceSelection,
+                conditionType: input.conditionType,
+                conditionalCustomFields: input.conditionalCustomFields,
+                groupIDs: input.groupIDs
+            });
+
+            learnersToAssign = userIds;
+        }
+
+        if (errorList?.length > 0) {
+            return { success: false, errors: errorList };
+        }
+        if (learnersToAssign?.length > 0) {
+            const existingAssignments = await LearningPlanAssignment.find({
+                learningPlanId: ObjectId(existingLearningPlans._id),
+                assignedLearnerId: { $in: learnersToAssign },
+                isDeleted: false,
+            }).select('assignedLearnerId');
+
+            const existingLearnerIds = new Set(existingAssignments.map(doc => doc.assignedLearnerId.toString()));
+            const newAssignments = learnersToAssign
+                .filter(learnerId => !existingLearnerIds.has(learnerId.toString()))
+                .map(learnerId => ({
+                    learningPlanId: ObjectId(existingLearningPlans._id),
+                    assignedLearnerId: learnerId,
+                    isManuallyAdded: input.audienceSelection === audienceSelection.MANUAL,
+                    createdBy: existingLearningPlans.createdBy,
+                    updatedBy: userId,
+                }));
+            await OverallTrainingProgress.updateMany(
+                {
+                    user: { $in: learnersToAssign },
+                    isDeleted: { $ne: true },
+                    training: { $in: existingLearningPlans?.selectCourses },
+                },
+                {
+                    $addToSet: { learningPlan: ObjectId(existingLearningPlans._id) },
+                }
+            );
+
+            if (newAssignments?.length > 0) {
+                await LearningPlanAssignment.insertMany(newAssignments);
+            }
+        }
+
+        if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
+            const courseIds = existingLearningPlans?.selectCourses?.map(course => course._id) || [];
+            if (courseIds?.length > 0) {
+                const publishedCourses = await Training.find({
+                    _id: { $in: courseIds },
+                    status: "PUBLISHED",
+                    isDeleted: false
+                }).select('_id');
+                const publishedCourseIds = publishedCourses?.map(course => course._id);
+                if (publishedCourseIds?.length > 0) {
+                    const enrollData = {
+                        trainings: publishedCourseIds,
+                        users: learnersToAssign?.map(learner => learner._id) || [],
+                        type: "ENROLL",
+                        learningPlan: ObjectId(existingLearningPlans._id)
+                    };
+                    await createTrainingRegistration(enrollData, context);
+                }
+            }
+        }
+
+        let inputCourses = [], excludedCourses = [];
+        if (existingLearningPlans?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
+            inputCourses = input.selectCourses.map(course => course.toString());
+            excludedCourses = existingCoursesToString
+                .filter(courseId => !inputCourses.includes(courseId))
+                .map(courseId => new ObjectId(courseId));
+        }
+
+        const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: ObjectId(existingLearningPlans._id)
+                }
+            }
+        );
+        return { learningPlan: existingLearningPlans, success: true };
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+module.exports = { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress, updateLearningPlanStatusActivationHelper };
