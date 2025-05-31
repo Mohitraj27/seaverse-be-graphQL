@@ -216,10 +216,10 @@ module.exports.queries = {
                 }));
             }
 
-            const data = userDetails.map(user => ({
-                "First Name": user?.firstName,
-                "Last Name": user?.lastName,
-                "Email": user?.email,
+            const data = userDetails?.map(user => ({
+                "First Name": decrypt(user?.firstName),
+                "Last Name": decrypt(user?.lastName),
+                "Email": decrypt(user?.email),
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
                 "Last Login Date (UTC)": formatDate(user?.lastLoginAt),

@@ -3647,9 +3647,16 @@ module.exports.mutations = {
              * @description
              *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
              */
-
+            const decryptedData = data?.map(user => {
+                return {
+                    ...user,
+                    'First Name*': decrypt(user['First Name*']),
+                    'Last Name': decrypt(user['Last Name']),
+                    'Email*': decrypt(user['Email*']),
+                };
+            });
             const workbook = xlsx.utils.book_new();
-            const worksheet = xlsx.utils.json_to_sheet(data);
+            const worksheet = xlsx.utils.json_to_sheet(decryptedData);
             xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
             const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
