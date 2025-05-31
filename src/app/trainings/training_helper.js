@@ -223,6 +223,56 @@ const validateSyncOfflineData = async (data) => {
 
 }
 
+function extractCourseStructure(trainingModules) {
+    return trainingModules.map(module => ({
+        moduleId: module.moduleId.toString(),
+        contentIds: module.contentDetails
+            ? module.contentDetails.map(content => content.contentId.toString())
+            : module.contentIds.map(id => id.toString()) // Handle both formats
+    }));
+}
+
+function areCourseStructuresEqual(structure1, structure2) {
+    if (structure1.length !== structure2.length) {
+        return false;
+    }
+
+    return structure1.every(module1 => {
+        return structure2.some(module2 => {
+            const sameModuleId = module1.moduleId === module2.moduleId;
+
+            const sameContentIds = module1.contentIds.length === module2.contentIds.length &&
+                module1.contentIds.every(id1 =>
+                    module2.contentIds.some(id2 => id1 === id2)
+                ) &&
+                module2.contentIds.every(id2 =>
+                    module1.contentIds.some(id1 => id1 === id2)
+                );
+
+            return sameModuleId && sameContentIds;
+        });
+    });
+}
+
+function areContentDataEqual(contentData1, contentData2) {
+    if (contentData1.length !== contentData2.length) {
+        return false;
+    }
+
+    return contentData1.every(module1 => {
+        return contentData2.some(module2 => {
+            const sameModuleId = module1.moduleId.toString() === module2.moduleId.toString();
+
+            const sameContentIds = module1.contentIds.length === module2.contentIds.length &&
+                module1.contentIds.every(id1 =>
+                    module2.contentIds.some(id2 => id1.toString() === id2.toString())
+                );
+
+            return sameModuleId && sameContentIds;
+        });
+    });
+}
+
 const addDataToOverallTrainingProgress = async (input, errors, session, fromDownload) => {
 
 
@@ -242,7 +292,211 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
 
     const overallDocsWithNoContentData = overallDocs.filter((doc) => !doc.contentData || doc.contentData.length == 0);
 
-    if (overallDocsWithNoContentData.length > 0) {
+    if (fromDownload) {
+
+        const trainingIds = overallDocs.map((doc) => doc.training);
+
+        const trainingData = await Training.aggregate([
+            {
+                $match: {
+                    _id: {
+                        $in: trainingIds
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: "certificatelayouts",
+
+                    localField: "_id",
+
+                    foreignField: "training",
+
+                    as: "certificateLayouts",
+
+                    let: {
+                        currentCertificateLayout:
+                            "$$ROOT.currentCertificateLayout"
+                    },
+                    pipeline: [
+                        {
+                            $project: {
+                                _id: 1,
+                                layout: 1,
+                                version: 1,
+                                certificateExpiry: 1
+                            }
+                        },
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: [
+                                        "$layout",
+                                        "$$currentCertificateLayout"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                certificateExpiry: 1,
+                                version: 1
+                            }
+                        },
+                        {
+                            $sort: {
+                                version: -1
+                            }
+                        },
+                        {
+                            $limit: 1
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: {
+                    path: "$certificateLayouts",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    isCertificate: 1,
+                    currentCertificateLayout: 1,
+                    layoutId: "$certificateLayouts._id",
+                    certificateValidity: "$certificateLayouts.certificateExpiry",
+                }
+            }
+        ]);
+
+        const trainingDataById = trainingData.reduce((acc, training) => {
+            acc[training._id.toString()] = training;
+            return acc;
+        }, {});
+
+        if (trainingIds.length == 0) {
+            errors.push(`Training couldn't found`);
+            return;
+        }
+
+        const fetchTrainingContents = await TrainingContentBridge.find({
+            training: { $in: trainingIds },
+            isDeleted: { $ne: true },
+        })
+            .sort({ order: 1 })
+            .lean();
+
+        if (fetchTrainingContents.length == 0) {
+            errors.push(`Training content not found`);
+            return;
+        }
+
+        let contentDataMap = new Map();
+
+        let bulkOperations = [];
+
+        for (const doc of overallDocs) {
+
+            const matchingContents = fetchTrainingContents.filter(
+                (content) => content.training.toString() === doc.training.toString()
+            );
+
+            if (matchingContents.length > 0) {
+
+                for (const content of matchingContents) {
+                    const moduleId = content.trainingModule.toString();
+                    const contentId = content.trainingContent.toString();
+
+                    if (!contentDataMap.has(moduleId)) {
+                        contentDataMap.set(moduleId, []);
+                    }
+                    contentDataMap.get(moduleId).push(contentId);
+                }
+
+                // Manage the order of modules
+                const moduleIds = Array.from(contentDataMap.keys());
+                const trainingModules = await TrainingModule.find({ _id: { $in: moduleIds } })
+                    .select("_id order")
+                    .lean();
+                const moduleOrderMap = new Map(trainingModules.map((module) => [module._id.toString(), module.order]));
+
+                const contentData = Array.from(contentDataMap, ([moduleId, contentIds]) => ({
+                    moduleId,
+                    contentIds,
+                })).sort((a, b) => {
+                    const orderA = moduleOrderMap.get(a.moduleId.toString()) || 0;
+                    const orderB = moduleOrderMap.get(b.moduleId.toString()) || 0;
+                    return orderA - orderB;
+                });
+
+                const existingContentFromDownload = doc?.contentFromDownload || [];
+
+                let updateFields = {};
+
+                if (fromDownload) {
+                    // Check for duplicates
+                    const isDuplicate = existingContentFromDownload.some(entry =>
+                        areContentDataEqual(entry.courseDetails, contentData)
+                    );
+
+                    if (!isDuplicate) {
+                        const maxVersion = existingContentFromDownload.length > 0
+                            ? Math.max(...existingContentFromDownload.map(item => item.version))
+                            : 0;
+
+                        // updateFields.$push = {
+                        //     contentFromDownload: {
+                        //         courseDetails: contentData,
+                        //         version: maxVersion + 1
+                        //     }
+                        // };
+
+                        const pushOperation = {
+                            updateOne: {
+                                filter: { _id: doc._id },
+                                update: {
+                                    $push: {
+                                        contentFromDownload: {
+                                            courseDetails: contentData,
+                                            version: maxVersion + 1
+                                        }
+                                    }
+                                },
+                            },
+                        };
+
+                        bulkOperations.push(pushOperation);
+
+                    }
+                }
+
+                if (doc.status !== "COMPLETED") {
+                    updateFields.isCertificatePresent = trainingDataById[doc.training.toString()]?.isCertificate;
+                    updateFields.assignedCertificateLayout = trainingDataById[doc.training.toString()]?.currentCertificateLayout;
+                    updateFields.certificateExpiry = trainingDataById[doc.training.toString()]?.certificateValidity;
+                    updateFields.assignedCertificateLayoutId = trainingDataById[doc.training.toString()]?.layoutId;
+                }
+
+                bulkOperations.push({
+                    updateOne: {
+                        filter: { _id: doc._id },
+                        update: { $set: updateFields },
+                    },
+                });
+
+            }
+        }
+
+        if (bulkOperations.length > 0) {
+            await OverallTrainingProgress.bulkWrite(bulkOperations);
+        }
+
+    }
+
+    if (overallDocsWithNoContentData.length > 0 && !fromDownload) {
 
         const trainingIds = overallDocsWithNoContentData.map((doc) => doc.training);
 
@@ -398,14 +652,32 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                 //     },
                 // });
 
-                let updateFields = {
-                    contentFromDownload: [],
-                };
+                // let updateFields = {
+                //     contentFromDownload: [],
+                // };
+
+                const existingContentFromDownload = doc?.contentFromDownload || [];
+
+                let updateFields = {};
+
                 if (fromDownload) {
-                    updateFields.contentFromDownload = [
-                        ...(updateFields.contentFromDownload || []),
-                        ...contentData
-                    ];
+                    // Check for duplicates
+                    const isDuplicate = existingContentFromDownload.some(entry =>
+                        areContentDataEqual(entry.courseDetails, contentData)
+                    );
+
+                    if (!isDuplicate) {
+                        const maxVersion = existingContentFromDownload.length > 0
+                            ? Math.max(...existingContentFromDownload.map(item => item.version))
+                            : 0;
+
+                        updateFields.$push = {
+                            contentFromDownload: {
+                                courseDetails: contentData,
+                                version: maxVersion + 1
+                            }
+                        };
+                    }
                 } else {
                     updateFields = {
                         status: "IN_PROGRESS",
@@ -1766,6 +2038,8 @@ module.exports = {
     generateTrainingUID,
     uploadCertificateTrainingImages,
     dataMigrationBackground,
+    extractCourseStructure,
+    areCourseStructuresEqual,
     createOrUpdateTraining: async ({ input, coverImage, bannerImage, session }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 

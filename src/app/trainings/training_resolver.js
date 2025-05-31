@@ -661,6 +661,113 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
+            if (input.isFromMobile) {
+
+                if (!input.overallId) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
+                }
+                if (!input.trainingModules || input.trainingModules.length === 0) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
+                }
+
+                const completedCourses = input.filter(item => {
+                    return item.trainingModules.every(module => {
+                        return module.contentDetails.every(content => {
+                            return content.contentStatus === "COMPLETED";
+                        });
+                    });
+                });
+
+                if (completedCourses.length > 0) {
+
+                    // completed courses IDs
+                    const completedCourseIds = completedCourses.map(item => item.overallId);
+                    if (completedCourseIds) {
+
+                        const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
+
+                        if (onlineCourseData.length > 0) {
+
+                            const alreadyCompletedIds = onlineCourseData
+                                .filter(course => course.status === "COMPLETED")
+                                .map(course => course._id.toString());
+
+                            // Filter out courses that are already COMPLETED in database
+                            const newlyCompletedCourses = completedCourses.filter(item =>
+                                !alreadyCompletedIds.includes(item.overallId.toString())
+                            );
+
+                            if (newlyCompletedCourses.length === 0) {
+                                return {
+                                    status: 1,
+                                    message: "No new courses to update."
+                                };
+                            }
+
+                            console.log('Newly completed courses:', newlyCompletedCourses.length);
+                            console.log('Already completed in DB:', alreadyCompletedIds.length);
+
+                            if (newlyCompletedCourses.length > 0) {
+
+                                const newlyCompletedIds = newlyCompletedCourses.map(item => item.overallId);
+
+                                // Fetch contentFromDownload for newly completed courses
+                                const coursesWithDownloadData = await OverallTrainingProgress.find(
+                                    { _id: { $in: newlyCompletedIds } },
+                                    { _id: 1, contentFromDownload: 1 }
+                                );
+
+                                for (const completedCourse of newlyCompletedCourses) {
+                                    console.log(`Processing course: ${completedCourse.overallId}`);
+
+                                    // Find the corresponding database record
+                                    const dbCourse = coursesWithDownloadData.find(
+                                        course => course._id.toString() === completedCourse.overallId.toString()
+                                    );
+
+                                    if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
+                                        console.log(`No contentFromDownload found for course: ${completedCourse.overallId}`);
+                                        continue;
+                                    }
+
+                                    // Extract current course structure (moduleIds and contentIds)
+                                    const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
+
+                                    // Check each version in contentFromDownload
+                                    let matchFound = false;
+                                    let matchedVersion = null;
+
+                                    for (const downloadVersion of dbCourse.contentFromDownload) {
+                                        const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
+
+                                        if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
+                                            matchFound = true;
+                                            matchedVersion = downloadVersion.version;
+                                            console.log(`Match found for course ${completedCourse.overallId} with version ${matchedVersion}`);
+                                            break;
+                                        }
+                                    }
+
+                                    if (matchFound) {
+                                        console.log(`Course ${completedCourse.overallId} matches downloaded version ${matchedVersion}`);
+                                        // Handle the matched case - maybe update some status or trigger some action
+                                    } else {
+                                        console.log(`Course ${completedCourse.overallId} does not match any downloaded version`);
+                                        // Handle the non-matched case
+                                    }
+                                }
+
+                            }
+
+
+                        }
+
+                    }
+
+                }
+
+            }
+
             const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
 
             if (validateErrors.length > 0) {
