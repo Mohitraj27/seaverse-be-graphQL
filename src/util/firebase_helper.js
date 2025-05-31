@@ -14,18 +14,21 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             },
         },
         apns: {
+            headers: {
+                "apns-priority": "10"
+              },
             payload: {
-                aps: {
-                    alert: {
-                        title,
-                        body
-                    },
-                    sound: "default",
-                    badge: 1
-                }
+              aps: {
+                alert: {
+                  title,
+                  body
+                },
+                sound: "default",
+                badge: 1,
+                "content-available": 1
+              }
             }
-        }
-        
+          }                    
     };
 
     if (content && typeof content === "object") {
