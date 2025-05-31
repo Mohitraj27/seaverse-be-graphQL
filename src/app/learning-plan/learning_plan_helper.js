@@ -1212,6 +1212,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             mergedData.users = mergedData.users.map(user => ({
                 ...user,
                 firstName: decrypt(user?.firstName),
+                lastName: decrypt(user?.lastName),
                 email: decrypt(user?.email)
             }));
         }
