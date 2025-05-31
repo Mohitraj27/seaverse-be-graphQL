@@ -681,20 +681,16 @@ module.exports.queries = {
                 totalCount = members.length;
             }
 
-            paginatedMembers = members.slice(skip, skip + limit);
-            paginatedMembers = paginatedMembers.map((member) => {
-                const decryptedMember = { ...member };
-                if (decryptedMember.firstName) {
-                    decryptedMember.firstName = decrypt(decryptedMember.firstName);
-                }
-                if (decryptedMember.lastName) {
-                    decryptedMember.lastName = decrypt(decryptedMember.lastName);
-                }
-                if(decryptedMember.email) {
-                    decryptedMember.email = decrypt(decryptedMember.email);
-                }
-                return decryptedMember;
-            });
+            let paginatedMembers = members.slice(skip, skip + limit);
+            paginatedMembers = paginatedMembers?.map(member => {
+                const data = {
+                    ...member,
+                    firstName: decrypt(member?.firstName),
+                    lastName: member?.lastName ?? decrypt(member?.lastName),
+                    email: decrypt(member?.email)
+                };
+                return data;
+            })
             return {
                 status: "Success",
                 totalCount: members.length,
@@ -702,7 +698,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw CustomError(error);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_GROUP_MEMBERS,error.message);
         }
     },
 
