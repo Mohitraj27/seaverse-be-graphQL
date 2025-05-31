@@ -83,14 +83,16 @@ function encrypt(input) {
 
 function decrypt(encrypted) {
     let decrypted = "";
-    const trimmed = encrypted?.substring(1); 
-    console.log(trimmed, "trimmed");
-    for (let i = 0; i < trimmed.length; i += CODEWORD_LENGTH) {
-        const codeword = trimmed.substring(i, i + CODEWORD_LENGTH);
-        if (decryptionMap.has(codeword)) {
-            decrypted += decryptionMap.get(codeword);
-        } else {
-            throw new Error(`Unknown codeword: ${codeword}`);
+    if(encrypted){
+        const trimmed = encrypted?.substring(1); 
+        console.log(trimmed, "trimmed");
+        for (let i = 0; i < trimmed.length; i += CODEWORD_LENGTH) {
+            const codeword = trimmed.substring(i, i + CODEWORD_LENGTH);
+            if (decryptionMap.has(codeword)) {
+                decrypted += decryptionMap.get(codeword);
+            } else {
+                throw new Error(`Unknown codeword: ${codeword}`);
+            }
         }
     }
     return decrypted;

@@ -1663,7 +1663,7 @@ module.exports.queries = {
                                         message: [
                                             {
                                                 lang: "en",
-                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${decrypt(decrypt(userInfo?.firstName))} ${userInfo?.lastName}.`,
                                             },
                                         ],
                                         notificationType: NotificationType.WELCOME_EMAIL_SENT,
@@ -2117,7 +2117,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -2130,7 +2130,7 @@ const manageRole = async ({ input }, context) => {
                 const DbTransactionHelper = await autoenrollRoleBasedLP(learningPlans, input.users, Roles.AUTHOR, operationTypeRoleEnum.REMOVE_AS_AUTHOR, userInfo);
             }
             operationType = "Removed role as AUTHOR";
-            notificationMessage = `Your role has been changed to EMPLOYEE by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+            notificationMessage = `Your role has been changed to EMPLOYEE by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
         }
 
         if (input.removeType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
@@ -2143,13 +2143,13 @@ const manageRole = async ({ input }, context) => {
                 const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo);
             }
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+            notificationMessage = `Your Roles have been removed by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
         }
     } else if (input.change === "Delete") {
         // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+        notificationMessage = `Your account has been deleted by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -2164,7 +2164,7 @@ const manageRole = async ({ input }, context) => {
                 message: [
                     {
                         lang: "en",
-                        value: `${userInfo.firstName} ${userInfo.lastName} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
+                        value: `${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2284,13 +2284,13 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             subscriber: subscriberId,
                             user: {
                                 _id: userId,
-                                firstName: user.firstName,
-                                lastName: user.lastName,
+                                firstName: decrypt(user.firstName),
+                                lastName: decrypt(user.lastName),
                                 civilIdOrPassport: user.civilIdOrPassport,
-                                email: user.email,
+                                email: decrypt(user.email),
                             },
                             action: "rejected",
-                            message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                            message: `Admin ${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has rejected your delete request.`,
                             createdBy: userInfo,
                             icon: notificationiconEnum.DELETE_REQUEST
                         });
@@ -3240,8 +3240,8 @@ module.exports.mutations = {
             });
             */
             const emailContentForAdmin = roleUpdateNotifyAdmin({
-                firstName: userInfo?.firstName,
-                usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
+                firstName: decrypt(userInfo?.firstName),
+                usersUpdated: usersToUpdate?.map(user => ({ user: decrypt(user.firstName) })),
             });
 
             await SendEmail({
@@ -3250,8 +3250,8 @@ module.exports.mutations = {
                 htmlContent: emailContentForAdmin,
             });
 
-            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
-            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
+            const assignedUserNames = usersToUpdate?.map(user => decrypt(user?.firstName)).join(", ");
+            const adminNotificationMessage = `${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -3281,7 +3281,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName || ''}.`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) || ''}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -3363,7 +3363,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -3677,7 +3677,7 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            // value: `The export user process completed successfully by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName}.`,
                             value: `"User Export" file is ready:`,
                         },
                     ],

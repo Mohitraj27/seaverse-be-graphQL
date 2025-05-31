@@ -39,6 +39,7 @@ const Roles = require("../../util/role.json");
 const AWS_HELPER = require("../../util/aws_helper");
 const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const { decrypt}= require('../../util/encryption_helper');
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -1616,7 +1617,7 @@ module.exports = {
                 message: [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} training registration for "${employeeName}"`,
+                        value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} training registration for "${employeeName}"`,
                     },
                 ],
                 notificationType:
@@ -1635,8 +1636,8 @@ module.exports = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {

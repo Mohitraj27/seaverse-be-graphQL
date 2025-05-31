@@ -20,7 +20,7 @@ const { vesselStatusUpdateEmail, vesselStatusUpdateEmailAdmin } = require("../em
 const { sendNotifications } = require("../../util/firebase_helper");
 
 const { Owner } = require("../vessle/owner/owner_model");
-
+const { decrypt} = require('../../util/encryption_helper');
 module.exports.queries = {
     getVessels: async ({ pageInput, filterInput }, context) => {
         try {
@@ -260,7 +260,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -367,7 +367,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `Vessel "${vessel.name}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel "${vessel.name}" has been updated by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                 notificationType: NotificationType.VESSEL_UPDATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -516,7 +516,7 @@ module.exports.mutations = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Vessel Status Updated Successfully`,
-                        messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        messageValue: `The following vessels have been updated: ${statusSummary} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
                         notifyAllAdmin: true,
                         affected: updatedVessels.map(v => ({

@@ -70,7 +70,7 @@ const { reject30DayOldSignupRequests } = require("../../signup-request/signup-re
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+const {decrypt} = require('../../../util/encryption_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -742,8 +742,8 @@ const sendDeleteNotification = async (notificationsData) => {
         const notifications = [];
 
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.deletedEmployee?.user?.firstName} ${notificationData.deletedEmployee?.user?.lastName}`;
-            const employeeEmail = notificationData.deletedEmployee?.user?.email;
+            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${decrypt(notificationData.deletedEmployee?.user?.lastName)}`;
+            const employeeEmail = decrypt(notificationData.deletedEmployee?.user?.email);
 
             const notification = {
                 subscriber: notificationData.subscriber,
@@ -751,7 +751,7 @@ const sendDeleteNotification = async (notificationsData) => {
                 message: [
                     {
                         lang: "en",
-                        value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${notificationData.createdBy.firstName}.`,
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${decrypt(notificationData.createdBy.firstName)}.`,
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
@@ -777,8 +777,8 @@ const sendDeleteNotification = async (notificationsData) => {
                         infoType: "DELETER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                 ],
@@ -794,8 +794,8 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName ?? ""}`.trim();
-            const employeeEmail = notificationData.employee?.user?.email;
+            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${decrypt(notificationData.employee?.user?.lastName) ?? ""}`.trim();
+            const employeeEmail = decrypt(notificationData.employee?.user?.email);
 
             const notification = {
                 subscriber: notificationData.subscriber,
@@ -803,7 +803,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
                 message: [
                     {
                         lang: "en",
-                        value: `Employee "${employeeName}" (${employeeEmail}) has been successfully marked as ${notificationData.type} by ${notificationData.updatedBy.firstName}.`,
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been successfully marked as ${notificationData.type} by ${decrypt(notificationData.updatedBy.firstName)}.`,
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
@@ -844,13 +844,13 @@ const sendEnrollmentNotification = async notificationsData => {
                 message: [
                     {
                         lang: "en",
-                        value: `${notificationData.userIds.length} users are ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                        value: `${notificationData.userIds.length} users are ${notificationData.action} to the course "${trainingTitle}" by ${decrypt(notificationData.createdBy.firstName)}`,
                     },
                 ],
                 userMessage: [
                     {
                         lang: "en",
-                        value: `You have been ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                        value: `You have been ${notificationData.action} to the course "${trainingTitle}" by ${decrypt(notificationData.createdBy.firstName)}`,
                     },
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
@@ -868,8 +868,8 @@ const sendEnrollmentNotification = async notificationsData => {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {
@@ -879,9 +879,9 @@ const sendEnrollmentNotification = async notificationsData => {
                             user: {
                                 _id: notificationData.trainingRegistration.employee?.user?._id,
                                 firstName:
-                                    notificationData.trainingRegistration.employee?.user?.firstName,
+                                decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    notificationData.trainingRegistration.employee?.user?.lastName,
+                                decrypt(notificationData.trainingRegistration.employee?.user?.lastName),
                             },
                         },
                     },
@@ -973,7 +973,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
 }
 const sendNotificationOnCRUD = async notificationData => {
     try {
-        const employeeName = notificationData.employee.user?.firstName;
+        const employeeName = decrypt(notificationData.employee.user?.firstName);
 
         const notification = {
             subscriber: notificationData.subscriber,
@@ -994,8 +994,8 @@ const sendNotificationOnCRUD = async notificationData => {
                         _id: notificationData.employee._id,
                         user: {
                             _id: notificationData.employee.user._id,
-                            firstName: notificationData.employee.user.firstName,
-                            lastName: notificationData.employee.user.lastName,
+                            firstName: decrypt(notificationData.employee.user.firstName),
+                            lastName: decrypt(notificationData.employee.user.lastName),
                         },
                     },
                 },
@@ -1018,15 +1018,15 @@ const sendNotificationOnCRUD = async notificationData => {
                 infoType: "UPDATER_INFO",
                 infoData: {
                     _id: notificationData.createdBy._id,
-                    firstName: notificationData.createdBy.firstName,
-                    lastName: notificationData.createdBy.lastName,
+                    firstName: decrypt(notificationData.createdBy.firstName),
+                    lastName: decrypt(notificationData.createdBy.lastName),
                 },
             });
 
             notification.message = [
                 {
                     lang: "en",
-                    value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} employee "${employeeName}"`,
+                    value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} employee "${employeeName}"`,
                 },
             ];
         }
