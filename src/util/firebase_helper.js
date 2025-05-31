@@ -35,11 +35,13 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
     };
 
     if (content && typeof content === "object") {
-        message.data = { content: JSON.stringify(content) };
+        message.data.content = JSON.stringify(content);
         message.apns.payload.customData = { content: JSON.stringify(content) };
     }
 
     if (webLink) {
+        message.data.webLink = webLink;
+        
         message.webpush = {
             notification: {
                 icon: "",
@@ -47,6 +49,12 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             fcm_options: {
                 link: webLink,
             },
+        };
+        
+        message.apns.payload.aps.category = "OPEN_URL";
+        message.apns.payload.customData = {
+            ...message.apns.payload.customData,
+            webLink: webLink
         };
     }
 
