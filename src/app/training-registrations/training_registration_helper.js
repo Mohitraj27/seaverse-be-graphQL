@@ -1443,13 +1443,14 @@ module.exports = {
                         const updateTrainingRegistration = await existTrainingReg[0].save({ session });
 
                         if (!updateTrainingRegistration) throw CustomError(ErrorName.FAILED);
-
+                        const unenrollmentDate = new Date();
                         const unenrollUsers = await OverallTrainingProgress.updateMany(
                             { user: { $in: userObjectIds }, training: { $in: existingOverallProgresses.map(t => t.training) } },
                             {
                                 $set: {
                                     isEnrolled: false,
                                     directEnrollment: false,
+                                    unenrollmentDate : unenrollmentDate,
                                 }
                             },
                             { session }
