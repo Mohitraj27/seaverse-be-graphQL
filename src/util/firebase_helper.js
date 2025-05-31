@@ -8,6 +8,12 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             title: title || "Test notification title",
             body: body || "Test notification body",
         },
+        data: {
+            title: title || "Test notification title",
+            body: body || "Test notification body",
+            type: "background_notification", 
+        },
+
         android: {
             notification: {
                 click_action: "FLUTTER_NOTIFICATION_CLICK",
@@ -17,19 +23,20 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             payload: {
                 aps: {
                     alert: {
-                        title,
-                        body
+                        title: title || "Test notification title",
+                        body: body || "Test notification body",
                     },
                     sound: "default",
-                    badge: 1
-                }
-            }
-        }
-        
+                    badge: 1,
+                    "content-available": 1, 
+                },
+            },
+        },
     };
 
     if (content && typeof content === "object") {
         message.data = { content: JSON.stringify(content) };
+        message.apns.payload.customData = { content: JSON.stringify(content) };
     }
 
     if (webLink) {
