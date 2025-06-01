@@ -921,7 +921,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 ]
                             },
                             'createdAt': 1,
-                            'unenrolmentDate': '$unenrollmentDate',
+                            'unenrollmentDate': 1,
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
                             'status': 1,
@@ -1677,12 +1677,12 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const status = learner?.status || 'Not Applicable';
                         const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
-                        const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
-                        const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
-                        const startDate = learner?.startDate && learner.startDate !== 'startDate'
-                            ? ReportsHelper.formatDate(learner.startDate)
+                        const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner?.createdAt) : "Not Applicable";
+                        const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner?.endDate) : "Not Applicable";
+                        const startDate = learner?.startDate && learner?.startDate !== 'startDate'
+                            ? ReportsHelper.formatDate(learner?.startDate)
                             : "Not Applicable";
-                        const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
+                        const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner?.unenrollmentDate) : "Not Applicable";
 
 
                         learner.modules.forEach((module, moduleIndex) => {
@@ -1694,7 +1694,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 const contentName = content?.contentName[0]?.value || 'Unnamed Content';
                                 const contentType = content?.contentType || 'NOT APPLICABLE';
                                 const quizScore = content?.percentage || 'NOT APPLICABLE';
-                                const timeSpendInContent = content?.timeSpendInContent? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : '00:00:00';
+                                const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : '00:00:00';
 
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,

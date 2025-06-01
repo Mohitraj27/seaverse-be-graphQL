@@ -8,18 +8,39 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             title: title || "Test notification title",
             body: body || "Test notification body",
         },
+        data: {
+            title: title || "Test notification title",
+            body: body || "Test notification body",
+            type: "background_notification", 
+        },
+
         android: {
             notification: {
                 click_action: "FLUTTER_NOTIFICATION_CLICK",
             },
         },
+        apns: {
+            payload: {
+                aps: {
+                    alert: {
+                        title: title || "Test notification title",
+                        body: body || "Test notification body",
+                    },
+                    sound: "default",
+                    "content-available": 1, 
+                },
+            },
+        },
     };
 
     if (content && typeof content === "object") {
-        message.data = { content: JSON.stringify(content) };
+        message.data.content = JSON.stringify(content);
+        message.apns.payload.customData = { content: JSON.stringify(content) };
     }
 
     if (webLink) {
+        message.data.webLink = webLink;
+        
         message.webpush = {
             notification: {
                 icon: "",
@@ -27,6 +48,12 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
             fcm_options: {
                 link: webLink,
             },
+        };
+        
+        message.apns.payload.aps.category = "OPEN_URL";
+        message.apns.payload.customData = {
+            ...message.apns.payload.customData,
+            webLink: webLink
         };
     }
 
@@ -39,12 +66,14 @@ module.exports = {
             credential: FirebaseAdmin.credential.cert(firebaseConfig),
         });
     },
-    sendNotification: ({ topic, title, body, content, webLink }) => {
+    sendNotification: ({token, topic, title, body, content, webLink }) => {
         try {
-            const message = {
-                topic: topic || "news",
-                ...generateFirebaseMessageInput({ title, body, content, webLink }),
-            };
+            const baseMessage = generateFirebaseMessageInput({ title, body, content, webLink });
+
+            const message = token
+            ? { token, ...baseMessage }  
+            : { topic: topic || "news", ...baseMessage };
+
 
             FirebaseAdmin.messaging()
                 .send(message)
@@ -75,7 +104,7 @@ module.exports = {
                                         failedTokens.push(tokens[idx]);
                                     }
                                 });
-
+                                console.log("firebase_helper.sendMulticastNotification:failedTokens:", failedTokens);
 
                             }
                         })
