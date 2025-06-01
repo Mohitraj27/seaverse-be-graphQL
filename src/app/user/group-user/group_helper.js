@@ -354,7 +354,7 @@ module.exports = {
                     from: 'users',
                     localField: 'createdBy',
                     foreignField: '_id',
-                    as: 'createdBy',
+                    as: 'createdByUser',
                     pipeline: [
                         { $project: { _id: 1, firstName: 1, lastName: 1 } },
                     ],
@@ -368,11 +368,14 @@ module.exports = {
                     from: 'users',
                     localField: 'updatedBy',
                     foreignField: '_id',
-                    as: 'updatedBy',
+                    as: 'updatedByUser',
                     pipeline: [
                         { $project: { _id: 1 } },
                     ],
                 },
+            },
+            {
+                $unwind: '$updatedBy',
             },
             {
                 $addFields: {
