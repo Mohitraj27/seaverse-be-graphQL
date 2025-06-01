@@ -27,7 +27,6 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
                         body: body || "Test notification body",
                     },
                     sound: "default",
-                    badge: 1,
                     "content-available": 1, 
                 },
             },
@@ -105,7 +104,7 @@ module.exports = {
                                         failedTokens.push(tokens[idx]);
                                     }
                                 });
-
+                                console.log("firebase_helper.sendMulticastNotification:failedTokens:", failedTokens);
 
                             }
                         })
