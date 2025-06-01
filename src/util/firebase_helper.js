@@ -97,6 +97,7 @@ module.exports = {
                     FirebaseAdmin.messaging()
                         .sendEachForMulticast(multicastMessage)
                         .then(response => {
+                            console.log("firebase_helper.sendMulticastNotification:response:", response);
                             if (response.failureCount > 0) {
                                 const failedTokens = [];
 
@@ -105,7 +106,7 @@ module.exports = {
                                         failedTokens.push(tokens[idx]);
                                     }
                                 });
-
+                                console.log("firebase_helper.sendMulticastNotification:failedTokens:", failedTokens);
 
                             }
                         })
