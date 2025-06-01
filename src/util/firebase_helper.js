@@ -27,7 +27,6 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
                         body: body || "Test notification body",
                     },
                     sound: "default",
-                    badge: 1,
                     "content-available": 1, 
                 },
             },
@@ -97,7 +96,6 @@ module.exports = {
                     FirebaseAdmin.messaging()
                         .sendEachForMulticast(multicastMessage)
                         .then(response => {
-                            console.log("firebase_helper.sendMulticastNotification:response:", response);
                             if (response.failureCount > 0) {
                                 const failedTokens = [];
 
