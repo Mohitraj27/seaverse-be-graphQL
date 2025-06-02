@@ -112,11 +112,11 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
             }
 
             fileName = `${fileName}${extension}`;
-
+            const fileNameWithDate = `${fileNameCurrent}-${new Date().getTime()}${extension}`;
             const filePath = getPathFromType({
                 type: uploadType,
                 folder: folderName,
-                filename: fileNameCurrent,
+                filename: fileNameWithDate,
             });
 
             if (filePath) {
@@ -124,7 +124,7 @@ const uploadFile = async ({ fileData, folderName, fileName, uploadType, accepted
                 const s3Path = await AwsHelper.uploadFile({
                     fileData: stream,
                     filePath: filePath,
-                    originalFileName: fileName || fileNameCurrent,
+                    originalFileName: fileName || fileNameWithDate,
                     mimeType: mimetype,
                 });
 
