@@ -1741,7 +1741,7 @@ module.exports.queries = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-                const emailExists = await User.findOne({ email: { $regex: `^${input.email}$`, $options: 'i' }, isDeleted: false });
+                const emailExists = await User.findOne({ email: { $regex: `^${encrypt(input.email)}$`, $options: 'i' }, isDeleted: false });
                 if (emailExists) {
                     messages.push("This email Id already exists in the system with another employee.");
                 }
