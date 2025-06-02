@@ -463,7 +463,7 @@ module.exports.queries = {
                 throw CustomError(ErrorName.USER_ID_REQUIRED);
             }
 
-            const existingUser = await User.findById(userId).populate({
+            let existingUser = await User.findById(userId).populate({
                 path: 'currentVessel',
                 populate: {
                     path: 'typeOfVessel',
@@ -518,6 +518,9 @@ module.exports.queries = {
                     customGroupNames = customGroup.map(group => group.groupName);
                 }
             }
+            existingUser.firstName = existingUser?.firstName ?? decrypt(existingUser?.firstName);
+            existingUser.lastName = existingUser?.lastName ?? decrypt(existingUser?.lastName);
+            existingUser.email = existingUser?.email ?? decrypt(existingUser?.email);
             if (existingUser && user && designation) {
                 return {
                     designation: designationName ?? null,
