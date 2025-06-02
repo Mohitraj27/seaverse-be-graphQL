@@ -1,24 +1,46 @@
 const FirebaseAdmin = require("firebase-admin");
-const {User} = require("../app/user/user_model");
+const { User } = require("../app/user/user_model");
 const firebaseConfig = require("./firebaseConfig");
 const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
+
     const message = {
         notification: {
             title: title || "Test notification title",
             body: body || "Test notification body",
         },
+        data: {
+            title: title || "Test notification title",
+            body: body || "Test notification body",
+            type: "background_notification", 
+        },
+
         android: {
             notification: {
                 click_action: "FLUTTER_NOTIFICATION_CLICK",
             },
         },
+        apns: {
+            payload: {
+                aps: {
+                    alert: {
+                        title: title || "Test notification title",
+                        body: body || "Test notification body",
+                    },
+                    sound: "default",
+                    "content-available": 1, 
+                },
+            },
+        },
     };
 
     if (content && typeof content === "object") {
-        message.data = { content: JSON.stringify(content) };
+        message.data.content = JSON.stringify(content);
+        message.apns.payload.customData = { content: JSON.stringify(content) };
     }
 
     if (webLink) {
+        message.data.webLink = webLink;
+        
         message.webpush = {
             notification: {
                 icon: "",
@@ -27,6 +49,12 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
                 link: webLink,
             },
         };
+        
+        message.apns.payload.aps.category = "OPEN_URL";
+        message.apns.payload.customData = {
+            ...message.apns.payload.customData,
+            webLink: webLink
+        };
     }
 
     return message;
@@ -34,16 +62,18 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
 
 module.exports = {
     init: () => {
-        FirebaseAdmin.initializeApp({  
+        FirebaseAdmin.initializeApp({
             credential: FirebaseAdmin.credential.cert(firebaseConfig),
         });
     },
-    sendNotification: ({ topic, title, body, content, webLink }) => {
+    sendNotification: ({token, topic, title, body, content, webLink }) => {
         try {
-            const message = {
-                topic: topic || "news",
-                ...generateFirebaseMessageInput({ title, body, content, webLink }),
-            };
+            const baseMessage = generateFirebaseMessageInput({ title, body, content, webLink });
+
+            const message = token
+            ? { token, ...baseMessage }  
+            : { topic: topic || "news", ...baseMessage };
+
 
             FirebaseAdmin.messaging()
                 .send(message)
@@ -74,8 +104,8 @@ module.exports = {
                                         failedTokens.push(tokens[idx]);
                                     }
                                 });
+                                console.log("firebase_helper.sendMulticastNotification:failedTokens:", failedTokens);
 
-                          
                             }
                         })
                         .catch(error => {
@@ -116,8 +146,9 @@ module.exports = {
             console.log("firebase_helper.subscribeTokenToTopic:exception:", e.message);
         }
     },
-     sendNotifications : async ({userIds, title, body, content, webLink}) => {
-        const usersWithTokens = await User.find({ _id: { $in: userIds } }, { firebaseTokens: 1 });
+    sendNotifications: async ({ userIds, title, body, content, webLink }) => {
+
+        const usersWithTokens = await User.find({ _id: { $in: userIds }, isPushNotification: { $ne: false } }, { firebaseTokens: 1 });
         const tokens = usersWithTokens.reduce((acc, user) => {
             if (user.firebaseTokens && user.firebaseTokens.length > 0) {
                 acc.push(...user.firebaseTokens);

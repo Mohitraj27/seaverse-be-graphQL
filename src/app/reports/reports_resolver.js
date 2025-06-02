@@ -311,7 +311,12 @@ const getMainLearnersReport = async ({ input }, context) => {
                     as: 'trainingProgresses',
                     pipeline: [
                         {
-                            $match: { isEnrolled: true }
+                            $match: {
+                                $or: [
+                                    { isEnrolled: true },
+                                    { status: "COMPLETED" }
+                                ]
+                            }
                         },
                     ],
                 },
@@ -675,7 +680,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
-        const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
+        const limit = input?.pageInput?.limit ? input.pageInput.limit : 200;
         const pageLimit = [];
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
@@ -738,8 +743,11 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     ...matchUsers,
@@ -914,7 +922,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 ]
                             },
                             'createdAt': 1,
-                            'unenrolmentDate': '$unenrollmentDate',
+                            'unenrollmentDate': 1,
                             'startDate': "$startDate",
                             'completionDate': "$endDate",
                             'status': 1,
@@ -1670,12 +1678,12 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         const status = learner?.status || 'Not Applicable';
                         const isAdminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
-                        const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
-                        const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
-                        const startDate = learner?.startDate && learner.startDate !== 'startDate'
-                            ? ReportsHelper.formatDate(learner.startDate)
+                        const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner?.createdAt) : "Not Applicable";
+                        const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner?.endDate) : "Not Applicable";
+                        const startDate = learner?.startDate && learner?.startDate !== 'startDate'
+                            ? ReportsHelper.formatDate(learner?.startDate)
                             : "Not Applicable";
-                        const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
+                        const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner?.unenrollmentDate) : "Not Applicable";
 
 
                         learner.modules.forEach((module, moduleIndex) => {
@@ -1687,7 +1695,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                 const contentName = content?.contentName[0]?.value || 'Unnamed Content';
                                 const contentType = content?.contentType || 'NOT APPLICABLE';
                                 const quizScore = content?.percentage || 'NOT APPLICABLE';
-                                const timeSpendInContent = content?.timeSpendInContent? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : '00:00:00';
+                                const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : '00:00:00';
 
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
@@ -2602,7 +2610,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const parsedItem = {
                             LearnerName: learnerName,
                             Email: item.email || '',
-                            EmployeeId: item.empId || '',
+                            'User Id': item.empId || '',
                             Designation: item.designation || '',
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
@@ -4213,8 +4221,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {
@@ -4491,7 +4502,7 @@ const generateCustomReport = async ({ input }, context) => {
                     Name: learnerName ?? "-",
                     Email: item.email || null,
                     Country: country,
-                    employeeId: item.employeeId || null,
+                    'User Id': item.employeeId || null,
                     Designation: item.designation || null,
                     'Current Vessel': currentVessel,
                     'Vessel Type': vesselType,
@@ -4520,8 +4531,11 @@ const generateCustomReport = async ({ input }, context) => {
                         }
                     },
                     {
-                        "$match": {
-                            isEnrolled: true
+                        $match: {
+                            $or: [
+                                { isEnrolled: true },
+                                { status: "COMPLETED" }
+                            ]
                         }
                     },
                     {

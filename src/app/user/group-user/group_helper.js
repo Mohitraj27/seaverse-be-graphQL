@@ -199,36 +199,19 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
             }
         ]);
 
-        const vesselStatusUsers = await UserVessel.aggregate([
+        const vesselStatusUsers = await User.aggregate([
             {
                 $match: {
-                    isActive: true
+                    isDeleted: false,
+                    firstName: { $ne: null },
+                    email: { $ne: null },
+                    isSignupAdminAprroved: true
                 }
             },
             {
                 $group: {
                     _id: "$vesselStatus",
-                    userIds: { $push: "$user" }
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "userIds",
-                    foreignField: "_id",
-                    as: "userDetails"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$userDetails",
-                    preserveNullAndEmptyArrays: false
-                }
-            },
-            {
-                $group: {
-                    _id: "$_id",
-                    userIds: { $push: "$userDetails._id" }
+                    userIds: { $push: "$_id" }
                 }
             },
             {
@@ -239,6 +222,7 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                 }
             }
         ]);
+
 
         const vesselTypeUsers = await UserVessel.aggregate([
             {
@@ -360,11 +344,17 @@ module.exports = {
                 },
             },
             {
+                $addFields: {
+                    creatorId: "$createdBy",
+                    updaterId: "$updatedBy",
+                }
+            },
+            {
                 $lookup: {
                     from: 'users',
                     localField: 'createdBy',
                     foreignField: '_id',
-                    as: 'createdBy',
+                    as: 'createdByUser',
                     pipeline: [
                         { $project: { _id: 1, firstName: 1, lastName: 1 } },
                     ],
@@ -378,11 +368,48 @@ module.exports = {
                     from: 'users',
                     localField: 'updatedBy',
                     foreignField: '_id',
-                    as: 'updatedBy',
+                    as: 'updatedByUser',
                     pipeline: [
                         { $project: { _id: 1 } },
                     ],
                 },
+            },
+            {
+                $unwind: '$updatedBy',
+            },
+            {
+                $addFields: {
+                    createdBy: {
+                        $cond: {
+                            if: { $eq: [{ $size: "$createdByUser" }, 0] },
+                            then: {
+                                _id: "$creatorId",
+                                firstName: "Unknown",
+                                lastName: "User"
+                            },
+                            else: { $arrayElemAt: ["$createdByUser", 0] }
+                        }
+                    },
+                    updatedBy: {
+                        $cond: {
+                            if: { $eq: [{ $size: "$updatedByUser" }, 0] },
+                            then: {
+                                _id: "$updaterId",
+                                firstName: "Unknown",
+                                lastName: "User"
+                            },
+                            else: { $arrayElemAt: ["$updatedByUser", 0] }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    createdByUser: 0,
+                    updatedByUser: 0,
+                    creatorId: 0,
+                    updaterId: 0
+                }
             },
             {
                 $project: {
@@ -447,6 +474,12 @@ module.exports = {
                 }
             },
             {
+                $addFields: {
+                    creatorId: "$createdBy",
+                    updaterId: "$updatedBy"
+                }
+            },
+            {
                 $lookup: {
                     from: 'users',
                     localField: 'createdBy',
@@ -473,6 +506,40 @@ module.exports = {
             },
             {
                 $unwind: "$updatedBy",
+            },
+            {
+                $addFields: {
+                    createdBy: {
+                        $cond: {
+                            if: { $eq: [{ $size: "$createdByUser" }, 0] },
+                            then: {
+                                _id: "$creatorId",
+                                firstName: "Unknown",
+                                lastName: "User"
+                            },
+                            else: { $arrayElemAt: ["$createdByUser", 0] }
+                        }
+                    },
+                    updatedBy: {
+                        $cond: {
+                            if: { $eq: [{ $size: "$updatedByUser" }, 0] },
+                            then: {
+                                _id: "$updaterId",
+                                firstName: "Unknown",
+                                lastName: "User"
+                            },
+                            else: { $arrayElemAt: ["$updatedByUser", 0] }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    createdByUser: 0,
+                    updatedByUser: 0,
+                    creatorId: 0,
+                    updaterId: 0
+                }
             },
         ]);
 
@@ -600,29 +667,12 @@ module.exports = {
                     usersWithRole = await User.aggregate([
 
                         {
-                            $lookup: {
-                                from: "subroles",
-                                localField: "subRoles",
-                                foreignField: "_id",
-                                as: "subroleDetails",
-                            }
-                        },
-                        {
-                            $unwind: {
-                                path: "$subroleDetails",
-                                preserveNullAndEmptyArrays: true
-                            }
-                        },
-
-                        {
                             $match: {
                                 isDeleted: { $ne: true },
                                 firstName: { $ne: null },
                                 email: { $ne: null },
                                 isSignupAdminAprroved: true,
-                                'subroleDetails.name': {
-                                    $ne: "ADMIN"
-                                }
+                                role: "LEARNER"
                             }
                         },
                         {

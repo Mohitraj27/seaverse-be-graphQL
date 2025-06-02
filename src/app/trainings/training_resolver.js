@@ -8,7 +8,9 @@ const {
 } = require("../../util");
 const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
+const { LearningPlan } = require("../learning-plan/learning_plan_model");
 const { TrainingModule } = require("./training_modules/training_module_model");
+const LearningPlanStatus = require("../learning-plan/enumFields/learning_plan_status.json");
 const {
     TrainingModuleContent,
 } = require("./training_modules/training_module_contents/training_module_content_model");
@@ -96,6 +98,7 @@ module.exports.queries = {
                                 localField: "updatedBy",
                                 foreignField: "_id",
                                 as: "createdByDetails",
+                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
                             },
                         },
                         {
@@ -229,7 +232,47 @@ module.exports.queries = {
         const migrationCoursesId = training.migrationCoursesId || null;
         return { ...training, countOfUsers, migrationCoursesId };
     },
+    checkCourseUpdateBeforeSync: async ({ input }, context) => {
 
+        const { role, userId, userInfo } = AuthUser(context);
+
+        const overallIds = input.overallIds;
+
+        if (!overallIds || overallIds.length === 0) {
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Course ID is required");
+        };
+
+        if (overallIds.length > 0) {
+
+
+            await OverallTrainingProgress.updateMany(
+                { _id: { $in: overallIds } },
+                {
+                    progressPercentage: 0,
+                    lastConsumedContent: {},
+                    startDate: null,
+                    finishedCourseFirstTime: false,
+                    endDate: null,
+                    status: 'NOT_STARTED',
+                    timeSpend: 0,
+                    totalDuration: 0,
+                    contentData: [],
+                    adminMarkedAsCompleted: false,
+                }
+            );
+
+            await TrainingProgress.deleteMany(
+                { overallTrainingProgress: { $in: overallIds } }
+            );
+
+            return {
+                status: 1,
+                message: "Courses cleared successfully!"
+            };
+
+        }
+
+    },
 };
 
 module.exports.mutations = {
@@ -256,13 +299,12 @@ module.exports.mutations = {
             for (const module of input.trainingModules) {
                 for (const content of module.trainingModuleContents || []) {
                     const trainingContent = await TrainingModuleContent.findOne({ _id: content._id }).select("duration").lean();
-                    const duration = trainingContent?.duration || 0;
-                    totalDurationSeconds += duration;
+                    totalDurationSeconds += trainingContent?.duration;
                 }
             }
         }
 
-        const totalDuration = Math.round(totalDurationSeconds);
+        const totalDuration = (totalDurationSeconds);
         input.durationHours = totalDuration;
 
         const savedTraining = await DbTransactionHelper.performDbTransaction(async session => {
@@ -276,7 +318,10 @@ module.exports.mutations = {
             // Update the training duration in overall training progress if any
             await OverallTrainingProgress.updateMany(
                 { training: savedTraining._id, status: "NOT_STARTED" },
-                { totalDuration: savedTraining.durationHours },
+                {
+                    $set: { totalDuration: savedTraining.durationHours },
+                    $inc: isUpdate ? { version: 1 } : {}
+                },
                 { session }
             );
 
@@ -403,6 +448,19 @@ module.exports.mutations = {
 
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
+        if (!id) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
+        const checkLastCourse = await LearningPlan.findOne({
+            selectCourses: { $in: ObjectId(id) },
+            status: LearningPlanStatus.ACTIVE
+        })
+
+        if (checkLastCourse) {
+            throw CustomError(
+                ErrorName.FAILED,
+                `This course is currently assigned to an active learning plan and cannot be deleted`
+            );
+        }
+
 
         let deletedTraining = await Training.findOne({
             _id: id,
@@ -413,7 +471,7 @@ module.exports.mutations = {
 
         if (![ContentStatus.DRAFT, ContentStatus.RETIRED].includes(deletedTraining.status)) {
             throw CustomError(
-                ErrorName.FORBIDDEN,
+                ErrorName.BAD_REQUEST,
                 `Deleting a course with status ${deletedTraining.status} is not allowed`
             );
         }
@@ -436,14 +494,15 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, `Failed to delete course`);
         }
 
-        if (!deletedTraining) throw CustomError(ErrorName.FORBIDDEN);
+        if (!deletedTraining) throw CustomError(ErrorName.BAD_REQUEST, "Failed to delete course");
+        /* 
         TrainingHelper.sendNotificationOnCRUD({
             subscriber: subscriberId,
             training: deletedTraining,
             action: "DELETED",
             createdBy: userInfo,
         });
-
+        */
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,
@@ -622,29 +681,32 @@ module.exports.mutations = {
                 })
             })
 
+
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
 
-                //add content data to overall training progress
-                const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+                if (input.length > 0) {
 
-                //updating the progress in overall training progress and the final certificate generation 
-                updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+                    //add content data to overall training progress
+                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
 
-                if (syncContentErrors.length > 0) {
-                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    //updating the progress in overall training progress and the final certificate generation 
+                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+
+                    if (syncContentErrors.length > 0) {
+                        throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                    }
+
                 }
 
             });
 
-            if (updateTrainingProgress) {
-                return {
-                    status: 1,
-                    message: "Progress updated successfully!"
-                };
-            }
+            return {
+                status: 1,
+                message: "Progress updated successfully!"
+            };
 
         } catch (error) {
             throw Error(error.message);

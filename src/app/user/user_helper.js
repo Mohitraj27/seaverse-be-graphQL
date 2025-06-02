@@ -257,6 +257,7 @@ module.exports = {
             ],
             notificationType: NotificationType.EMPLOYEE_JOINED,
             notifyAllAdmin: true,
+            isNotificatonForAdmin: true,
             notifiers: [],
             employeeNotifiers: [],
             affected: [

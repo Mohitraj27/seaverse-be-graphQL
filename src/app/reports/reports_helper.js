@@ -134,11 +134,9 @@ const generateSortingStage = async(fieldMapping, lowercaseFields = [], defaultFi
 }
 
 
-const convertMinutesToHMS = (minutes) => {
+/* const convertMinutesToHMS = (minutes) => {
     if (minutes == null || isNaN(minutes)) {
-        return '00:00:00'; 
-    }
-    if (minutes <= 0) {
+        console.log(`type of minutes is ${typeof(minutes)}`);
         return '00:00:00'; 
     }
     const hours = Math.floor(minutes / 60);
@@ -146,7 +144,30 @@ const convertMinutesToHMS = (minutes) => {
     const remainingSeconds = Math.round((minutes % 1) * 60); 
 
     return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}; */
+
+const convertMinutesToHMS = (minutes) => {
+    if (typeof (minutes) === 'string' && parseInt(minutes) !== NaN) {
+        minutes = parseInt(minutes);
+    }
+    if (minutes == null || isNaN(minutes)) {
+        return '00:00:00'; 
+    }
+
+    const wholeMinutes = Math.floor(minutes);                         
+    const decimalPart = +(minutes % 1).toFixed(2);                    
+    const secondsFromDecimal = Math.round(decimalPart * 60);        
+
+    // Add overflow seconds to minutes
+    const totalSeconds = wholeMinutes * 60 + secondsFromDecimal;
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutesPart = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${String(hours).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
+
 
 module.exports ={
     generateFileNameTimestamp,

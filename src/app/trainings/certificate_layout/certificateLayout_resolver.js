@@ -168,12 +168,12 @@ module.exports.mutations = {
                             "Training not found for the provided ID"
                         );
                     }
-
+                    const currentTimeStamp = Date.now();
                     if (logoImage1) {
                         const logo = await UploadHelper.uploadImage({
                             data: logoImage1,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo1_${Date.now()}`,
+                            fileName: `certificate-layout-logo1_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[0]) {
@@ -187,7 +187,7 @@ module.exports.mutations = {
                         const logo = await UploadHelper.uploadImage({
                             data: logoImage2,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo2_${Date.now()}`,
+                            fileName: `certificate-layout-logo2_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[1]) {
@@ -198,11 +198,11 @@ module.exports.mutations = {
                         logoKeys.push(logo);
                     }
 
-                    if (logoImage3) {
-                        const logo = await UploadHelper.uploadImage({
+                    // if (logoImage3) {
+                        /* const logo = await UploadHelper.uploadImage({
                             data: logoImage3,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo${Date.now()}`,
+                            fileName: `certificate-layout-logo${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[2]) {
@@ -210,15 +210,15 @@ module.exports.mutations = {
                         } else {
                             logosInput[2] = { url: logo };
                         }
-                        logoKeys.push(logo);
-                    }
+                        logoKeys.push(logo); */
+                    // }
 
                     // Handle signature upload separately
                     if (signatureImage) {
                         signatureUrl = await UploadHelper.uploadImage({
                             data: signatureImage,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-signature_${Date.now()}`,
+                            fileName: `certificate-layout-signature_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                     }
@@ -378,12 +378,25 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FORBIDDEN);
             }
 
-            const existingLayout = await certificateLayout.findById(layoutId);
+            const usersAssosciatedToLayout = await OverallTrainingProgress.find({
+                assignedCertificateLayoutId: layoutId,
+                status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
+            }).lean();
+
+            let existingLayout = await certificateLayout.findById(layoutId);
             if (!existingLayout) {
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    "Certificate layout not found for the provided ID"
-                );
+                throw new Error('Layout not found');
+            }
+
+            if (usersAssosciatedToLayout?.length > 0) {
+                const layoutCopy = existingLayout.toObject();
+
+                delete layoutCopy._id;
+                delete layoutCopy.createdAt;
+                delete layoutCopy.updatedAt;
+
+                layoutCopy.version = (layoutCopy.version || 1) + 1;
+                existingLayout = await certificateLayout.create(layoutCopy);
             }
 
             if (

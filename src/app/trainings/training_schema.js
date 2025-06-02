@@ -45,7 +45,7 @@ module.exports = {
             images: [MultiMediaInfo]
             price: Float
             """in days"""
-            durationHours: Int
+            durationHours: String
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudience
@@ -156,7 +156,7 @@ module.exports = {
             
             price: Float
             """in days"""
-            durationHours: Int
+            durationHours: String
             """in days"""
             certificateValidity: Int
             targetAudienceId: TargetAudienceInput
@@ -260,7 +260,12 @@ module.exports = {
         }
         input UpdateTrainingProgressInput {
             overallId: ID!
+            completionDate: String
+            finishedCourseFirstTime: Boolean
             trainingModules: [UpdateTrainingModuleInput!]!
+        }
+        input courseUpdateInput {
+            overallIds: [ID]!
         }
         type startOverRes {
             status: Int
@@ -270,6 +275,7 @@ module.exports = {
     queries: `
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
         getTraining(id: ID!): Training!
+        checkCourseUpdateBeforeSync(input: courseUpdateInput!): offlineSyncRes!
     `,
     mutations: `
         createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!

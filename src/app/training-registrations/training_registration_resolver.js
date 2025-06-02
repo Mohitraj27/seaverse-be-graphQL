@@ -281,7 +281,10 @@ module.exports.queries = {
 
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
-                isEnrolled: true,
+                $or: [
+                    { isEnrolled: true },
+                    { isEnrolled: false, status: "COMPLETED" }
+                ],
                 isDeleted: { $ne: true },
             }
 
@@ -828,7 +831,7 @@ module.exports.queries = {
                         return moduleAcc;
                     }, 0);
 
-                    acc += Math.floor(moduleDurationInSeconds);
+                    acc += moduleDurationInSeconds;
 
                     const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
 
@@ -1797,7 +1800,7 @@ module.exports.mutations = {
             }, {});
 
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData.length>0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
             const recordsToUpdate = await OverallTrainingProgress.find({
                 training: input.training,
@@ -1816,6 +1819,7 @@ module.exports.mutations = {
                         update: {
                             $set: {
                                 status: "COMPLETED",
+                                progressPercentage: 100,
                                 isComplete: true,
                                 completedModules: trainingModuleIds.length,
                                 isCertificateGenerated: true,
@@ -1923,6 +1927,7 @@ module.exports.mutations = {
                     messageValue: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                     notificationType: NotificationType.COURSE_COMPLETION,
                     notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
                     notifiers: [userId],
                     employeeNotifiers: [input.userIds],
                     affected: [],
@@ -1948,7 +1953,7 @@ module.exports.mutations = {
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
-                body: `Congratulations! You have successfully completed the course ${trainingData[0].title[0]?.value}.`,
+                body: ` The course ${trainingData[0]?.title[0]?.value} has been successfully completed.`,
                 content: "Course Completion Content",
                 webLink: ""
             });

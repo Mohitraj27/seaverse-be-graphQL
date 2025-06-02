@@ -64,6 +64,7 @@ module.exports = {
                 ],
                 notificationType: NotificationType["INVOICE_" + notificationData.action],
                 notifyAllAdmin: true,
+                isNotificatonForAdmin: true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

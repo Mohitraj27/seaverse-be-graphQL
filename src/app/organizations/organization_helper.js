@@ -30,6 +30,7 @@ module.exports = {
                 subscriber: notificationData.subscriber,
                 title: [{ lang: "en", value: `Organization ${notificationData.action}` }],
                 notifyAllAdmin: true,
+                isNotificatonForAdmin :true,
                 notifiers: [],
                 employeeNotifiers: [],
                 affected: [

@@ -128,7 +128,7 @@ const errorName = {
     FAILED_TO_SENT_WELCOME_MAIL:"FAILED_TO_SENT_WELCOME_MAIL",
     FAILED_TO_SWITCH_NOTIFICATION:"FAILED_TO_SWITCH_NOTIFICATION",
     INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT",
-    FAILED_TO_FETCH_GROUP_MEMBERS:"FAILED_TO_FETCH_GROUP_MEMBERS",
+    VESSEL_LINKED_TO_LEARNING_PLAN:"VESSEL_LINKED_TO_LEARNING_PLAN",
 };
 
 const errorType = {
@@ -776,6 +776,11 @@ const errorType = {
         message: 'Failed to fetch group members',
         statusCode: 400,    
         type: "FAILED_TO_FETCH_GROUP_MEMBERS"
+    },
+    VESSEL_LINKED_TO_LEARNING_PLAN:{
+        message: 'Vessel is linked to learning plan',
+        statusCode: 400,    
+        type: "VESSEL_LINKED_TO_LEARNING_PLAN"
     }
 };
 
