@@ -15,6 +15,7 @@ const BatchRemainder = require("./src/app/batches/batch_reminder");
 const BackupHelper = require("./src/app/backup/backup_helper");
 const firebaseHelper = require('./src/util/firebase_helper');
 const EmployeeHelper = require("./src/app/user/employee/employee_helper");
+const client = require("./src/util/elastic_helper");
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
     process.env.MONGO_DB = process.env.MONGO_DB_LIVE;
@@ -73,10 +74,20 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     return { httpsServer, httpServer, apolloServer };
 })();
 firebaseHelper.init();
+const elasticConnect = async () => {
+    try {
+       const result = await client.info();
+        console.log("Elasticsearch is connected");
+    } catch (error) {
+        console.error("Elasticsearch connection failed:", error);
+    }
+};
+elasticConnect();
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
+
 
 
 
