@@ -984,7 +984,11 @@ module.exports.mutations = {
                 if (percentageCriteria > totalScore) {
                     throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
                 } else {
-                    input.percentageCriteria = Math.round((percentageCriteria / totalScore) * 100);
+                    if (input.percentageCriteria === undefined || input.percentageCriteria === null) {
+                        input.percentageCriteria = null;
+
+                    }
+                    input.percentageCriteria = Math.round((percentageCriteria / totalScore) * 100) || null;
                 }
             }
 
@@ -1518,6 +1522,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
                 input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100) || null;
+               
             }
 
             const updateData = {
@@ -1528,7 +1533,7 @@ module.exports.mutations = {
                 contentStatus: updatedContentStatus ? updatedContentStatus : input.contentStatus,
                 totalScore: questionsChanged ? totalScore : existingContent.totalScore,
                 totalQuestions: questionsChanged ? questionsIdArr.length : existingContent.totalQuestions,
-                percentageCriteria: input.percentageCriteria,
+                percentageCriteria: input.percentageCriteria === null ? null : input.percentageCriteria,
                 randomiseQuestionOrder: input.randomiseQuestionOrder,
                 randomiseAnswerOptionOrder: input.randomiseAnswerOptionOrder,
                 showCorrectAnswersToLearnerAfterQuiz: input.showCorrectAnswersToLearnerAfterQuiz,
