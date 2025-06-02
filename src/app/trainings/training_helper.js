@@ -742,28 +742,33 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
 
 }
 const calculateTrainingCompletion = (overallTrainingProgresses) => {
-
     return overallTrainingProgresses.map((otp) => {
-
-        const moduleCompletionMap = {};
+        const moduleContentStatus = {};
 
         const contentDataArray = Array.isArray(otp.contentData)
             ? otp.contentData
             : [otp.contentData];
 
+        // Group progress by module and collect content statuses
         otp.trainingProgressData.forEach((progress) => {
-
             const moduleId = progress.trainingModule;
 
-            if (!moduleCompletionMap[moduleId]) {
-                moduleCompletionMap[moduleId] = true;
+            if (!moduleContentStatus[moduleId]) {
+                moduleContentStatus[moduleId] = [];
             }
 
-            if (progress.status !== "COMPLETED") {
-                moduleCompletionMap[moduleId] = false;
-            }
-
+            moduleContentStatus[moduleId].push(progress.status);
         });
+
+        // A module is complete only if all its contents are completed
+        const moduleCompletionMap = {};
+
+        for (const moduleId in moduleContentStatus) {
+            const allCompleted = moduleContentStatus[moduleId].every(
+                (status) => status === "COMPLETED"
+            );
+            moduleCompletionMap[moduleId] = allCompleted;
+        }
 
         const completedModulesCount = Object.values(moduleCompletionMap).filter(
             (isCompleted) => isCompleted
@@ -773,11 +778,11 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
 
         const mandatoryModules = otp?.trainingDetails?.manadatoryModules || totalModules;
 
-        const isTrainingCompleted = (completedModulesCount >= mandatoryModules || completedModulesCount === totalModules);
+        const isTrainingCompleted =
+            completedModulesCount >= mandatoryModules || completedModulesCount === totalModules;
 
         const isTrainingCompletedNotFirstTime =
-            ((completedModulesCount >= mandatoryModules) && !otp.finishedCourseFirstTime) ||
-            ((completedModulesCount === totalModules) && !otp.finishedCourseFirstTime);
+            isTrainingCompleted && !otp.finishedCourseFirstTime;
 
         return {
             overallTrainingProgressId: otp._id,
@@ -787,7 +792,6 @@ const calculateTrainingCompletion = (overallTrainingProgresses) => {
             isTrainingCompletedNotFirstTime
         };
     });
-
 };
 
 function mergeTrainingData(data) {
@@ -2108,6 +2112,7 @@ module.exports = {
         }
 
         if (input.manadatoryModules) trainingUpdateData.manadatoryModules = input.manadatoryModules;
+        if (input.manadatoryModules === 0) trainingUpdateData.manadatoryModules = null;
 
         if ('allowMultipleAttempts' in input) {
 
