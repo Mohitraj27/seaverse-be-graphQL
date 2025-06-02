@@ -168,12 +168,12 @@ module.exports.mutations = {
                             "Training not found for the provided ID"
                         );
                     }
-
+                    const currentTimeStamp = Date.now();
                     if (logoImage1) {
                         const logo = await UploadHelper.uploadImage({
                             data: logoImage1,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo1_${Date.now()}`,
+                            fileName: `certificate-layout-logo1_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[0]) {
@@ -187,7 +187,7 @@ module.exports.mutations = {
                         const logo = await UploadHelper.uploadImage({
                             data: logoImage2,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo2_${Date.now()}`,
+                            fileName: `certificate-layout-logo2_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[1]) {
@@ -198,11 +198,11 @@ module.exports.mutations = {
                         logoKeys.push(logo);
                     }
 
-                    if (logoImage3) {
-                        const logo = await UploadHelper.uploadImage({
+                    // if (logoImage3) {
+                        /* const logo = await UploadHelper.uploadImage({
                             data: logoImage3,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-logo${Date.now()}`,
+                            fileName: `certificate-layout-logo${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                         if (logosInput[2]) {
@@ -210,15 +210,15 @@ module.exports.mutations = {
                         } else {
                             logosInput[2] = { url: logo };
                         }
-                        logoKeys.push(logo);
-                    }
+                        logoKeys.push(logo); */
+                    // }
 
                     // Handle signature upload separately
                     if (signatureImage) {
                         signatureUrl = await UploadHelper.uploadImage({
                             data: signatureImage,
                             folderName: `certificate-layout`,
-                            fileName: `certificate-layout-signature_${Date.now()}`,
+                            fileName: `certificate-layout-signature_${currentTimeStamp}`,
                             uploadType: UploadHelper.uploadType.certificateLogo,
                         });
                     }
