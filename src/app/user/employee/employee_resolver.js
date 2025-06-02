@@ -1130,7 +1130,26 @@ module.exports.queries = {
                 ] : []),
                 ...sortingStage,
             ]);
-
+            if (results.employees?.length > 0) {
+                results.employees = results.employees.map(employee => {
+                    
+                    if (employee.user) {
+                        if (employee.user.firstName) {
+                            employee.user.firstName = decrypt(employee.user.firstName);
+                        }
+                        
+                        if (employee.user.lastName) {
+                            employee.user.lastName = decrypt(employee.user.lastName);
+                        }
+                        
+                        if (employee.user.email) {
+                            employee.user.email = decrypt(employee.user.email);
+                        }
+                    }
+                    
+                    return employee;
+                });
+         }
             return {
                 employees: results.employees,
                 totalCount: results?.employees.length ?? 0,
@@ -1582,12 +1601,23 @@ module.exports.queries = {
             const notifications = [];
             await Promise.all(
                 emails.map(async (email) => {
-                    if (!emailRegex.test(email)) {
-                        messages.push(`Invalid Email format: ${email}`);
+                    const decryptEmail = decrypt(email);
+                    console.log('decrypted Email',decryptEmail);
+                    if (!emailRegex.test(decryptEmail)) {
+                        messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
                     }
 
                     let currentUserData = await User.findOne({ email: email, isDeleted: false, isRegistered: true });
+                    console.log('this is current USer Data',currentUserData);
+                    const fieldsToUpdate = ['firstName', 'lastName', 'email'];
+                    fieldsToUpdate.forEach(field => {
+                      if (currentUserData[field]) {
+                        currentUserData[field] = decrypt(currentUserData[field]); 
+                      }
+                    });
+                    
+                    console.log('Updated user data:', currentUserData);
                     if (!currentUserData) {
                         throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `One or more User are Unregistered`);
                     }
@@ -1598,6 +1628,7 @@ module.exports.queries = {
                             firstName: currentUserData.firstName,
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
+                        console.log('this is htmlContnet',htmlContent);
                         html = htmlContent;
                     } else {
                         let generatePassword
@@ -1626,6 +1657,7 @@ module.exports.queries = {
                             temp_password: generatePassword,
                             buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                         });
+                        console.log('this is htmlContent',htmlContent);
                         html = htmlContent;
                         await SendEmail({
                             receiverEmail: currentUserData?.email,

@@ -330,17 +330,16 @@ module.exports.mutations = {
     signIn: async ({ input }, context) => {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
-
-                const emailOrCivilIdOrPassport = input.emailOrCivilIdOrPassport;
+                const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
                 const password = input.password;
-                const deleteRequest = await User.find({email: input.emailOrCivilIdOrPassport,deleteRequest: true }).session(session);
+                const deleteRequest = await User.find({email: encryptedEmail,deleteRequest: true }).session(session);
                 if(deleteRequest?.length > 0){
                     return CustomError(ErrorName.DELETE_REQUEST_PENDING,'Your account delete request is pending. Please contact your admin');
                 }
                 // for app signup
                 const fetchAppUser = await AppUser.findOne({
                     $or: [
-                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { email: encryptedEmail },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                     ],
                 }).session(session);
@@ -387,7 +386,7 @@ module.exports.mutations = {
 
                     const existingUser = await User.findOne({
                         $or: [
-                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                            { email: encryptedEmail },
                             { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                         ],
                         role: { $ne: Role.SAAS_ADMIN },
@@ -429,15 +428,21 @@ module.exports.mutations = {
                           }
                         });
                         if(input?.consents?.some(consent => consent.status === false)) {
+                            const  decryptedUserEmail = decrypt(existingUser?.email);
                            await AwsHelper.sendEmail({
-                                receiverEmail: existingUser?.email,
+                                receiverEmail: decryptedUserEmail,
                                 subject: `Your Sign In Was Not Complete`,
                                 htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
                             });
                             const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
                             const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
-                            const adminUsers = adminUserEmails.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
-                            await Promise.all(adminUsers.map(async user => await AwsHelper.sendEmail({
+                            const decryptedAdminUsers = adminUserEmails?.map(user => ({
+                                email: decrypt(user?.email),
+                                firstName: decrypt(user?.firstName),
+                                lastName: decrypt(user?.lastName)
+                            }));
+                            const adminUsers = decryptedAdminUsers?.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
+                            await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
                                 receiverEmail: user?.email,
                                 subject: `Alert: Learner Rejected Terms and Conditions`,
                                 htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email } ),
