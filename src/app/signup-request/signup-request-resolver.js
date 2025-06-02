@@ -203,14 +203,9 @@ module.exports.mutations = {
                             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
                             owner : existingVesselType ? existingVesselType?.ownerName : "",
                             currentStatus: vesselStatus || "",
-<<<<<<< HEAD
                             email: decrypt(signupRequest?.email),
-                            _id: signupRequest?.userId
-=======
-                            email: signupRequest?.email,
                             _id: signupRequest?.userId,
                             role: 'LEARNER',
->>>>>>> f39bf95264e8c1c5bdacabbcaf77d06bbe6e8bed
                         }];
     
                         if (learningPlans.length > 0) {
