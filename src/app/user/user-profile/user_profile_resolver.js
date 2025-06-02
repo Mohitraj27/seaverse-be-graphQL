@@ -610,25 +610,30 @@ module.exports.mutations = {
                 {
                     $lookup: {
                         from: "subroles",
-                        localField: "subRoles",
-                        foreignField: "_id",
-                        as: "subRoles",
-                    },
-                },
-                {
-                    $unwind: "$subRoles",
+                        let: { subRoleIds: "$subRoles" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $in: ["$_id", "$$subRoleIds"] },
+                                            { $eq: ["$name", "ADMIN"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                        as: "matchedSubRoles"
+                    }
                 },
                 {
                     $match: {
-                        $or: [
-
-                            { "subRoles.name": "ADMIN" }
-                        ],
-                    },
-                },
+                        "matchedSubRoles.0": { $exists: true }
+                    }
+                }
             ]);
 
-            if (userData.length === 1) {
+            if ((userData.length === 1)&& (userData[0]._id.toString() === userId.toString())) {
                 throw CustomError(
                     ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
                     "You cannot delete yourself because you are the only admin left in the system."
