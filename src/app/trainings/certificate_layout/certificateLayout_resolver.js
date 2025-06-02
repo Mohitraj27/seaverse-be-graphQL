@@ -378,12 +378,25 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FORBIDDEN);
             }
 
-            const existingLayout = await certificateLayout.findById(layoutId);
+            const usersAssosciatedToLayout = await OverallTrainingProgress.find({
+                assignedCertificateLayoutId: layoutId,
+                status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
+            }).lean();
+
+            let existingLayout = await certificateLayout.findById(layoutId);
             if (!existingLayout) {
-                throw CustomError(
-                    ErrorName.VALIDATION_ERROR,
-                    "Certificate layout not found for the provided ID"
-                );
+                throw new Error('Layout not found');
+            }
+
+            if (usersAssosciatedToLayout?.length > 0) {
+                const layoutCopy = existingLayout.toObject();
+
+                delete layoutCopy._id;
+                delete layoutCopy.createdAt;
+                delete layoutCopy.updatedAt;
+
+                layoutCopy.version = (layoutCopy.version || 1) + 1;
+                existingLayout = await certificateLayout.create(layoutCopy);
             }
 
             if (
