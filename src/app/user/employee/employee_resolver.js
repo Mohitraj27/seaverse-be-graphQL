@@ -82,6 +82,7 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
+const {client} = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2943,7 +2944,55 @@ module.exports.mutations = {
                     await AwsHelper.sendEmail({ receiverEmail: decryptedEmail, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
                 }
             }
-
+            try {
+                const data = await client.index({
+                    index: "users",
+                    id: savedEmployee._id.toString(),
+                    document: {
+                        employeeId: savedEmployee._id?.toString(),
+                        UID: savedEmployee.UID,
+                        designation: savedEmployee.designation,
+                        empDesignation: savedEmployee.empDesignation?.toString(),
+                        bulkId: savedEmployee.bulkId,
+                        regType: savedEmployee.regType,
+                        isActive: savedEmployee.isActive,
+                        isDeleted: savedEmployee.isDeleted,
+                        subscriber: savedEmployee.subscriber?.toString(),
+                        createdAt: savedEmployee.createdAt,
+                        updatedAt: savedEmployee.updatedAt,
+            
+                        // Nested user fields
+                        userId: savedEmployee.user?._id?.toString(),
+                        firstName: savedEmployee.user?.firstName,
+                        lastName: savedEmployee.user?.lastName,
+                        email: savedEmployee.user?.email,
+                        civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                        country: savedEmployee.user?.country,
+                        languagePreference: savedEmployee.user?.languagePreference,
+                        role: savedEmployee.user?.role,
+                        subRoles: savedEmployee.user?.subRoles,
+                        isVerified: savedEmployee.user?.isVerified,
+                        isRegistered: savedEmployee.user?.isRegistered,
+                        superAdmin: savedEmployee.user?.superAdmin,
+                        deleteRequest: savedEmployee.user?.deleteRequest,
+                        isDeleted_user: savedEmployee.user?.isDeleted,
+                        directSignup: savedEmployee.user?.directSignup,
+                        contentlanguages: savedEmployee.user?.contentlanguages,
+                        currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                        vesselStatus: savedEmployee.user?.vesselStatus,
+                        isEmailNotification: savedEmployee.user?.isEmailNotification,
+                        isPushNotification: savedEmployee.user?.isPushNotification,
+                        lastLoginAt: savedEmployee.user?.lastLoginAt,
+                        isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                        userCreatedAt: savedEmployee.user?.createdAt,
+                        userUpdatedAt: savedEmployee.user?.updatedAt,
+                        indexedAt: new Date(),
+                    },
+                });
+            } catch (err) {
+                console.error("Elasticsearch indexing error:", err);
+            }
+            
             return savedEmployees;
         });
 

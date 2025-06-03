@@ -72,7 +72,8 @@ const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-regi
 const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const {decrypt} = require('../../../util/encryption_helper');
+const {decrypt,encrypt} = require('../../../util/encryption_helper');
+const { client } =require('../../../util/elastic_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -2806,18 +2807,17 @@ module.exports = {
         let newVessel;
 
         //Encryption logic
-        input.user.firstName = input.user.firstName ? encrypt(input.user.firstName) : input.user.firstName;
-        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName) : input.user.lastName;
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport ? encrypt(input.user.civilIdOrPassport) : input.user.civilIdOrPassport;
-        input.user.email = input.user.email ? encrypt(input.user.email) : input.user.email;
-
+        input.user.firstName = input.user.firstName ?? encrypt(input.user.firstName);
+        input.user.lastName = input.user.lastName ?? encrypt(input.user.lastName);
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport ?? encrypt(input.user.civilIdOrPassport);
+        input.user.email = input.user.email ?? encrypt(input.user.email);
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
                 { isActive: false, vesselStatus: input.user.vesselStatus === '' ? null : input.user.vesselStatus, deletedAt: new Date() }
             );
         }
-
+        console.log('input .user firstName',input.user.firstName);
         if (input?.user?.currentVessel) {
 
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
@@ -2943,7 +2943,7 @@ module.exports = {
 
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
 
-            if (savedEmployee?.empDesignation.toString() != input.empDesignation.toString()) {
+            if (savedEmployee?.empDesignation?.toString() != input.empDesignation?.toString()) {
                 savedEmployee.empDesignation = existingDesignation._id;
                 savedEmployee.designation = existingDesignation.name;
                 await savedEmployee.save();
@@ -2990,6 +2990,57 @@ module.exports = {
                 console.error(error);
             });
         const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+        try {
+            const data = await client.index({
+                index: "users",
+                id: savedEmployee._id.toString(), 
+                document: {
+                    // Top-level employee fields
+                    employeeId: savedEmployee._id?.toString(),
+                    UID: savedEmployee.UID,
+                    designation: savedEmployee.designation,
+                    empDesignation: savedEmployee.empDesignation?.toString(),
+                    bulkId: savedEmployee.bulkId,
+                    regType: savedEmployee.regType,
+                    isActive: savedEmployee.isActive,
+                    isDeleted: savedEmployee.isDeleted,
+                    subscriber: savedEmployee.subscriber?.toString(),
+                    createdAt: savedEmployee.createdAt,
+                    updatedAt: savedEmployee.updatedAt,
+        
+                    // Nested user fields
+                    userId: savedEmployee.user?._id?.toString(),
+                    firstName: savedEmployee.user?.firstName,
+                    lastName: savedEmployee.user?.lastName,
+                    email: savedEmployee.user?.email,
+                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                    country: savedEmployee.user?.country,
+                    languagePreference: savedEmployee.user?.languagePreference,
+                    role: savedEmployee.user?.role,
+                    subRoles: savedEmployee.user?.subRoles,
+                    isVerified: savedEmployee.user?.isVerified,
+                    isRegistered: savedEmployee.user?.isRegistered,
+                    superAdmin: savedEmployee.user?.superAdmin,
+                    deleteRequest: savedEmployee.user?.deleteRequest,
+                    isDeleted_user: savedEmployee.user?.isDeleted,
+                    directSignup: savedEmployee.user?.directSignup,
+                    contentlanguages: savedEmployee.user?.contentlanguages,
+                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                    vesselStatus: savedEmployee.user?.vesselStatus,
+                    isEmailNotification: savedEmployee.user?.isEmailNotification,
+                    isPushNotification: savedEmployee.user?.isPushNotification,
+                    lastLoginAt: savedEmployee.user?.lastLoginAt,
+                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                    userCreatedAt: savedEmployee.user?.createdAt,
+                    userUpdatedAt: savedEmployee.user?.updatedAt,
+        
+                    // Timestamp for indexing
+                    indexedAt: new Date(),
+                },
+            });
+         } catch (err) {
+            console.error("Elasticsearch indexing error:", err);
+        }        
         return savedEmployee;
 
     },
