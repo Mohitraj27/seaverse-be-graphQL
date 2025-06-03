@@ -309,7 +309,7 @@ module.exports.queries = {
                 {
                     $unwind: { path: '$user', preserveNullAndEmptyArrays: true },
                 },
-                {
+                /* {
                     $lookup: {
                         from: 'overalltrainingprogresses',
                         localField: 'trainingRegistration',
@@ -320,7 +320,7 @@ module.exports.queries = {
                 },
                 {
                     $unwind: { path: '$overallProgressInfo', preserveNullAndEmptyArrays: true },
-                },
+                }, */
                 ...courseProgressFilter,
                 {
                     $lookup: {
@@ -371,6 +371,7 @@ module.exports.queries = {
             ];
 
             const certificates = await TrainingCertificate.aggregate(certificatesQuery);
+            console.log(certificates);
             if (!certificates || certificates.length === 0) {
                 return {
                     trainingCertificates: [],
