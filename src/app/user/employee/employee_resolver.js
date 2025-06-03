@@ -2477,7 +2477,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 const updateDeleteRequestHistory = await DeleteRequestHistory.insertMany(userHistoryData);
 
                 if (updateDeleteRequestHistory) {
-                    if (userHistoryData[0]?.isEmailNotification) {
+                    if (userHistoryData.length === 1) {
                         const sendmailforApproval = await aws_helper.sendEmail({
                             receiverEmail: userHistoryData[0]?.email,
                             subject: 'Delete request APPROVED',
@@ -2488,6 +2488,8 @@ const respondToDeleteRequest = async ({ input }, context) => {
                         if (!sendmailforApproval) {
                             throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                         }
+                    }else{
+                        console.log("Multiple users deletion was not part of the initial implementation, so no email will be sent.");
                     }
 
                 }
