@@ -66,8 +66,6 @@ async function getDocumentfromElasticSearch(indexName, id) {
     return response._source;
   } catch (err) {
     throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH,`Elastic Get Error (${indexName}): ${err}`)
-   
-    return null;
   }
 }
 

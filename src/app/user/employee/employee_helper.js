@@ -2992,6 +2992,9 @@ module.exports = {
         const result = await filterLearningPlans(learningPlans, userConditions, context, session);
      
         try {
+            const userVesselsDetails = await Vessel.find({_id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true}).populate('typeOfVessel', '_id name');
+                 console.log('this is userVesselsDetails',userVesselsDetails);
+                
         const document = {
             employeeId: savedEmployee._id?.toString(),
             UID: savedEmployee.UID,
@@ -3027,6 +3030,10 @@ module.exports = {
             isPushNotification: savedEmployee.user?.isPushNotification,
             lastLoginAt: savedEmployee.user?.lastLoginAt,
             isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+            vesselName: userVesselsDetails[0]?.name,
+            vesselIsActive: userVesselsDetails[0]?.isActive,
+            typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
+            tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
             userCreatedAt: savedEmployee.user?.createdAt,
             userUpdatedAt: savedEmployee.user?.updatedAt,
         };
@@ -3443,7 +3450,7 @@ module.exports = {
         invitationList.forEach(obj => {
             sendCredentialMail(obj);
         });
-
+        console.log('this is saved employees',savedEmployees);
         return {
             batch: savedBatch,
             employees: savedEmployees,
