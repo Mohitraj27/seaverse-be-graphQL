@@ -2783,12 +2783,11 @@ module.exports.mutations = {
 
         //encryption logic 
        
-        //replace the original fields with encrypted ones
-        input.user.firstName = encrypt(input?.user?.firstName);
-        input.user.lastName = encrypt(input?.user?.lastName);
-        input.user.civilIdOrPassport = encrypt(input?.user?.civilIdOrPassport);
-        input.user.email = encrypt(input?.user?.email);
-
+        //replace the original fields with encrypted on
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
+        input.user.lastName = input.user.lastName && encrypt(input.user.lastName);
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
+        input.user.email = input.user.email && encrypt(input.user.email);
 
         const existingUser = await User.findOne({ email: input.user.email });
 
@@ -3163,7 +3162,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-
         return deletedEmployee;
     },
     deleteEmployees,
