@@ -4455,7 +4455,7 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             'createdAt': 1,
                             'startDate': "$startDate",
-                            'completionDate': "$endDate",
+                            endDate:1,
                             unenrollmentDate: 1,
                             'status': 1,
                             'adminMarkedAsCompleted': 1,
