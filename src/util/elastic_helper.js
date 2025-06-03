@@ -1,16 +1,16 @@
 const { Client } = require('@elastic/elasticsearch');
 const {
-    CustomError,
-    ErrorName
+  CustomError,
+  ErrorName
 } = require("../util");
 
 require("dotenv").config();
 
 const client = new Client({
-    node: process.env.ELASTICSEARCH_URL,
-    auth: {
-        apiKey: process.env.ELASTICSEARCH_API_KEY,
-    }
+  node: process.env.ELASTICSEARCH_URL,
+  auth: {
+    apiKey: process.env.ELASTICSEARCH_API_KEY,
+  }
 });
 
 
@@ -24,7 +24,7 @@ async function indexDocumenttoElasticSearch(indexName, id, document) {
     });
     console.log(`Indexed into ${indexName}:`, response);
   } catch (err) {
-    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH,`Elastic Insert Error (${indexName}): ${err}`)
+    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (${indexName}): ${err}`)
   }
 }
 
@@ -38,7 +38,7 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
     });
     console.log(`Updated in ${indexName}:`, response);
   } catch (err) {
-    throw CustomError(ErrorName.UPDATE_DOC_ELASTIC_SEARCH,`Elastic Update Error (${indexName}): ${err}`)
+    throw CustomError(ErrorName.UPDATE_DOC_ELASTIC_SEARCH, `Elastic Update Error (${indexName}): ${err}`)
   }
 }
 
@@ -51,30 +51,40 @@ async function deleteDocumenttoElasticSearch(indexName, id) {
     });
     console.log(`Deleted from ${indexName}:`, response);
   } catch (err) {
-    throw CustomError(ErrorName.DELETE_DOC_ELASTIC_SEARCH,`Elastic Delete Error (${indexName}): ${err}`)
-   }
+    throw CustomError(ErrorName.DELETE_DOC_ELASTIC_SEARCH, `Elastic Delete Error (${indexName}): ${err}`)
+  }
 }
 
 // Get Document
 async function getDocumentfromElasticSearch(indexName, id) {
-  try {
-    const response = await client.get({
-      index: indexName,
-      id: id.toString(),
-    });
-    console.log(`Fetched from ${indexName}:`, response);
-    return response._source;
-  } catch (err) {
-    throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH,`Elastic Get Error (${indexName}): ${err}`)
-   
-    return null;
+  if (id) {
+    try {
+      const response = await client.get({
+        index: indexName,
+        id: id.toString(),
+      });
+      console.log(`Fetched from ${indexName}:`, response);
+      return response._source;
+    } catch (err) {
+      throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH, `Elastic Get Error (${indexName}): ${err}`)
+    }
+  } else {
+    try {
+      const response = await client.search({
+        index: indexName
+      });
+      console.log(`Fetched from ${indexName}:`, response);
+      return response.hits.hits.map(hit => hit._source);
+    } catch (err) {
+      throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH, `Elastic Get Error (${indexName}): ${err}`)
+    }
   }
 }
 
 module.exports = {
-    indexDocumenttoElasticSearch,
-    updateDocumenttoElasticSearch,
-    deleteDocumenttoElasticSearch,
-    getDocumentfromElasticSearch,
-    client
+  indexDocumenttoElasticSearch,
+  updateDocumenttoElasticSearch,
+  deleteDocumenttoElasticSearch,
+  getDocumentfromElasticSearch,
+  client
 };

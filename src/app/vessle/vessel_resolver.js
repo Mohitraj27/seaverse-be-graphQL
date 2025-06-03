@@ -25,6 +25,7 @@ const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_st
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
+const { decrypt } = require("../../util/encryption_helper");
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
         const result = await LearningPlan.aggregate([
