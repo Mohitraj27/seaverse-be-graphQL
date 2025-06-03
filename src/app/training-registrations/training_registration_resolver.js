@@ -1837,7 +1837,8 @@ module.exports.mutations = {
                     },
                 }
                 if(initialStatus === "NOT_STARTED" ){
-                    updatedRecord.updateOne.update.$set.contentData = trainingContentDataForOverallTraining ?? [];
+                    updatedRecord.updateOne.update.$set.contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+                    updatedRecord.updateOne.update.$set.completedModules = trainingContentDataForOverallTraining?.trainingTotalModules ?? 0;
                 }
 
                 console.log("updatedRecord", updatedRecord);
