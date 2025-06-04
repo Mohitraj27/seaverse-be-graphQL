@@ -35,19 +35,20 @@ module.exports.mutations = {
             await validateInputData(input, userId);
             const trainingModuleContentsFromContentData = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
 
-            // let syncContentErrors = [];
-            // //add content data to overall training progress
-            // const overallTrainingProgress = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
-            // if (!overallTrainingProgress) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
-            // const overallIdArray = [{ overallId: overallTrainingProgress?._id }];
-            // const fromDownload = true;
-            // const overallProgressesWithContentData = await TrainingHelper.addDataToOverallTrainingProgress(overallIdArray, syncContentErrors, null, fromDownload);
-            // const singleOverallProgressWithContentData = overallProgressesWithContentData[0];
+            let syncContentErrors = [];
+            // add content data to overall training progress
+            const overallTrainingProgress = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
+            if (!overallTrainingProgress) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
+            const overallIdArray = [{ overallId: overallTrainingProgress?._id }];
+            const fromDownload = true;
+            if (overallIdArray.length > 0) await TrainingHelper.addDataToOverallTrainingProgress(overallIdArray, syncContentErrors, null, fromDownload);
+
+
+            if (syncContentErrors.length > 0) throw CustomError(ErrorName.NOT_FOUND, syncContentErrors[0]);
 
             let trainingContentIds = [];
 
             trainingModuleContentsFromContentData?.contentData.map((content) => {
-                // singleOverallProgressWithContentData?.contentData.map((content) => {
 
                 if (content.moduleId.toString() === input.trainingModule.toString()) {
                     trainingContentIds.push(...content.contentIds);
@@ -77,14 +78,7 @@ module.exports.mutations = {
             if (trainingContentIds.length > 0) {
                 getContent = await getTheContent(trainingContents, userLanguages);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-                /*
-                const trainingContents = [];
-                trainingModuleContentsFromTrainingContent.map((item) => {
-                    return trainingContents.push(item.trainingContent);
-                })
 
-                getContent = await getTheContent(trainingContents, 'contentCollection');
-                */
                 const trainingContents = trainingModuleContentsFromTrainingContent.map(item => item.trainingContent);
                 getContent = await getTheContent(trainingContents, userLanguages);
             }
