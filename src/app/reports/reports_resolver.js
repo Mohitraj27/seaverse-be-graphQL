@@ -1098,12 +1098,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         else if (input.reportType === "MODULE") {
             const learnersData = await OverallTrainingProgress.aggregate(
                 [
-                    {
-                        $match:
-                        {
-                            user: { $in: input.learnerIds }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         $match: {
                             $or: [
