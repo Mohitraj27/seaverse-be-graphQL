@@ -81,10 +81,53 @@ async function getDocumentfromElasticSearch(indexName, id) {
   }
 }
 
+// Delete multiple documents based on a query
+async function deleteByQueryFromElasticSearch(indexName, query) {
+  try {
+    const response = await client.deleteByQuery({
+      index: indexName,
+      body: {
+        query: query
+      }
+    });
+    console.log(`Deleted documents from ${indexName} by query:`, response);
+    return response;
+  } catch (err) {
+    throw CustomError(ErrorName.DELETE_DOC_ELASTIC_SEARCH, `Elastic DeleteByQuery Error (${indexName}): ${err}`)
+  }
+}
+
+// Update multiple documents based on a query
+async function updateByQueryToElasticSearch(indexName, scriptSource, query, params = {}) {
+  try {
+    const response = await client.updateByQuery({
+      index: indexName,
+      body: {
+        script: {
+          source: scriptSource,
+          lang: "painless",
+          params: params
+        },
+        query: query
+      }
+    });
+    console.log(`Updated documents in ${indexName} by query:`, response);
+    return response;
+  } catch (err) {
+    throw CustomError(
+      ErrorName.UPDATE_DOC_ELASTIC_SEARCH,
+      `Elastic UpdateByQuery Error (${indexName}): ${err}`
+    );
+  }
+}
+
+
 module.exports = {
   indexDocumenttoElasticSearch,
   updateDocumenttoElasticSearch,
   deleteDocumenttoElasticSearch,
   getDocumentfromElasticSearch,
+  deleteByQueryFromElasticSearch,
+  updateByQueryToElasticSearch,
   client
 };

@@ -73,7 +73,7 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,updateDocumentToElasticSearch } =require('../../../util/elastic_helper');
+const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch } =require('../../../util/elastic_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1943,6 +1943,12 @@ const softDeleteUsers = async (users, errors) => {
                         { $set: { isDeleted: true } },
                         { session }
                     );
+
+                        await deleteByQueryFromElasticSearch('users', {
+                            terms: {
+                                userId: users  // users is an array
+                            }
+                        });
 
                     if (updateGroupMember) {
                         /*

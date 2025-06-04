@@ -82,7 +82,7 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
-const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch } = require('../../../util/elastic_helper');
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch  } = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2111,6 +2111,12 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { _id: { $in: input.users } },
                 { isRegistered: true }
             );
+
+            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
+                terms: {
+                    userId: input.users  // input.users is an array of IDs
+                }
+            });
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2138,6 +2144,12 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     $set: { isRegistered: false }
                 }
             );
+
+            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
+                terms: {
+                    userId: input.users  // input.users is an array of IDs
+                }
+            });
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2230,6 +2242,25 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
                 { $set: { subRoles: [], roleAssignmentDate: null } }
             );
+
+            console.log("input.users", input.users);
+            await updateByQueryToElasticSearch(
+                'users',
+                `
+                    ctx._source.subRoles = [];
+                    ctx._source.roleAssignmentDate = null;
+                `,
+                {
+                    bool: {
+                    must: [
+                        { terms: { userId: input.users } },
+                        { term: { superAdmin: false } },
+                        { term: { "role.keyword": "LEARNER" } }
+                    ]
+                    }
+                }
+            );  
+
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
 
@@ -3422,6 +3453,26 @@ module.exports.mutations = {
             await User.updateMany(
                 { _id: { $in: users } },
                 { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+            );
+
+            console.log("Users updated with subrole:", users, subrole);
+            await updateByQueryToElasticSearch(
+                'users',
+                `
+                    if (!ctx._source.subRoles.contains(params.subrole)) {
+                    ctx._source.subRoles.add(params.subrole);
+                    }
+                    ctx._source.roleAssignmentDate = params.currentDate;
+                `,
+                {
+                    terms: {
+                    userId: users
+                    }
+                },
+                {
+                    subrole,
+                    currentDate: new Date().toISOString()
+                }
             );
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
