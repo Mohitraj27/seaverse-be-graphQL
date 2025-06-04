@@ -287,7 +287,156 @@ const calculateTotalDuration = async (moduleContentIds) => {
     }
 };
 
+/**
+ * Updates or creates training progress records for users, marking all content as completed.
+ * 
+ * @param {Object} params
+ * @param {ObjectId} params.trainingId - Training ID
+ * @param {Array<ObjectId>} params.userIds - Array of user IDs
+ * @param {Array<Object>} params.trainingContentData - Array of { trainingModule, trainingContent }
+ * @param {Array<Object>} params.overallProgressRecords - OverallTrainingProgress records for the users
+ * @param {ObjectId} params.updatedBy - Admin/User performing the operation
+ */
+const updateOrCreateTrainingProgressForUsers = async ({
+    trainingId,
+    userIds,
+    trainingContentData,
+    overallProgressRecords,
+    updatedBy,
+}) => {
+    try {
+
+        console.log("training: ",trainingId);
+        console.log("userIds: ", userIds);
+        console.log("trainingContentData: ", trainingContentData);
+        console.log("overallProgressRecords: ", overallProgressRecords);
+        console.log("updatedBy: ", updatedBy);
+
+        if (!trainingId || !ObjectId.isValid(trainingId)) {
+            console.log("Invalid or missing trainingId");
+            return;
+        }
+
+        if (!Array.isArray(userIds) || userIds.length === 0) {
+            console.log("No userIds provided; skipping progress update.");
+            return;
+        }
+
+        if (!Array.isArray(trainingContentData) || trainingContentData.length === 0) {
+            console.log("No training content provided; skipping progress update.");
+            return;
+        }
+
+        const now = new Date();
+
+        const contentPairs = trainingContentData.map(item => ({
+            moduleId: item.trainingModule?.toString(),
+            contentId: item.trainingContent?.toString(),
+        })).filter(p => p.moduleId && p.contentId);
+
+        if (contentPairs.length === 0) {
+            console.log("All training content pairs are invalid or missing.");
+            return;
+        }
+
+        const existingProgressRecords = await TrainingProgress.find({
+            training: trainingId,
+            user: { $in: userIds },
+            trainingModuleContent: {
+                $in: trainingContentData.map(d => d.trainingContent).filter(Boolean),
+            },
+            isDeleted: false
+        }).lean();
+
+        const progressKey = ({ userId, moduleId, contentId }) =>
+            `${userId}_${moduleId}_${contentId}`;
+
+        const existingProgressMap = new Map();
+        existingProgressRecords.forEach(record => {
+            const key = progressKey({
+                userId: record.user.toString(),
+                moduleId: record.trainingModule.toString(),
+                contentId: record.trainingModuleContent.toString(),
+            });
+            existingProgressMap.set(key, record);
+        });
+
+        const bulkOps = [];
+
+        for (const userId of userIds) {
+            const overall = overallProgressRecords?.find(op =>
+                op.user?.toString() === userId.toString());
+
+            if (!overall) {
+                console.log(`No overall training progress record for user ${userId}`);
+                continue;
+            }
+
+            const registrationId = overall?.trainingRegistration;
+            const overallProgressId = overall?._id;
+
+            for (const { moduleId, contentId } of contentPairs) {
+                const key = progressKey({ userId, moduleId, contentId });
+                const existing = existingProgressMap.get(key);
+
+                if (existing) {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: existing._id },
+                            update: {
+                                $set: {
+                                    progressPercentage: 100,
+                                    status: "COMPLETED",
+                                    startedAt: existing.startedAt ?? now,
+                                    completedAt: now,
+                                    updatedBy,
+                                },
+                            },
+                        },
+                    });
+                } else {
+
+                    if (!ObjectId.isValid(moduleId) || !ObjectId.isValid(contentId)) {
+                        console.log(`Invalid module/content ID for user ${userId}`);
+                        continue;
+                    }
+
+                    bulkOps.push({
+                        insertOne: {
+                            document: {
+                                training: trainingId,
+                                user: userId,
+                                overallTrainingProgress: overallProgressId,
+                                trainingRegistration: registrationId ?? null,
+                                trainingModule: ObjectId(moduleId),
+                                trainingModuleContent: ObjectId(contentId),
+                                progressPercentage: 100,
+                                status: "COMPLETED",
+                                startedAt: now,
+                                completedAt: now,
+                                createdBy: updatedBy,
+                                updatedBy,
+                                enroledStatus: true,
+                                isDeleted: false,
+                            },
+                        },
+                    });
+                }
+            }
+        }
+
+        if (bulkOps.length > 0) {
+            await TrainingProgress.bulkWrite(bulkOps);
+        } else {
+            console.info("No training progress records to update or insert.");
+        }
+    } catch (err) {
+        console.error("Failed to update or create training progress:", err);
+        throw new Error("Failed to complete training progress update.");
+    }
+}
 module.exports = {
+    updateOrCreateTrainingProgressForUsers,
     updateTrainingProgress: async ({ input, existingTrainingRegistration }, context) => {
         const { role, userPermissions, userId, subscriberId, employeeId, isOrganizationManager } =
             AuthUser(context);
