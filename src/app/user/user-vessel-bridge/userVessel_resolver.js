@@ -15,6 +15,7 @@ const notificationEnum = require("../../notifications/notification_icon.json")
 const {filterLearningPlans} = require('../employee/employee_helper');
 const {LearningPlan} = require('../../learning-plan/learning_plan_model');
 const {Employee} = require('../employee/employee_model');
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -47,6 +48,13 @@ module.exports.mutations = {
             let vesselId = input.vesselId === "" ? null : input.vesselId;
             let vesselStatus = input.vesselStatus === "" ? null : input.vesselStatus;
 
+            const userVesselsDetails = await Vessel.find({ _id: vesselId, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+
+            const vesselName= userVesselsDetails?.[0]?.name;
+            const vesselIsActive= userVesselsDetails?.[0]?.isActive
+            const typeOfVesselName= userVesselsDetails?.[0]?.typeOfVessel?.name
+            const tyepOfVesselId= userVesselsDetails?.[0]?.typeOfVessel?._id
+
             if (vesselId) {
 
                 if (String(getUser?.currentVessel) === String(vesselId)) {
@@ -64,6 +72,48 @@ module.exports.mutations = {
                     getUser.currentVessel = vesselId ?? null;
                     getUser.vesselStatus = vesselStatus ?? null;
                     updateUser = await getUser.save();
+
+                    await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            if (params.vesselId != null) {
+                            ctx._source.currentVessel = params.vesselId;
+                            }
+
+                            if (params.vesselStatus != null) {
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            }
+
+                            if (params.vesselName != null) {
+                            ctx._source.vesselName = params.vesselName;
+                            }
+
+                            if (params.vesselIsActive != null) {
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            }
+
+                            if (params.typeOfVesselName != null) {
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            }
+
+                            if (params.tyepOfVesselId != null) {
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            }
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
 
                 } else {
 
@@ -87,6 +137,48 @@ module.exports.mutations = {
                     getUser.currentVessel = vesselId;
                     getUser.vesselStatus = vesselStatus;
                     updateUser = await getUser.save();
+
+                    await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            if (params.vesselId != null) {
+                            ctx._source.currentVessel = params.vesselId;
+                            }
+
+                            if (params.vesselStatus != null) {
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            }
+
+                            if (params.vesselName != null) {
+                            ctx._source.vesselName = params.vesselName;
+                            }
+
+                            if (params.vesselIsActive != null) {
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            }
+
+                            if (params.typeOfVesselName != null) {
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            }
+
+                            if (params.tyepOfVesselId != null) {
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            }
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
 
                 }
             } else {
@@ -114,6 +206,48 @@ module.exports.mutations = {
                 getUser.currentVessel = vesselId;
                 getUser.vesselStatus = vesselStatus;
                 updateUser = await getUser.save();
+
+                await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            if (params.vesselId != null) {
+                            ctx._source.currentVessel = params.vesselId;
+                            }
+
+                            if (params.vesselStatus != null) {
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            }
+
+                            if (params.vesselName != null) {
+                            ctx._source.vesselName = params.vesselName;
+                            }
+
+                            if (params.vesselIsActive != null) {
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            }
+
+                            if (params.typeOfVesselName != null) {
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            }
+
+                            if (params.tyepOfVesselId != null) {
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            }
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
 
             }
 
