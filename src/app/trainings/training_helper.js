@@ -129,7 +129,9 @@ const generateCourseId = (courseType) => {
 
 const validateSyncOfflineData = async (data) => {
 
-    let overallIds = data.map((item) => item.overallId);
+    let overallIds = data.map((item) => {
+        return ObjectId(item.overallId)
+    });
 
     let errors = [];
 
@@ -286,7 +288,6 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
     }
 
     if (overallDocs.length == 0) {
-        errors.push(`Training not found`);
         return;
     }
 
@@ -461,7 +462,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                     $push: {
                                         contentFromDownload: {
                                             courseDetails: contentData,
-                                            version: maxVersion + 1
+                                            version: doc?.version || 1
                                         }
                                     }
                                 },
@@ -1232,9 +1233,9 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
         trainingModules.forEach(module => {
             module.contentDetails.forEach(content => {
-                if (typeof content.duration === 'number') {
+                // if (typeof content.duration === 'number') {
                     totalDuration += content.duration;
-                }
+                // }
             });
         });
 

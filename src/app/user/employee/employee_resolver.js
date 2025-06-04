@@ -2369,7 +2369,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     }
 
                     if (updateDeleteRequestHistory) {
-                        if (userHistoryData[0]?.isEmailNotification) {
                             const sendmailforApproval = await aws_helper.sendEmail({
                                 receiverEmail: userHistoryData[0]?.email,
                                 subject: 'Delete request REJECTED',
@@ -2381,7 +2380,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             if (!sendmailforApproval) {
                                 throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                             }
-                        }
                     }
                 }
 
