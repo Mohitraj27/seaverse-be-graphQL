@@ -330,38 +330,6 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            try {
-                const document = {
-                    vesselId: vesselData?._id?.toString(),
-                    vesselName: vesselData?.name,
-                    vesselIsActive: vesselData?.isActive,
-                    vesselIsDeleted: vesselData?.isDeleted,
-                    vesselImoNumber: vesselData?.imoNumber,
-                    vesselCompanyName: vesselData?.companyName,
-                    vesselOwnerId: vesselData?.ownerId?.toString(),
-                    vesselOwnerName: vesselData?.ownerName,
-                    vesselAddress: vesselData?.address,
-                    createdBy: vesselData?.createdBy?.toString(),
-                    updatedBy: vesselData?.updatedBy?.toString(),
-                    createdAt: vesselData?.createdAt,
-                    updatedAt: vesselData?.updatedAt,    
-
-                    // Nested User Fields of Vessel Type
-                    vesselTypeName: vesselData?.typeOfVessel?.name,
-                    vesselTypeId: vesselData?.typeOfVessel?._id?.toString(),
-                    vesselTypeIsActive: vesselData?.typeOfVessel?.isActive,
-                    vesselTypeIsDeleted: vesselData?.typeOfVessel?.isDeleted,
-                    vesselTypeCreatedAt: vesselData?.typeOfVessel?.createdAt,
-                    vesselTypeUpdatedAt: vesselData?.typeOfVessel?.updatedAt,
-                    vesselTypeCreatedBy: vesselData?.typeOfVessel?.createdBy?.toString(),
-                    vesselTypeUpdatedBy: vesselData?.typeOfVessel?.updatedBy?.toString(),
-                    indexedAt: new Date(),
-                };
-
-                await indexDocumenttoElasticSearch("vessel", vesselData?._id, document);
-            } catch (err) {
-                console.error("Elasticsearch indexing error:", err);
-            }
             return {
                 success: true,
                 message: 'Vessel created successfully.',
@@ -522,36 +490,6 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            try {
-                const updatedVesselData = vesselData; 
-                const document = {
-                    // Vessel Information
-                    vesselId: updatedVesselData._id?.toString(),
-                    vesselName: updatedVesselData?.name,
-                    vesselIsActive: updatedVesselData?.isActive,
-                    vesselIsDeleted: updatedVesselData?.isDeleted,
-                    vesselImoNumber: updatedVesselData?.imoNumber,
-                    vesselCompanyName: updatedVesselData?.companyName,
-                    vesselOwnerId: updatedVesselData.ownerId?.toString(),
-                    vesselOwnerName: updatedVesselData?.ownerName,
-                    vesselAddress: updatedVesselData?.address,
-                    vesselCreatedAt: updatedVesselData?.createdAt,
-                    vesselUpdatedAt: updatedVesselData?.updatedAt,
-                    vesselSubscriber: updatedVesselData.subscriber?.toString(),
-                    
-                    // Type of Vessel Information (from populated data)
-                    typeOfVesselId: updatedVesselData.typeOfVessel?._id?.toString(),
-                    typeOfVesselName: updatedVesselData.typeOfVessel?.name,
-                    typeOfVesselIsActive: updatedVesselData.typeOfVessel?.isActive,
-                    typeOfVesselIsDeleted: updatedVesselData.typeOfVessel?.isDeleted,
-                    
-                    indexedAt: new Date(),
-                };
-                
-                await updateDocumenttoElasticSearch("vessel", updatedVesselData?._id, document);
-            } catch (err) {
-                console.error("Elasticsearch indexing error:", err);
-            }
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
