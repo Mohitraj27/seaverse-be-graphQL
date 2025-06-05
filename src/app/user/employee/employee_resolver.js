@@ -3086,6 +3086,8 @@ module.exports.mutations = {
                     userCreatedAt: savedEmployee.user?.createdAt,
                     userUpdatedAt: savedEmployee.user?.updatedAt,
                     vesselName: userVesselsDetails[0]?.name,
+                    vesselId: userVesselsDetails[0]?._id,
+                    vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
                     vesselIsActive: userVesselsDetails[0]?.isActive,
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,

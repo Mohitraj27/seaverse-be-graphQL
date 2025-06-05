@@ -3038,6 +3038,8 @@ module.exports = {
             isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
             vesselName: userVesselsDetails[0]?.name,
             vesselIsActive: userVesselsDetails[0]?.isActive,
+            vesselId: userVesselsDetails[0]?._id,
+            vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
             typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
             tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
             userCreatedAt: savedEmployee.user?.createdAt,
