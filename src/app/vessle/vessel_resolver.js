@@ -26,7 +26,7 @@ const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEn
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
 const { decrypt } = require("../../util/encryption_helper");
-const { indexDocumenttoElasticSearch,updateDocumenttoElasticSearch } = require('../../util/elastic_helper');
+const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
         const result = await LearningPlan.aggregate([
@@ -490,6 +490,50 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
+            if(userIds?.length >0){
+               await Promise.all(
+                    userIds.map(userId => updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            if (params.vesselId != null) {
+                            ctx._source.currentVessel = params.vesselId;
+                            }
+        
+                            if (params.vesselStatus != null) {
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            }
+        
+                            if (params.vesselName != null) {
+                            ctx._source.vesselName = params.vesselName;
+                            }
+        
+                            if (params.vesselIsActive != null) {
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            }
+        
+                            if (params.typeOfVesselName != null) {
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            }
+        
+                            if (params.tyepOfVesselId != null) {
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            }
+                        `,
+                        {
+                            term: {
+                            userId: userId._id
+                            }
+                        },
+                        {
+                            vesselId: vesselData?._id ?? null,
+                            vesselName: vesselData?.name ?? null,
+                            vesselIsActive: vesselData?.isActive ?? null,
+                            typeOfVesselName: vesselData?.typeOfVessel?.name ?? null,
+                            tyepOfVesselId: vesselData?.typeOfVessel?._id ?? null
+                        }
+                    ))
+                );
+            }
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
