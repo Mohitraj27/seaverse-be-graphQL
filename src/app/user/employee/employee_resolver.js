@@ -82,7 +82,7 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
-const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch  } = require('../../../util/elastic_helper');
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch,searchEmployeesFromElastic  } = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -1169,37 +1169,64 @@ module.exports.queries = {
                     term: { empDesignation: filterInput.empDesignation?.[0] } // multiple values using 'terms'
                 });
             }
-            const getUsers = await client.search({
-                index: "users",
-                from: parseInt(skip, 10),
-                size: parseInt(limit, 10),
-                body: {
-                    query: {
-                        bool: {
-                            must: filterInput?.search?.trim()
-                                ? [
-                                    {
-                                        multi_match: {
-                                            query: encrypt(filterInput.search),
-                                            type: "phrase_prefix",
-                                            fields: [
-                                                "firstName",
-                                                "lastName",
-                                                "email",
-                                                "civilIdOrPassport",
-                                            ],
-                                        },
-                                    },
-                                ]
-                                : [{ match_all: {} }],
-                            ...(filterClauses.length > 0 && { filter: filterClauses })
-                        },
-                    },
-                },
+            // const getUsers = await client.search({
+            //     index: "users",
+            //     from: parseInt(skip, 10),
+            //     size: parseInt(limit, 10),
+            //     body: {
+            //         query: {
+            //             bool: {
+            //                 must: filterInput?.search?.trim()
+            //                     ? [
+            //                         {
+            //                             multi_match: {
+            //                                 query: encrypt(filterInput.search),
+            //                                 type: "phrase_prefix",
+            //                                 fields: [
+            //                                     "firstName",
+            //                                     "lastName",
+            //                                     "email",
+            //                                     "civilIdOrPassport",
+            //                                 ],
+            //                             },
+            //                         },
+            //                     ]
+            //                     : [{ match_all: {} }],
+            //                 ...(filterClauses.length > 0 && { filter: filterClauses })
+            //             },
+            //         },
+            //     },
+            // });
+
+
+            // console.log("getUsers---------->", getUsers);
+            // console.log(getUsers.hits.hits);
+
+            console.log("filterInput------------->", filterInput);
+
+            let subRoleAdminId = null;
+            if (filterInput?.role?.includes("ADMIN")) {
+                subRoleAdminId = await  SubRole.findOne({
+                    name: "ADMIN"
+                }).select("_id").lean();
+                if (subRoleAdminId) {
+                    subRoleAdminId = subRoleAdminId._id;
+                }   
+            }
+
+            const elasticResults = await searchEmployeesFromElastic({
+                indexName: "users",
+                filterInput: filterInput,
+                subRoleAdminId: subRoleAdminId,
+                lastSeenStart:startDate,
+                lastSeenEnd:endDate,
+                sortField: "firstName.keyword",
+                sortOrder: "asc",
+                skip: 0,
+                limit: 20,
             });
 
-            console.log("getUsers", getUsers);
-            console.log(getUsers.hits.hits);
+            console.log("Elastic Results:", elasticResults);
 
             return {
                 employees: results.employees,
@@ -3062,6 +3089,7 @@ module.exports.mutations = {
                     vesselIsActive: userVesselsDetails[0]?.isActive,
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
+                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
                     indexedAt: new Date(),
                 };
 

@@ -460,6 +460,24 @@ module.exports.mutations = {
             existingUser.isResetPasswordDialog = true;
 
             await existingUser.save();
+
+            await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.password = params.password;
+                    ctx._source.isResetPasswordDialog = params.isResetPasswordDialog;
+                `,
+                {
+                    term: {
+                    userId: existingUser._id.toString() 
+                    }
+                },
+                {
+                    password: existingUser.password,
+                    isResetPasswordDialog: true
+                }
+            );
+
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,

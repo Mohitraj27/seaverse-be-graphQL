@@ -121,6 +121,135 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
   }
 }
 
+const searchEmployeesFromElastic = async ({
+  indexName,
+  filterInput = {},
+  subRoleAdminId = null,
+  lastSeenStart = null,
+  lastSeenEnd = null,
+  sortField = "user.firstName.keyword",
+  sortOrder = "asc",
+  skip = 0,
+  limit = 10,
+}) => {
+  const must = [];
+  const mustNot = [];
+
+  console.log("Searching in index:", indexName);
+  console.log("Search parameters:", filterInput);
+  console.log("lastSeenStart:", lastSeenStart);
+  console.log("lastSeenEnd:", lastSeenEnd);
+
+  // Match search keyword (full name, email, civilIdOrPassport)
+  if (filterInput?.search) {
+    must.push({
+      multi_match: {
+        query: filterInput?.search?.trim(),
+        fields: [
+          "fullName", // assume you have a combined field
+          "email",
+          "civilIdOrPassport",
+        ],
+        type: "phrase_prefix",
+      },
+    });
+  }
+
+  if (filterInput?.empDesignation?.length > 0) {
+    must.push({ terms: { "empDesignation": filterInput?.empDesignation } });
+  }
+
+  if (filterInput?.vesselStatus?.length > 0) {
+    must.push({ terms: { "vesselStatus.keyword": filterInput?.vesselStatus } });
+  }
+
+  if (typeof filterInput?.isRegistered === "boolean") {
+    must.push({ term: { "isRegistered": filterInput?.isRegistered } });
+  }
+
+  if (filterInput?.country?.length > 0) {
+    must.push({ terms: { "country.keyword": filterInput?.country } });
+  }
+
+  if (lastSeenStart && lastSeenEnd) {
+    must.push({
+      range: {
+        "lastLoginAt": {
+          gte: lastSeenStart,
+          lte: lastSeenEnd,
+        },
+      },
+    });
+    // must.push({
+    //   term: { "isResetPasswordDialog": true },
+    // });
+  }
+
+  if (typeof filterInput?.showInvited === "boolean") {
+    must.push({
+      term: { "isResetPasswordDialog": !filterInput?.showInvited },
+    });
+  }
+
+  if (filterInput?.role?.length > 0) {
+    must.push({
+      bool: {
+        should: [
+          ...filterInput?.role?.includes("ADMIN")
+            ? [{ term: { "subRoles.keyword": subRoleAdminId } }]
+            : [],
+          ...filterInput?.role?.includes("LEARNER")
+            ? [{ term: { "role.keyword": "LEARNER" } }]
+            : [],
+        ],
+        minimum_should_match: 1,
+      },
+    });
+  }
+
+  if (filterInput?.vesselName?.length > 0) {
+    must.push({
+      terms: { "currentVessel": filterInput?.vesselName },
+    });
+  }
+
+  if (filterInput?.vesselType?.length > 0) {
+    must.push({
+      terms: {
+        "tyepOfVesselId": filterInput?.vesselType,
+      },
+    });
+  }
+
+  // Remove deleted or not approved
+  mustNot.push({ term: { "isDeleted": true } });
+  mustNot.push({ term: { "isSignupAdminAprroved": false } });
+
+  const query = {
+    bool: {
+      must,
+      must_not: mustNot,
+    },
+  };
+
+  const sort = [{ [sortField]: { order: sortOrder } }];
+
+  const result = await client.search({
+    index: indexName,
+    body: {
+      from: skip,
+      size: limit,
+      sort,
+      query,
+    },
+  });
+
+  return {
+    total: result.hits.total.value,
+    employees: result.hits.hits.map(hit => hit._source),
+  };
+};
+
 
 module.exports = {
   indexDocumenttoElasticSearch,
@@ -129,5 +258,6 @@ module.exports = {
   getDocumentfromElasticSearch,
   deleteByQueryFromElasticSearch,
   updateByQueryToElasticSearch,
+  searchEmployeesFromElastic,
   client
 };
