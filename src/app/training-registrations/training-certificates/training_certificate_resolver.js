@@ -269,11 +269,30 @@ module.exports.queries = {
                 },)
             }
             if (filterInput?.courseProgressId) {
-                courseProgressFilter.push({
-                    $match: {
-                        'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
+                courseProgressFilter.push(
+                    {
+                        $lookup: {
+                            from: 'overalltrainingprogresses',
+                            localField: 'trainingRegistration',
+                            foreignField: 'trainingRegistration',
+                            as: 'overallProgressInfo',
+                            pipeline: [
+                                { $match: { user: ObjectId(id) } }
+                            ],
+                        },
                     },
-                },)
+                    {
+                        $unwind: {
+                            path: '$overallProgressInfo',
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                    {
+                        $match: {
+                            'overallProgressInfo._id': ObjectId(filterInput?.courseProgressId),
+                        },
+                    }
+                );
             }
             if(filterInput?.isFromMigration !== undefined){
                 matchStage.push({
