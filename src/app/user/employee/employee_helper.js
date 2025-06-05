@@ -1945,7 +1945,7 @@ const softDeleteUsers = async (users, errors) => {
 
                         await deleteByQueryFromElasticSearch('users', {
                             terms: {
-                                userId: users  // users is an array
+                                userId: users 
                             }
                         });
 

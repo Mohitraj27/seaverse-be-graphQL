@@ -42,7 +42,7 @@ const { consentsforLearnerInitalLogin } = require('../email-template/consentsfor
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { encrypt,decrypt }= require("../../util/encryption_helper");
-const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
+const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -251,6 +251,55 @@ module.exports.mutations = {
                     UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
                 });
                 if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+
+                const document = {
+                                    employeeId: savedEmployee._id?.toString(),
+                                    UID: savedEmployee.UID,
+                                    designation: savedEmployee.designation,
+                                    empDesignation: savedEmployee.empDesignation?.toString(),
+                                    bulkId: savedEmployee.bulkId,
+                                    regType: savedEmployee.regType,
+                                    isActive: savedEmployee.isActive,
+                                    isDeleted: savedEmployee.isDeleted,
+                                    subscriber: savedEmployee.subscriber?.toString(),
+                                    createdAt: savedEmployee.createdAt,
+                                    updatedAt: savedEmployee.updatedAt,
+                
+                                    // Nested user fields
+                                    userId: savedEmployee.user?._id?.toString(),
+                                    firstName: savedEmployee.user?.firstName,
+                                    lastName: savedEmployee.user?.lastName,
+                                    email: savedEmployee.user?.email,
+                                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                                    country: savedEmployee.user?.country,
+                                    languagePreference: savedEmployee.user?.languagePreference,
+                                    role: savedEmployee.user?.role,
+                                    subRoles: savedEmployee.user?.subRoles,
+                                    isVerified: savedEmployee.user?.isVerified,
+                                    isRegistered: savedEmployee.user?.isRegistered,
+                                    superAdmin: savedEmployee.user?.superAdmin,
+                                    deleteRequest: savedEmployee.user?.deleteRequest,
+                                    isDeleted_user: savedEmployee.user?.isDeleted,
+                                    directSignup: savedEmployee.user?.directSignup,
+                                    contentlanguages: savedEmployee.user?.contentlanguages,
+                                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                                    vesselStatus: savedEmployee.user?.vesselStatus,
+                                    isEmailNotification: savedEmployee.user?.isEmailNotification,
+                                    isPushNotification: savedEmployee.user?.isPushNotification,
+                                    lastLoginAt: savedEmployee.user?.lastLoginAt,
+                                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                                    userCreatedAt: savedEmployee.user?.createdAt,
+                                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                                    indexedAt: new Date(),
+                                };
+
+                                try {
+                                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                                } catch (error) {
+                                    throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
+                                }
+
                 const result = await SignupRequest.create([{
                     firstName: encrypt(firstName),
                     lastName: encrypt(lastName),
