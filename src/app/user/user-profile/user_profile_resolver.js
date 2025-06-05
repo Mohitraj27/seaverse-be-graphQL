@@ -33,6 +33,7 @@ const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 
 module.exports.queries = {
@@ -607,6 +608,21 @@ module.exports.mutations = {
             user.isResetPasswordDialog = true;
 
             const updateUser = await user.save();
+
+            await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.isResetPasswordDialog = true;
+                `,
+                {
+                    match: {
+                    userId: user._id.toString(), 
+                    }
+                },
+                {
+                    password: user.password
+                }
+            );
 
             if (updateUser) {
                 return "Password updated successfully!";

@@ -185,7 +185,7 @@ const searchEmployeesFromElastic = async ({
     // });
   }
 
-  if (typeof filterInput?.showInvited === "boolean") {
+  if (typeof filterInput?.showInvited === "boolean" && filterInput?.showInvited===true) {
     must.push({
       term: { "isResetPasswordDialog": !filterInput?.showInvited },
     });
