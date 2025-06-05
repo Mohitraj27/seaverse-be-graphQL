@@ -42,6 +42,7 @@ const { consentsforLearnerInitalLogin } = require('../email-template/consentsfor
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { encrypt,decrypt }= require("../../util/encryption_helper");
+const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -462,6 +463,22 @@ module.exports.mutations = {
 
                         existingUser.lastLoginAt = Moment().format();
                         await existingUser.save({ session });
+
+                        await updateByQueryToElasticSearch(
+                            "users", 
+                            `
+                                ctx._source.lastLoginAt = params.lastLoginAt;
+                            `,
+                            {
+                                match: {
+                                userId: existingUser._id.toString(), 
+                                }
+                            },
+                            {
+                                lastLoginAt: Moment().format()
+                            }
+                        );
+
                         return await UserHelper.makeAuthUser(existingUser);
                     };
 
