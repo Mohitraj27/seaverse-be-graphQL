@@ -136,9 +136,9 @@ const searchEmployeesFromElastic = async ({
   const mustNot = [];
 
   console.log("Searching in index:", indexName);
-  console.log("Search parameters:", filterInput);
-  console.log("lastSeenStart:", lastSeenStart);
-  console.log("lastSeenEnd:", lastSeenEnd);
+  console.log("Search parameters in filter input now came---->", filterInput);
+  console.log("sortField:", sortField);
+  console.log("sortOrder:", sortOrder);
 
   // Match search keyword (full name, email, civilIdOrPassport)
   if (filterInput?.search) {
@@ -157,6 +157,10 @@ const searchEmployeesFromElastic = async ({
 
   if (filterInput?.empDesignation?.length > 0) {
     must.push({ terms: { "empDesignation": filterInput?.empDesignation } });
+  }
+
+  if (filterInput?.regType && filterInput?.regType != 0) {
+    must.push({ term: { "regType": filterInput?.regType } });
   }
 
   if (filterInput?.vesselStatus?.length > 0) {
@@ -180,9 +184,9 @@ const searchEmployeesFromElastic = async ({
         },
       },
     });
-    // must.push({
-    //   term: { "isResetPasswordDialog": true },
-    // });
+    must.push({
+      term: { "isResetPasswordDialog": true },
+    });
   }
 
   if (typeof filterInput?.showInvited === "boolean" && filterInput?.showInvited===true) {
@@ -233,6 +237,7 @@ const searchEmployeesFromElastic = async ({
   };
 
   const sort = [{ [sortField]: { order: sortOrder } }];
+  console.log("sort---------->", sort);
 
   const result = await client.search({
     index: indexName,

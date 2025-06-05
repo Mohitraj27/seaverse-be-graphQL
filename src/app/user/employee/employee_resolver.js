@@ -678,6 +678,11 @@ module.exports.queries = {
             const sortingStage = [];
             const sortOrder = sortInput?.sortOrder ?? 1;
 
+            const sortOrderMap = {
+                "1": "asc",
+                "-1": "desc",
+            };
+
             const fieldMapping = {
                 "FIRST_NAME": "user.firstName",
                 "DESIGNATION": "empDesignation.name",
@@ -688,8 +693,20 @@ module.exports.queries = {
                 "COUNTRY": "user.country",
             };
 
+            const esFieldMapping = {
+                "FIRST_NAME": "firstName.keyword",
+                "DESIGNATION": "designation.keyword",
+                "STATUS": "vesselStatus.keyword",
+                "USER_ROLE": "role.keyword",
+                "LAST_SEEN": "lastLoginAt",
+                "VESSEL_TYPE": "typeOfVesselName.keyword",
+                "COUNTRY": "country.keyword",
+            };
+
             const field = sortInput?.field ?? "FIRST_NAME";
             const fieldPath = fieldMapping[field];
+            const sortElasticField = esFieldMapping[field] || "user.firstName.keyword";
+            const sortElasticOrder = sortOrderMap[String(sortInput?.sortOrder)] || "asc";
 
             if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
 
@@ -1220,8 +1237,8 @@ module.exports.queries = {
                 subRoleAdminId: subRoleAdminId,
                 lastSeenStart:startDate,
                 lastSeenEnd:endDate,
-                sortField: "firstName.keyword",
-                sortOrder: "asc",
+                sortField: sortElasticField,
+                sortOrder: sortElasticOrder,
                 skip: 0,
                 limit: 20,
             });
