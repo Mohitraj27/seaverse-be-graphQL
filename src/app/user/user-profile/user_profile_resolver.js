@@ -33,6 +33,7 @@ const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
+const { encrypt, decrypt } = require("../../../util/encryption_helper");
 
 
 module.exports.queries = {
@@ -42,6 +43,7 @@ module.exports.queries = {
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
+                .select("-consents")
                 .populate({
                     path: "subRoles",
                     match: { isActive: true, isDeleted: { $ne: true } },
@@ -65,6 +67,12 @@ module.exports.queries = {
             }
 
             existingUser.employee = employeeData || null;
+
+            for(let key in existingUser) {
+                if(key==="firstName" || key==="lastName" || key==="email" || key==="civilIdOrPassport") {
+                    existingUser[key]=decrypt(existingUser[key]);
+                }
+            }
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {

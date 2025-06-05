@@ -43,6 +43,7 @@ const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/conse
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { encrypt,decrypt }= require("../../util/encryption_helper");
 const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
+const { encrypt } = require("../../util/encryption_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 

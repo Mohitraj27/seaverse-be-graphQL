@@ -2940,7 +2940,7 @@ module.exports.mutations = {
                 subscriber: subscriberId,
                 firstName: input.user.firstName,
                 lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport?.toUpperCase(),
+                civilIdOrPassport: input.user.civilIdOrPassport,
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
