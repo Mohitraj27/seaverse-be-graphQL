@@ -73,6 +73,8 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
+
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -292,10 +294,10 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
 const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
     isComplete: false,
     isCertificateGenerated: false,
-    learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
-    training: trainingId,
-    user: userId,
-    trainingRegistration: trainingRegistrationIds[0],
+    learningPlan: enrollData.learningPlan ? [new mongodbObject(enrollData.learningPlan)] : [],
+    training: new mongodbObject(trainingId),
+    user: new mongodbObject(userId),
+    trainingRegistration: new mongodbObject(trainingRegistrationIds[0]),
     status: "NOT_STARTED",
     isEnrolled: true,
     progressPercentage: 0,
@@ -411,18 +413,63 @@ async function enrollUsers(enrollDataArray, context) {
             }
         }
 
+        console.time('OTP insertion')
         let allEnrollments = [];
-        if (insertedEnrollments.length > 0) {
-            const insertedDocs = await OverallTrainingProgress.insertMany(
-                insertedEnrollments,
-                { ordered: false }
-            );
-            allEnrollments.push(...insertedDocs);
-        }
 
+        const MONGO_URI = 'mongodb://localhost:27017';
+        const DB_NAME = 'seaverse';
+        const COLLECTION_NAME = 'overalltrainingprogresses';
+        const BATCH_SIZE = 200;
+
+        const run = async () => {
+            const client = new MongoClient(MONGO_URI);
+
+            try {
+                await client.connect();
+                const db = client.db(DB_NAME);
+                const collection = db.collection(COLLECTION_NAME);
+
+                console.time('Batch Insert');
+
+                const insertPromises = [];
+
+                for (let i = 0; i < insertedEnrollments.length; i += BATCH_SIZE) {
+                    const batch = insertedEnrollments.slice(i, i + BATCH_SIZE);
+                    insertPromises.push(collection.insertMany(batch, { ordered: false }));
+                }
+
+                const results = await Promise.all(insertPromises);
+
+                console.log('results');
+                // console.log(results);
+
+                for (const result of results) {
+                    allEnrollments.push(...result.ops ?? result.insertedDocs ?? []);
+                }
+
+                console.timeEnd('Batch Insert');
+            } catch (err) {
+                console.error('❌ Error inserting batches:', err);
+            } finally {
+                await client.close();
+            }
+
+            return allEnrollments;
+        };
+
+        run().then((enrollments) => {
+            console.log('✅ Total Inserted Documents:', enrollments.length);
+        });
+
+
+
+        console.timeEnd('OTP insertion')
+
+        console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
         }
+        console.timeEnd('OTP bulkWrite LP')
 
         const duplicates = await OverallTrainingProgress.aggregate([
             {
@@ -486,10 +533,12 @@ async function enrollUsers(enrollDataArray, context) {
                 }
             }
 
+            console.time('dup removal')
             if (mergeBulkOps.length > 0) {
                 await OverallTrainingProgress.bulkWrite(mergeBulkOps);
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
+            console.timeEnd('dup removal')
         }
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
@@ -515,7 +564,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
             const emailsToSend = emailBatch.map(email => {
                 let html;
                 const coursesData = JSON.parse(email.courses);
-                
+
                 switch (email.action) {
                     case 'ENROLL':
                         html = courseEnrollment({
@@ -692,6 +741,8 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
+    console.log('reached here 123!');
+
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -738,11 +789,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 let evaluations;
                 try {
 
+                    console.time('evaluateConditionalCustomFields')
                     evaluations = await Promise.all(
                         userConditions.map(user =>
                             evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                         )
                     );
+                    console.timeEnd('evaluateConditionalCustomFields')
 
                 } catch (error) {
                     console.log(error);
@@ -787,9 +840,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                             updatedAt: new Date()
                         }));
 
+                    console.time('LearningPlanAssignmentInsertion')
                     if (newAssignments.length > 0) {
                         const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
+                    console.timeEnd('LearningPlanAssignmentInsertion')
 
                     usersToEnroll.push(...userIds);
                 }
@@ -893,7 +948,9 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 // return true;
             }
 
+
             filteredPlans.push(true);
+
 
         } catch (error) {
             console.log('error');
@@ -938,7 +995,9 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
 
+    console.time('enrollUsersInFilterLP')
     await enrollUsers(enrollmentData, context);
+    console.timeEnd('enrollUsersInFilterLP')
 
     if (removeUsersData?.length > 0) {
         const bulkUpdateOps = [];
@@ -985,7 +1044,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    // await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
@@ -3469,6 +3528,7 @@ module.exports = {
         let subscriber_Id;
         if (subscriber) subscriber_Id = subscriber._id;
 
+        console.time('userValidationLoop');
         for (const user of users) {
 
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
@@ -3680,7 +3740,7 @@ module.exports = {
             }
             userIndex++;
         };
-
+        console.timeEnd('userValidationLoop');
 
         if (errors.length > 0) {
 
@@ -3698,23 +3758,23 @@ module.exports = {
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Failed",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: true,
-                description: `${errors[0]}`,
-                notificationType: 'BULK_IMPORT_FAILED',
-                status: "FAILED",
-                icon: notificationiconEnum.ERROR,
-                creatorId: userInfo._id,
-            });
+            // await sendNotificationOnBULK({
+            //     subscriber: subscriberId,
+            //     action: "Bulk Import Failed",
+            //     createdBy: adminUser?._id,
+            //     uploadedBy: adminUser?._id,
+            //     isError: true,
+            //     description: `${errors[0]}`,
+            //     notificationType: 'BULK_IMPORT_FAILED',
+            //     status: "FAILED",
+            //     icon: notificationiconEnum.ERROR,
+            //     creatorId: userInfo._id,
+            // });
 
-            throw CustomError(
-                ErrorName.VALIDATION_ERROR,
-                `${errors[0]}`
-            );
+            // throw CustomError(
+            //     ErrorName.VALIDATION_ERROR,
+            //     `${errors[0]}`
+            // );
 
 
         }
@@ -3733,13 +3793,17 @@ module.exports = {
 
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
+            console.time("bulkInsertUsers")
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
+            console.timeEnd("bulkInsertUsers")
 
 
             insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
 
 
+            console.time("bulkUpdateUsers")
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
+            console.timeEnd("bulkUpdateUsers");
 
 
             if (updatedEmpIds.length > 0) {
@@ -3841,9 +3905,11 @@ module.exports = {
                     }
                 }
 
+                console.time('vesselBulkWrite')
                 if (userVesselsInsert.length > 0) {
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
                 }
+                console.timeEnd('vesselBulkWrite')
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
@@ -3868,12 +3934,15 @@ module.exports = {
                 });
 
 
+                console.time('employeesToInsert')
                 await Employee.bulkWrite(employeesToInsert, { session });
+                console.timeEnd('employeesToInsert')
 
 
                 const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
 
 
+                console.time('generateEmployeeUID')
                 const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
                     const UID = await generateEmployeeUID({ subscriberId, session });
                     return {
@@ -3884,9 +3953,12 @@ module.exports = {
                         }
                     };
                 }));
+                console.timeEnd('generateEmployeeUID')
 
 
+                console.time('empBulkWriteuidUpdates')
                 await Employee.bulkWrite(uidUpdates, { session });
+                console.timeEnd('empBulkWriteuidUpdates')
 
 
             } else {
@@ -3954,7 +4026,9 @@ module.exports = {
 
                 });
 
+                console.time('filterPlans')
                 const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);
@@ -3965,101 +4039,101 @@ module.exports = {
 
 
 
-            if (passwordEmailList.length > 0) {
+            // if (passwordEmailList.length > 0) {
 
 
-                await sendBulkEmails(passwordEmailList);
+            //     await sendBulkEmails(passwordEmailList);
 
 
-            }
+            // }
 
 
         });
 
-        if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
+        // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: userCount,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers.length} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: userCount,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers.length} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-        if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
+        // if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: 0,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: 0,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-        if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
+        // if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
-            })
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
+        //     })
 
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        }
+        // }
 
     },
 
@@ -4085,10 +4159,10 @@ module.exports = {
 
                     rowIndex++;
 
-                    if (rowIndex > MAX_ROWS) {
-                        validationErrors.push("The CSV file exceeds the maximum allowed row limit of 1000.");
-                        return;
-                    }
+                    // if (rowIndex > MAX_ROWS) {
+                    //     validationErrors.push("The CSV file exceeds the maximum allowed row limit of 1000.");
+                    //     return;
+                    // }
 
                     isEmptyFile = false;
 

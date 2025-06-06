@@ -81,6 +81,11 @@ const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
+
+const { setupQueues, publishToQueue, publishToExchange } = require('./rabbitMq_service');
+const { EXCHANGES } = require('../../../util/rabbitmq_helper');
+const { ImportJob } = require("./import_job_model");
+
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -788,111 +793,111 @@ module.exports.queries = {
                 sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
             }
             const results = await fetchResult([
-                    {
-                        $match: filterConditions,
+                {
+                    $match: filterConditions,
+                },
+                {
+                    $lookup: {
+                        from: "designations",
+                        localField: "empDesignation",
+                        foreignField: "_id",
+                        as: "empDesignation",
                     },
-                    {
-                        $lookup: {
-                            from: "designations",
-                            localField: "empDesignation",
-                            foreignField: "_id",
-                            as: "empDesignation",
-                        },
+                },
+                {
+                    $unwind: {
+                        path: "$empDesignation",
+                        preserveNullAndEmptyArrays: true
                     },
-                    {
-                        $unwind: {
-                            path: "$empDesignation",
-                            preserveNullAndEmptyArrays: true
-                        },
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "user",
                     },
-                    {
-                        $lookup: {
-                            from: "users",
-                            localField: "user",
-                            foreignField: "_id",
-                            as: "user",
-                        },
+                },
+                {
+                    $unwind: "$user",
+                },
+                {
+                    $match: {
+                        "user.isDeleted": { $ne: true },
+                        "user.role": { $in: ["LEARNER", "ADMIN"] },
+                        "user.isSignupAdminAprroved": { $ne: false },
+                        ...(filterInput?.vesselStatus?.length > 0 && {
+                            "user.vesselStatus": { $in: filterInput.vesselStatus },
+                        }),
                     },
-                    {
-                        $unwind: "$user",
-                    },
-                    {
-                        $match: {
-                            "user.isDeleted": { $ne: true },
-                            "user.role": { $in: ["LEARNER", "ADMIN"] },
-                            "user.isSignupAdminAprroved": { $ne: false },
-                            ...(filterInput?.vesselStatus?.length > 0 && {
-                                "user.vesselStatus": { $in: filterInput.vesselStatus },
-                            }),
-                        },
-                    },
-                    ...(filterInput?.search
-                        ? [
-                            {
-                                $match: {
-                                    $or: [
-                                        {
-                                            $expr: {
-                                                $regexMatch: {
-                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                    regex: ".*" + sanitizedSearch + ".*",
-                                                    options: "i",
-                                                },
+                },
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
                                             },
                                         },
-                                        {
-                                            "user.email": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
                                         },
-                                        {
-                                            "user.civilIdOrPassport": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        }
-                                    ],
-                                },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }
+                                ],
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.isRegistered !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.isRegistered": filterInput.isRegistered,
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.country !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.country": {$in : filterInput?.country},
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.country !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.country": { $in: filterInput?.country },
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.lastSeen
-                        ? [
-                            {
-                                $match: {
-                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                    "user.isResetPasswordDialog": { $ne: false },
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
                             },
-                        ]
-                        : []),
-                    {
-                        $lookup: {
-                            from: "subroles",
-                            localField: "user.subRoles",
-                            foreignField: "_id",
-                            as: "user.subRoles",
-                        }
-                    },
+                        },
+                    ]
+                    : []),
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
 
                 {
                     $lookup: {
@@ -2454,7 +2459,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                         if (!sendmailforApproval) {
                             throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                         }
-                    }else{
+                    } else {
                         console.log("Multiple users deletion was not part of the initial implementation, so no email will be sent.");
                     }
 
@@ -2670,53 +2675,89 @@ module.exports.mutations = {
             const emailsArray = Array.from(emails);
 
 
+            // Create a job ID for tracking
+            const jobId = uuidv4();
 
-            const child = fork("./src/app/user/employee/csv_import_process.js");
+            // Store job metadata in database
+            await ImportJob.create({
+                jobId,
+                subscriber: subscriberId,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "PROCESSING",
+                totalRecords: users.length,
+                description: "Processing CSV import"
+            });
 
-            child.send({
+            // Publish message to RabbitMQ
+            await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
+                jobId,
                 users,
                 emailsArray,
                 empIdsArray,
                 subscriberId,
                 userId,
+                userInfo,
                 newFileName,
                 saveCSV,
-                context
-            });
-
-            child.on("message", async message => {
-                if (message.type === 'NOTIFICATION') {
-                    // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
-                    const notification = message?.data?.onNotification;
-
-                    if (notification?.createdAt) {
-                        notification.createdAt = new Date(notification.createdAt).getTime().toString();
-                    }
-
-                    if (notification?.updatedAt) {
-                        notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
-                    }
-                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
-                }
-
-                if (message.type === 'EMAIL') {
-
-                    SqliteEmailHelper.insertEmails(message.data.email);
-                    const emails = SqliteEmailHelper.fetchEmailBatch();
-
-                    await sendNodeEmailBulk({ subject: message.data.subject });
-
-                }
-            });
-
-            child.on("error", error => {
-                console.error("Error in child process:", error);
+                context,
+                timestamp: new Date().toISOString()
             });
 
             return {
                 status: "The bulk import is being processed in the background. You can continue working.",
+                // jobId
             };
+
+            // const child = fork("./src/app/user/employee/csv_import_process.js");
+
+            // child.send({
+            //     users,
+            //     emailsArray,
+            //     empIdsArray,
+            //     subscriberId,
+            //     userId,
+            //     newFileName,
+            //     saveCSV,
+            //     context
+            // });
+
+            // child.on("message", async message => {
+            //     if (message.type === 'NOTIFICATION') {
+            //         // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
+            //         const notification = message?.data?.onNotification;
+
+            //         if (notification?.createdAt) {
+            //             notification.createdAt = new Date(notification.createdAt).getTime().toString();
+            //         }
+
+            //         if (notification?.updatedAt) {
+            //             notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
+            //         }
+            //         await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+            //     }
+
+            //     if (message.type === 'EMAIL') {
+
+            //         SqliteEmailHelper.insertEmails(message.data.email);
+            //         const emails = SqliteEmailHelper.fetchEmailBatch();
+
+            //         await sendNodeEmailBulk({ subject: message.data.subject });
+
+            //     }
+            // });
+
+            // child.on("error", error => {
+            //     console.error("Error in child process:", error);
+            // });
+
+            // return {
+            //     status: "The bulk import is being processed in the background. You can continue working.",
+            // };
+
         } catch (error) {
+            console.log(error);
             throw Error(error.message);
         }
     },
@@ -3693,7 +3734,7 @@ module.exports.mutations = {
                             else: 'Inactive',
                         },
                     },
-                    'Country':{
+                    'Country': {
                         $cond: {
                             if: { $eq: ['$country', null] },
                             then: ' ',
