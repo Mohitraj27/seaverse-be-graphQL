@@ -80,6 +80,7 @@ module.exports.mutations = {
                         'users', 
                         `
                             ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselStatus = params.vesselStatus;
                             ctx._source.vesselName = params.vesselName;
                             ctx._source.vesselIsActive = params.vesselIsActive;
@@ -132,6 +133,7 @@ module.exports.mutations = {
                         'users', 
                         `
                             ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselStatus = params.vesselStatus;
                             ctx._source.vesselName = params.vesselName;
                             ctx._source.vesselIsActive = params.vesselIsActive;
@@ -187,6 +189,7 @@ module.exports.mutations = {
                         'users', 
                         `
                             ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselStatus = params.vesselStatus;
                             ctx._source.vesselName = params.vesselName;
                             ctx._source.vesselIsActive = params.vesselIsActive;
