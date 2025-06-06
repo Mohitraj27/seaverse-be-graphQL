@@ -35,6 +35,7 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.update({
       index: indexName,
+      refresh: true,
       id: id.toString(),
       doc: document,
     });
@@ -49,6 +50,7 @@ async function deleteDocumenttoElasticSearch(indexName, id) {
   try {
     const response = await client.delete({
       index: indexName,
+      refresh: true,
       id: id.toString(),
     });
     console.log(`Deleted from ${indexName}:`, response);

@@ -73,7 +73,7 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch } =require('../../../util/elastic_helper');
+const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch } =require('../../../util/elastic_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -2816,10 +2816,10 @@ module.exports = {
         let newVessel;
 
         //Encryption logic
-        input.user.firstName = input.user.firstName ?? encrypt(input.user.firstName);
-        input.user.lastName = input.user.lastName ?? encrypt(input.user.lastName);
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport ?? encrypt(input.user.civilIdOrPassport);
-        input.user.email = input.user.email ?? encrypt(input.user.email);
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
+        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName):"";
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
+        input.user.email = input.user.email && encrypt(input.user.email);
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
@@ -3048,8 +3048,7 @@ module.exports = {
             userCreatedAt: savedEmployee.user?.createdAt,
             userUpdatedAt: savedEmployee.user?.updatedAt,
         };
-
-        await updateDocumentToElasticSearch("users", savedEmployee._id, document);
+        await updateDocumenttoElasticSearch("users", savedEmployee._id, document);
         } catch (err) {
         console.error("Error updating document in Elastic:", err);
         }
