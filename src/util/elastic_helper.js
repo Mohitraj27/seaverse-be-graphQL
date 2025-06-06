@@ -3,6 +3,7 @@ const {
   CustomError,
   ErrorName
 } = require("../util");
+const { encrypt } = require('./encryption_helper');
 
 require("dotenv").config();
 
@@ -19,6 +20,7 @@ async function indexDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.index({
       index: indexName,
+      refresh: true,
       id: id.toString(),
       document,
     });
@@ -33,6 +35,7 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.update({
       index: indexName,
+      refresh: true,
       id: id.toString(),
       doc: document,
     });
@@ -47,6 +50,7 @@ async function deleteDocumenttoElasticSearch(indexName, id) {
   try {
     const response = await client.delete({
       index: indexName,
+      refresh: true,
       id: id.toString(),
     });
     console.log(`Deleted from ${indexName}:`, response);
@@ -86,6 +90,7 @@ async function deleteByQueryFromElasticSearch(indexName, query) {
   try {
     const response = await client.deleteByQuery({
       index: indexName,
+      refresh: true,
       body: {
         query: query
       }
@@ -102,6 +107,7 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
   try {
     const response = await client.updateByQuery({
       index: indexName,
+      refresh: true,
       body: {
         script: {
           source: scriptSource,
@@ -144,9 +150,9 @@ const searchEmployeesFromElastic = async ({
   if (filterInput?.search) {
     must.push({
       multi_match: {
-        query: filterInput?.search?.trim(),
+        query:encrypt(filterInput?.search?.trim()),
         fields: [
-          "fullName", // assume you have a combined field
+          "fullName",
           "email",
           "civilIdOrPassport",
         ],
@@ -249,9 +255,11 @@ const searchEmployeesFromElastic = async ({
     },
   });
 
+  console.log("result---->", result);
+
   return {
-    total: result.hits.total.value,
-    employees: result.hits.hits.map(hit => hit._source),
+    total: result?.hits?.total?.value,
+    employees: result?.hits?.hits?.map(hit => hit._source),
   };
 };
 

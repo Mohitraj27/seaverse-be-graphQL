@@ -131,7 +131,7 @@ module.exports.mutations = {
                         throw CustomError(ErrorName.USER_ALREADY_EXIST, 'Employee with this EmployeeID already exists.');
                     }
                     const updateUser = {
-                        civilIdOrPassport: employeeId?.toUpperCase(),
+                        civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
                         isSignupAdminAprroved: true,
                         isRegistered,
                         vesselStatus: vesselStatus || null,
@@ -197,7 +197,7 @@ module.exports.mutations = {
                         {
                             designation: designationObject?.name,
                             empDesignation: designation,
-                            civilIdOrPassport: employeeId?.toUpperCase(),
+                            civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
                             isSignupAdminAprroved: true,
                             isRegistered,
                             vesselStatus: vesselStatus || null,
