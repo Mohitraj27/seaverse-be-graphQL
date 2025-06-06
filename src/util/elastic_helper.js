@@ -3,6 +3,7 @@ const {
   CustomError,
   ErrorName
 } = require("../util");
+const { encrypt } = require('./encryption_helper');
 
 require("dotenv").config();
 
@@ -147,9 +148,9 @@ const searchEmployeesFromElastic = async ({
   if (filterInput?.search) {
     must.push({
       multi_match: {
-        query: filterInput?.search?.trim(),
+        query:encrypt(filterInput?.search?.trim()),
         fields: [
-          "fullName", // assume you have a combined field
+          "fullName",
           "email",
           "civilIdOrPassport",
         ],
