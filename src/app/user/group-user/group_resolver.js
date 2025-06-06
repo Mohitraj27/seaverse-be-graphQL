@@ -36,6 +36,7 @@ const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assi
 const { enrollUsers } = require('../employee/employee_helper');
 const { filterLearningPlans } = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+const { decrypt, encrypt } = require('../../../util/encryption_helper');
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
 
     if (!plan?.conditionalCustomFields) {
@@ -246,10 +247,10 @@ module.exports.queries = {
                 }));
             }
 
-            const data = userDetails.map(user => ({
-                "First Name": user?.firstName,
-                "Last Name": user?.lastName,
-                "Email": user?.email,
+            const data = userDetails?.map(user => ({
+                "First Name": decrypt(user?.firstName),
+                "Last Name": decrypt(user?.lastName),
+                "Email": decrypt(user?.email),
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
                 "Last Login Date (UTC)": formatDate(user?.lastLoginAt),
@@ -398,7 +399,18 @@ module.exports.queries = {
                     totalCount = paginatedGroups.length;
                     break;
             }
+            groups = groups.map(group => {
+                const decryptedGroup = { ...group };
 
+                if (decryptedGroup.createdBy) {
+                    decryptedGroup.createdBy = {
+                        ...decryptedGroup.createdBy,
+                        firstName: decryptedGroup.createdBy.firstName ? decrypt(decryptedGroup.createdBy.firstName) : '',
+                        lastName: decryptedGroup.createdBy.lastName ? decrypt(decryptedGroup.createdBy.lastName) : ''
+                    };
+                }
+                return decryptedGroup;
+            });
             return {
                 status: "Success",
                 totalCount,
@@ -482,7 +494,7 @@ module.exports.queries = {
                 throw CustomError(ErrorName.USER_ID_REQUIRED);
             }
 
-            const existingUser = await User.findById(userId).populate({
+            let existingUser = await User.findById(userId).populate({
                 path: 'currentVessel',
                 populate: {
                     path: 'typeOfVessel',
@@ -537,6 +549,9 @@ module.exports.queries = {
                     customGroupNames = customGroup.map(group => group.groupName);
                 }
             }
+            existingUser.firstName = existingUser?.firstName ?? decrypt(existingUser?.firstName);
+            existingUser.lastName = existingUser?.lastName ?? decrypt(existingUser?.lastName);
+            existingUser.email = existingUser?.email ?? decrypt(existingUser?.email);
             if (existingUser && user && designation) {
                 return {
                     designation: designationName ?? null,
@@ -588,8 +603,16 @@ module.exports.queries = {
                 group.groupName && regex.test(group.groupName)
             );
         }
+        const decryptedItems = users?.map(user => {
+            return {
+                ...user,
+                firstName: decrypt(user?.firstName),
+                lastName: decrypt(user?.lastName),
+                email: decrypt(user?.email?.trim())
+            };
+        });
         return {
-            users: users,
+            users: decryptedItems,
             autoSyncedGroups: filteredAutoSyncedGroups,
         };
 
@@ -692,7 +715,16 @@ module.exports.queries = {
                 totalCount = members.length;
             }
 
-            paginatedMembers = members.slice(skip, skip + limit);
+            let paginatedMembers = members.slice(skip, skip + limit);
+            paginatedMembers = paginatedMembers?.map(member => {
+                const data = {
+                    ...member,
+                    firstName: decrypt(member?.firstName),
+                    lastName: member?.lastName ?? decrypt(member?.lastName),
+                    email: decrypt(member?.email)
+                };
+                return data;
+            })
             return {
                 status: "Success",
                 totalCount: members.length,
@@ -700,7 +732,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw CustomError(error);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_GROUP_MEMBERS,error.message);
         }
     },
 

@@ -33,6 +33,7 @@ const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 
 module.exports.queries = {
@@ -460,6 +461,28 @@ module.exports.mutations = {
             existingUser.isResetPasswordDialog = true;
 
             await existingUser.save();
+
+            try {
+                await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.password = params.password;
+                    ctx._source.isResetPasswordDialog = params.isResetPasswordDialog;
+                `,
+                {
+                    term: {
+                    userId: existingUser._id.toString() 
+                    }
+                },
+                {
+                    password: existingUser.password,
+                    isResetPasswordDialog: true
+                }
+            );
+            } catch (error) {
+                throw CustomError(ErrorName.SERVER_ERROR, error.message);
+            }
+
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,
@@ -589,6 +612,25 @@ module.exports.mutations = {
             user.isResetPasswordDialog = true;
 
             const updateUser = await user.save();
+
+            try {
+                 await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.isResetPasswordDialog = true;
+                `,
+                {
+                    match: {
+                    userId: user._id.toString(), 
+                    }
+                },
+                {
+                    password: user.password
+                }
+            );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED);
+            }
 
             if (updateUser) {
                 return "Password updated successfully!";

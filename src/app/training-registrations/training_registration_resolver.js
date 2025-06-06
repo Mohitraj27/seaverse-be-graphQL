@@ -49,6 +49,7 @@ const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
 const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
+const { decrypt } = require('../../util/encryption_helper');
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
 
@@ -181,9 +182,19 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
+        const decryptedFormattedResults = formattedResults?.map(user => ({
+            id: user.id,
+            firstName: decrypt(user.firstName),
+            lastName: decrypt(user.lastName),
+            email: decrypt(user.email),
+            status: user.status,
+            isRegistered: user.isRegistered,
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted,
+        }));
         return {
             countOfUsers: formattedResults.length || 0,
-            users: formattedResults,
+            users: decryptedFormattedResults,
         };
     },
     getTrainingRegistration: async ({ id }, context) => {

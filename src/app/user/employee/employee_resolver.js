@@ -65,7 +65,7 @@ const { filterLearningPlans } = require("../employee/employee_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
-const { last } = require("lodash");
+const { last, get, filter } = require("lodash");
 const { DeleteRequestHistory } = require("./delete_request_history_model");
 const aws_helper = require("../../../util/aws_helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
@@ -81,6 +81,8 @@ const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
+const { decrypt, encrypt } = require("../../../util/encryption_helper");
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch,searchEmployeesFromElastic  } = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -676,6 +678,11 @@ module.exports.queries = {
             const sortingStage = [];
             const sortOrder = sortInput?.sortOrder ?? 1;
 
+            const sortOrderMap = {
+                "1": "asc",
+                "-1": "desc",
+            };
+
             const fieldMapping = {
                 "FIRST_NAME": "user.firstName",
                 "DESIGNATION": "empDesignation.name",
@@ -686,8 +693,20 @@ module.exports.queries = {
                 "COUNTRY": "user.country",
             };
 
+            const esFieldMapping = {
+                "FIRST_NAME": "firstName.keyword",
+                "DESIGNATION": "designation.keyword",
+                "STATUS": "vesselStatus.keyword",
+                "USER_ROLE": "role.keyword",
+                "LAST_SEEN": "lastLoginAt",
+                "VESSEL_TYPE": "typeOfVesselName.keyword",
+                "COUNTRY": "country.keyword",
+            };
+
             const field = sortInput?.field ?? "FIRST_NAME";
             const fieldPath = fieldMapping[field];
+            const sortElasticField = esFieldMapping[field] || "user.firstName.keyword";
+            const sortElasticOrder = sortOrderMap[String(sortInput?.sortOrder)] || "asc";
 
             if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
 
@@ -788,111 +807,111 @@ module.exports.queries = {
                 sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
             }
             const results = await fetchResult([
-                    {
-                        $match: filterConditions,
+                {
+                    $match: filterConditions,
+                },
+                {
+                    $lookup: {
+                        from: "designations",
+                        localField: "empDesignation",
+                        foreignField: "_id",
+                        as: "empDesignation",
                     },
-                    {
-                        $lookup: {
-                            from: "designations",
-                            localField: "empDesignation",
-                            foreignField: "_id",
-                            as: "empDesignation",
-                        },
+                },
+                {
+                    $unwind: {
+                        path: "$empDesignation",
+                        preserveNullAndEmptyArrays: true
                     },
-                    {
-                        $unwind: {
-                            path: "$empDesignation",
-                            preserveNullAndEmptyArrays: true
-                        },
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "user",
                     },
-                    {
-                        $lookup: {
-                            from: "users",
-                            localField: "user",
-                            foreignField: "_id",
-                            as: "user",
-                        },
+                },
+                {
+                    $unwind: "$user",
+                },
+                {
+                    $match: {
+                        "user.isDeleted": { $ne: true },
+                        "user.role": { $in: ["LEARNER", "ADMIN"] },
+                        "user.isSignupAdminAprroved": { $ne: false },
+                        ...(filterInput?.vesselStatus?.length > 0 && {
+                            "user.vesselStatus": { $in: filterInput.vesselStatus },
+                        }),
                     },
-                    {
-                        $unwind: "$user",
-                    },
-                    {
-                        $match: {
-                            "user.isDeleted": { $ne: true },
-                            "user.role": { $in: ["LEARNER", "ADMIN"] },
-                            "user.isSignupAdminAprroved": { $ne: false },
-                            ...(filterInput?.vesselStatus?.length > 0 && {
-                                "user.vesselStatus": { $in: filterInput.vesselStatus },
-                            }),
-                        },
-                    },
-                    ...(filterInput?.search
-                        ? [
-                            {
-                                $match: {
-                                    $or: [
-                                        {
-                                            $expr: {
-                                                $regexMatch: {
-                                                    input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
-                                                    regex: ".*" + sanitizedSearch + ".*",
-                                                    options: "i",
-                                                },
+                },
+                ...(filterInput?.search
+                    ? [
+                        {
+                            $match: {
+                                $or: [
+                                    {
+                                        $expr: {
+                                            $regexMatch: {
+                                                input: { $concat: [{ $ifNull: ["$user.firstName", ""] }, " ", { $ifNull: ["$user.lastName", ""] }] },
+                                                regex: ".*" + sanitizedSearch + ".*",
+                                                options: "i",
                                             },
                                         },
-                                        {
-                                            "user.email": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
+                                    },
+                                    {
+                                        "user.email": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
                                         },
-                                        {
-                                            "user.civilIdOrPassport": {
-                                                $regex: ".*" + sanitizedSearch + ".*",
-                                                $options: "i",
-                                            },
-                                        }
-                                    ],
-                                },
+                                    },
+                                    {
+                                        "user.civilIdOrPassport": {
+                                            $regex: ".*" + sanitizedSearch + ".*",
+                                            $options: "i",
+                                        },
+                                    }
+                                ],
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.isRegistered !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.isRegistered": filterInput.isRegistered,
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.isRegistered !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.isRegistered": filterInput.isRegistered,
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.country !== undefined
-                        ? [
-                            {
-                                $match: {
-                                    "user.country": {$in : filterInput?.country},
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.country !== undefined
+                    ? [
+                        {
+                            $match: {
+                                "user.country": { $in: filterInput?.country },
                             },
-                        ]
-                        : []),
-                    ...(filterInput?.lastSeen
-                        ? [
-                            {
-                                $match: {
-                                    "user.lastLoginAt": { $gte: startDate, $lte: endDate },
-                                    "user.isResetPasswordDialog": { $ne: false },
-                                },
+                        },
+                    ]
+                    : []),
+                ...(filterInput?.lastSeen
+                    ? [
+                        {
+                            $match: {
+                                "user.lastLoginAt": { $gte: startDate, $lte: endDate },
+                                "user.isResetPasswordDialog": { $ne: false },
                             },
-                        ]
-                        : []),
-                    {
-                        $lookup: {
-                            from: "subroles",
-                            localField: "user.subRoles",
-                            foreignField: "_id",
-                            as: "user.subRoles",
-                        }
-                    },
+                        },
+                    ]
+                    : []),
+                {
+                    $lookup: {
+                        from: "subroles",
+                        localField: "user.subRoles",
+                        foreignField: "_id",
+                        as: "user.subRoles",
+                    }
+                },
 
                 {
                     $lookup: {
@@ -1138,6 +1157,93 @@ module.exports.queries = {
                 ] : []),
                 ...sortingStage,
             ]);
+            if (results.employees?.length > 0) {
+                results.employees = results.employees.map(employee => {
+
+                    if (employee.user) {
+                        if (employee.user.firstName) {
+                            employee.user.firstName = decrypt(employee.user.firstName);
+                        }
+
+                        if (employee.user.lastName) {
+                            employee.user.lastName = decrypt(employee.user.lastName);
+                        }
+
+                        if (employee.user.email) {
+                            employee.user.email = decrypt(employee.user.email);
+                        }
+                    }
+
+                    return employee;
+                });
+            }
+
+            console.log(encrypt(filterInput?.search), "filterInput.search");
+            console.log(filterInput?.empDesignation?.[0], "filterInput.empDesignation");
+            const filterClauses = [];
+            if (filterInput?.empDesignation) {
+                filterClauses.push({
+                    term: { empDesignation: filterInput.empDesignation?.[0] } // multiple values using 'terms'
+                });
+            }
+            // const getUsers = await client.search({
+            //     index: "users",
+            //     from: parseInt(skip, 10),
+            //     size: parseInt(limit, 10),
+            //     body: {
+            //         query: {
+            //             bool: {
+            //                 must: filterInput?.search?.trim()
+            //                     ? [
+            //                         {
+            //                             multi_match: {
+            //                                 query: encrypt(filterInput.search),
+            //                                 type: "phrase_prefix",
+            //                                 fields: [
+            //                                     "firstName",
+            //                                     "lastName",
+            //                                     "email",
+            //                                     "civilIdOrPassport",
+            //                                 ],
+            //                             },
+            //                         },
+            //                     ]
+            //                     : [{ match_all: {} }],
+            //                 ...(filterClauses.length > 0 && { filter: filterClauses })
+            //             },
+            //         },
+            //     },
+            // });
+
+
+            // console.log("getUsers---------->", getUsers);
+            // console.log(getUsers.hits.hits);
+
+            console.log("filterInput------------->", filterInput);
+
+            let subRoleAdminId = null;
+            if (filterInput?.role?.includes("ADMIN")) {
+                subRoleAdminId = await  SubRole.findOne({
+                    name: "ADMIN"
+                }).select("_id").lean();
+                if (subRoleAdminId) {
+                    subRoleAdminId = subRoleAdminId._id;
+                }   
+            }
+
+            const elasticResults = await searchEmployeesFromElastic({
+                indexName: "users",
+                filterInput: filterInput,
+                subRoleAdminId: subRoleAdminId,
+                lastSeenStart:startDate,
+                lastSeenEnd:endDate,
+                sortField: sortElasticField,
+                sortOrder: sortElasticOrder,
+                skip: 0,
+                limit: 20,
+            });
+
+            console.log("Elastic Results:", elasticResults);
 
             return {
                 employees: results.employees,
@@ -1590,12 +1696,23 @@ module.exports.queries = {
             const notifications = [];
             await Promise.all(
                 emails.map(async (email) => {
-                    if (!emailRegex.test(email)) {
-                        messages.push(`Invalid Email format: ${email}`);
+                    const decryptEmail = decrypt(email);
+                    console.log('decrypted Email', decryptEmail);
+                    if (!emailRegex.test(decryptEmail)) {
+                        messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
                     }
 
                     let currentUserData = await User.findOne({ email: email, isDeleted: false, isRegistered: true });
+                    console.log('this is current USer Data', currentUserData);
+                    const fieldsToUpdate = ['firstName', 'lastName', 'email'];
+                    fieldsToUpdate.forEach(field => {
+                        if (currentUserData[field]) {
+                            currentUserData[field] = decrypt(currentUserData[field]);
+                        }
+                    });
+
+                    console.log('Updated user data:', currentUserData);
                     if (!currentUserData) {
                         throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `One or more User are Unregistered`);
                     }
@@ -1606,6 +1723,7 @@ module.exports.queries = {
                             firstName: currentUserData.firstName,
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
+                        console.log('this is htmlContnet', htmlContent);
                         html = htmlContent;
                         await SendEmail({
                             receiverEmail: currentUserData?.email,
@@ -1639,6 +1757,7 @@ module.exports.queries = {
                             temp_password: generatePassword,
                             buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                         });
+                        console.log('this is htmlContent', htmlContent);
                         html = htmlContent;
                         await SendEmail({
                             receiverEmail: currentUserData?.email,
@@ -1676,7 +1795,7 @@ module.exports.queries = {
                                         message: [
                                             {
                                                 lang: "en",
-                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${decrypt(decrypt(userInfo?.firstName))} ${userInfo?.lastName}.`,
                                             },
                                         ],
                                         notificationType: NotificationType.WELCOME_EMAIL_SENT,
@@ -1722,7 +1841,7 @@ module.exports.queries = {
                 throw CustomError(ErrorName.VALIDATION_ERROR, "Only one of email or Employee No should be provided.");
             }
             if (input.email) {
-                const emailExists = await User.findOne({ email: { $regex: `^${input.email}$`, $options: 'i' }, isDeleted: false });
+                const emailExists = await User.findOne({ email: { $regex: `^${encrypt(input.email)}$`, $options: 'i' }, isDeleted: false });
                 if (emailExists) {
                     messages.push("This email Id already exists in the system with another employee.");
                 }
@@ -2036,6 +2155,16 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { _id: { $in: input.users } },
                 { isRegistered: true }
             );
+
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
+                terms: {
+                    userId: input.users  // input.users is an array of IDs
+                }
+            });
+            } catch (error) {
+                throw error;
+            }
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2063,6 +2192,16 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     $set: { isRegistered: false }
                 }
             );
+
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
+                terms: {
+                    userId: input.users  // input.users is an array of IDs
+                }
+            });
+            } catch (error) {
+                throw error;
+            }
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2134,7 +2273,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType} by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -2155,6 +2294,29 @@ const manageRole = async ({ input }, context) => {
                 { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
                 { $set: { subRoles: [], roleAssignmentDate: null } }
             );
+
+            console.log("input.users", input.users);
+            try {
+                await updateByQueryToElasticSearch(
+                'users',
+                `
+                    ctx._source.subRoles = [];
+                    ctx._source.roleAssignmentDate = null;
+                `,
+                {
+                    bool: {
+                    must: [
+                        { terms: { userId: input.users } },
+                        { term: { superAdmin: false } },
+                        { term: { "role.keyword": "LEARNER" } }
+                    ]
+                    }
+                }
+            );  
+            } catch (error) {
+                throw error;
+            }
+
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
 
@@ -2212,13 +2374,13 @@ const manageRole = async ({ input }, context) => {
                 // const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo, context);
             }
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = `Your Roles have been removed by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+            notificationMessage = `Your Roles have been removed by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
         }
     } else if (input.change === "Delete") {
         // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = `Your account has been deleted by ${userInfo?.firstName} ${userInfo?.lastName}.`;
+        notificationMessage = `Your account has been deleted by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -2233,7 +2395,7 @@ const manageRole = async ({ input }, context) => {
                 message: [
                     {
                         lang: "en",
-                        value: `${userInfo.firstName} ${userInfo.lastName} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
+                        value: `${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2354,13 +2516,13 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             subscriber: subscriberId,
                             user: {
                                 _id: userId,
-                                firstName: user.firstName,
-                                lastName: user.lastName,
+                                firstName: decrypt(user.firstName),
+                                lastName: decrypt(user.lastName),
                                 civilIdOrPassport: user.civilIdOrPassport,
-                                email: user.email,
+                                email: decrypt(user.email),
                             },
                             action: "rejected",
-                            message: `Admin ${userInfo.firstName} ${userInfo.lastName} has rejected your delete request.`,
+                            message: `Admin ${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has rejected your delete request.`,
                             createdBy: userInfo,
                             icon: notificationiconEnum.DELETE_REQUEST
                         });
@@ -2747,6 +2909,14 @@ module.exports.mutations = {
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
+        //encryption logic 
+
+        //replace the original fields with encrypted on
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
+        input.user.lastName = input.user.lastName && encrypt(input.user.lastName);
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
+        input.user.email = input.user.email && encrypt(input.user.email);
+
         const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
@@ -2883,15 +3053,83 @@ module.exports.mutations = {
             // });
 
             if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
+                const decryptedEmail = decrypt(savedUser.email);
+                const decryptedFirstName = decrypt(savedUser.firstName);
+
                 const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
-                    firstName: savedUser.firstName,
-                    email: savedUser.email,
+                    firstName: decryptedFirstName,
+                    email: decryptedEmail,
                     templategeneratePassword: generatePassword,
                 });
 
-                await AwsHelper.sendEmail({ receiverEmail: savedUser.email, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
-            }
+                function isValidEmail(email) {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    return emailRegex.test(email);
+                }
 
+                if (isValidEmail(decryptedEmail)) {
+                    await AwsHelper.sendEmail({ receiverEmail: decryptedEmail, subject: "Welcome to Seaverse!", htmlContent: emailContentforNewEmployee })
+                }
+            }
+            try {
+                const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+                console.log('this is userVesselsDetails', userVesselsDetails);
+                const document = {
+                    employeeId: savedEmployee._id?.toString(),
+                    UID: savedEmployee.UID,
+                    designation: savedEmployee.designation,
+                    empDesignation: savedEmployee.empDesignation?.toString(),
+                    bulkId: savedEmployee.bulkId,
+                    regType: savedEmployee.regType,
+                    isActive: savedEmployee.isActive,
+                    isDeleted: savedEmployee.isDeleted,
+                    subscriber: savedEmployee.subscriber?.toString(),
+                    createdAt: savedEmployee.createdAt,
+                    updatedAt: savedEmployee.updatedAt,
+
+                    // Nested user fields
+                    userId: savedEmployee.user?._id?.toString(),
+                    firstName: savedEmployee.user?.firstName,
+                    lastName: savedEmployee.user?.lastName,
+                    email: savedEmployee.user?.email,
+                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                    country: savedEmployee.user?.country,
+                    languagePreference: savedEmployee.user?.languagePreference,
+                    role: savedEmployee.user?.role,
+                    subRoles: savedEmployee.user?.subRoles,
+                    isVerified: savedEmployee.user?.isVerified,
+                    isRegistered: savedEmployee.user?.isRegistered,
+                    superAdmin: savedEmployee.user?.superAdmin,
+                    deleteRequest: savedEmployee.user?.deleteRequest,
+                    isDeleted_user: savedEmployee.user?.isDeleted,
+                    directSignup: savedEmployee.user?.directSignup,
+                    contentlanguages: savedEmployee.user?.contentlanguages,
+                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                    vesselStatus: savedEmployee.user?.vesselStatus,
+                    isEmailNotification: savedEmployee.user?.isEmailNotification,
+                    isPushNotification: savedEmployee.user?.isPushNotification,
+                    lastLoginAt: savedEmployee.user?.lastLoginAt,
+                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                    userCreatedAt: savedEmployee.user?.createdAt,
+                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                    vesselName: userVesselsDetails[0]?.name,
+                    vesselId: userVesselsDetails[0]?._id,
+                    vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
+                    vesselIsActive: userVesselsDetails[0]?.isActive,
+                    typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
+                    tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
+                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    indexedAt: new Date(),
+                };
+
+                try {
+                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                } catch (error) {
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                }
+            } catch (err) {
+                console.error("Elasticsearch indexing error:", err);
+            }
             return savedEmployees;
         });
 
@@ -3065,7 +3303,6 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
-
         return deletedEmployee;
     },
     deleteEmployees,
@@ -3274,10 +3511,39 @@ module.exports.mutations = {
                 throw new Error("Invalid subrole");
             }
 
-            await User.updateMany(
+            try {
+                 await User.updateMany(
                 { _id: { $in: users } },
                 { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
             );
+
+            console.log("Users updated with subrole:", users, subrole);
+            } catch (error) {
+                throw error
+            }
+
+            try {
+                await updateByQueryToElasticSearch(
+                'users',
+                `
+                    if (!ctx._source.subRoles.contains(params.subrole)) {
+                    ctx._source.subRoles.add(params.subrole);
+                    }
+                    ctx._source.roleAssignmentDate = params.currentDate;
+                `,
+                {
+                    terms: {
+                    userId: users
+                    }
+                },
+                {
+                    subrole,
+                    currentDate: new Date().toISOString()
+                }
+            );
+            } catch (error) {
+                throw error
+            }
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
 
@@ -3293,8 +3559,8 @@ module.exports.mutations = {
             });
 
             const emailContentForAdmin = roleUpdateNotifyAdmin({
-                firstName: userInfo?.firstName,
-                usersUpdated: usersToUpdate.map(user => ({ user: user.firstName })),
+                firstName: decrypt(userInfo?.firstName),
+                usersUpdated: usersToUpdate?.map(user => ({ user: decrypt(user.firstName) })),
             });
 
             await SendEmail({
@@ -3303,8 +3569,8 @@ module.exports.mutations = {
                 htmlContent: emailContentForAdmin,
             });
 
-            const assignedUserNames = usersToUpdate?.map(user => user?.firstName).join(", ");
-            const adminNotificationMessage = `${userInfo?.firstName} ${userInfo?.lastName || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
+            const assignedUserNames = usersToUpdate?.map(user => decrypt(user?.firstName)).join(", ");
+            const adminNotificationMessage = `${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) || ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -3334,7 +3600,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}" by ${userInfo?.firstName} ${userInfo?.lastName || ''}.`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) || ''}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -3463,7 +3729,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                        value: `The export user process for selected users started at ${exportStartTime.toLocaleString()} by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName}.`,
                     },
                 ],
                 notificationType: NotificationType.EXPORT_IN_PROGRESS,
@@ -3691,7 +3957,7 @@ module.exports.mutations = {
                             else: 'Inactive',
                         },
                     },
-                    'Country':{
+                    'Country': {
                         $cond: {
                             if: { $eq: ['$country', null] },
                             then: ' ',
@@ -3747,9 +4013,16 @@ module.exports.mutations = {
              * @description
              *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
              */
-
+            const decryptedData = data?.map(user => {
+                return {
+                    ...user,
+                    'First Name*': decrypt(user['First Name*']),
+                    'Last Name': decrypt(user['Last Name']),
+                    'Email*': decrypt(user['Email*']),
+                };
+            });
             const workbook = xlsx.utils.book_new();
-            const worksheet = xlsx.utils.json_to_sheet(data);
+            const worksheet = xlsx.utils.json_to_sheet(decryptedData);
             xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
             const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
             const excelFilePath = await UploadHelper.uploadExcel({
@@ -3777,7 +4050,7 @@ module.exports.mutations = {
                     message: [
                         {
                             lang: "en",
-                            // value: `The export user process completed successfully by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                            // value: `The export user process completed successfully by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName}.`,
                             value: `"User Export" file is ready:`,
                         },
                     ],

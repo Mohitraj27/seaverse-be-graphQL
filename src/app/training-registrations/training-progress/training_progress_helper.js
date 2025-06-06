@@ -41,7 +41,7 @@ const {
     COMPLETED,
 } = require("@rusticisoftware/scormcloud-api-v2-client-javascript/src/rustici-software-cloud-v2/rustici-software-cloud-v2-model/RegistrationCompletion");
 const { extractTrainingContentData } = require("../training_registration_helper");
-
+const { decrypt } = require('../../../util/encryption_helper');
 const sendCourseCompletionMail = async data => {
     try {
         await Wait(0);
@@ -128,8 +128,8 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                         _id: trainingRegistration?.employee?._id,
                         user: {
                             _id: trainingRegistration?.employee?.user?._id,
-                            firstName: trainingRegistration?.employee?.user?.firstName,
-                            lastName: trainingRegistration?.employee?.user?.lastName,
+                            firstName: decrypt(trainingRegistration?.employee?.user?.firstName),
+                            lastName: decrypt(trainingRegistration?.employee?.user?.lastName),
                         },
                     },
                 },
@@ -142,7 +142,7 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                 },
             ];
 
-            employeeName ??= trainingRegistration?.employee?.user?.firstName;
+            employeeName ??= decrypt(trainingRegistration?.employee?.user?.firstName);
 
             trainingTitle ??= trainingRegistration?.training?.title?.find(
                 x => x.lang === "en" || x.lang === "ar"
@@ -197,15 +197,15 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                 message = `Employee "${employeeName}" started the course "${trainingTitle}"`;
             } else if (notificationType === NotificationType.TRAINING_COMPLETED) {
                 if (updatedBy) {
-                    title = `Admin user "${updatedBy.firstName}" changed the course status for employee`;
-                    message = `Admin user "${updatedBy.firstName}" changed the course(${trainingTitle}) status to "COMPLETED" for employee "${employeeName}"`;
+                    title = `Admin user "${decrypt(updatedBy.firstName)}" changed the course status for employee`;
+                    message = `Admin user "${decrypt(updatedBy.firstName)}" changed the course(${trainingTitle}) status to "COMPLETED" for employee "${employeeName}"`;
 
                     additionalInfo.push({
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: updatedBy._id,
-                            firstName: updatedBy.firstName,
-                            lastName: updatedBy.lastName,
+                            firstName: decrypt(updatedBy.firstName),
+                            lastName: decrypt(updatedBy.lastName),
                         },
                     });
                 } else {
@@ -227,15 +227,15 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                 });
 
                 if (updatedBy) {
-                    title = `Admin user "${updatedBy.firstName}" generated course certificate for employee`;
-                    message = `Admin user "${updatedBy.firstName}" generated certificate for the course "${trainingTitle}" for employee "${employeeName}" with certificate no.: ${trainingCertificate?.certificateNumber}`;
+                    title = `Admin user "${decrypt(updatedBy.firstName)}" generated course certificate for employee`;
+                    message = `Admin user "${decrypt(updatedBy.firstName)}" generated certificate for the course "${trainingTitle}" for employee "${employeeName}" with certificate no.: ${trainingCertificate?.certificateNumber}`;
 
                     additionalInfo.push({
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: updatedBy._id,
-                            firstName: updatedBy.firstName,
-                            lastName: updatedBy.lastName,
+                            firstName: decrypt(updatedBy.firstName),
+                            lastName: decrypt(updatedBy.lastName),
                         },
                     });
                 } else {

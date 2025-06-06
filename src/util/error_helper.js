@@ -129,6 +129,11 @@ const errorName = {
     FAILED_TO_SWITCH_NOTIFICATION:"FAILED_TO_SWITCH_NOTIFICATION",
     INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT",
     VESSEL_LINKED_TO_LEARNING_PLAN:"VESSEL_LINKED_TO_LEARNING_PLAN",
+    FAILED_TO_FETCH_GROUP_MEMBERS: "FAILED_TO_FETCH_GROUP_MEMBERS",
+    INDEX_DOC_ELASTIC_SEARCH:"INDEX_DOC_ELASTIC_SEARCH",
+    UPDATE_DOC_ELASTIC_SEARCH: "UPDATE_DOC_ELASTIC_SEARCH",
+    DELETE_DOC_ELASTIC_SEARCH: "DELETE_DOC_ELASTIC_SEARCH",
+    GET_DOC_ELASTIC_SEARCH: "GET_DOC_ELASTIC_SEARCH"
 };
 
 const errorType = {
@@ -772,10 +777,35 @@ const errorType = {
         statusCode: 400,    
         type: "INVALID_CONSENT_FORMAT"
     },
+    FAILED_TO_FETCH_GROUP_MEMBERS:{
+        message: 'Failed to fetch group members',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_GROUP_MEMBERS"
+    },
     VESSEL_LINKED_TO_LEARNING_PLAN:{
         message: 'Vessel is linked to learning plan',
         statusCode: 400,    
         type: "VESSEL_LINKED_TO_LEARNING_PLAN"
+    },
+    INDEX_DOC_ELASTIC_SEARCH:{
+        message: 'Index Doc Elastic Search',
+        statusCode: 400,
+        type:"INDEX_DOC_ELASTIC_SEARCH"
+    },
+    UPDATE_DOC_ELASTIC_SEARCH:{
+        message: 'Update Doc Elastic Search',
+        statusCode: 400,
+        type: "UPDATE_DOC_ELASTIC_SEARCH"
+    },
+    DELETE_DOC_ELASTIC_SEARCH: {
+        message: 'Delete Doc Elastic Search',
+        status: 400,
+        type: "DELETE_DOC_ELASTIC_SEARCH"
+    },
+    GET_DOC_ELASTIC_SEARCH :{
+        message: 'Get Doc Elastic Search',
+        status: 400,
+        type: "GET_DOC_ELASTIC_SEARCH"
     }
 };
 

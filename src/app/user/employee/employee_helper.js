@@ -72,7 +72,8 @@ const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-regi
 const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+const {decrypt,encrypt} = require('../../../util/encryption_helper');
+const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch } =require('../../../util/elastic_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -1292,8 +1293,8 @@ const sendDeleteNotification = async (notificationsData) => {
         const notifications = [];
 
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.deletedEmployee?.user?.firstName} ${notificationData.deletedEmployee?.user?.lastName}`;
-            const employeeEmail = notificationData.deletedEmployee?.user?.email;
+            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${decrypt(notificationData.deletedEmployee?.user?.lastName)}`;
+            const employeeEmail = decrypt(notificationData.deletedEmployee?.user?.email);
 
             const notification = {
                 subscriber: notificationData.subscriber,
@@ -1301,7 +1302,7 @@ const sendDeleteNotification = async (notificationsData) => {
                 message: [
                     {
                         lang: "en",
-                        value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${notificationData.createdBy.firstName}.`,
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been deleted by ${decrypt(notificationData.createdBy.firstName)}.`,
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_DELETED,
@@ -1328,8 +1329,8 @@ const sendDeleteNotification = async (notificationsData) => {
                         infoType: "DELETER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                 ],
@@ -1345,8 +1346,8 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${notificationData.employee?.user?.firstName} ${notificationData.employee?.user?.lastName ?? ""}`.trim();
-            const employeeEmail = notificationData.employee?.user?.email;
+            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${decrypt(notificationData.employee?.user?.lastName) ?? ""}`.trim();
+            const employeeEmail = decrypt(notificationData.employee?.user?.email);
 
             const notification = {
                 subscriber: notificationData.subscriber,
@@ -1354,7 +1355,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
                 message: [
                     {
                         lang: "en",
-                        value: `Employee "${employeeName}" (${employeeEmail}) has been successfully marked as ${notificationData.type} by ${notificationData.updatedBy.firstName}.`,
+                        value: `Employee "${employeeName}" (${employeeEmail}) has been successfully marked as ${notificationData.type} by ${decrypt(notificationData.updatedBy.firstName)}.`,
                     },
                 ],
                 notificationType: NotificationType.EMPLOYEE_STATUS_UPDATED,
@@ -1396,13 +1397,13 @@ const sendEnrollmentNotification = async notificationsData => {
                 message: [
                     {
                         lang: "en",
-                        value: `${notificationData.userIds.length} users are ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                        value: `${notificationData.userIds.length} users are ${notificationData.action} to the course "${trainingTitle}" by ${decrypt(notificationData.createdBy.firstName)}`,
                     },
                 ],
                 userMessage: [
                     {
                         lang: "en",
-                        value: `You have been ${notificationData.action} to the course "${trainingTitle}" by ${notificationData.createdBy.firstName}`,
+                        value: `You have been ${notificationData.action} to the course "${trainingTitle}" by ${decrypt(notificationData.createdBy.firstName)}`,
                     },
                 ],
                 notificationType: `TRAINING_NEW_${notificationData.action}`,
@@ -1421,8 +1422,8 @@ const sendEnrollmentNotification = async notificationsData => {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {
@@ -1432,9 +1433,9 @@ const sendEnrollmentNotification = async notificationsData => {
                             user: {
                                 _id: notificationData.trainingRegistration.employee?.user?._id,
                                 firstName:
-                                    notificationData.trainingRegistration.employee?.user?.firstName,
+                                decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    notificationData.trainingRegistration.employee?.user?.lastName,
+                                decrypt(notificationData.trainingRegistration.employee?.user?.lastName),
                             },
                         },
                     },
@@ -1527,7 +1528,7 @@ const sendNotificationOnBULKOutsideChildProcess = async notificationData => {
 }
 const sendNotificationOnCRUD = async notificationData => {
     try {
-        const employeeName = notificationData.employee.user?.firstName;
+        const employeeName = decrypt(notificationData.employee.user?.firstName);
 
         const notification = {
             subscriber: notificationData.subscriber,
@@ -1549,8 +1550,8 @@ const sendNotificationOnCRUD = async notificationData => {
                         _id: notificationData.employee._id,
                         user: {
                             _id: notificationData.employee.user._id,
-                            firstName: notificationData.employee.user.firstName,
-                            lastName: notificationData.employee.user.lastName,
+                            firstName: decrypt(notificationData.employee.user.firstName),
+                            lastName: decrypt(notificationData.employee.user.lastName),
                         },
                     },
                 },
@@ -1573,15 +1574,15 @@ const sendNotificationOnCRUD = async notificationData => {
                 infoType: "UPDATER_INFO",
                 infoData: {
                     _id: notificationData.createdBy._id,
-                    firstName: notificationData.createdBy.firstName,
-                    lastName: notificationData.createdBy.lastName,
+                    firstName: decrypt(notificationData.createdBy.firstName),
+                    lastName: decrypt(notificationData.createdBy.lastName),
                 },
             });
 
             notification.message = [
                 {
                     lang: "en",
-                    value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} employee "${employeeName}"`,
+                    value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} employee "${employeeName}"`,
                 },
             ];
         }
@@ -1856,8 +1857,7 @@ const softDeleteUsers = async (users, errors) => {
 
         const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
         console.log("remainingAdmins", remainingAdmins.length)
-        if (remainingAdmins.length === 1) {
-            console.log("At least one admin must remain in the system.");
+        if (remainingAdmins.length === 0) {
             throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
 
@@ -1942,6 +1942,16 @@ const softDeleteUsers = async (users, errors) => {
                         { $set: { isDeleted: true } },
                         { session }
                     );
+
+                    try {
+                        await deleteByQueryFromElasticSearch('users', {
+                            terms: {
+                                userId: users 
+                            }
+                        });
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
+                    }
 
                     if (updateGroupMember) {
                         /*
@@ -2804,13 +2814,19 @@ module.exports = {
         if (!existingEmployee) throw CustomError(ErrorName.NOT_FOUND);
 
         let newVessel;
+
+        //Encryption logic
+        input.user.firstName = input.user.firstName ?? encrypt(input.user.firstName);
+        input.user.lastName = input.user.lastName ?? encrypt(input.user.lastName);
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport ?? encrypt(input.user.civilIdOrPassport);
+        input.user.email = input.user.email ?? encrypt(input.user.email);
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
                 { isActive: false, vesselStatus: input.user.vesselStatus === '' ? null : input.user.vesselStatus, deletedAt: new Date() }
             );
         }
-
+        console.log('input .user firstName',input.user.firstName);
         if (input?.user?.currentVessel) {
 
             newVessel = await Vessel.findById(input?.user?.currentVessel, { name: 1 }).lean();
@@ -2936,7 +2952,7 @@ module.exports = {
 
             if (!existingDesignation) throw new CustomError(ErrorName.INVALID_DESIGNATION);
 
-            if (savedEmployee?.empDesignation.toString() != input.empDesignation.toString()) {
+            if (savedEmployee?.empDesignation?.toString() != input.empDesignation?.toString()) {
                 savedEmployee.empDesignation = existingDesignation._id;
                 savedEmployee.designation = existingDesignation.name;
                 await savedEmployee.save();
@@ -2983,6 +2999,60 @@ module.exports = {
                 console.error(error);
             });
         const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+     
+        try {
+            const userVesselsDetails = await Vessel.find({_id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true}).populate('typeOfVessel', '_id name');
+                 console.log('this is userVesselsDetails',userVesselsDetails);
+                
+        const document = {
+            employeeId: savedEmployee._id?.toString(),
+            UID: savedEmployee.UID,
+            designation: savedEmployee.designation,
+            empDesignation: savedEmployee.empDesignation?.toString(),
+            bulkId: savedEmployee.bulkId,
+            regType: savedEmployee.regType,
+            isActive: savedEmployee.isActive,
+            isDeleted: savedEmployee.isDeleted,
+            subscriber: savedEmployee.subscriber?.toString(),
+            createdAt: savedEmployee.createdAt,
+            updatedAt: savedEmployee.updatedAt,
+
+            userId: savedEmployee.user?._id?.toString(),
+            firstName: savedEmployee.user?.firstName,
+            lastName: savedEmployee.user?.lastName,
+            email: savedEmployee.user?.email,
+            civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+            country: savedEmployee.user?.country,
+            languagePreference: savedEmployee.user?.languagePreference,
+            role: savedEmployee.user?.role,
+            subRoles: savedEmployee.user?.subRoles,
+            isVerified: savedEmployee.user?.isVerified,
+            isRegistered: savedEmployee.user?.isRegistered,
+            superAdmin: savedEmployee.user?.superAdmin,
+            deleteRequest: savedEmployee.user?.deleteRequest,
+            isDeleted_user: savedEmployee.user?.isDeleted,
+            directSignup: savedEmployee.user?.directSignup,
+            contentlanguages: savedEmployee.user?.contentlanguages,
+            currentVessel: savedEmployee.user?.currentVessel?.toString(),
+            vesselStatus: savedEmployee.user?.vesselStatus,
+            isEmailNotification: savedEmployee.user?.isEmailNotification,
+            isPushNotification: savedEmployee.user?.isPushNotification,
+            lastLoginAt: savedEmployee.user?.lastLoginAt,
+            isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+            vesselName: userVesselsDetails[0]?.name,
+            vesselIsActive: userVesselsDetails[0]?.isActive,
+            vesselId: userVesselsDetails[0]?._id,
+            vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
+            typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
+            tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
+            userCreatedAt: savedEmployee.user?.createdAt,
+            userUpdatedAt: savedEmployee.user?.updatedAt,
+        };
+
+        await updateDocumentToElasticSearch("users", savedEmployee._id, document);
+        } catch (err) {
+        console.error("Error updating document in Elastic:", err);
+        }
         return savedEmployee;
 
     },
@@ -3391,7 +3461,7 @@ module.exports = {
         invitationList.forEach(obj => {
             sendCredentialMail(obj);
         });
-
+        console.log('this is saved employees',savedEmployees);
         return {
             batch: savedBatch,
             employees: savedEmployees,

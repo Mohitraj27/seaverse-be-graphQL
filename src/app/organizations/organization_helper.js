@@ -6,7 +6,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const CounterHelper = require("../counters/counter_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
-
+const {decrypt} = require("../../util/encryption_helper");
 const generateOrganizationUID = async ({ subscriberId, session }) => {
     const savedCounter = await CounterHelper.updateCounter({
         subscriberId,
@@ -44,8 +44,8 @@ module.exports = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {
@@ -65,7 +65,7 @@ module.exports = {
             notification.message = [
                 {
                     lang: "en",
-                    value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${organizationName}" organization`,
+                    value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} "${organizationName}" organization`,
                 },
             ];
 
