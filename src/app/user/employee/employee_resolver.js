@@ -184,6 +184,61 @@ function formatDateWithSuffix(date) {
 
     return null;
 }
+
+function mapElasticToOldAPI(elasticResults) {
+  return {
+    totalCount: elasticResults.total,
+    totalEmployees: elasticResults.total,
+    employees: elasticResults.employees.map(emp => {
+      return {
+        user: {
+          _id: emp.userId || null,
+          firstName: emp.firstName || null,
+          lastName: emp.lastName || null,
+          civilIdOrPassport: emp.civilIdOrPassport || null,
+          email: emp.email || null,
+          role: emp.role || null,
+          lastLoginAt: new Date(emp.lastLoginAt).getTime() || null,
+          isRegistered: emp.isRegistered || false,
+          vesselStatus: emp.vesselStatus || null,
+          country: emp.country || null,
+          subRoles: emp.subRoles || [],
+          isResetPasswordDialog: emp.isResetPasswordDialog || false,
+          __typename: "User",
+        },
+        empDesignation: emp.empDesignation
+          ? {
+              _id: emp.empDesignation,
+              name: emp.designation || null,
+              __typename: "Designation",
+            }
+          : null,
+        userVessels: emp.vesselName
+          ? {
+              _id: emp.vesselId || null,
+              vesselStatus: emp.vesselStatus || null,
+              vesselDetails: {
+                _id: emp.vesselId || null,
+                name: emp.vesselName || null,
+                isActive: emp.vesselIsActive || false,
+                typeOfVesselDetails: {
+                  _id: emp.tyepOfVesselId || null,  // note typo? "tyepOfVesselId"
+                  name: emp.typeOfVesselName || null,
+                  __typename: "TypeOfVesselDetails",
+                },
+                __typename: "VesselDetails",
+              },
+              __typename: "userVessels",
+            }
+          : null,
+        __typename: "Employee",
+      };
+    }),
+    __typename: "EmployeeList",
+  };
+}
+
+
 module.exports.queries = {
     getDeleteAndSignUpRequestCounts: async (_, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -1245,10 +1300,35 @@ module.exports.queries = {
 
             console.log("Elastic Results:", elasticResults);
 
+            if (elasticResults?.employees?.length > 0) {
+                elasticResults.employees = elasticResults?.employees.map(employee => {
+
+                    if (employee) {
+                        if (employee?.firstName) {
+                            employee.firstName = decrypt(employee?.firstName);
+                        }
+
+                        if (employee?.lastName) {
+                            employee.lastName = decrypt(employee?.lastName);
+                        }
+
+                        if (employee?.email) {
+                            employee.email = decrypt(employee?.email);
+                        }
+                    }
+
+                    return employee;
+                });
+            }
+
+            const formattedResponse = mapElasticToOldAPI(elasticResults);
+
+            console.log("Formatted Response:", formattedResponse);
+
             return {
-                employees: results.employees,
-                totalCount: results?.employees.length ?? 0,
-                totalEmployees: results?.totalCount ?? 0
+                employees: formattedResponse?.employees,
+                totalCount: formattedResponse?.employees?.length ?? 0,
+                totalEmployees: formattedResponse?.totalCount ?? 0
             }
             /*
         const optimizedPipeline = [

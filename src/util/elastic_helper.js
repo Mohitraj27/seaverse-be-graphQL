@@ -19,6 +19,7 @@ async function indexDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.index({
       index: indexName,
+      refresh: true,
       id: id.toString(),
       document,
     });
@@ -86,6 +87,7 @@ async function deleteByQueryFromElasticSearch(indexName, query) {
   try {
     const response = await client.deleteByQuery({
       index: indexName,
+      refresh: true,
       body: {
         query: query
       }
@@ -102,6 +104,7 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
   try {
     const response = await client.updateByQuery({
       index: indexName,
+      refresh: true,
       body: {
         script: {
           source: scriptSource,
@@ -249,9 +252,11 @@ const searchEmployeesFromElastic = async ({
     },
   });
 
+  console.log("result---->", result);
+
   return {
-    total: result.hits.total.value,
-    employees: result.hits.hits.map(hit => hit._source),
+    total: result?.hits?.total?.value,
+    employees: result?.hits?.hits?.map(hit => hit._source),
   };
 };
 
