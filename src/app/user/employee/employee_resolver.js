@@ -2156,11 +2156,15 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { isRegistered: true }
             );
 
-            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
                 terms: {
                     userId: input.users  // input.users is an array of IDs
                 }
             });
+            } catch (error) {
+                throw error;
+            }
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2189,11 +2193,15 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 }
             );
 
-            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
                 terms: {
                     userId: input.users  // input.users is an array of IDs
                 }
             });
+            } catch (error) {
+                throw error;
+            }
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2288,7 +2296,8 @@ const manageRole = async ({ input }, context) => {
             );
 
             console.log("input.users", input.users);
-            await updateByQueryToElasticSearch(
+            try {
+                await updateByQueryToElasticSearch(
                 'users',
                 `
                     ctx._source.subRoles = [];
@@ -2304,6 +2313,9 @@ const manageRole = async ({ input }, context) => {
                     }
                 }
             );  
+            } catch (error) {
+                throw error;
+            }
 
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
@@ -3112,7 +3124,11 @@ module.exports.mutations = {
                     indexedAt: new Date(),
                 };
 
-                await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                try {
+                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                } catch (error) {
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                }
             } catch (err) {
                 console.error("Elasticsearch indexing error:", err);
             }
@@ -3497,13 +3513,19 @@ module.exports.mutations = {
                 throw new Error("Invalid subrole");
             }
 
-            await User.updateMany(
+            try {
+                 await User.updateMany(
                 { _id: { $in: users } },
                 { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
             );
 
             console.log("Users updated with subrole:", users, subrole);
-            await updateByQueryToElasticSearch(
+            } catch (error) {
+                throw error
+            }
+
+            try {
+                await updateByQueryToElasticSearch(
                 'users',
                 `
                     if (!ctx._source.subRoles.contains(params.subrole)) {
@@ -3521,6 +3543,9 @@ module.exports.mutations = {
                     currentDate: new Date().toISOString()
                 }
             );
+            } catch (error) {
+                throw error
+            }
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
 

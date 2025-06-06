@@ -462,7 +462,8 @@ module.exports.mutations = {
 
             await existingUser.save();
 
-            await updateByQueryToElasticSearch(
+            try {
+                await updateByQueryToElasticSearch(
                 "users", 
                 `
                     ctx._source.password = params.password;
@@ -478,6 +479,9 @@ module.exports.mutations = {
                     isResetPasswordDialog: true
                 }
             );
+            } catch (error) {
+                throw CustomError(ErrorName.SERVER_ERROR, error.message);
+            }
 
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -609,7 +613,8 @@ module.exports.mutations = {
 
             const updateUser = await user.save();
 
-            await updateByQueryToElasticSearch(
+            try {
+                 await updateByQueryToElasticSearch(
                 "users", 
                 `
                     ctx._source.isResetPasswordDialog = true;
@@ -623,6 +628,9 @@ module.exports.mutations = {
                     password: user.password
                 }
             );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED);
+            }
 
             if (updateUser) {
                 return "Password updated successfully!";

@@ -513,7 +513,8 @@ module.exports.mutations = {
                         existingUser.lastLoginAt = Moment().format();
                         await existingUser.save({ session });
 
-                        await updateByQueryToElasticSearch(
+                        try {
+                            await updateByQueryToElasticSearch(
                             "users", 
                             `
                                 ctx._source.lastLoginAt = params.lastLoginAt;
@@ -527,6 +528,9 @@ module.exports.mutations = {
                                 lastLoginAt: Moment().format()
                             }
                         );
+                        } catch (error) {
+                            throw error;
+                        }
 
                         return await UserHelper.makeAuthUser(existingUser);
                     };

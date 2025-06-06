@@ -1943,11 +1943,15 @@ const softDeleteUsers = async (users, errors) => {
                         { session }
                     );
 
+                    try {
                         await deleteByQueryFromElasticSearch('users', {
                             terms: {
                                 userId: users 
                             }
                         });
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
+                    }
 
                     if (updateGroupMember) {
                         /*
