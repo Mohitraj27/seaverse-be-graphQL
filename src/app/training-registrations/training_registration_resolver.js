@@ -185,9 +185,19 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
+        const decryptedFormattedResults = formattedResults?.map(user => ({
+            id: user.id,
+            firstName: decrypt(user.firstName),
+            lastName: decrypt(user.lastName),
+            email: decrypt(user.email),
+            status: user.status,
+            isRegistered: user.isRegistered,
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted,
+        }));
         return {
             countOfUsers: formattedResults.length || 0,
-            users: formattedResults,
+            users: decryptedFormattedResults,
         };
     },
     getTrainingRegistration: async ({ id }, context) => {

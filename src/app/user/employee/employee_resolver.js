@@ -184,6 +184,61 @@ function formatDateWithSuffix(date) {
 
     return null;
 }
+
+function mapElasticToOldAPI(elasticResults) {
+  return {
+    totalCount: elasticResults.total,
+    totalEmployees: elasticResults.total,
+    employees: elasticResults.employees.map(emp => {
+      return {
+        user: {
+          _id: emp.userId || null,
+          firstName: emp.firstName || null,
+          lastName: emp.lastName || null,
+          civilIdOrPassport: emp.civilIdOrPassport || null,
+          email: emp.email || null,
+          role: emp.role || null,
+          lastLoginAt: new Date(emp.lastLoginAt).getTime() || null,
+          isRegistered: emp.isRegistered || false,
+          vesselStatus: emp.vesselStatus || null,
+          country: emp.country || null,
+          subRoles: emp.subRoles || [],
+          isResetPasswordDialog: emp.isResetPasswordDialog || false,
+          __typename: "User",
+        },
+        empDesignation: emp.empDesignation
+          ? {
+              _id: emp.empDesignation,
+              name: emp.designation || null,
+              __typename: "Designation",
+            }
+          : null,
+        userVessels: emp.vesselName
+          ? {
+              _id: emp.vesselId || null,
+              vesselStatus: emp.vesselStatus || null,
+              vesselDetails: {
+                _id: emp.vesselId || null,
+                name: emp.vesselName || null,
+                isActive: emp.vesselIsActive || false,
+                typeOfVesselDetails: {
+                  _id: emp.tyepOfVesselId || null,  // note typo? "tyepOfVesselId"
+                  name: emp.typeOfVesselName || null,
+                  __typename: "TypeOfVesselDetails",
+                },
+                __typename: "VesselDetails",
+              },
+              __typename: "userVessels",
+            }
+          : null,
+        __typename: "Employee",
+      };
+    }),
+    __typename: "EmployeeList",
+  };
+}
+
+
 module.exports.queries = {
     getDeleteAndSignUpRequestCounts: async (_, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -678,6 +733,11 @@ module.exports.queries = {
             const sortingStage = [];
             const sortOrder = sortInput?.sortOrder ?? 1;
 
+            const sortOrderMap = {
+                "1": "asc",
+                "-1": "desc",
+            };
+
             const fieldMapping = {
                 "FIRST_NAME": "user.firstName",
                 "DESIGNATION": "empDesignation.name",
@@ -688,8 +748,20 @@ module.exports.queries = {
                 "COUNTRY": "user.country",
             };
 
+            const esFieldMapping = {
+                "FIRST_NAME": "firstName.keyword",
+                "DESIGNATION": "designation.keyword",
+                "STATUS": "vesselStatus.keyword",
+                "USER_ROLE": "role.keyword",
+                "LAST_SEEN": "lastLoginAt",
+                "VESSEL_TYPE": "typeOfVesselName.keyword",
+                "COUNTRY": "country.keyword",
+            };
+
             const field = sortInput?.field ?? "FIRST_NAME";
             const fieldPath = fieldMapping[field];
+            const sortElasticField = esFieldMapping[field] || "user.firstName.keyword";
+            const sortElasticOrder = sortOrderMap[String(sortInput?.sortOrder)] || "asc";
 
             if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
 
@@ -1220,18 +1292,43 @@ module.exports.queries = {
                 subRoleAdminId: subRoleAdminId,
                 lastSeenStart:startDate,
                 lastSeenEnd:endDate,
-                sortField: "firstName.keyword",
-                sortOrder: "asc",
+                sortField: sortElasticField,
+                sortOrder: sortElasticOrder,
                 skip: 0,
                 limit: 20,
             });
 
             console.log("Elastic Results:", elasticResults);
 
+            if (elasticResults?.employees?.length > 0) {
+                elasticResults.employees = elasticResults?.employees.map(employee => {
+
+                    if (employee) {
+                        if (employee?.firstName) {
+                            employee.firstName = decrypt(employee?.firstName);
+                        }
+
+                        if (employee?.lastName) {
+                            employee.lastName = decrypt(employee?.lastName);
+                        }
+
+                        if (employee?.email) {
+                            employee.email = decrypt(employee?.email);
+                        }
+                    }
+
+                    return employee;
+                });
+            }
+
+            const formattedResponse = mapElasticToOldAPI(elasticResults);
+
+            console.log("Formatted Response:", formattedResponse);
+
             return {
-                employees: results.employees,
-                totalCount: results?.employees.length ?? 0,
-                totalEmployees: results?.totalCount ?? 0
+                employees: formattedResponse?.employees,
+                totalCount: formattedResponse?.employees?.length ?? 0,
+                totalEmployees: formattedResponse?.totalCount ?? 0
             }
             /*
         const optimizedPipeline = [
@@ -2139,11 +2236,15 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 { isRegistered: true }
             );
 
-            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
                 terms: {
                     userId: input.users  // input.users is an array of IDs
                 }
             });
+            } catch (error) {
+                throw error;
+            }
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2172,11 +2273,15 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 }
             );
 
-            await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
+            try {
+                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
                 terms: {
                     userId: input.users  // input.users is an array of IDs
                 }
             });
+            } catch (error) {
+                throw error;
+            }
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2271,7 +2376,8 @@ const manageRole = async ({ input }, context) => {
             );
 
             console.log("input.users", input.users);
-            await updateByQueryToElasticSearch(
+            try {
+                await updateByQueryToElasticSearch(
                 'users',
                 `
                     ctx._source.subRoles = [];
@@ -2287,6 +2393,9 @@ const manageRole = async ({ input }, context) => {
                     }
                 }
             );  
+            } catch (error) {
+                throw error;
+            }
 
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
@@ -3095,7 +3204,11 @@ module.exports.mutations = {
                     indexedAt: new Date(),
                 };
 
-                await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                try {
+                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                } catch (error) {
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                }
             } catch (err) {
                 console.error("Elasticsearch indexing error:", err);
             }
@@ -3480,13 +3593,19 @@ module.exports.mutations = {
                 throw new Error("Invalid subrole");
             }
 
-            await User.updateMany(
+            try {
+                 await User.updateMany(
                 { _id: { $in: users } },
                 { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
             );
 
             console.log("Users updated with subrole:", users, subrole);
-            await updateByQueryToElasticSearch(
+            } catch (error) {
+                throw error
+            }
+
+            try {
+                await updateByQueryToElasticSearch(
                 'users',
                 `
                     if (!ctx._source.subRoles.contains(params.subrole)) {
@@ -3504,6 +3623,9 @@ module.exports.mutations = {
                     currentDate: new Date().toISOString()
                 }
             );
+            } catch (error) {
+                throw error
+            }
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
 

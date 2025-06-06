@@ -19,6 +19,8 @@ const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper")
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
+        console.log("came here to assignVesselToUser");
+
         try {
 
             const { subscriberId, userInfo } = AuthUser(context);
@@ -73,32 +75,16 @@ module.exports.mutations = {
                     getUser.vesselStatus = vesselStatus ?? null;
                     updateUser = await getUser.save();
 
-                    await updateByQueryToElasticSearch(
+                    try {
+                        await updateByQueryToElasticSearch(
                         'users', 
                         `
-                            if (params.vesselId != null) {
                             ctx._source.currentVessel = params.vesselId;
-                            }
-
-                            if (params.vesselStatus != null) {
                             ctx._source.vesselStatus = params.vesselStatus;
-                            }
-
-                            if (params.vesselName != null) {
                             ctx._source.vesselName = params.vesselName;
-                            }
-
-                            if (params.vesselIsActive != null) {
                             ctx._source.vesselIsActive = params.vesselIsActive;
-                            }
-
-                            if (params.typeOfVesselName != null) {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            }
-
-                            if (params.tyepOfVesselId != null) {
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                            }
                         `,
                         {
                             term: {
@@ -114,6 +100,9 @@ module.exports.mutations = {
                             tyepOfVesselId: tyepOfVesselId ?? null
                         }
                     );
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED, `${error.message}`);
+                    }
 
                 } else {
 
@@ -138,32 +127,16 @@ module.exports.mutations = {
                     getUser.vesselStatus = vesselStatus;
                     updateUser = await getUser.save();
 
-                    await updateByQueryToElasticSearch(
+                    try {
+                        await updateByQueryToElasticSearch(
                         'users', 
                         `
-                            if (params.vesselId != null) {
                             ctx._source.currentVessel = params.vesselId;
-                            }
-
-                            if (params.vesselStatus != null) {
                             ctx._source.vesselStatus = params.vesselStatus;
-                            }
-
-                            if (params.vesselName != null) {
                             ctx._source.vesselName = params.vesselName;
-                            }
-
-                            if (params.vesselIsActive != null) {
                             ctx._source.vesselIsActive = params.vesselIsActive;
-                            }
-
-                            if (params.typeOfVesselName != null) {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            }
-
-                            if (params.tyepOfVesselId != null) {
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                            }
                         `,
                         {
                             term: {
@@ -179,7 +152,9 @@ module.exports.mutations = {
                             tyepOfVesselId: tyepOfVesselId ?? null
                         }
                     );
-
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED, `${error.message}`);
+                    }
                 }
             } else {
 
@@ -207,32 +182,16 @@ module.exports.mutations = {
                 getUser.vesselStatus = vesselStatus;
                 updateUser = await getUser.save();
 
-                await updateByQueryToElasticSearch(
+                try {
+                    await updateByQueryToElasticSearch(
                         'users', 
                         `
-                            if (params.vesselId != null) {
                             ctx._source.currentVessel = params.vesselId;
-                            }
-
-                            if (params.vesselStatus != null) {
                             ctx._source.vesselStatus = params.vesselStatus;
-                            }
-
-                            if (params.vesselName != null) {
                             ctx._source.vesselName = params.vesselName;
-                            }
-
-                            if (params.vesselIsActive != null) {
                             ctx._source.vesselIsActive = params.vesselIsActive;
-                            }
-
-                            if (params.typeOfVesselName != null) {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            }
-
-                            if (params.tyepOfVesselId != null) {
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                            }
                         `,
                         {
                             term: {
@@ -248,7 +207,9 @@ module.exports.mutations = {
                             tyepOfVesselId: tyepOfVesselId ?? null
                         }
                     );
-
+                } catch (error) {
+                    throw CustomError(ErrorName.FAILED, `${error.message}`);
+                }
             }
 
             if (updateUser) {

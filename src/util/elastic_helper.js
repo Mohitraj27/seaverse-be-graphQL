@@ -19,6 +19,7 @@ async function indexDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.index({
       index: indexName,
+      refresh: true,
       id: id.toString(),
       document,
     });
@@ -86,6 +87,7 @@ async function deleteByQueryFromElasticSearch(indexName, query) {
   try {
     const response = await client.deleteByQuery({
       index: indexName,
+      refresh: true,
       body: {
         query: query
       }
@@ -102,6 +104,7 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
   try {
     const response = await client.updateByQuery({
       index: indexName,
+      refresh: true,
       body: {
         script: {
           source: scriptSource,
@@ -136,9 +139,9 @@ const searchEmployeesFromElastic = async ({
   const mustNot = [];
 
   console.log("Searching in index:", indexName);
-  console.log("Search parameters:", filterInput);
-  console.log("lastSeenStart:", lastSeenStart);
-  console.log("lastSeenEnd:", lastSeenEnd);
+  console.log("Search parameters in filter input now came---->", filterInput);
+  console.log("sortField:", sortField);
+  console.log("sortOrder:", sortOrder);
 
   // Match search keyword (full name, email, civilIdOrPassport)
   if (filterInput?.search) {
@@ -157,6 +160,10 @@ const searchEmployeesFromElastic = async ({
 
   if (filterInput?.empDesignation?.length > 0) {
     must.push({ terms: { "empDesignation": filterInput?.empDesignation } });
+  }
+
+  if (filterInput?.regType && filterInput?.regType != 0) {
+    must.push({ term: { "regType": filterInput?.regType } });
   }
 
   if (filterInput?.vesselStatus?.length > 0) {
@@ -180,12 +187,12 @@ const searchEmployeesFromElastic = async ({
         },
       },
     });
-    // must.push({
-    //   term: { "isResetPasswordDialog": true },
-    // });
+    must.push({
+      term: { "isResetPasswordDialog": true },
+    });
   }
 
-  if (typeof filterInput?.showInvited === "boolean") {
+  if (typeof filterInput?.showInvited === "boolean" && filterInput?.showInvited===true) {
     must.push({
       term: { "isResetPasswordDialog": !filterInput?.showInvited },
     });
@@ -233,6 +240,7 @@ const searchEmployeesFromElastic = async ({
   };
 
   const sort = [{ [sortField]: { order: sortOrder } }];
+  console.log("sort---------->", sort);
 
   const result = await client.search({
     index: indexName,
@@ -244,9 +252,11 @@ const searchEmployeesFromElastic = async ({
     },
   });
 
+  console.log("result---->", result);
+
   return {
-    total: result.hits.total.value,
-    employees: result.hits.hits.map(hit => hit._source),
+    total: result?.hits?.total?.value,
+    employees: result?.hits?.hits?.map(hit => hit._source),
   };
 };
 

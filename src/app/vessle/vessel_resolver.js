@@ -495,29 +495,12 @@ module.exports.mutations = {
                     userIds.map(userId => updateByQueryToElasticSearch(
                         'users', 
                         `
-                            if (params.vesselId != null) {
                             ctx._source.currentVessel = params.vesselId;
-                            }
-        
-                            if (params.vesselStatus != null) {
                             ctx._source.vesselStatus = params.vesselStatus;
-                            }
-        
-                            if (params.vesselName != null) {
                             ctx._source.vesselName = params.vesselName;
-                            }
-        
-                            if (params.vesselIsActive != null) {
                             ctx._source.vesselIsActive = params.vesselIsActive;
-                            }
-        
-                            if (params.typeOfVesselName != null) {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            }
-        
-                            if (params.tyepOfVesselId != null) {
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                            }
                         `,
                         {
                             term: {

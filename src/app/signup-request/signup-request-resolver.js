@@ -19,6 +19,7 @@ const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Vessel } = require('../vessle/vessel_model');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
 const { decrypt ,encrypt} = require('../../util/encryption_helper');
+const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -136,8 +137,10 @@ module.exports.mutations = {
                         vesselStatus: vesselStatus || null,
                         currentVessel: vesselName || null
                     }
+                    let designationObject
                     if (designation) {
                         const designationRecord = await Designation.findOne({ _id: designation, isDeleted: false });
+                        designationObject = designationRecord
                         if (!designationRecord) {
                             throw CustomError(ErrorName.INVALID_DESIGNATION, 'Designation not found');
                         }
@@ -165,6 +168,56 @@ module.exports.mutations = {
                             isActive: true
                         }], { session });
                     }
+
+                    const userVesselsDetails = await Vessel.find({ _id: vesselName, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+
+                    try {
+                        await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            ctx._source.designation = params.designation;
+                            ctx._source.empDesignation = params.empDesignation;
+                            ctx._source.civilIdOrPassport = params.civilIdOrPassport;
+                            ctx._source.isSignupAdminAprroved = params.isSignupAdminAprroved;
+                            ctx._source.isRegistered = params.isRegistered;
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            ctx._source.currentVessel = params.currentVessel;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                        `,
+                        {
+                            term: {
+                            userId: signupRequest?.userId?.toString()
+                            }
+                        },
+                        {
+                            designation: designationObject?.name,
+                            empDesignation: designation,
+                            civilIdOrPassport: employeeId?.toUpperCase(),
+                            isSignupAdminAprroved: true,
+                            isRegistered,
+                            vesselStatus: vesselStatus || null,
+                            currentVessel: vesselName || null,
+                            vesselName: userVesselsDetails[0]?.name||null,
+                            vesselId: userVesselsDetails[0]?._id||null,
+                            vesselIsDeleted: userVesselsDetails[0]?.isDeleted||null,
+                            vesselIsActive: userVesselsDetails[0]?.isActive||null,
+                            typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name||null,
+                            tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id||null,
+                        }
+                    );
+                    } catch (error) {
+                        throw CustomError(
+                            ErrorName.ELASTIC_UPDATE_FAILED,
+                            "Elasticsearch update failed. Transaction will be rolled back."
+                        );
+                    }
+
+
                     await HistorySignupRequest.create([{
                         firstName: signupRequest?.firstName,
                         lastName: signupRequest?.lastName,
@@ -237,6 +290,20 @@ module.exports.mutations = {
                         // { $set: { isDeleted: true } },
                         { session }
                     );
+
+                    try {
+                        await deleteByQueryFromElasticSearch('users', {
+                        term: {
+                            userId: signupRequest?.userId?.toString()
+                        }
+                    });
+                    } catch (error) {
+                        throw CustomError(
+                            ErrorName.ELASTIC_UPDATE_FAILED,
+                            "Elasticsearch update failed. Transaction will be rolled back."
+                        );
+                    }
+
                     const historySignupRequest = await HistorySignupRequest.create([{
                         firstName: signupRequest?.firstName,
                         lastName: signupRequest?.lastName,

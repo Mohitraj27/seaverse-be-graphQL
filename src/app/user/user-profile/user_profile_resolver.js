@@ -34,6 +34,7 @@ const notificationiconEnum = require("../../notifications/notification_icon.json
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
 const { encrypt, decrypt } = require("../../../util/encryption_helper");
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 
 module.exports.queries = {
@@ -469,7 +470,8 @@ module.exports.mutations = {
 
             await existingUser.save();
 
-            await updateByQueryToElasticSearch(
+            try {
+                await updateByQueryToElasticSearch(
                 "users", 
                 `
                     ctx._source.password = params.password;
@@ -485,6 +487,9 @@ module.exports.mutations = {
                     isResetPasswordDialog: true
                 }
             );
+            } catch (error) {
+                throw CustomError(ErrorName.SERVER_ERROR, error.message);
+            }
 
             LogHelper.logActivity({
                 subscriber: subscriberId,
@@ -615,6 +620,25 @@ module.exports.mutations = {
             user.isResetPasswordDialog = true;
 
             const updateUser = await user.save();
+
+            try {
+                 await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.isResetPasswordDialog = true;
+                `,
+                {
+                    match: {
+                    userId: user._id.toString(), 
+                    }
+                },
+                {
+                    password: user.password
+                }
+            );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED);
+            }
 
             if (updateUser) {
                 return "Password updated successfully!";
