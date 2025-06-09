@@ -2056,10 +2056,19 @@ module.exports.queries = {
                 return { totalCount: 0 };
             }
 
+            const decryptedResult = result?.map((item)=>{
+                return{
+                    ...item.toObject(),
+                    firstName: decrypt(item.firstName) || null,
+                    lastName: decrypt(item.lastName) || null,
+                    email: decrypt(item.email) || null
+                }
+            })
+
             const totalCount = await DeleteRequestHistory.countDocuments(requestStatusFilter);
 
             return {
-                data: result,
+                data: decryptedResult,
                 totalCount,
             };
 
