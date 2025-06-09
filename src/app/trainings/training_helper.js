@@ -38,7 +38,7 @@ const { UserCourseMap } = require("./migrationcourses/userCourseMap/user_course_
 const { generateRandomString } = require("../user/user-profile/user_profile_helper");
 const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
-const { decrypt } = require('../../util/encryption_helper');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -682,7 +682,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             if (emails.length > 0) {
                 for (const item of emails) {
                     await sendEmail({
-                        receiverEmail: item.email,
+                        receiverEmail: decrypt(item.email),
                         subject: `Congratulations on Completing the ${item?.trainingTitle} Course!`,
                         htmlContent: item.emailContent,
                     });

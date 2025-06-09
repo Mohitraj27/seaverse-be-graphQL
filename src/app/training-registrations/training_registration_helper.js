@@ -39,7 +39,7 @@ const Roles = require("../../util/role.json");
 const AWS_HELPER = require("../../util/aws_helper");
 const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const { decrypt}= require('../../util/encryption_helper');
+const { decrypt, encrypt}= require('../../util/encryption_helper');
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -352,15 +352,15 @@ const enrolUserVerificationHelper = async (inputUsers, existingTrainings, fromUn
         for (let user of inputUsers) {
             const existUser = userMap.get(user.email);
 
-            if (!Validator.isEmail(user.email ?? '')) {
-                invalidEmails.push(user.email);
+            if (!Validator.isEmail(decrypt(user.email) ?? '')) {
+                invalidEmails.push(decrypt(user.email));
             } else if (!user.isRegistered) {
-                unRegEmails.push(user.email);
+                unRegEmails.push(decrypt(user.email));
                 if (fromUnenroll) {
                     remainingUsers.push(user);
                 }
             } else if (!existUser) {
-                invalidEmails.push(user.email);
+                invalidEmails.push(decrypt(user.email));
             } else {
                 remainingUsers.push(user);
             }
@@ -1407,7 +1407,7 @@ module.exports = {
 
                 const criteria = [];
                 if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                if (emails.length) criteria.push({ email: { $in: emails } });
+                if (emails.length) criteria.push({ email: { $in: emails?.map(email => encrypt(email)) } });
 
                 const inputUsers = await User.find({ $or: criteria });
 
