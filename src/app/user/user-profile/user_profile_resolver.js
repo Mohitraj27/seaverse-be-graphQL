@@ -507,7 +507,7 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-            const existingUser = await User.findOne({ email });
+            const existingUser = await User.findOne({ email:encrypt(email) });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
