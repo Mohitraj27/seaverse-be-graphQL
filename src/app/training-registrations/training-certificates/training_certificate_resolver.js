@@ -7,6 +7,7 @@ const { SubscriberProfile } = require("../../user/subscriber-profile/subscriber_
 const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 const TrainingCertificateHelper = require("./training_certificate_helper")
 const Permission = require("../../user/sub-roles/permission.json");
+const { decrypt } = require("../../../util/encryption_helper");
 
 module.exports.queries = {
     getTrainingCertificates: async ({ pageInput, filterInput }, context) => {
@@ -377,10 +378,20 @@ module.exports.queries = {
                     totalCount: 0,
                 };
             }
-            const totalCount = certificates?.length;
+
+            const decryptedCertificates = certificates?.map((doc) => ({
+                ...doc,
+                user: {
+                    ...doc.user,
+                    firstName: doc.user?.firstName ? decrypt(doc.user.firstName) : null,
+                    lastName: doc.user?.lastName ? decrypt(doc.user.lastName) : null,
+                }
+            }));
+
+            const totalCount = decryptedCertificates?.length;
 
             return {
-                trainingCertificates: certificates,
+                trainingCertificates: decryptedCertificates,
                 totalCount,
             };
         } catch (error) {
