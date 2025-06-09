@@ -704,6 +704,30 @@ module.exports.mutations = {
                 },
             });
 
+            try {
+             await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.deleteRequest = params.deleteRequest;
+                    ctx._source.deleteRequestDate = params.deleteRequestDate;
+                    ctx._source.reasonForDelete = params.reasonForDelete;
+                `,
+                {
+                    match: {
+                    userId: userId,
+                    },
+                },
+                {
+                    deleteRequest: true,
+                    deleteRequestDate: Date.now(),
+                    reasonForDelete: reasonForDelete,
+                }
+            );   
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED, error.message);
+                
+            }
+
             if (updateUser) {
                 const subscriber = await Subscriber.findOne();
 

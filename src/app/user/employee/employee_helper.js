@@ -73,7 +73,7 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch } =require('../../../util/elastic_helper');
+const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch } =require('../../../util/elastic_helper');
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -2012,8 +2012,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             .lean();
 
         const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
-        console.log("remainingAdmins", remainingAdmins.length)
-        if (remainingAdmins.length === 1) {
+        if (remainingAdmins.length === 0) {
             console.log("At least one admin must remain in the system.");
             throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
@@ -2111,6 +2110,46 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                 { session }
             );
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            try {
+                await updateByQueryToElasticSearch(
+            "users",
+            `
+                ctx._source.isDeleted = true;
+                ctx._source.isRegistered = false;
+                ctx._source.subRoles = [];
+                ctx._source.deleteRequest = false;
+                ctx._source.deletionDate = params.deletionDate;
+
+                ctx._source.remove("email");
+                ctx._source.remove("dummyPassword");
+                ctx._source.remove("languagePreference");
+                ctx._source.remove("currentVessel");
+                ctx._source.remove("vesselStatus");
+                ctx._source.remove("password");
+                ctx._source.remove("isSignupAdminApproved");
+                ctx._source.remove("UID");
+                ctx._source.remove("lastLoginAt");
+                ctx._source.remove("civilIdOrPassport");
+                ctx._source.remove("roleAssignmentDate");
+                ctx._source.remove("contentlanguages");
+                ctx._source.remove("deleteRequestDate");
+                ctx._source.remove("reasonForDelete");
+            `,
+            {
+                terms: {
+                userId: users, // assuming your ES documents have `userId` field that matches Mongo `_id`
+                },
+            },
+            {
+                deletionDate: new Date(),
+            }
+        );
+            } catch (error) {
+                console.error("Error deleting users from ElasticSearch:", error);
+                throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message);
+                
+            }
 
             const deletedOverallTrainingProgresses = await OverallTrainingProgress.deleteMany(
                 {

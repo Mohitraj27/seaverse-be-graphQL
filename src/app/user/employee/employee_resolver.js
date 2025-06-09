@@ -1645,6 +1645,10 @@ module.exports.queries = {
 
             const finalUsers = result.map(user => ({
                 ...user,
+                firstName: decrypt(user.firstName) || null,
+                lastName: decrypt(user.lastName) || null,
+                civilIdOrPassport: decrypt(user.civilIdOrPassport) || null,
+                email: decrypt(user.email) || null,
                 designation: employeeMap.get(user._id.toString()) || null
             }));
 
@@ -2587,6 +2591,27 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 }
             );
 
+            try {
+                await updateByQueryToElasticSearch(
+                    "users", 
+                    `
+                        ctx._source.deleteRequest = false;
+                        ctx._source.deleteRequestDate = null;
+                        ctx._source.reasonForDelete = null;
+                    `,
+                    {
+                        terms: {
+                        userId: input.users,
+                        },
+                    }
+                );
+
+            } catch (error) {
+                console.error("Error updating delete request in Elasticsearch:", error);
+                throw CustomError(ErrorName.FAILED, "Failed to update delete request in Elasticsearch");
+                
+            }
+
             if (rejectDeleteRequest.nModified > 0) {
 
                 const history = await DeleteRequestHistory.find();
@@ -2600,10 +2625,10 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             subscriber: subscriberId,
                             user: {
                                 _id: userId,
-                                firstName: decrypt(user.firstName),
-                                lastName: decrypt(user.lastName),
+                                firstName: user.firstName,
+                                lastName: user.lastName,
                                 civilIdOrPassport: user.civilIdOrPassport,
-                                email: decrypt(user.email),
+                                email: user.email,
                             },
                             action: "rejected",
                             message: `Admin ${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has rejected your delete request.`,
@@ -2654,12 +2679,10 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
             const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
             console.log("remainingAdmins", remainingAdmins.length)
-            if (remainingAdmins.length === 1) {
+            if (remainingAdmins.length === 0) {
                 console.log("At least one admin must remain in the system.");
                 throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
             }
-
-
 
             const userHistoryData = getUsers.map(user => ({
                 firstName: user?.firstName,
@@ -2691,10 +2714,10 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 if (updateDeleteRequestHistory) {
                     if (userHistoryData.length === 1) {
                         const sendmailforApproval = await aws_helper.sendEmail({
-                            receiverEmail: userHistoryData[0]?.email,
+                            receiverEmail: decrypt(userHistoryData[0]?.email),
                             subject: 'Delete request APPROVED',
                             htmlContent: DeleteRequestApproved({
-                                firstName: userHistoryData[0]?.firstName,
+                                firstName: decrypt(userHistoryData[0]?.firstName),
                             })
                         });
                         if (!sendmailforApproval) {
