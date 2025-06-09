@@ -94,9 +94,9 @@ const overallProgressSchema = new Schema(
         },
         isEnrolled: Boolean,
         isCertificatePresent: Boolean,
-        assignedCertificateLayout : String,
-        assignedCertificateLayoutId : ObjectId,
-        certificateExpiry : Number,
+        assignedCertificateLayout: String,
+        assignedCertificateLayoutId: ObjectId,
+        certificateExpiry: Number,
         totalDuration: Number,
         timeSpend: Number,
         finishedCourseFirstTime: {
@@ -111,6 +111,23 @@ const overallProgressSchema = new Schema(
             type: Boolean,
             default: false
         },
+        contentFromDownload: [
+            {
+                courseDetails: [
+                    {
+                        moduleId: {
+                            type: ObjectId,
+                            required: true
+                        },
+                        contentIds: [ObjectId]
+                    }
+                ],
+                version: {
+                    type: Number,
+                    required: true
+                }
+            }
+        ]
     },
     { timestamps: true }
 )
