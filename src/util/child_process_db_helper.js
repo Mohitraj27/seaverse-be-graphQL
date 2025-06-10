@@ -1,7 +1,8 @@
+require("dotenv").config();
 const { connect, connection, set } = require("mongoose");
 
 const connectDb = async () => {
-    await connect(process.env.MONGO_DB, {
+    await connect('mongodb://localhost:27017/seaverse', {
         useCreateIndex: true,
         useNewUrlParser: true,
         useUnifiedTopology: true,
