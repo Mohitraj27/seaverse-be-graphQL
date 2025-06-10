@@ -976,7 +976,7 @@ module.exports = {
 
                 const criteria = [];
                 if (userIds.length) criteria.push({ _id: { $in: userIds } });
-                if (emails.length) criteria.push({ email: { $in: emails } });
+                if (emails.length) criteria.push({ email: { $in: emails?.map(email => encrypt(email)) } });
 
                 const inputUsers = await User.find({ $or: criteria });
 
