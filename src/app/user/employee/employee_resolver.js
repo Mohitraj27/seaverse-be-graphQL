@@ -82,7 +82,7 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 
-const { setupQueues, publishToQueue, publishToExchange } = require('./rabbitMq_service');
+const { setupQueues, publishToQueue, publishToExchange,publishMessagesOneByOne } = require('./rabbitMq_service');
 const { EXCHANGES } = require('../../../util/rabbitmq_helper');
 const { ImportJob } = require("./import_job_model");
 
@@ -2691,19 +2691,34 @@ module.exports.mutations = {
             });
 
             // Publish message to RabbitMQ
-            await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
-                jobId,
-                users,
-                emailsArray,
-                empIdsArray,
-                subscriberId,
-                userId,
-                userInfo,
-                newFileName,
-                saveCSV,
-                context,
-                timestamp: new Date().toISOString()
-            });
+            const batchSize = Math.min(500, users.length);
+            const batchCount = Math.ceil(users.length / batchSize);
+            console.time('Processing all batches');
+            for (let i = 0; i < batchCount; i++) {
+                console.time(`Processing batch ${i + 1}/${batchCount}`);
+                const start = i * batchSize;
+                const end = start + batchSize;
+                const batchUsers = users.slice(start, end);
+                const batchEmails = emailsArray.slice(start, end);
+                const batchEmpIds = empIdsArray.slice(start, end);
+
+                console.log(`Processing batch ${i + 1}/${batchCount}`);
+                await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
+                    jobId,
+                    users: batchUsers,
+                    emailsArray: batchEmails,
+                    empIdsArray: batchEmpIds,
+                    subscriberId,
+                    userId,
+                    userInfo,
+                    newFileName,
+                    saveCSV,
+                    context,
+                    timestamp: new Date().toISOString()
+                });
+                console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+            }
+            console.timeEnd('Processing all batches');
 
             return {
                 status: "The bulk import is being processed in the background. You can continue working.",

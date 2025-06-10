@@ -2,7 +2,14 @@ const { connect, getChannel, close, QUEUES, EXCHANGES } = require('../../../util
 
 const setupQueues = async () => {
     const channel = await getChannel();
-
+    // remove this code before production
+    await channel.purgeQueue('csv_import_queue');
+    console.log('Queue cleared');
+    
+    // Clear all queues
+    await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
+    // remove this code before production
+    
     console.log('reached inside setupQueues!');
 
     // Setup exchanges
@@ -79,8 +86,25 @@ const publishToExchange = async (exchange, routingKey, data, options = {}) => {
     }
 };
 
+const publishMessagesOneByOne = async (queue, dataArray, delayMs = 10, options = {}) => {
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    for (const data of dataArray) {
+        try {
+            await publishToQueue(queue, data, options);
+            console.log(`Published to ${queue}: ${data?._id || '[data]'}`);
+            await delay(delayMs);
+        } catch (error) {
+            console.error('Error in publishMessagesOneByOne:', error);
+        }
+    }
+
+    console.log(`Finished publishing ${dataArray.length} messages to ${queue}`);
+};
+
 module.exports = {
     setupQueues,
     publishToQueue,
-    publishToExchange
+    publishToExchange,
+    publishMessagesOneByOne
 };
