@@ -74,7 +74,10 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,updateDocumentToElasticSearch,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch } =require('../../../util/elastic_helper');
+const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch, indexDocumenttoElasticSearch,bulkIndexDocumentsToElasticSearch } =require('../../../util/elastic_helper');
+const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
+const {VesselType}= require('../../vessle/vessel-type/vessel_type_model');
+
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
     let subscriberDetails = {};
@@ -294,10 +297,10 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
 const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
     isComplete: false,
     isCertificateGenerated: false,
-    learningPlan: enrollData.learningPlan ? [enrollData.learningPlan] : [],
-    training: trainingId,
-    user: userId,
-    trainingRegistration: trainingRegistrationIds[0],
+    learningPlan: enrollData.learningPlan ? [new mongodbObject(enrollData.learningPlan)] : [],
+    training: new mongodbObject(trainingId),
+    user: new mongodbObject(userId),
+    trainingRegistration: new mongodbObject(trainingRegistrationIds[0]),
     status: "NOT_STARTED",
     isEnrolled: true,
     progressPercentage: 0,
@@ -413,18 +416,63 @@ async function enrollUsers(enrollDataArray, context) {
             }
         }
 
+        console.time('OTP insertion')
         let allEnrollments = [];
-        if (insertedEnrollments.length > 0) {
-            const insertedDocs = await OverallTrainingProgress.insertMany(
-                insertedEnrollments,
-                { ordered: false }
-            );
-            allEnrollments.push(...insertedDocs);
-        }
 
+        const MONGO_URI = 'mongodb://localhost:27017';
+        const DB_NAME = 'seaverse';
+        const COLLECTION_NAME = 'overalltrainingprogresses';
+        const BATCH_SIZE = 200;
+
+        const run = async () => {
+            const client = new MongoClient(MONGO_URI);
+
+            try {
+                await client.connect();
+                const db = client.db(DB_NAME);
+                const collection = db.collection(COLLECTION_NAME);
+
+                console.time('Batch Insert');
+
+                const insertPromises = [];
+
+                for (let i = 0; i < insertedEnrollments.length; i += BATCH_SIZE) {
+                    const batch = insertedEnrollments.slice(i, i + BATCH_SIZE);
+                    insertPromises.push(collection.insertMany(batch, { ordered: false }));
+                }
+
+                const results = await Promise.all(insertPromises);
+
+                console.log('results');
+                // console.log(results);
+
+                for (const result of results) {
+                    allEnrollments.push(...result.ops ?? result.insertedDocs ?? []);
+                }
+
+                console.timeEnd('Batch Insert');
+            } catch (err) {
+                console.error('❌ Error inserting batches:', err);
+            } finally {
+                await client.close();
+            }
+
+            return allEnrollments;
+        };
+
+        run().then((enrollments) => {
+            console.log('✅ Total Inserted Documents:', enrollments.length);
+        });
+
+
+
+        console.timeEnd('OTP insertion')
+
+        console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
         }
+        console.timeEnd('OTP bulkWrite LP')
 
         const duplicates = await OverallTrainingProgress.aggregate([
             {
@@ -488,10 +536,12 @@ async function enrollUsers(enrollDataArray, context) {
                 }
             }
 
+            console.time('dup removal')
             if (mergeBulkOps.length > 0) {
                 await OverallTrainingProgress.bulkWrite(mergeBulkOps);
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
+            console.timeEnd('dup removal')
         }
 
         // Update courses count and progress in ElasticSearch
@@ -522,7 +572,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
             const emailsToSend = emailBatch.map(email => {
                 let html;
                 const coursesData = JSON.parse(email.courses);
-                
+
                 switch (email.action) {
                     case 'ENROLL':
                         html = courseEnrollment({
@@ -699,6 +749,8 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
+    console.log('reached here 123!');
+
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -745,11 +797,13 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 let evaluations;
                 try {
 
+                    console.time('evaluateConditionalCustomFields')
                     evaluations = await Promise.all(
                         userConditions.map(user =>
                             evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
                         )
                     );
+                    console.timeEnd('evaluateConditionalCustomFields')
 
                 } catch (error) {
                     console.log(error);
@@ -794,9 +848,11 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                             updatedAt: new Date()
                         }));
 
+                    console.time('LearningPlanAssignmentInsertion')
                     if (newAssignments.length > 0) {
                         const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
                     }
+                    console.timeEnd('LearningPlanAssignmentInsertion')
 
                     usersToEnroll.push(...userIds);
                 }
@@ -900,7 +956,9 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 // return true;
             }
 
+
             filteredPlans.push(true);
+
 
         } catch (error) {
             console.log('error');
@@ -945,7 +1003,9 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
 
+    console.time('enrollUsersInFilterLP')
     await enrollUsers(enrollmentData, context);
+    console.timeEnd('enrollUsersInFilterLP')
 
     if (removeUsersData?.length > 0) {
         const bulkUpdateOps = [];
@@ -992,7 +1052,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    // await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
@@ -2018,8 +2078,7 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             .lean();
 
         const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
-        console.log("remainingAdmins", remainingAdmins.length)
-        if (remainingAdmins.length === 1) {
+        if (remainingAdmins.length === 0) {
             console.log("At least one admin must remain in the system.");
             throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
         }
@@ -2117,6 +2176,46 @@ const deleteUsersAfterGDPR = async (users, errors) => {
                 { session }
             );
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
+
+            try {
+                await updateByQueryToElasticSearch(
+            "users",
+            `
+                ctx._source.isDeleted = true;
+                ctx._source.isRegistered = false;
+                ctx._source.subRoles = [];
+                ctx._source.deleteRequest = false;
+                ctx._source.deletionDate = params.deletionDate;
+
+                ctx._source.remove("email");
+                ctx._source.remove("dummyPassword");
+                ctx._source.remove("languagePreference");
+                ctx._source.remove("currentVessel");
+                ctx._source.remove("vesselStatus");
+                ctx._source.remove("password");
+                ctx._source.remove("isSignupAdminApproved");
+                ctx._source.remove("UID");
+                ctx._source.remove("lastLoginAt");
+                ctx._source.remove("civilIdOrPassport");
+                ctx._source.remove("roleAssignmentDate");
+                ctx._source.remove("contentlanguages");
+                ctx._source.remove("deleteRequestDate");
+                ctx._source.remove("reasonForDelete");
+            `,
+            {
+                terms: {
+                userId: users, // assuming your ES documents have `userId` field that matches Mongo `_id`
+                },
+            },
+            {
+                deletionDate: new Date(),
+            }
+        );
+            } catch (error) {
+                console.error("Error deleting users from ElasticSearch:", error);
+                throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message);
+                
+            }
 
             const deletedOverallTrainingProgresses = await OverallTrainingProgress.deleteMany(
                 {
@@ -3483,9 +3582,22 @@ module.exports = {
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
 
+        users=users.map(user => {
+            return {
+                ...user,
+                firstName:encrypt(user.firstName.trim()),
+                lastName:encrypt(user.lastName.trim()),
+                civilIdOrPassport:encrypt(user.civilIdOrPassport.trim().toUpperCase()),
+                email:encrypt(user.email.trim().toLowerCase()),
+            }
+        })
+
+        emailsArray = emailsArray.map((email) => encrypt(email.trim()));
+        empIdsArray = empIdsArray.map((id) => encrypt(id.trim()));
+
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: caseInsensitiveEmpIdArray } },
+                { civilIdOrPassport: { $in: empIdsArray?.map(id=>encrypt(id)) } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -3544,6 +3656,7 @@ module.exports = {
         let subscriber_Id;
         if (subscriber) subscriber_Id = subscriber._id;
 
+        console.time('userValidationLoop');
         for (const user of users) {
 
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
@@ -3572,7 +3685,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                        civilIdOrPassport: user.civilIdOrPassport,
                                         country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3607,7 +3720,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    email: user.email?.toLowerCase(),
+                                    email: user.email,
                                     country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3631,7 +3744,7 @@ module.exports = {
 
             } else if (existingEmailIdsMap) {
 
-                const empId = existingEmailIdsMap[user.email].toUpperCase();
+                const empId = existingEmailIdsMap?.[user?.email]?.toUpperCase();
 
                 if (existingEmpIdsMap) {
 
@@ -3652,7 +3765,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        email: user.email?.toLowerCase(),
+                                        email: user.email,
                                         country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3687,7 +3800,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                    civilIdOrPassport: user.civilIdOrPassport,
                                     country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3728,10 +3841,10 @@ module.exports = {
                     let password = dummyPassword.dummy_pwd;
 
                     inserts.push({
-                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                        civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
-                        email: user.email?.toLowerCase(),
+                        email: user.email,
                         country: user.country ?? null,
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3755,7 +3868,7 @@ module.exports = {
             }
             userIndex++;
         };
-
+        console.timeEnd('userValidationLoop');
 
         if (errors.length > 0) {
 
@@ -3773,23 +3886,23 @@ module.exports = {
             if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Failed",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: true,
-                description: `${errors[0]}`,
-                notificationType: 'BULK_IMPORT_FAILED',
-                status: "FAILED",
-                icon: notificationiconEnum.ERROR,
-                creatorId: userInfo._id,
-            });
+            // await sendNotificationOnBULK({
+            //     subscriber: subscriberId,
+            //     action: "Bulk Import Failed",
+            //     createdBy: adminUser?._id,
+            //     uploadedBy: adminUser?._id,
+            //     isError: true,
+            //     description: `${errors[0]}`,
+            //     notificationType: 'BULK_IMPORT_FAILED',
+            //     status: "FAILED",
+            //     icon: notificationiconEnum.ERROR,
+            //     creatorId: userInfo._id,
+            // });
 
-            throw CustomError(
-                ErrorName.VALIDATION_ERROR,
-                `${errors[0]}`
-            );
+            // throw CustomError(
+            //     ErrorName.VALIDATION_ERROR,
+            //     `${errors[0]}`
+            // );
 
 
         }
@@ -3808,13 +3921,18 @@ module.exports = {
 
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
+            console.time("bulkInsertUsers")
             bulkInsertUsers = await User.insertMany(inserts, { session: session });
+            console.timeEnd("bulkInsertUsers")
 
 
             insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
+            // console.log('insertedUsers------------>', insertedUsers);
 
 
+            console.time("bulkUpdateUsers")
             const bulkUpdateUsers = await User.bulkWrite(updates, { session });
+            console.timeEnd("bulkUpdateUsers");
 
 
             if (updatedEmpIds.length > 0) {
@@ -3916,9 +4034,11 @@ module.exports = {
                     }
                 }
 
+                console.time('vesselBulkWrite')
                 if (userVesselsInsert.length > 0) {
                     await UserVessel.bulkWrite(userVesselsInsert, { session });
                 }
+                console.timeEnd('vesselBulkWrite')
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
                     const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
@@ -3942,13 +4062,14 @@ module.exports = {
                     };
                 });
 
-
+                console.time('employeesToInsert')
                 await Employee.bulkWrite(employeesToInsert, { session });
+                console.timeEnd('employeesToInsert')
 
 
                 const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
 
-
+                console.time('generateEmployeeUID')
                 const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
                     const UID = await generateEmployeeUID({ subscriberId, session });
                     return {
@@ -3959,9 +4080,12 @@ module.exports = {
                         }
                     };
                 }));
+                console.timeEnd('generateEmployeeUID')
 
 
+                console.time('empBulkWriteuidUpdates')
                 await Employee.bulkWrite(uidUpdates, { session });
+                console.timeEnd('empBulkWriteuidUpdates')
 
 
             } else {
@@ -3984,12 +4108,12 @@ module.exports = {
                 );
             }
 
-            const userIDs = allUpdatedUsers.map(user => user._id);
+           const userIDs = allUpdatedUsers?.map(user => mongoose.Types.ObjectId(user._id));
             const employees = await Employee.find(
                 { user: { $in: userIDs } },
-                { user: 1, empDesignation: 1, _id: 0 }
+                null,
+                { session }
             );
-
             const empDesignationMap = {};
             employees.forEach(employee => {
                 empDesignationMap[employee.user] = employee.empDesignation;
@@ -4004,16 +4128,31 @@ module.exports = {
                 };
             });
 
-
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             let conditionsList = []
+            const elasticDocuments=[]
+            // console.log('employees---------->', employees)
+            // console.log("allUpdatedUsers?.map(user => user._id",allUpdatedUsers?.map(user => user._id))
+            // const updatedEmploees = await Employee.find({ user: { $in: allUpdatedUsers?.map(user => user._id) } });
+            // console.log('updatedEmploees---------->', updatedEmploees)
+            const updatedUsersVessels= await Vessel.find({ _id: { $in: allUpdatedUsers?.map(user => user.currentVessel) } });
+            // const designations= await Designation.find({ isDeleted: false });
+            // console.log('designations---------->', designations)
+            const VesselTypes= await VesselType.find({ isDeleted: false });
             try {
                 allUpdatedUsers.forEach(user => {
+                    const savedEmployee = employees.find(emp => emp.user.toString() === user._id.toString());
+                    const userVesselDetails= updatedUsersVessels.find(vessel => vessel._id.toString() === user.currentVessel.toString());
+                    const designation= existingDesignations.find(designation => designation._id.toString() === savedEmployee?.empDesignation.toString());
+                    const vesselType= VesselTypes.find(vesselType => vesselType._id.toString() === userVesselDetails?.typeOfVessel.toString());
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-
-                    const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
+                    // console.log("originalUserData--------->", originalUserData)
+                    const empDesignation = designationMap.get(originalUserData?.designation?.toLowerCase())?.id;
+                    // console.log("empDesignation--------->", empDesignation)
                     const typeOfVesselIds = vesselTypeMap[user.currentVessel]?.typeOfVessel;
+                    // console.log("typeOfVesselIds--------->", typeOfVesselIds)
                     const vesselOwnerName = vesselTypeMap[user.currentVessel]?.ownerName;
+                    // console.log("vesselOwnerName--------->", vesselOwnerName)
                     const conditions = {
                         designationID: empDesignation,
                         vesselID: user.currentVessel ?? null,
@@ -4027,9 +4166,74 @@ module.exports = {
 
                     conditionsList.push(conditions);
 
+                    const document = {
+                        id: savedEmployee?._id,
+                        employeeId: savedEmployee._id?.toString(),
+                        UID: savedEmployee.UID,
+                        designation: designation?.name,
+                        empDesignation: savedEmployee.empDesignation?.toString(),
+                        bulkId: savedEmployee.bulkId,
+                        regType: savedEmployee.regType,
+                        isActive: savedEmployee.isActive,
+                        isDeleted: savedEmployee.isDeleted,
+                        subscriber: savedEmployee.subscriber?.toString(),
+                        createdAt: savedEmployee.createdAt,
+                        updatedAt: savedEmployee.updatedAt,
+                    
+                        // Nested user fields
+                        userId: user?._id?.toString(),
+                        firstName: user?.firstName,
+                        lastName: user?.lastName,
+                        email: user?.email,
+                        civilIdOrPassport: user?.civilIdOrPassport,
+                        country: user?.country,
+                        languagePreference: user?.languagePreference,
+                        role: user?.role,
+                        subRoles: user?.subRoles,
+                        isVerified: user?.isVerified,
+                        isRegistered: user?.isRegistered,
+                        superAdmin: user?.superAdmin,
+                        deleteRequest: user?.deleteRequest,
+                        isDeleted_user: user?.isDeleted,
+                        directSignup: user?.directSignup,
+                        contentlanguages: user?.contentlanguages,
+                        currentVessel: user?.currentVessel?.toString(),
+                        vesselStatus: user?.vesselStatus,
+                        isEmailNotification: user?.isEmailNotification,
+                        isPushNotification: user?.isPushNotification,
+                        lastLoginAt: user?.lastLoginAt,
+                        isSignupAdminAprroved: user?.isSignupAdminAprroved,
+                        userCreatedAt: user?.createdAt,
+                        userUpdatedAt: user?.updatedAt,
+                        vesselName: userVesselDetails?.name,
+                        vesselId: userVesselDetails?._id,
+                        vesselIsDeleted: userVesselDetails?.isDeleted,
+                        vesselIsActive: userVesselDetails?.isActive,
+                        typeOfVesselName: vesselType?.name,
+                        tyepOfVesselId: userVesselDetails?.typeOfVessel,
+                        isResetPasswordDialog: user?.isResetPasswordDialog,
+                        indexedAt: new Date(),
+                    };
+
+                    elasticDocuments.push(document)
+                    
+                    // try {
+                    //     await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    // } catch (error) {
+                    //     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                    // }
+
                 });
 
+                try {
+                    await bulkIndexDocumentsToElasticSearch("users", elasticDocuments);
+                } catch (error) {
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
+                }
+
+                console.time('filterPlans')
                 const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);
@@ -4040,101 +4244,101 @@ module.exports = {
 
 
 
-            if (passwordEmailList.length > 0) {
+            // if (passwordEmailList.length > 0) {
 
 
-                await sendBulkEmails(passwordEmailList);
+            //     await sendBulkEmails(passwordEmailList);
 
 
-            }
+            // }
 
 
         });
 
-        if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
+        // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: userCount,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers.length} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: userCount,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers.length} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-        if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
+        // if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: 0,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: 0,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-        if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
+        // if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
-            })
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
+        //     })
 
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        }
+        // }
 
     },
 
@@ -4160,10 +4364,10 @@ module.exports = {
 
                     rowIndex++;
 
-                    if (rowIndex > MAX_ROWS) {
-                        validationErrors.push("The CSV file exceeds the maximum allowed row limit of 1000.");
-                        return;
-                    }
+                    // if (rowIndex > MAX_ROWS) {
+                    //     validationErrors.push("The CSV file exceeds the maximum allowed row limit of 1000.");
+                    //     return;
+                    // }
 
                     isEmptyFile = false;
 

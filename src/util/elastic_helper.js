@@ -264,6 +264,33 @@ const searchEmployeesFromElastic = async ({
   };
 };
 
+// Bulk Insert Documents
+async function bulkIndexDocumentsToElasticSearch(indexName, documents = []) {
+  try {
+    if (!documents.length) return;
+
+    const operations = documents.flatMap(({ id, ...doc }) => [
+      { index: { _index: indexName, _id: id.toString() } },
+      doc,
+    ]);
+
+    const response = await client.bulk({
+      refresh: true,
+      operations,
+    });
+
+    if (response.errors) {
+      const errorDetails = response.items.filter(item => item.index && item.index.error);
+      console.error(`Bulk index had errors in ${indexName}:`, errorDetails);
+      throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Bulk Insert Error (${indexName})`);
+    }
+
+    console.log(`Bulk indexed ${documents.length} documents into ${indexName}`);
+    return response;
+  } catch (err) {
+    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Bulk Insert Error (${indexName}): ${err}`);
+  }
+}
 
 /**
  * Simple bulk update helper for Elasticsearch.
@@ -310,6 +337,7 @@ module.exports = {
   deleteByQueryFromElasticSearch,
   updateByQueryToElasticSearch,
   searchEmployeesFromElastic,
+  bulkIndexDocumentsToElasticSearch,
   bulkUpdateDocumentsInElastic,
   client
 };

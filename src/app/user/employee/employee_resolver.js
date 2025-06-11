@@ -81,6 +81,11 @@ const groupTypes = require('../../../util/group_types.json');
 const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
+
+const { setupQueues, publishToQueue, publishToExchange,publishMessagesOneByOne } = require('./rabbitMq_service');
+const { EXCHANGES } = require('../../../util/rabbitmq_helper');
+const { ImportJob } = require("./import_job_model");
+
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
 const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch,searchEmployeesFromElastic  } = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
@@ -1645,6 +1650,10 @@ module.exports.queries = {
 
             const finalUsers = result.map(user => ({
                 ...user,
+                firstName: decrypt(user.firstName) || null,
+                lastName: decrypt(user.lastName) || null,
+                civilIdOrPassport: decrypt(user.civilIdOrPassport) || null,
+                email: decrypt(user.email) || null,
                 designation: employeeMap.get(user._id.toString()) || null
             }));
 
@@ -2052,10 +2061,19 @@ module.exports.queries = {
                 return { totalCount: 0 };
             }
 
+            const decryptedResult = result?.map((item)=>{
+                return{
+                    ...item.toObject(),
+                    firstName: decrypt(item.firstName) || null,
+                    lastName: decrypt(item.lastName) || null,
+                    email: decrypt(item.email) || null
+                }
+            })
+
             const totalCount = await DeleteRequestHistory.countDocuments(requestStatusFilter);
 
             return {
-                data: result,
+                data: decryptedResult,
                 totalCount,
             };
 
@@ -2587,6 +2605,27 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 }
             );
 
+            try {
+                await updateByQueryToElasticSearch(
+                    "users", 
+                    `
+                        ctx._source.deleteRequest = false;
+                        ctx._source.deleteRequestDate = null;
+                        ctx._source.reasonForDelete = null;
+                    `,
+                    {
+                        terms: {
+                        userId: input.users,
+                        },
+                    }
+                );
+
+            } catch (error) {
+                console.error("Error updating delete request in Elasticsearch:", error);
+                throw CustomError(ErrorName.FAILED, "Failed to update delete request in Elasticsearch");
+                
+            }
+
             if (rejectDeleteRequest.nModified > 0) {
 
                 const history = await DeleteRequestHistory.find();
@@ -2600,10 +2639,10 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             subscriber: subscriberId,
                             user: {
                                 _id: userId,
-                                firstName: decrypt(user.firstName),
-                                lastName: decrypt(user.lastName),
+                                firstName: user.firstName,
+                                lastName: user.lastName,
                                 civilIdOrPassport: user.civilIdOrPassport,
-                                email: decrypt(user.email),
+                                email: user.email,
                             },
                             action: "rejected",
                             message: `Admin ${decrypt(userInfo.firstName)} ${decrypt(userInfo.lastName)} has rejected your delete request.`,
@@ -2652,12 +2691,10 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
             const remainingAdmins = adminsNotBeingDeleted.filter(isAdmin);
             console.log("remainingAdmins", remainingAdmins.length)
-            if (remainingAdmins.length === 1) {
+            if (remainingAdmins.length === 0) {
                 console.log("At least one admin must remain in the system.");
                 throw CustomError(ErrorName.FAILED_TO_DELETE_LAST_ADMIN, "At least one admin must remain in the system.");
             }
-
-
 
             const userHistoryData = getUsers.map(user => ({
                 firstName: user?.firstName,
@@ -2689,16 +2726,16 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 if (updateDeleteRequestHistory) {
                     if (userHistoryData.length === 1) {
                         const sendmailforApproval = await aws_helper.sendEmail({
-                            receiverEmail: userHistoryData[0]?.email,
+                            receiverEmail: decrypt(userHistoryData[0]?.email),
                             subject: 'Delete request APPROVED',
                             htmlContent: DeleteRequestApproved({
-                                firstName: userHistoryData[0]?.firstName,
+                                firstName: decrypt(userHistoryData[0]?.firstName),
                             })
                         });
                         if (!sendmailforApproval) {
                             throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                         }
-                    }else{
+                    } else {
                         console.log("Multiple users deletion was not part of the initial implementation, so no email will be sent.");
                     }
 
@@ -2914,53 +2951,104 @@ module.exports.mutations = {
             const emailsArray = Array.from(emails);
 
 
+            // Create a job ID for tracking
+            const jobId = uuidv4();
 
-            const child = fork("./src/app/user/employee/csv_import_process.js");
-
-            child.send({
-                users,
-                emailsArray,
-                empIdsArray,
-                subscriberId,
-                userId,
-                newFileName,
-                saveCSV,
-                context
+            // Store job metadata in database
+            await ImportJob.create({
+                jobId,
+                subscriber: subscriberId,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "PROCESSING",
+                totalRecords: users.length,
+                description: "Processing CSV import"
             });
 
-            child.on("message", async message => {
-                if (message.type === 'NOTIFICATION') {
-                    // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
-                    const notification = message?.data?.onNotification;
+            // Publish message to RabbitMQ
+            const batchSize = Math.min(500, users.length);
+            const batchCount = Math.ceil(users.length / batchSize);
+            console.time('Processing all batches');
+            for (let i = 0; i < batchCount; i++) {
+                console.time(`Processing batch ${i + 1}/${batchCount}`);
+                const start = i * batchSize;
+                const end = start + batchSize;
+                const batchUsers = users.slice(start, end);
+                const batchEmails = emailsArray.slice(start, end);
+                const batchEmpIds = empIdsArray.slice(start, end);
 
-                    if (notification?.createdAt) {
-                        notification.createdAt = new Date(notification.createdAt).getTime().toString();
-                    }
-
-                    if (notification?.updatedAt) {
-                        notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
-                    }
-                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
-                }
-
-                if (message.type === 'EMAIL') {
-
-                    SqliteEmailHelper.insertEmails(message.data.email);
-                    const emails = SqliteEmailHelper.fetchEmailBatch();
-
-                    await sendNodeEmailBulk({ subject: message.data.subject });
-
-                }
-            });
-
-            child.on("error", error => {
-                console.error("Error in child process:", error);
-            });
+                console.log(`Processing batch ${i + 1}/${batchCount}`);
+                await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
+                    jobId,
+                    users: batchUsers,
+                    emailsArray: batchEmails,
+                    empIdsArray: batchEmpIds,
+                    subscriberId,
+                    userId,
+                    userInfo,
+                    newFileName,
+                    saveCSV,
+                    context,
+                    timestamp: new Date().toISOString()
+                });
+                console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+            }
+            console.timeEnd('Processing all batches');
 
             return {
                 status: "The bulk import is being processed in the background. You can continue working.",
+                // jobId
             };
+
+            // const child = fork("./src/app/user/employee/csv_import_process.js");
+
+            // child.send({
+            //     users,
+            //     emailsArray,
+            //     empIdsArray,
+            //     subscriberId,
+            //     userId,
+            //     newFileName,
+            //     saveCSV,
+            //     context
+            // });
+
+            // child.on("message", async message => {
+            //     if (message.type === 'NOTIFICATION') {
+            //         // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
+            //         const notification = message?.data?.onNotification;
+
+            //         if (notification?.createdAt) {
+            //             notification.createdAt = new Date(notification.createdAt).getTime().toString();
+            //         }
+
+            //         if (notification?.updatedAt) {
+            //             notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
+            //         }
+            //         await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+            //     }
+
+            //     if (message.type === 'EMAIL') {
+
+            //         SqliteEmailHelper.insertEmails(message.data.email);
+            //         const emails = SqliteEmailHelper.fetchEmailBatch();
+
+            //         await sendNodeEmailBulk({ subject: message.data.subject });
+
+            //     }
+            // });
+
+            // child.on("error", error => {
+            //     console.error("Error in child process:", error);
+            // });
+
+            // return {
+            //     status: "The bulk import is being processed in the background. You can continue working.",
+            // };
+
         } catch (error) {
+            console.log(error);
             throw Error(error.message);
         }
     },

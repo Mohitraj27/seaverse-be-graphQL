@@ -507,7 +507,7 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-            const existingUser = await User.findOne({ email });
+            const existingUser = await User.findOne({ email:encrypt(email) });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
@@ -703,6 +703,30 @@ module.exports.mutations = {
                     reasonForDelete: reasonForDelete,
                 },
             });
+
+            try {
+             await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.deleteRequest = params.deleteRequest;
+                    ctx._source.deleteRequestDate = params.deleteRequestDate;
+                    ctx._source.reasonForDelete = params.reasonForDelete;
+                `,
+                {
+                    match: {
+                    userId: userId,
+                    },
+                },
+                {
+                    deleteRequest: true,
+                    deleteRequestDate: Date.now(),
+                    reasonForDelete: reasonForDelete,
+                }
+            );   
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED, error.message);
+                
+            }
 
             if (updateUser) {
                 const subscriber = await Subscriber.findOne();

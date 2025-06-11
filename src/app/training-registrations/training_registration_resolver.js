@@ -177,8 +177,8 @@ module.exports.queries = {
 
         const formattedResults = results.map(user => ({
             id: user.id,
-            firstName: decrypt(user.firstName),
-            lastName: decrypt(user.lastName),
+            firstName: user.firstName,
+            lastName: user.lastName,
             status: user.status,
             email: user.email ?? "",
             isRegistered: user.isRegistered,
@@ -1460,7 +1460,7 @@ module.exports.mutations = {
                     if (!Validator.isEmail(email)) {
                         invalidEmails.push(email);
                     } else {
-                        const user = await User.findOne({ email: email });
+                        const user = await User.findOne({ email: encrypt(email) });
                         if (!user) {
                             invalidEmails.push(email);
                         }
@@ -1477,7 +1477,7 @@ module.exports.mutations = {
                 existingTraining = await OverallTrainingProgress.find({ training: input.training, user: { $in: inputUserIds } });
             }
 
-            const inputUsers = await User.find({ email: { $in: input.users } });
+            const inputUsers = await User.find({ email: { $in: input?.users?.map(email => encrypt(email)) } });
 
             if (inputUsers.length === 0) {
                 return { invalidEmails };
