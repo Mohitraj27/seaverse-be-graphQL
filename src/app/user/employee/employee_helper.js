@@ -73,7 +73,7 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch, indexDocumenttoElasticSearch } =require('../../../util/elastic_helper');
+const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch, indexDocumenttoElasticSearch,bulkIndexDocumentsToElasticSearch } =require('../../../util/elastic_helper');
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const {VesselType}= require('../../vessle/vessel-type/vessel_type_model');
 
@@ -4124,6 +4124,7 @@ module.exports = {
 
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             let conditionsList = []
+            const elasticDocuments=[]
             // console.log('employees---------->', employees)
             // console.log("allUpdatedUsers?.map(user => user._id",allUpdatedUsers?.map(user => user._id))
             // const updatedEmploees = await Employee.find({ user: { $in: allUpdatedUsers?.map(user => user._id) } });
@@ -4133,7 +4134,7 @@ module.exports = {
             // console.log('designations---------->', designations)
             const VesselTypes= await VesselType.find({ isDeleted: false });
             try {
-                allUpdatedUsers.forEach(async(user) => {
+                allUpdatedUsers.forEach(user => {
                     const savedEmployee = employees.find(emp => emp.user.toString() === user._id.toString());
                     const userVesselDetails= updatedUsersVessels.find(vessel => vessel._id.toString() === user.currentVessel.toString());
                     const designation= existingDesignations.find(designation => designation._id.toString() === savedEmployee?.empDesignation.toString());
@@ -4160,6 +4161,7 @@ module.exports = {
                     conditionsList.push(conditions);
 
                     const document = {
+                        id: savedEmployee?._id,
                         employeeId: savedEmployee._id?.toString(),
                         UID: savedEmployee.UID,
                         designation: designation?.name,
@@ -4206,14 +4208,22 @@ module.exports = {
                         isResetPasswordDialog: user?.isResetPasswordDialog,
                         indexedAt: new Date(),
                     };
+
+                    elasticDocuments.push(document)
                     
-                    try {
-                        await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
-                    } catch (error) {
-                        throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
-                    }
+                    // try {
+                    //     await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    // } catch (error) {
+                    //     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                    // }
 
                 });
+
+                try {
+                    await bulkIndexDocumentsToElasticSearch("users", elasticDocuments);
+                } catch (error) {
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
+                }
 
                 console.time('filterPlans')
                 const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
