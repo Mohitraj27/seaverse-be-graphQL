@@ -50,6 +50,7 @@ const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
 const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
 const { decrypt, encrypt } = require("../../util/encryption_helper");
+const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
         if (input?.search) {
@@ -1863,7 +1864,7 @@ module.exports.mutations = {
 
             // update progress of individual contents 
             await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds , trainingContentData, overallProgressRecords: recordsToUpdate , updatedBy : userId });
-            const elasticSearchUpdateResponse = await TrainingRegistrationHelper.updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(input?.userIds)
             console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
 
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
@@ -2090,7 +2091,7 @@ module.exports.mutations = {
 
             const trainingTitle = trainingData.title[0]?.value;
 
-            const elasticSearchUpdateResponse = await TrainingRegistrationHelper.updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(input?.userIds)
             console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
 
             return {

@@ -6,6 +6,7 @@ const { TrainingProgress } = require("../training-progress/training_progress_mod
 const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { Employee } = require("../../user/employee/employee_model");
 const { ObjectId } = require("../../../tools");
+const { bulkUpdateDocumentsInElastic } = require("../../../util/elastic_helper");
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {
@@ -182,7 +183,36 @@ const getUsersAvgProgress = async (userIds,session) => {
     }
 }
 
+const updateCoursesCountAndProgressInElasticSearch = async (userIds, session) => {
+    try {
+
+        if (!userIds || userIds.length === 0) {
+            return "No users to update";
+        }
+
+        //Bulk updattion in Elasticsearch ( enrolled courses count and average progress of each user )
+        const enrolledCoursesCountOfEachUser = await getEnrolledCoursesOfUsers(userIds, session);
+        const avgProgressOfEachUser = await getUsersAvgProgress(userIds, session);
+        const updateMap = {};
+
+        // since we are using the same user ids in both maps, we can use the same loop
+        for (const userId of Object.keys(enrolledCoursesCountOfEachUser)) {
+            updateMap[userId] = {
+                enrolledCourses: enrolledCoursesCountOfEachUser[userId],
+                averageCourseProgress: avgProgressOfEachUser[userId] || 0,
+            };
+        }
+        console.log("update map: ", updateMap);
+        const bulkUpdateInElasticResult = await bulkUpdateDocumentsInElastic("users", updateMap, { upsert: true });
+        console.log("Bulk update in Elasticsearch result:", bulkUpdateInElasticResult);
+        return bulkUpdateInElasticResult;
+
+    } catch (error) {
+        throw Error(error.message);
+    }
+}
 module.exports = {
+    updateCoursesCountAndProgressInElasticSearch,
     deleteCourseDataForUserDeleted5yearsAgo,
     deleteCourseDataForDeletedUsers,
     getEnrolledCoursesOfUsers,
