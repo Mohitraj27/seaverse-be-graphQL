@@ -73,8 +73,9 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const {decrypt,encrypt} = require('../../../util/encryption_helper');
-const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch } =require('../../../util/elastic_helper');
+const { client,deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch,updateByQueryToElasticSearch, indexDocumenttoElasticSearch } =require('../../../util/elastic_helper');
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
+const {VesselType}= require('../../vessle/vessel-type/vessel_type_model');
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -3575,9 +3576,22 @@ module.exports = {
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
 
+        users=users.map(user => {
+            return {
+                ...user,
+                firstName:encrypt(user.firstName.trim()),
+                lastName:encrypt(user.lastName.trim()),
+                civilIdOrPassport:encrypt(user.civilIdOrPassport.trim().toUpperCase()),
+                email:encrypt(user.email.trim().toLowerCase()),
+            }
+        })
+
+        emailsArray = emailsArray.map((email) => encrypt(email.trim()));
+        empIdsArray = empIdsArray.map((id) => encrypt(id.trim()));
+
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: caseInsensitiveEmpIdArray } },
+                { civilIdOrPassport: { $in: empIdsArray?.map(id=>encrypt(id)) } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -3665,7 +3679,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                        civilIdOrPassport: user.civilIdOrPassport,
                                         country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3700,7 +3714,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    email: user.email?.toLowerCase(),
+                                    email: user.email,
                                     country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3724,7 +3738,7 @@ module.exports = {
 
             } else if (existingEmailIdsMap) {
 
-                const empId = existingEmailIdsMap[user.email].toUpperCase();
+                const empId = existingEmailIdsMap?.[user?.email]?.toUpperCase();
 
                 if (existingEmpIdsMap) {
 
@@ -3745,7 +3759,7 @@ module.exports = {
                                     $set: {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
-                                        email: user.email?.toLowerCase(),
+                                        email: user.email,
                                         country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3780,7 +3794,7 @@ module.exports = {
                                 $set: {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
-                                    civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                                    civilIdOrPassport: user.civilIdOrPassport,
                                     country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3821,10 +3835,10 @@ module.exports = {
                     let password = dummyPassword.dummy_pwd;
 
                     inserts.push({
-                        civilIdOrPassport: user.civilIdOrPassport?.toUpperCase(),
+                        civilIdOrPassport: user.civilIdOrPassport,
                         firstName: user.firstName,
                         lastName: user.lastName,
-                        email: user.email?.toLowerCase(),
+                        email: user.email,
                         country: user.country ?? null,
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
@@ -3907,6 +3921,7 @@ module.exports = {
 
 
             insertedUsers = await User.find({ email: { $in: inserts.map(u => u.email) } }).session(session);
+            // console.log('insertedUsers------------>', insertedUsers);
 
 
             console.time("bulkUpdateUsers")
@@ -4041,14 +4056,12 @@ module.exports = {
                     };
                 });
 
-
                 console.time('employeesToInsert')
                 await Employee.bulkWrite(employeesToInsert, { session });
                 console.timeEnd('employeesToInsert')
 
 
                 const newEmployees = await Employee.find({ UID: { $exists: false } }).session(session).lean();
-
 
                 console.time('generateEmployeeUID')
                 const uidUpdates = await Promise.all(newEmployees.map(async (employee) => {
@@ -4089,12 +4102,12 @@ module.exports = {
                 );
             }
 
-            const userIDs = allUpdatedUsers.map(user => user._id);
+           const userIDs = allUpdatedUsers?.map(user => mongoose.Types.ObjectId(user._id));
             const employees = await Employee.find(
                 { user: { $in: userIDs } },
-                { user: 1, empDesignation: 1, _id: 0 }
+                null,
+                { session }
             );
-
             const empDesignationMap = {};
             employees.forEach(employee => {
                 empDesignationMap[employee.user] = employee.empDesignation;
@@ -4109,16 +4122,30 @@ module.exports = {
                 };
             });
 
-
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             let conditionsList = []
+            // console.log('employees---------->', employees)
+            // console.log("allUpdatedUsers?.map(user => user._id",allUpdatedUsers?.map(user => user._id))
+            // const updatedEmploees = await Employee.find({ user: { $in: allUpdatedUsers?.map(user => user._id) } });
+            // console.log('updatedEmploees---------->', updatedEmploees)
+            const updatedUsersVessels= await Vessel.find({ _id: { $in: allUpdatedUsers?.map(user => user.currentVessel) } });
+            // const designations= await Designation.find({ isDeleted: false });
+            // console.log('designations---------->', designations)
+            const VesselTypes= await VesselType.find({ isDeleted: false });
             try {
-                allUpdatedUsers.forEach(user => {
+                allUpdatedUsers.forEach(async(user) => {
+                    const savedEmployee = employees.find(emp => emp.user.toString() === user._id.toString());
+                    const userVesselDetails= updatedUsersVessels.find(vessel => vessel._id.toString() === user.currentVessel.toString());
+                    const designation= existingDesignations.find(designation => designation._id.toString() === savedEmployee?.empDesignation.toString());
+                    const vesselType= VesselTypes.find(vesselType => vesselType._id.toString() === userVesselDetails?.typeOfVessel.toString());
                     const originalUserData = users.find(u => u.civilIdOrPassport === user.civilIdOrPassport);
-
-                    const empDesignation = designationMap.get(originalUserData.designation.toLowerCase())?.id;
+                    // console.log("originalUserData--------->", originalUserData)
+                    const empDesignation = designationMap.get(originalUserData?.designation?.toLowerCase())?.id;
+                    // console.log("empDesignation--------->", empDesignation)
                     const typeOfVesselIds = vesselTypeMap[user.currentVessel]?.typeOfVessel;
+                    // console.log("typeOfVesselIds--------->", typeOfVesselIds)
                     const vesselOwnerName = vesselTypeMap[user.currentVessel]?.ownerName;
+                    // console.log("vesselOwnerName--------->", vesselOwnerName)
                     const conditions = {
                         designationID: empDesignation,
                         vesselID: user.currentVessel ?? null,
@@ -4131,6 +4158,60 @@ module.exports = {
                     };
 
                     conditionsList.push(conditions);
+
+                    const document = {
+                        employeeId: savedEmployee._id?.toString(),
+                        UID: savedEmployee.UID,
+                        designation: designation?.name,
+                        empDesignation: savedEmployee.empDesignation?.toString(),
+                        bulkId: savedEmployee.bulkId,
+                        regType: savedEmployee.regType,
+                        isActive: savedEmployee.isActive,
+                        isDeleted: savedEmployee.isDeleted,
+                        subscriber: savedEmployee.subscriber?.toString(),
+                        createdAt: savedEmployee.createdAt,
+                        updatedAt: savedEmployee.updatedAt,
+                    
+                        // Nested user fields
+                        userId: user?._id?.toString(),
+                        firstName: user?.firstName,
+                        lastName: user?.lastName,
+                        email: user?.email,
+                        civilIdOrPassport: user?.civilIdOrPassport,
+                        country: user?.country,
+                        languagePreference: user?.languagePreference,
+                        role: user?.role,
+                        subRoles: user?.subRoles,
+                        isVerified: user?.isVerified,
+                        isRegistered: user?.isRegistered,
+                        superAdmin: user?.superAdmin,
+                        deleteRequest: user?.deleteRequest,
+                        isDeleted_user: user?.isDeleted,
+                        directSignup: user?.directSignup,
+                        contentlanguages: user?.contentlanguages,
+                        currentVessel: user?.currentVessel?.toString(),
+                        vesselStatus: user?.vesselStatus,
+                        isEmailNotification: user?.isEmailNotification,
+                        isPushNotification: user?.isPushNotification,
+                        lastLoginAt: user?.lastLoginAt,
+                        isSignupAdminAprroved: user?.isSignupAdminAprroved,
+                        userCreatedAt: user?.createdAt,
+                        userUpdatedAt: user?.updatedAt,
+                        vesselName: userVesselDetails?.name,
+                        vesselId: userVesselDetails?._id,
+                        vesselIsDeleted: userVesselDetails?.isDeleted,
+                        vesselIsActive: userVesselDetails?.isActive,
+                        typeOfVesselName: vesselType?.name,
+                        tyepOfVesselId: userVesselDetails?.typeOfVessel,
+                        isResetPasswordDialog: user?.isResetPasswordDialog,
+                        indexedAt: new Date(),
+                    };
+                    
+                    try {
+                        await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    } catch (error) {
+                        throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                    }
 
                 });
 
