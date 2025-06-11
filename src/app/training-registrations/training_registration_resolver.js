@@ -1863,6 +1863,8 @@ module.exports.mutations = {
 
             // update progress of individual contents 
             await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds , trainingContentData, overallProgressRecords: recordsToUpdate , updatedBy : userId });
+            const elasticSearchUpdateResponse = await TrainingRegistrationHelper.updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
 
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
@@ -2087,14 +2089,10 @@ module.exports.mutations = {
 
 
             const trainingTitle = trainingData.title[0]?.value;
-            const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
-            const users = await User.find({
-                _id: { $in: input.userIds }
-            }).select('firstName email');
-            const trainings = await Training.aggregate([
-                { $match: { _id: input.training } },
-                { $project: { title: 1 } }
-            ]);
+
+            const elasticSearchUpdateResponse = await TrainingRegistrationHelper.updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
+
             return {
                 status: true,
                 message: `${trainingTitle} reset successfully`

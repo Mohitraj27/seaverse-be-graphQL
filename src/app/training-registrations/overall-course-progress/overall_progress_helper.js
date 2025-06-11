@@ -5,6 +5,7 @@ const { TrainingRegistration } = require("../training_registration_model");
 const { TrainingProgress } = require("../training-progress/training_progress_model");
 const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { Employee } = require("../../user/employee/employee_model");
+const { ObjectId } = require("../../../tools");
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {
@@ -113,8 +114,77 @@ const deleteCourseDataForDeletedUsers = async userIds => {
     }
 };
 
+const getEnrolledCoursesOfUsers = async (userIds,session) => {
+    try {
+        if (!Array.isArray(userIds) || userIds.length === 0) {
+            return [];
+        }
+        const arrayOfUsers = await OverallTrainingProgress.find({
+            user: { $in: userIds },
+            $or: [
+                { isEnrolled: true },
+                { status: "COMPLETED" }
+            ]
+        }).select("user").lean().session(session);
+
+        const userCounts = {};
+
+        for (const doc of arrayOfUsers) {
+            const userId = doc.user.toString();
+            userCounts[userId] = (userCounts[userId] || 0) + 1;
+        }
+
+        return userCounts;
+
+    } catch (error) {
+        console.log("error calculating user's enrolled courses: ", error)
+    }
+}
+const getUsersAvgProgress = async (userIds,session) => {
+    try {
+        if (!Array.isArray(userIds) || userIds.length === 0) {
+            return {};
+        }
+
+        const averageProgressByUser = await OverallTrainingProgress.aggregate([
+            {
+                $match: {
+                    user: { $in: userIds.map(id => ObjectId(id)) },
+                    $or: [
+                        { isEnrolled: true },
+                        { status: "COMPLETED" }
+                    ]
+                }
+            },
+            {
+                $group: {
+                    _id: "$user",
+                    averageProgress: { $avg: "$progressPercentage" }
+                }
+            },
+            {
+                $project: {
+                    user: "$_id",
+                    averageProgress: 1,
+                    _id: 0
+                }
+            }
+        ]).session(session);
+
+        const userToAvgProgress = Object.fromEntries(
+            averageProgressByUser.map(item => [item.user.toString(), item?.averageProgress ? parseInt(item.averageProgress).toFixed(2) : 0])
+        );
+
+        return userToAvgProgress;
+
+    } catch (error) {
+        console.log("error calculating user's average course progress : ", error)
+    }
+}
 
 module.exports = {
     deleteCourseDataForUserDeleted5yearsAgo,
     deleteCourseDataForDeletedUsers,
+    getEnrolledCoursesOfUsers,
+    getUsersAvgProgress,
 };

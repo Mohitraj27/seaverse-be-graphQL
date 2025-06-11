@@ -69,6 +69,7 @@ const HistorySignupRequest = require("../../signup-request-history/signup-reques
 const { reject30DayOldSignupRequests } = require("../../signup-request/signup-request-helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { deleteCourseDataForUserDeleted5yearsAgo } = require("../../training-registrations/overall-course-progress/overall_progress_helper");
+const { updateCoursesCountAndProgressInElasticSearch } = require("../../training-registrations/training_registration_helper");
 const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -492,6 +493,11 @@ async function enrollUsers(enrollDataArray, context) {
                 console.log(`Merged ${duplicates.length} sets of duplicate entries after enrollment`);
             }
         }
+
+        // Update courses count and progress in ElasticSearch
+        const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(userObjectIds)
+        console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
+
         const finalEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
             training: { $in: trainingObjectIds }

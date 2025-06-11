@@ -120,10 +120,11 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
     console.log(`Updated documents in ${indexName} by query:`, response);
     return response;
   } catch (err) {
-    throw CustomError(
+   /*  throw CustomError(
       ErrorName.UPDATE_DOC_ELASTIC_SEARCH,
       `Elastic UpdateByQuery Error (${indexName}): ${err}`
-    );
+    ); */
+    console.error(`Elastic UpdateByQuery Error (${indexName}): ${err}`);
   }
 }
 
@@ -264,6 +265,43 @@ const searchEmployeesFromElastic = async ({
 };
 
 
+/**
+ * Simple bulk update helper for Elasticsearch.
+ * 
+ * @param {string} indexName - Elasticsearch index name.
+ * @param {Array} updates - Array of update operations.
+ *    Each update is an object: { id: string, doc: object, upsert?: boolean }
+ * @param {boolean} refresh - Whether to refresh the index after bulk operation.
+ */
+async function bulkUpdateDocumentsInElastic(indexName, updatesMap, refresh = true) {
+  const body = [];
+
+  for (const [id, doc] of Object.entries(updatesMap)) {
+    if (!id || !doc || typeof doc !== 'object') continue;
+
+    body.push({ update: { _index: indexName, _id: id } });
+    body.push({ doc });
+  }
+
+  if (body.length === 0) return;
+
+  try {
+    const response = await client.bulk({ refresh, body });
+
+    if (response.errors) {
+      const erroredItems = response.items.filter(item => {
+        const actionType = Object.keys(item)[0];
+        return item[actionType].error;
+      });
+      console.error('Bulk update errors:', erroredItems);
+    } else {
+      console.log(`Bulk update succeeded (${Object.keys(updatesMap).length} docs)`);
+    }
+  } catch (err) {
+    console.error('Elasticsearch bulk update failed:', err);
+  }
+}
+
 module.exports = {
   indexDocumenttoElasticSearch,
   updateDocumenttoElasticSearch,
@@ -272,5 +310,6 @@ module.exports = {
   deleteByQueryFromElasticSearch,
   updateByQueryToElasticSearch,
   searchEmployeesFromElastic,
+  bulkUpdateDocumentsInElastic,
   client
 };

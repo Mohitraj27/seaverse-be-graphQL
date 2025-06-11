@@ -3203,6 +3203,8 @@ module.exports.mutations = {
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
                     isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    enrolledCourses : 0,
+                    averageCourseProgress: 0.0,
                     indexedAt: new Date(),
                 };
 
