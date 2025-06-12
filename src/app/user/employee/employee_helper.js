@@ -3586,12 +3586,12 @@ module.exports = {
             }
         })
 
-        emailsArray = emailsArray.map((email) => encrypt(email.trim()));
-        empIdsArray = empIdsArray.map((id) => encrypt(id.trim()));
+        emailsArray = emailsArray.map((email) => encrypt(email.trim().toLowerCase()));
+        empIdsArray = empIdsArray.map((id) => encrypt(id.trim().toUpperCase()));
 
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: empIdsArray?.map(id=>encrypt(id)) } },
+                { civilIdOrPassport: { $in: empIdsArray } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -4210,13 +4210,6 @@ module.exports = {
                     };
 
                     elasticDocuments.push(document)
-                    
-                    // try {
-                    //     await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
-                    // } catch (error) {
-                    //     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
-                    // }
-
                 });
 
                 try {
