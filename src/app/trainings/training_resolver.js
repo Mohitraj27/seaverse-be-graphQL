@@ -353,6 +353,11 @@ module.exports.mutations = {
             });
 
             if (input.trainingModules?.length) {
+                await OverallTrainingProgress.updateMany(
+                    { training: input._id, status: 'NOT_STARTED' },
+                    { $set: { totalTrainingModules: input.trainingModules?.length } },
+                    { session }
+                )
                 savedTrainingContent = await TrainingModuleContentHelper.createOrUpdateTrainingModuleContentInTrainingCreation(
                     {
                         input: {
