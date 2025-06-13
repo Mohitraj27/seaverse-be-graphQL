@@ -1657,6 +1657,9 @@ module.exports = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
+            console.log('input');
+            console.log(JSON.stringify(input, null, 2));
+
         if (
             !SubRoleHelper.hasPermission({
                 currentRole: role,
