@@ -26,8 +26,43 @@ const { TrainingProgress } = require("../../../training-registrations/training-p
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
 const { default: mongoose } = require("mongoose");
 
+const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
+
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+const uploadPpt = async (file) => {
+    const ext = path.extname(file.filename || '').toLowerCase();
+    const isValidExt = ['.ppt', '.pptx'].includes(ext);
+
+    if (!isValidExt) {
+        console.error(`Invalid file type. Only .ppt and .pptx files are allowed.`);
+        return;
+    }
+
+    const form = new FormData();
+    form.append('pptFile', file.createReadStream(), {
+        filename: file.filename,
+        contentType: file.mimetype || 'application/octet-stream',
+    });
+
+    try {
+        const response = await axios.post('https://ppt.lynklms.com/convert', form, {
+            headers: form.getHeaders(),
+            responseType: 'arraybuffer',
+        });
+
+        return {
+            pdfBuffer: Buffer.from(response.data),
+            originalName: file.filename.replace(/\.[^/.]+$/, '.pdf'),
+        };
+    } catch (err) {
+        console.error('Upload failed:', err.response?.data || err.message);
+    }
 }
 
 module.exports.queries = {
@@ -847,14 +882,36 @@ module.exports.mutations = {
             }
 
             if (file) {
-                const fileUrl = await UploadHelper.uploadDocument({
-                    data: file,
-                    folderName: `file-content`,
-                    fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                    uploadType: UploadHelper.uploadType.trainingContentFile,
-                });
-                input.files = [{ url: fileUrl }];
-                contentTypeNotification = 'Document';
+
+                const uploadedFile = await file;
+                const updatedPptToPdf = await uploadPpt(uploadedFile);
+
+                let pdfFileUrl;
+                if (updatedPptToPdf?.pdfBuffer) {
+                    pdfFileUrl = await UploadHelper.uploadDocument({
+                        data: updatedPptToPdf.pdfBuffer,
+                        folderName: 'file-content',
+                        fileName: `converted_${Date.now()}_${updatedPptToPdf.originalName}`,
+                        uploadType: UploadHelper.uploadType.trainingContentFile,
+                    });
+
+                    if (pdfFileUrl) {
+                        input.files = [{ url: pdfFileUrl }];
+                        input.contentType = 'PDF'
+                        contentTypeNotification = 'Document';
+                    }
+                } else {
+                    const fileUrl = await UploadHelper.uploadDocument({
+                        data: file,
+                        folderName: `file-content`,
+                        fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+                        uploadType: UploadHelper.uploadType.trainingContentFile,
+                    });
+                    input.files = [{ url: fileUrl }];
+                    contentTypeNotification = 'Document';
+                }
+
+
             }
 
             const contentData = {
@@ -1522,7 +1579,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_PERCENTAGE_CRITERIA);
             } else {
                 input.percentageCriteria = Math.round((input.percentageCriteria / score) * 100) || null;
-               
+
             }
 
             const updateData = {
