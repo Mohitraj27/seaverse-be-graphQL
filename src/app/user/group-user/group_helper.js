@@ -427,12 +427,15 @@ module.exports = {
             .skip(skip).limit(limit);
 
         const groupUserIds = await getUserIdsInAutoSyncedGroups();
-
+        const totalCount = await Group.countDocuments(matchStage);
         const groupDetails = calculateUniqueMemberCounts(allGroups, groupUserIds);
 
         const mergedDetails = mergedGroupDetails(allGroups, groupDetails);
 
-        return mergedDetails;
+        return {
+            groups: mergedDetails,
+            totalCount
+        };
     },
     getCustomGroups: async (id = null) => {
         let matchStage = {};
