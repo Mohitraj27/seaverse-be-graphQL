@@ -147,19 +147,39 @@ const searchEmployeesFromElastic = async ({
   console.log("sortOrder:", sortOrder);
 
   // Match search keyword (full name, email, civilIdOrPassport)
-  if (filterInput?.search) {
-    must.push({
-      multi_match: {
-        query:encrypt(filterInput?.search?.trim()),
-        fields: [
-          "fullName",
-          "email",
-          "civilIdOrPassport",
-        ],
-        type: "phrase_prefix",
-      },
-    });
-  }
+  // if (filterInput?.search) {
+  //   must.push({
+  //     multi_match: {
+  //       query:encrypt(filterInput?.search?.trim()),
+  //       fields: [
+  //         "firstName",
+  //         "lastName",
+  //         "email",
+  //         "civilIdOrPassport",
+  //       ],
+  //       type: "phrase_prefix",
+  //     },
+  //   });
+  // }
+
+  if (filterInput?.search?.trim()) {
+  const searchTerm = filterInput.search.trim();
+  const encryptedLower = encrypt(searchTerm.toLowerCase());
+  const encryptedUpper = encrypt(searchTerm.toUpperCase());
+
+  must.push({
+    bool: {
+      should: [
+        { match_phrase_prefix: { firstName: encryptedLower } },
+        { match_phrase_prefix: { lastName: encryptedLower } },
+        { match_phrase_prefix: { email: encryptedLower } },
+        { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+      ],
+      minimum_should_match: 1,
+    },
+  });
+}
+
 
   if (filterInput?.empDesignation?.length > 0) {
     must.push({ terms: { "empDesignation": filterInput?.empDesignation } });
