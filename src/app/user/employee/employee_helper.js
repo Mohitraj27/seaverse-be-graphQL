@@ -2915,10 +2915,10 @@ module.exports = {
         let newVessel;
 
         //Encryption logic
-        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
-        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName):"";
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
-        input.user.email = input.user.email && encrypt(input.user.email);
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName.toLowerCase());
+        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName.toLowerCase()):"";
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport.toUpperCase());
+        input.user.email = input.user.email && encrypt(input.user.email.toLowerCase());
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
