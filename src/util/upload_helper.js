@@ -3,6 +3,10 @@ const { PathHelper, MimeHelper } = require("../tools");
 const { CustomError, ErrorName } = require("./error_helper");
 const AwsHelper = require("./aws_helper");
 const streamifier = require('streamifier');
+const path = require("path");
+const fs = require('fs');
+const os = require('os');
+
 const fileType = {
     excel: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     videos: ["video/mp4"],
@@ -51,7 +55,7 @@ const uploadType = {
     exportExcel: "exportExcel",
     exportLearnersReportAsExcel: "exportLearnersReportAsExcel",
     exportLearnersCoursesReportAsExcel: "exportLearnersCoursesReportAsExcel",
-    exportCustomQuizReport :"exportCustomQuizReport",
+    exportCustomQuizReport: "exportCustomQuizReport",
     lessonZip: "lessonZip",
 };
 
@@ -297,6 +301,25 @@ module.exports = {
             });
 
             if (filePath) return filePath;
+        } else if (Buffer.isBuffer(data)) {
+            const tempDir = os.tmpdir();
+            const tempPath = path.join(tempDir, fileName);
+            fs.writeFileSync(tempPath, data);
+
+            const fileStream = fs.createReadStream(tempPath);
+            const filePath = await uploadFile({
+                fileData: fileStream,
+                folderName,
+                fileName,
+                uploadType,
+                acceptedTypes: fileType.documents,
+            });
+
+            // Optionally clean up temp file
+            fs.unlinkSync(tempPath);
+
+            return filePath;
+
         } else if (typeof data === "string") return data;
     },
     uploadCSV: async ({ data, folderName, fileName, uploadType }) => {
