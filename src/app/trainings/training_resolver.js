@@ -57,8 +57,8 @@ module.exports.queries = {
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { updatedAt: -1 };
-        if (filterInput) {
 
+        if (filterInput) {
             if (filterInput.search) {
                 const searchRegex = {
                     $regex: ".*" + filterInput.search + ".*",
@@ -75,60 +75,61 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
 
             if (filterInput.status) filterConditions.status = filterInput.status;
+
             if (filterInput?.dateFilter) {
                 if (filterInput.dateFilter === -1) {
-                    sortOrder = { updatedAt: "descending" };
+                    sortOrder = { updatedAt: -1 };
                 } else {
-                    sortOrder = { updatedAt: "ascending" };
+                    sortOrder = { updatedAt: 1 };
                 }
             }
         }
 
-        const result = await Training.aggregate([
+        
+        const totalCount = await Training.countDocuments(filterConditions);
+
+        
+        const trainings = await Training.aggregate([
             { $match: filterConditions },
             { $sort: sortOrder },
+            { $skip: skip },
+            { $limit: limit },
             {
-                $facet: {
-                    trainings: [
-                        { $skip: skip },
-                        { $limit: limit },
-                        {
-                            $lookup: {
-                                from: "users",
-                                localField: "updatedBy",
-                                foreignField: "_id",
-                                as: "createdByDetails",
-                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
-                            },
-                        },
-                        {
-                            $lookup: {
-                                from: "overalltrainingprogresses",
-                                localField: "_id",
-                                foreignField: "training",
-                                as: "trainingUsers",
-                            },
-                        },
-                        {
-                            $addFields: {
-                                createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
-                                countOfUsers: { $size: "$trainingUsers" },
-                            },
-                        },
-                        { $project: { createdByDetails: 0 } },
-                    ],
+                $lookup: {
+                    from: "users",
+                    localField: "updatedBy",
+                    foreignField: "_id",
+                    as: "createdByDetails",
+                    pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
+                },
+            },
+            {
+                $lookup: {
+                    from: "overalltrainingprogresses",
+                    localField: "_id",
+                    foreignField: "training",
+                    as: "trainingUsers",
+                    pipeline: [
+                        { $project: { _id: 1 } }
+                    ]
+                },
+            },
+            {
+                $addFields: {
+                    createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                    countOfUsers: { $size: "$trainingUsers" },
                 },
             },
             {
                 $project: {
-                    trainings: 1
-                },
+                    createdByDetails: 0,
+                    trainingUsers: 0
+                }
             },
         ]);
 
-        const { trainings } = result[0];
         return {
-            totalCount: trainings.length,
+            totalCount,
             trainings,
         };
     },
