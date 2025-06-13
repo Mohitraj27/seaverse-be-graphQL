@@ -1098,12 +1098,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
         else if (input.reportType === "MODULE") {
             const learnersData = await OverallTrainingProgress.aggregate(
                 [
-                    {
-                        $match:
-                        {
-                            user: { $in: input.learnerIds }
-                        }
-                    },
+                    ...matchUsers,
                     {
                         $match: {
                             $or: [
@@ -4455,7 +4450,7 @@ const generateCustomReport = async ({ input }, context) => {
                             },
                             'createdAt': 1,
                             'startDate': "$startDate",
-                            'completionDate': "$endDate",
+                            endDate:1,
                             unenrollmentDate: 1,
                             'status': 1,
                             'adminMarkedAsCompleted': 1,

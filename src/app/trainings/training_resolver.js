@@ -353,6 +353,11 @@ module.exports.mutations = {
             });
 
             if (input.trainingModules?.length) {
+                await OverallTrainingProgress.updateMany(
+                    { training: input._id, status: 'NOT_STARTED' },
+                    { $set: { totalTrainingModules: input.trainingModules?.length } },
+                    { session }
+                )
                 savedTrainingContent = await TrainingModuleContentHelper.createOrUpdateTrainingModuleContentInTrainingCreation(
                     {
                         input: {
@@ -661,13 +666,191 @@ module.exports.mutations = {
             if (!userId) throw CustomError(ErrorName.NOT_FOUND);
             if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            const validateErrors = await TrainingHelper.validateSyncOfflineData(input);
+            let processedInput = input;
+            const modifiedCourseIds = new Set();
 
-            if (validateErrors.length > 0) {
+            if (input[0].isFromOfflineSync) {
+
+                if (!input[0].overallId) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
+                }
+                if (!input[0].trainingModules || input[0].trainingModules.length === 0) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
+                }
+
+                const existingOverallTrainingProgress = await OverallTrainingProgress.findOne({
+                    _id: input[0].overallId,
+                }).select('_id version');
+
+                if (existingOverallTrainingProgress.version !== input[0].version) {
+
+                    const completedCourses = input.filter(item => {
+                        return item.trainingModules.every(module => {
+                            return module.contentDetails.every(content => {
+                                return content.contentStatus === "COMPLETED";
+                            });
+                        });
+                    });
+
+                    if (completedCourses.length > 0) {
+
+                        // completed courses IDs
+                        const completedCourseIds = completedCourses.map(item => item.overallId);
+                        if (completedCourseIds) {
+
+                            const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
+
+                            if (onlineCourseData.length > 0) {
+
+                                const alreadyCompletedIds = onlineCourseData
+                                    .filter(course => course.status === "COMPLETED")
+                                    .map(course => course._id.toString());
+
+                                // Filter out courses that are already COMPLETED in database
+                                const newlyCompletedCoursesOnline = completedCourses.filter(item =>
+                                    !alreadyCompletedIds.includes(item.overallId.toString())
+                                );
+
+                                const matchedCourses = [];
+
+                                if (newlyCompletedCoursesOnline.length > 0) {
+
+                                    const newlyCompletedIds = newlyCompletedCoursesOnline.map(item => item.overallId);
+
+                                    // Fetch contentFromDownload for newly completed courses
+                                    const coursesWithDownloadData = await OverallTrainingProgress.find(
+                                        { _id: { $in: newlyCompletedIds } },
+                                        { _id: 1, contentFromDownload: 1 }
+                                    );
+
+                                    for (const completedCourse of newlyCompletedCoursesOnline) {
+                                        const dbCourse = coursesWithDownloadData.find(
+                                            course => course._id.toString() === completedCourse.overallId.toString()
+                                        );
+
+                                        if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
+                                            continue;
+                                        }
+
+                                        // Extract current course structure (moduleIds and contentIds)
+                                        const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
+
+                                        // Check each version in contentFromDownload
+                                        let matchFound = false;
+                                        let matchedVersion = null;
+
+                                        for (const downloadVersion of dbCourse.contentFromDownload) {
+                                            const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
+
+                                            if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
+                                                matchFound = true;
+                                                matchedVersion = downloadVersion?.courseDetails;
+                                                matchedCourses.push({
+                                                    courseId: completedCourse.overallId,
+                                                    matchedVersion: matchedVersion,
+                                                    version: downloadVersion.version,
+                                                    totalTrainingModules: matchedVersion.length
+                                                });
+                                                modifiedCourseIds.add(completedCourse.overallId.toString());
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // Update the course in OverallTrainingProgress and trainingProgress
+                                    if (matchedCourses.length > 0) {
+
+                                        const courseIds = matchedCourses.map(course => course.courseId);
+
+                                        const contentDataBulkOps = matchedCourses.map(matchedCourse => ({
+                                            updateOne: {
+                                                filter: { _id: matchedCourse.courseId },
+                                                update: {
+                                                    $set: {
+                                                        contentData: matchedCourse.matchedVersion,
+                                                        status: "IN_PROGRESS",
+                                                        progressPercentage: 0,
+                                                        version: matchedCourse.version,
+                                                        totalTrainingModules: matchedCourse.totalTrainingModules,
+                                                        lastConsumedContent: null,
+                                                    }
+                                                }
+                                            }
+                                        }));
+
+                                        try {
+                                            // Execute all operations in sequence
+                                            if (contentDataBulkOps.length > 0) {
+                                                const contentResult = await OverallTrainingProgress.bulkWrite(contentDataBulkOps);
+                                            }
+
+                                            const deleteResult = await TrainingProgress.deleteMany(
+                                                {
+                                                    overallTrainingProgress: { $in: courseIds },
+                                                    // isDeleted: { $ne: true }
+                                                }
+                                            );
+
+                                            // Summary
+                                            const summary = {
+                                                coursesUpdated: contentDataBulkOps.length,
+                                            };
+
+                                            console.log('Training progress update summary:', summary);
+                                            // return summary;
+
+                                        } catch (error) {
+                                            console.error('Error updating training progress:', error);
+                                            throw error;
+                                        }
+
+                                    }
+
+
+                                    processedInput = input.map(course => {
+                                        if (modifiedCourseIds.has(course.overallId.toString())) {
+                                            const matchedCourse = matchedCourses.find(mc => mc.courseId.toString() === course.overallId.toString());
+                                            if (matchedCourse) {
+                                                const updatedCourse = {
+                                                    ...course,
+                                                    trainingModules: matchedCourse.matchedVersion.map(module => ({
+                                                        moduleId: module.moduleId,
+                                                        contentDetails: module.contentIds.map(contentId => {
+                                                            const existingContent = course.trainingModules
+                                                                .flatMap(m => m.contentDetails || [])
+                                                                .find(c => c.contentId === contentId);
+
+                                                            return existingContent || {
+                                                                contentId: contentId,
+                                                                contentStatus: "COMPLETED",
+                                                                duration: 0,
+                                                                progressPercentage: 100
+                                                            };
+                                                        })
+                                                    })),
+                                                    processedByOfflineSync: true // ADDED flag
+                                                };
+                                                return updatedCourse;
+                                            }
+                                        }
+                                        return course;
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            const validateErrors = await TrainingHelper.validateSyncOfflineData(processedInput);
+
+
+            if (validateErrors && validateErrors.length > 0) {
                 throw CustomError(ErrorName.FAILED, validateErrors[0]);
             }
 
-            input.forEach((entry) => {
+            processedInput.forEach((entry) => {
                 entry.trainingModules?.forEach((module) => {
                     module.contentDetails?.forEach((content) => {
                         if (content.progressPercentage == 100) {
@@ -681,19 +864,18 @@ module.exports.mutations = {
                 })
             })
 
-
             let updateTrainingProgress;
             const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
 
                 let syncContentErrors = [];
 
-                if (input.length > 0) {
+                if (processedInput.length > 0) {
 
                     //add content data to overall training progress
-                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(input, syncContentErrors, session);
+                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(processedInput, syncContentErrors, session);
 
                     //updating the progress in overall training progress and the final certificate generation 
-                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(input, userId, subscriberId, session);
+                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(processedInput, userId, subscriberId, session);
 
                     if (syncContentErrors.length > 0) {
                         throw CustomError(ErrorName.FAILED, syncContentErrors[0]);

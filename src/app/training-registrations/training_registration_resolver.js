@@ -75,14 +75,14 @@ module.exports.queries = {
                     localField: "user",
                     foreignField: "_id",
                     as: "userInfo",
-                   /*  pipeline: [
-                        {
-                            $match: {
-                                isDeleted: false,
-                                isSignupAdminAprroved: { $ne: false },
-                            }
-                        }
-                    ] */
+                    /*  pipeline: [
+                         {
+                             $match: {
+                                 isDeleted: false,
+                                 isSignupAdminAprroved: { $ne: false },
+                             }
+                         }
+                     ] */
                 }
             },
             {
@@ -170,7 +170,7 @@ module.exports.queries = {
                 }
             }
         ]);
-        
+
         const formattedResults = results.map(user => ({
             id: user.id,
             firstName: user.firstName,
@@ -331,6 +331,11 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $addFields: {
+                        moduleCount: "$totalTrainingModules"
+                    }
+                },
+                {
                     $lookup: {
                         from: "trainingmodules",
                         let: { trainingId: "$training._id" },
@@ -340,7 +345,6 @@ module.exports.queries = {
                         as: "trainingModules",
                     },
                 },
-                { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
                     $addFields: {
                         totalDuration: { $ifNull: ["$totalDuration", 0] }
@@ -363,7 +367,7 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
-        
+
     },
     getSingleCourseDetails: async ({ input }, context) => {
 
@@ -1794,13 +1798,15 @@ module.exports.mutations = {
                 },
             ]);
 
+            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            const trainingContentDataForOverallTraining = await TrainingRegistrationHelper.extractTrainingContentData(trainingData);
+            console.log("trainingContentDataForOverallTraining", trainingContentDataForOverallTraining);
             const trainingDataById = trainingData.reduce((acc, training) => {
                 acc[training._id.toString()] = training;
                 return acc;
             }, {});
 
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
             const recordsToUpdate = await OverallTrainingProgress.find({
                 training: input.training,
@@ -1813,7 +1819,8 @@ module.exports.mutations = {
             }, {});
 
             const updateOps = recordsToUpdate.map((record) => {
-                return {
+                const initialStatus = record?.status
+                const updatedRecord = {
                     updateOne: {
                         filter: { _id: record._id },
                         update: {
@@ -1828,19 +1835,29 @@ module.exports.mutations = {
                                 endDate: new Date(),
                                 assignedCertificateLayout: trainingDataById[record.training?.toString()].layout ?? null,
                                 assignedCertificateLayoutId: trainingDataById[record.training?.toString()].layoutId ?? null,
-                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ??null,
+                                certificateExpiry: trainingDataById[record.training?.toString()].certificateValidity ?? null,
                             },
                         },
                     },
-                };
+                }
+                if (initialStatus === "NOT_STARTED") {
+                    updatedRecord.updateOne.update.$set.contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+                    updatedRecord.updateOne.update.$set.completedModules = trainingContentDataForOverallTraining?.trainingTotalModules ?? 0;
+                }
+
+                console.log("updatedRecord", updatedRecord);
+                return updatedRecord;
             });
 
             await OverallTrainingProgress.bulkWrite(updateOps);
 
+            // update progress of individual contents 
+            await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds, trainingContentData, overallProgressRecords: recordsToUpdate, updatedBy: userId });
+
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
                 select: 'firstName lastName email'
-            });;
+            });
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
@@ -1867,11 +1884,11 @@ module.exports.mutations = {
                             const certificateValidity = overallTrainingProgress?.certificateExpiry;
                             const expiresAt = overallTrainingProgress.certificateExpiry
                                 ? await calculateExpiryDate(
-                                      completedAt,
-                                      overallTrainingProgress.certificateExpiry ?? null
-                                  )
+                                    completedAt,
+                                    overallTrainingProgress.certificateExpiry ?? null
+                                )
                                 : null;
-                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ? 
+                            const certificateLayout = overallProgressDataById[overallTrainingProgress?._id?.toString()]?.status === "IN_PROGRESS" ?
                                 overallTrainingProgress?.assignedCertificateLayoutId : trainingDataById[overallTrainingProgress.training?.toString()].layoutId;
                             const certificateNumber = await generateUniqueCertificateId();
 
@@ -1906,7 +1923,7 @@ module.exports.mutations = {
             );
             const courseImages = await AWS_HELPER.fetchFile(trainingData[0]?.coverImage?.url) ||
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
-            if(overallTrainingProgressUsers[0].user.isEmailNotification){
+            if (overallTrainingProgressUsers[0].user.isEmailNotification) {
                 const emailContent = courseCompletion({
                     firstName: overallTrainingProgressUsers[0].user.firstName,
                     trainingTitle: trainingData[0].title[0]?.value,
@@ -1919,7 +1936,7 @@ module.exports.mutations = {
                     subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                     htmlContent: emailContent,
                 });
-            }            
+            }
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
@@ -1937,19 +1954,19 @@ module.exports.mutations = {
                 });
             }));
 
-           /*  await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Course Completion Notification`,
-                messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
-                notificationType: NotificationType.COURSE_COMPLETION,
-                notifyAllAdmin: true,
-                notifiers: [],
-                employeeNotifiers: [],
-                affected: [],
-                status: 'SENT',
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            }); */
+            /*  await NotificationHelper.createNotificationhelper({
+                 subscriber: subscriberId,
+                 titleValue: `Course Completion Notification`,
+                 messageValue: `The course ${trainingData.title[0]?.value} has been successfully completed by ${input.userIds.length} users.`,
+                 notificationType: NotificationType.COURSE_COMPLETION,
+                 notifyAllAdmin: true,
+                 notifiers: [],
+                 employeeNotifiers: [],
+                 affected: [],
+                 status: 'SENT',
+                 icon: notificationiconEnum.SUCCESS,
+                 createdBy: userInfo,
+             }); */
             await sendNotifications({
                 userIds: input.userIds,
                 title: 'Course Completed',
@@ -2000,7 +2017,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
+                            assignedCertificateLayout: trainingData?.currentCertificateLayout,
 
                         }
                     },
@@ -2039,7 +2056,7 @@ module.exports.mutations = {
                             timeSpend: 0,
                             attemptCount: 1,
                             isCertificatePresent: trainingData.isCertificate ?? false,
-                            assignedCertificateLayout : trainingData?.currentCertificateLayout,
+                            assignedCertificateLayout: trainingData?.currentCertificateLayout,
                         }
                     }
                 );
