@@ -3579,8 +3579,8 @@ module.exports = {
         users=users.map(user => {
             return {
                 ...user,
-                firstName:encrypt(user.firstName.trim()),
-                lastName:encrypt(user.lastName.trim()),
+                firstName:encrypt(user.firstName.trim().toLowerCase()),
+                lastName:encrypt(user.lastName.trim().toLowerCase()),
                 civilIdOrPassport:encrypt(user.civilIdOrPassport.trim().toUpperCase()),
                 email:encrypt(user.email.trim().toLowerCase()),
             }
