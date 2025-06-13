@@ -1299,8 +1299,8 @@ module.exports.queries = {
                 lastSeenEnd:endDate,
                 sortField: sortElasticField,
                 sortOrder: sortElasticOrder,
-                skip: 0,
-                limit: 20,
+                skip: skip,
+                limit: limit,
             });
 
             console.log("Elastic Results:", elasticResults);
@@ -4193,6 +4193,7 @@ module.exports.mutations = {
                     'First Name*': decrypt(user['First Name*']),
                     'Last Name': decrypt(user['Last Name']),
                     'Email*': decrypt(user['Email*']),
+                    'User ID*': decrypt(user['User ID*']),
                 };
             });
             const workbook = xlsx.utils.book_new();
