@@ -129,7 +129,6 @@ module.exports.queries = {
             },
         ]);
 
-        const { trainings } = result[0];
         console.log("Trainings:", trainings);
         const decryptedTrainings = trainings?.map((training) => ({
             ...training,
