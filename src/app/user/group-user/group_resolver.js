@@ -368,23 +368,22 @@ module.exports.queries = {
 
                     const allCustomGroups = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
 
-                    let filteredCustomGroups = allCustomGroups;
+                    let filteredCustomGroups = allCustomGroups?.groups;
                     if (groupFilter?.search) {
-                        filteredCustomGroups = allCustomGroups.filter(group =>
+                        filteredCustomGroups = allCustomGroups?.groups?.filter(group =>
                             filterConditions.groupName.$regex.test(group.groupName)
                         );
                     }
 
                     const paginatedCustomGroups = filteredCustomGroups;
                     groups = paginatedCustomGroups;
-                    totalCount = paginatedCustomGroups.length || 0;
+                    totalCount = allCustomGroups?.totalCount || 0;
                     break;
 
                 default:
                     let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
                     let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                    let allGroups = [...allAutosynced, ...allCustom];
+                    let allGroups = [...allAutosynced, ...(allCustom?.groups || [])];
                     allGroups = allGroups.filter(group => group._id && group.groupName);
 
                     let filteredGroups = allGroups;
