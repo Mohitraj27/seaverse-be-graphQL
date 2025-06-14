@@ -210,84 +210,123 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
         }
-
+        console.time('getMainLearnersReport');
         const employeesData = await Employee.aggregate([
             {
+                $project: {
+                    user: 1,
+                    empDesignation: 1,
+                    updatedAt: 1,
+                    isDeleted: 1,
+                },
+            },
+            {
                 $lookup: {
-                    from: 'users',
-                    localField: 'user',
-                    foreignField: '_id',
-                    as: 'userInfo',
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "userInfo",
                     pipeline: [
                         {
                             $match: {
                                 role: "LEARNER",
                                 superAdmin: false,
-                                isSignupAdminAprroved: { $ne: false }
-                            }
-                        }
-                    ]
+                                isSignupAdminAprroved: { $ne: false },
+                            },
+                        },
+
+                        {
+                            $project: {
+                                firstName: 1,
+                                lastName: 1,
+                                civilIdOrPassport: 1,
+                                email: 1,
+                                isRegistered: 1,
+                                isDeleted: 1,
+                                lastLoginAt: 1,
+                                updatedAt: 1,
+                            },
+                        },
+                    ],
                 },
             },
             {
                 $unwind: {
-                    path: '$userInfo',
+                    path: "$userInfo",
                     preserveNullAndEmptyArrays: false,
                 },
             },
             ...deteledUsersStage,
             {
                 $lookup: {
-                    from: 'designations',
-                    localField: 'empDesignation',
-                    foreignField: '_id',
-                    as: 'employeeDesignation',
+                    from: "designations",
+                    localField: "empDesignation",
+                    foreignField: "_id",
+                    as: "employeeDesignation",
+
+                    pipeline: [
+                        {
+                            $project: {
+                                _id: 1,
+                                name: 1,
+                            },
+                        },
+                    ],
                 },
             },
             {
                 $unwind: {
-                    path: '$employeeDesignation',
+                    path: "$employeeDesignation",
                     preserveNullAndEmptyArrays: true,
                 },
             },
+
             {
                 $lookup: {
-                    from: 'trainingregistrations',
-                    localField: 'user',
-                    foreignField: 'user',
-                    as: 'trainingInfo',
-                },
-            },
-            {
-                $lookup: {
-                    from: 'uservessels',
-                    localField: 'user',
-                    foreignField: 'user',
-                    as: 'vesselInfo',
+                    from: "uservessels",
+                    localField: "user",
+                    foreignField: "user",
+                    as: "vesselInfo",
                     pipeline: [
                         { $match: { isActive: true } },
                         { $sort: { updatedAt: -1 } },
-                        { $limit: 1 }
-                    ]
+                        { $limit: 1 },
+
+                        {
+                            $project: {
+                                vessel: 1,
+                                vesselStatus: 1,
+                            },
+                        },
+                    ],
                 },
             },
             {
                 $unwind: {
-                    path: '$vesselInfo',
+                    path: "$vesselInfo",
                     preserveNullAndEmptyArrays: true,
                 },
             },
             {
                 $lookup: {
-                    from: 'vessels',
-                    localField: 'vesselInfo.vessel',
-                    foreignField: '_id',
-                    as: 'vesselDetails',
+                    from: "vessels",
+                    localField: "vesselInfo.vessel",
+                    foreignField: "_id",
+                    as: "vesselDetails",
+
+                    pipeline: [
+                        {
+                            $project: {
+                                name: 1,
+                                typeOfVessel: 1,
+                            },
+                        },
+                    ],
                 },
             },
             {
                 $unwind: {
-                    path: '$vesselDetails',
+                    path: "$vesselDetails",
                     preserveNullAndEmptyArrays: true,
                 },
             },
@@ -296,41 +335,52 @@ const getMainLearnersReport = async ({ input }, context) => {
                     from: "vesseltypes",
                     localField: "vesselDetails.typeOfVessel",
                     foreignField: "_id",
-                    as: "vesselTypeInfo"
-                }
+                    as: "vesselTypeInfo",
+
+                    pipeline: [
+                        {
+                            $project: {
+                                _id: 1,
+                                name: 1,
+                            },
+                        },
+                    ],
+                },
             },
             {
-                $unwind:
-                {
+                $unwind: {
                     path: "$vesselTypeInfo",
-                    preserveNullAndEmptyArrays: true
-                }
+                    preserveNullAndEmptyArrays: true,
+                },
             },
             {
                 $lookup: {
-                    from: 'overalltrainingprogresses',
-                    localField: 'user',
-                    foreignField: 'user',
-                    as: 'trainingProgresses',
+                    from: "overalltrainingprogresses",
+                    localField: "user",
+                    foreignField: "user",
+                    as: "trainingProgresses",
                     pipeline: [
                         {
                             $match: {
-                                $or: [
-                                    { isEnrolled: true },
-                                    { status: "COMPLETED" }
-                                ]
-                            }
+                                $or: [{ isEnrolled: true }, { status: "COMPLETED" }],
+                            },
+                        },
+
+                        {
+                            $project: {
+                                progressPercentage: 1,
+                            },
                         },
                     ],
                 },
             },
             {
                 $addFields: {
-                    coursesCount: { $size: '$trainingProgresses' },
+                    coursesCount: { $size: "$trainingProgresses" },
                     averageProgressPercentage: {
                         $cond: {
-                            if: { $gt: [{ $size: '$trainingProgresses' }, 0] },
-                            then: { $toInt: { $avg: '$trainingProgresses.progressPercentage' } },
+                            if: { $gt: [{ $size: "$trainingProgresses" }, 0] },
+                            then: { $toInt: { $avg: "$trainingProgresses.progressPercentage" } },
                             else: 0,
                         },
                     },
@@ -347,44 +397,38 @@ const getMainLearnersReport = async ({ input }, context) => {
             {
                 $project: {
                     _id: 0,
-                    name: {
-                        $concat: [
-                            { $ifNull: ['$userInfo.firstName', ''] },
-                            ' ',
-                            { $ifNull: ['$userInfo.lastName', ''] },
-                        ],
-                    },
-                    isRegistered: '$userInfo.isRegistered',
-                    learnerId: '$userInfo._id',
-                    isDeleted: '$userInfo.isDeleted',
-                    EmployeeId: '$userInfo.civilIdOrPassport',
-                    email: '$userInfo.email',
-                    designation: '$employeeDesignation.name',
-                    designationId: '$employeeDesignation._id',
-                    vesselName: '$vesselDetails.name',
-                    vesselId: '$vesselDetails._id',
+                    firstName: "$userInfo.firstName",
+                    lastName: "$userInfo.lastName",
+                    isRegistered: "$userInfo.isRegistered",
+                    learnerId: "$userInfo._id",
+                    isDeleted: "$userInfo.isDeleted",
+                    EmployeeId: "$userInfo.civilIdOrPassport",
+                    email: "$userInfo.email",
+                    designation: "$employeeDesignation.name",
+                    designationId: "$employeeDesignation._id",
+                    vesselName: "$vesselDetails.name",
+                    vesselId: "$vesselDetails._id",
                     vesselTypeName: "$vesselTypeInfo.name",
-                    vesselTypeId: '$vesselTypeInfo._id',
-                    lastSeen: '$userInfo.lastLoginAt',
+                    vesselTypeId: "$vesselTypeInfo._id",
+                    lastSeen: "$userInfo.lastLoginAt",
                     coursesCount: 1,
-                    createdAt: 1,
+
                     latestUpdatedAt: 1,
                     averageProgressPercentage: 1,
                 },
             },
             {
-                '$sort': {
-                    'latestUpdatedAt': -1
-                }
+                $sort: {
+                    latestUpdatedAt: -1,
+                },
             },
             ...sortingStage,
             ...pageLimit,
         ]);
-
-
+        console.timeEnd('getMainLearnersReport');
         const data = employeesData.map(item => ({
-            Name: item.name,
-            EmployeeId: item.EmployeeId,
+            Name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName)} ${decrypt(item?.lastName) ?? ''}` : ' ',
+            EmployeeId: item.EmployeeId ? decrypt(item?.EmployeeId) : ' ',
             Designation: item.designation,
             VesselName: item.vesselName,
             RegistrationStatus: item.isRegistered ? 'REGISTERED' : 'UNREGISTERED',
@@ -445,9 +489,15 @@ const getMainLearnersReport = async ({ input }, context) => {
                 employeesData
             };
         }
+        const decryptedData = employeesData.map(item => ({
+            ...item,
+            name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName)} ${decrypt(item?.lastName) ?? ''}` : ' ',
+            EmployeeId: item.EmployeeId ? decrypt(item?.EmployeeId) : ' ',
+            email: item.email ? decrypt(item.email) : ' ',
+        }));
 
         return {
-            employeesData
+            employeesData : decryptedData,
         };
     } catch (err) {
         if (input?.export) {
@@ -729,7 +779,13 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 sortingStage,
                 pageLimit,
             });
-            const learnersReports = await OverallTrainingProgress.aggregate(singleLearnerEnrollmentPipeline);
+            console.time('getSingleLearnerReport');
+            const learnersReports = (await OverallTrainingProgress.aggregate(singleLearnerEnrollmentPipeline)).map( item => ({
+                ...item,
+                firstName: item?.firstName ? decrypt(item?.firstName) : null,
+                lastName: item?.lastName ? decrypt(item?.lastName) : null,
+            }));
+            console.timeEnd('getSingleLearnerReport');
             const learnerReportsByUser = {};
             if (input?.export) {
                 learnersReports.forEach(item => {
@@ -755,9 +811,9 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
-                        Email: item.email || null,
+                        Email: item?.email ? decrypt(item.email):'' || null,
                         'Country': item.country || 'Not Applicable',
-                        'User Id': item.employeeId || null,
+                        'User Id': item.employeeId ? decrypt(item.employeeId) : '' || null,
                         Designation: item.designation || null,
                         'Current Vessel': item.vesselName || 'Not Applicable',
                         'Vessel Type': item.vesselTypeName || 'Not Applicable',

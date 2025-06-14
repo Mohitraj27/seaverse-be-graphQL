@@ -129,7 +129,6 @@ module.exports.queries = {
             },
         ]);
 
-        console.log("Trainings:", trainings);
         const decryptedTrainings = trainings?.map((training) => ({
             ...training,
             createdBy: {
@@ -139,7 +138,6 @@ module.exports.queries = {
                 email: decrypt(training.createdBy.email),
             },
         }));
-        console.log("Decrypted Trainings:", decryptedTrainings);
 
         return {
             totalCount: trainings.length,
