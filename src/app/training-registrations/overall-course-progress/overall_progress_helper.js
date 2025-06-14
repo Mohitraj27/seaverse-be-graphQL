@@ -185,32 +185,40 @@ const getUsersAvgProgress = async (userIds,session) => {
 
 const updateCoursesCountAndProgressInElasticSearch = async (userIds, session) => {
     try {
+        if (!userIds || userIds.length === 0) return "No users to update";
 
-        if (!userIds || userIds.length === 0) {
-            return "No users to update";
-        }
-
-        //Bulk updattion in Elasticsearch ( enrolled courses count and average progress of each user )
         const enrolledCoursesCountOfEachUser = await getEnrolledCoursesOfUsers(userIds, session);
         const avgProgressOfEachUser = await getUsersAvgProgress(userIds, session);
         const updateMap = {};
 
-        // since we are using the same user ids in both maps, we can use the same loop
         for (const userId of Object.keys(enrolledCoursesCountOfEachUser)) {
             updateMap[userId] = {
                 enrolledCourses: enrolledCoursesCountOfEachUser[userId],
                 averageCourseProgress: avgProgressOfEachUser[userId] || 0,
             };
         }
-        console.log("update map: ", updateMap);
-        const bulkUpdateInElasticResult = await bulkUpdateDocumentsInElastic("users", updateMap, { upsert: true });
-        console.log("Bulk update in Elasticsearch result:", bulkUpdateInElasticResult);
-        return bulkUpdateInElasticResult;
 
+        for (const userId of userIds) {
+            const enrolledCourses = updateMap[userId]?.enrolledCourses || 0;
+            const averageCourseProgress = updateMap[userId]?.averageCourseProgress || 0;
+
+            await updateByQueryToElasticSearch(
+                "users",
+                `
+                    ctx._source.enrolledCourses = params.enrolledCourses;
+                    ctx._source.averageCourseProgress = params.averageCourseProgress;
+                `,
+                { term: { userId: userId } },
+                { enrolledCourses, averageCourseProgress }
+            );
+        }
+
+        return "Elasticsearch update completed";
     } catch (error) {
         throw Error(error.message);
     }
-}
+};
+
 module.exports = {
     updateCoursesCountAndProgressInElasticSearch,
     deleteCourseDataForUserDeleted5yearsAgo,
