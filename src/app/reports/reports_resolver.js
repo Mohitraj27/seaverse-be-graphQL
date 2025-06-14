@@ -1,4 +1,4 @@
-const { Moment, ObjectId } = require("../../tools");
+const { Moment, ObjectId, PubSubHelper } = require("../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus } = require("../../util");
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -24,8 +24,8 @@ const ReportsHelper = require("./reports_helper");
 const { pipeline } = require("stream");
 const { decrypt } = require("../../util/encryption_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery, customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
-const { EXCHANGES } = require("../../util/rabbitmq_helper");
-const { setupQueues, publishToQueue, publishToExchange, publishMessagesOneByOne } = require('./rabbitMq_service');
+const { fork } = require("child_process");
+const NotificationEvent = require("../notifications/notification_event.json");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -3415,19 +3415,47 @@ const generateCustomReport = async ({ input }, context) => {
             }
         }
 
-        console.time(`Processing batch ${i + 1}/${batchCount}`);
-        console.log(`Processing batch ${i + 1}/${batchCount}`);
-        await publishToExchange(EXCHANGES.REPORT_GENERATION, 'reportGen', {
-            matchStage,
-            timestamp: new Date().toISOString()
-        });
-        console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+        const child = fork("./src/app/reports/custom_report_process.js");
 
+        child.send({
+            matchStage,
+            input,
+            subscriberId,
+            userInfo,
+            userId
+        });
+
+        child.on("message", async message => {
+            if (message.type === 'NOTIFICATION') {
+                // since we are sending it to the child process the date format changes so we need to convert it before sending in ws
+                const notification = message?.data?.onNotification;
+
+                if (notification?.createdAt) {
+                    notification.createdAt = new Date(notification.createdAt).getTime().toString();
+                }
+
+                if (notification?.updatedAt) {
+                    notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
+                }
+                await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, message.data);
+            }
+
+        });
+
+        child.on("error", error => {
+            console.error("Error in child process:", error);
+        });
         return {
             message: "Report is generating in the background. You can continue working.",
         };
 
 
+        // await publishToExchange(EXCHANGES.REPORT_GENERATION, 'reportGen', {
+        //     matchStage,
+        //     input,
+        //     userInfo,
+        //     timestamp: new Date().toISOString()
+        // });
 
         // let data;
         // let dataToExport = [];

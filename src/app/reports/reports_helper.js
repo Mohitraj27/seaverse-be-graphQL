@@ -1,3 +1,15 @@
+const { UploadHelper } = require("../../util");
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const Export = require("../user/exportUser/exportUser_model");
+const { customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
+const XLSX = require('xlsx');
+const path = require('path');
+const NotificationEvent = require("../notifications/notification_event.json");
+const aws_helper = require("../../util/aws_helper");
+const NotificationType = require("../notifications/notification_type.json");
+const notificationiconEnum = require("../notifications/notification_icon.json");
+const { Notification } = require("../notifications/notification_model");
+
 const generateFileNameTimestamp = async () => {
     const now = new Date();
 
@@ -168,7 +180,7 @@ const convertMinutesToHMS = (minutes) => {
     return `${String(hours).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const customReportGenBackgroundProcess = async (matchStage) => {
+const customReportGenBackgroundProcess = async (matchStage, input, subscriberId, userInfo, userId) => {
 
     let data;
     let dataToExport = [];
@@ -179,18 +191,18 @@ const customReportGenBackgroundProcess = async (matchStage) => {
 
         data.forEach(item => {
             const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
-            const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
-            const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+            const enrollmentDate = item?.createdAt ? formatDate(item.createdAt) : "Not Applicable";
+            const completionDate = item?.endDate ? formatDate(item.endDate) : "Not Applicable";
             const startDate = item?.startDate && item.startDate !== 'startDate'
-                ? ReportsHelper.formatDate(item.startDate)
+                ? formatDate(item.startDate)
                 : "Not Applicable";
             const country = item?.country || "Not Applicable";
             const vesselType = item?.vesselType || "Not Applicable";
             const currentVessel = item?.currentVessel || "Not Applicable";
-            const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
+            const unenrollmentDate = item?.unenrollmentDate ? formatDate(item.unenrollmentDate) : "Not Applicable";
             const quizScore = item.quizPercentage ? parseInt(item.quizPercentage) + "%" : "Not Applicable";
             const userState = item.isRegistered ? "Registered" : "Unregistered";
-            const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
+            const timeSpent = item.totalTimeSpent ? convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
             const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
             dataToExport.push({
@@ -232,12 +244,12 @@ const customReportGenBackgroundProcess = async (matchStage) => {
                 const status = learner?.status || 'Not Applicable';
                 const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
                 const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
-                const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
-                const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
+                const enrollmentDate = learner?.createdAt ? formatDate(learner.createdAt) : "Not Applicable";
+                const completionDate = learner?.endDate ? formatDate(learner.endDate) : "Not Applicable";
                 const startDate = learner?.startDate && learner.startDate !== 'startDate'
-                    ? ReportsHelper.formatDate(learner.startDate)
+                    ? formatDate(learner.startDate)
                     : "Not Applicable";
-                const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
+                const unenrollmentDate = learner?.unenrollmentDate ? formatDate(learner.unenrollmentDate) : "Not Applicable";
 
 
                 learner.modules.forEach((module, moduleIndex) => {
@@ -249,7 +261,7 @@ const customReportGenBackgroundProcess = async (matchStage) => {
                         const contentName = content?.contentName[0]?.value || 'Unnamed Content';
                         const contentType = content?.contentType || 'Not Applicable';
                         const quizScore = content?.percentage || 'Not Applicable';
-                        const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
+                        const timeSpendInContent = content?.timeSpendInContent ? convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
                         if (learner.contentType === 'QUIZ') {
                             flattenedData.push({
                                 Name: `${firstName} ${lastName}`,
@@ -354,37 +366,63 @@ const customReportGenBackgroundProcess = async (matchStage) => {
     }
     XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    
     const excelFilePath = await UploadHelper.uploadExcel({
         data: excelBuffer,
         folderName: "Custom-Quiz-Reports",
-        fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+        fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await generateFileNameTimestamp()}.xlsx`,
         uploadType: UploadHelper.uploadType.exportCustomQuizReport,
     });
+    
     if (excelFilePath) {
         s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+        
         const notificationMessage = input?.reportType == 'ENROLLMENT' ? `Custom report is ready to download` : `Quiz report is ready to download`
-        await NotificationHelper.createNotificationhelper({
-            subscriber: subscriberId,
-            titleValue: notificationMessage,
-            // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
-            notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-            notifyAllAdmin: false,
-            isNotificatonForAdmin: true,
-            notifiers: [userInfo._id],
-            additionalInfo: [
-                {
-                    infoType: "EXPORT_URL",
-                    infoData: {
-                        filePath: excelFilePath
+            
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                titleValue: notificationMessage,
+                // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: true,
+                notifiers: [userInfo._id],
+                additionalInfo: [
+                    {
+                        infoType: "EXPORT_URL",
+                        infoData: {
+                            filePath: excelFilePath
+                        }
                     }
-                }
-            ],
-            status: 'SENT',
-            createdBy: userInfo,
-            icon: notificationiconEnum.SUCCESS
-        });
+                ],
+                status: 'SENT',
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS
+            })
+            
+        // await NotificationHelper.createNotificationhelper({
+        //     subscriber: subscriberId,
+        //     titleValue: notificationMessage,
+        //     // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+        //     notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+        //     notifyAllAdmin: false,
+        //     isNotificatonForAdmin: true,
+        //     notifiers: [userInfo._id],
+        //     additionalInfo: [
+        //         {
+        //             infoType: "EXPORT_URL",
+        //             infoData: {
+        //                 filePath: excelFilePath
+        //             }
+        //         }
+        //     ],
+        //     status: 'SENT',
+        //     createdBy: userInfo,
+        //     icon: notificationiconEnum.SUCCESS
+        // });
 
     }
+    
 
     const newReport = new Export({
         filePath: excelFilePath,
@@ -397,6 +435,7 @@ const customReportGenBackgroundProcess = async (matchStage) => {
         }]
     })
     await newReport.save();
+    
     return {
         status: true,
         fileName: path.basename(excelFilePath),
@@ -406,6 +445,38 @@ const customReportGenBackgroundProcess = async (matchStage) => {
 
 }
 
+const sendNotificationOnBULK = async notificationData => {
+
+    try {
+        
+        
+        const notification = {
+            subscriber: notificationData.subscriber,
+            title: [{ lang: "en", value: `${notificationData.titleValue}` }],
+            notifyAllAdmin: false,
+            isNotificatonForAdmin: true,
+            notifiers: notificationData.notifiers,
+            createdBy: notificationData.createdBy,
+            notificationType: notificationData.notificationType,
+            status: notificationData.status,
+            icon: notificationData.icon,
+            additionalInfo: notificationData.additionalInfo
+        };
+        
+
+        const createdNotification = await Notification.create(notification);
+
+        process.send({
+            type: 'NOTIFICATION',
+            event: NotificationEvent.ON_NOTIFICATION,
+            data: { onNotification: createdNotification }
+        });
+
+    } catch (error) {
+        throw Error(error.message);
+    }
+
+}
 
 module.exports = {
     generateFileNameTimestamp,

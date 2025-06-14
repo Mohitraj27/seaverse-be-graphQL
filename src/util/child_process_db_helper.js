@@ -2,7 +2,7 @@ require("dotenv").config();
 const { connect, connection, set } = require("mongoose");
 
 const connectDb = async () => {
-    await connect('mongodb://localhost:27017/seaverse', {
+    await connect('mongodb://127.0.0.1:27017/seaverse', {
         useCreateIndex: true,
         useNewUrlParser: true,
         useUnifiedTopology: true,
