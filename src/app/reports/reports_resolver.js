@@ -24,6 +24,8 @@ const ReportsHelper = require("./reports_helper");
 const { pipeline } = require("stream");
 const { decrypt } = require("../../util/encryption_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery, customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
+const { EXCHANGES } = require("../../util/rabbitmq_helper");
+const { setupQueues, publishToQueue, publishToExchange, publishMessagesOneByOne } = require('./rabbitMq_service');
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -172,7 +174,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         const field = input?.sortInput?.field ?? "FIRST_NAME";
         const fieldPath = fieldMapping[field];
         //keeping this "FIRST_NAME" if-condition only for future reference (there is a chance that designations and vesselnames will come as sortable fields)
-        if (field === "FIRST_NAME") {  
+        if (field === "FIRST_NAME") {
             sortingStage.push({
                 $addFields: {
                     [`lowercase${field}`]: { $toLower: `$${fieldPath}` }
@@ -221,7 +223,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                             $match: {
                                 role: "LEARNER",
                                 superAdmin: false,
-                                isSignupAdminAprroved : { $ne: false }
+                                isSignupAdminAprroved: { $ne: false }
                             }
                         }
                     ]
@@ -233,7 +235,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     preserveNullAndEmptyArrays: false,
                 },
             },
-            ...deteledUsersStage, 
+            ...deteledUsersStage,
             {
                 $lookup: {
                     from: 'designations',
@@ -366,7 +368,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                     lastSeen: '$userInfo.lastLoginAt',
                     coursesCount: 1,
                     createdAt: 1,
-                    latestUpdatedAt :1,
+                    latestUpdatedAt: 1,
                     averageProgressPercentage: 1,
                 },
             },
@@ -400,7 +402,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             let worksheet;
             if (data.length === 0) {
 
-                worksheet = XLSX.utils.aoa_to_sheet([['Name', 'EmployeeId', 'Designation', 'VesselName', 'RegistrationStatus','LastSeen','IsDeleted','vesselTypeName','CoursesCount','AverageProgressPercentage']]);
+                worksheet = XLSX.utils.aoa_to_sheet([['Name', 'EmployeeId', 'Designation', 'VesselName', 'RegistrationStatus', 'LastSeen', 'IsDeleted', 'vesselTypeName', 'CoursesCount', 'AverageProgressPercentage']]);
             }
             else {
                 worksheet = XLSX.utils.json_to_sheet(data);
@@ -422,8 +424,8 @@ const getMainLearnersReport = async ({ input }, context) => {
                     messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
-                    isNotificatonForAdmin :true,
-                    notifiers : [userInfo._id],
+                    isNotificatonForAdmin: true,
+                    notifiers: [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -452,11 +454,11 @@ const getMainLearnersReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
-                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) }. `,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
-                isNotificatonForAdmin :true,
-                notifiers : [userInfo._id],
+                isNotificatonForAdmin: true,
+                notifiers: [userInfo._id],
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -645,8 +647,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
         const field = input?.sortInput?.field ?? "COURSE_NAME";
         const fieldPath = fieldMapping[field];
 
-        
-        if (field === "COURSE_STATUS"|| field === "COURSE_NAME") { 
+
+        if (field === "COURSE_STATUS" || field === "COURSE_NAME") {
             sortingStage.push({
                 $addFields: {
                     [`lowercase${field}`]: { $toLower: fieldPath }
@@ -707,7 +709,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     }
                 }
             );
-        }else{
+        } else {
             matchUsersFromTrainingProgresses.push(
                 {
                     "$match": {
@@ -791,7 +793,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
 
             let s3PresignedUrl = "";
 
-            if (input?.export  ) {
+            if (input?.export) {
                 const workbook = XLSX.utils.book_new();
                 const combinedData = [];
                 for (const learnerName in learnerReportsByUser) {
@@ -847,8 +849,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         // messageValue: `The selected learner's enrollment report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
-                        isNotificatonForAdmin :true,
-                        notifiers : [userInfo._id],
+                        isNotificatonForAdmin: true,
+                        notifiers: [userInfo._id],
                         additionalInfo: [{
                             infoType: "EXPORT_URL",
                             infoData: {
@@ -874,7 +876,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             };
         }
         else if (input.reportType === "MODULE") {
-            
+
             const singleLearnerModulePipeline = singleLearnerModuleReportQuery({
                 matchUsers,
                 matchStage,
@@ -1008,8 +1010,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
                         // messageValue: `The selected learner's module wise report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.`,
                         notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
-                        isNotificatonForAdmin :true,
-                        notifiers : [userInfo._id],
+                        isNotificatonForAdmin: true,
+                        notifiers: [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -1046,8 +1048,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
             messageValue: `An error occurred while generating the learners report`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAllAdmin: false,
-            isNotificatonForAdmin :true,
-            notifiers : [userInfo._id],
+            isNotificatonForAdmin: true,
+            notifiers: [userInfo._id],
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,
@@ -1102,7 +1104,7 @@ const getMainCoursesReport = async ({ input }, context) => {
             "LAST_MODIFIED": "updatedAt",
             "TOTAL_ENROLLMENTS": "totalUsers",
         };
-        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,[],"COURSE_NAME",input?.sortInput); 
+        const sortStage = await ReportsHelper.generateSortingStage(fieldMapping, [], "COURSE_NAME", input?.sortInput);
         const data = await Training.aggregate([
             {
                 $sort: {
@@ -1134,13 +1136,13 @@ const getMainCoursesReport = async ({ input }, context) => {
                     localField: 'progress.user',
                     foreignField: '_id',
                     as: 'userInfo',
-                    pipeline : [
-                      {
-                        $match :{
-                          isDeleted : false,
-                          isSignupAdminAprroved :{ $ne : false}
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false,
+                                isSignupAdminAprroved: { $ne: false }
+                            }
                         }
-                      }
                     ]
                 },
             },
@@ -1229,7 +1231,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 $project: {
                     _id: 1,
                     title: 1,
-                    lowercaseTitle: { 
+                    lowercaseTitle: {
                         $toLower: { $arrayElemAt: ["$title.value", 0] }
                     },
                     updatedAt: 1,
@@ -1355,8 +1357,8 @@ const getMainCoursesReport = async ({ input }, context) => {
                     messageValue: `The Courses report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
-                    isNotificatonForAdmin :true,
-                    notifiers : [userInfo._id],
+                    isNotificatonForAdmin: true,
+                    notifiers: [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -1389,8 +1391,8 @@ const getMainCoursesReport = async ({ input }, context) => {
                 messageValue: `An error occurred while generating Course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
-                isNotificatonForAdmin :true,
-                notifiers : [userInfo._id],
+                isNotificatonForAdmin: true,
+                notifiers: [userInfo._id],
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -1515,7 +1517,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                 });
             }
-            
+
         }
 
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
@@ -1552,7 +1554,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 {
                                     $match: {
                                         isDeleted: false,
-                                        isSignupAdminAprroved :{ $ne : false}
+                                        isSignupAdminAprroved: { $ne: false }
                                     }
                                 }
                             ]
@@ -1719,7 +1721,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         $project: {
                             _id: 1,
                             firstName: "$userInfo.firstName",
-                            lowercaseFirstName: { 
+                            lowercaseFirstName: {
                                 $toLower: "$userInfo.firstName"
                             },
                             lastName: "$userInfo.lastName",
@@ -1801,7 +1803,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             ? ReportsHelper.formatDate(item?.startDate)
                             : "Not Applicable";
                         const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item?.unenrollmentDate) : "Not Applicable";
-                        const timeSpent = item.totalTimeSpent ? item.totalTimeSpent+" mins" : '0 mins';
+                        const timeSpent = item.totalTimeSpent ? item.totalTimeSpent + " mins" : '0 mins';
                         const quizScore = (typeof item.quizPercentage === 'string')
                             ? `${parseInt(item.quizPercentage, 10)}%`
                             : (typeof item.quizPercentage === 'number' && !isNaN(item.quizPercentage))
@@ -1852,8 +1854,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                             notifyAllAdmin: false,
-                            isNotificatonForAdmin : true,
-                            notifiers : [userInfo._id],
+                            isNotificatonForAdmin: true,
+                            notifiers: [userInfo._id],
                             additionalInfo: [
                                 {
                                     infoType: "EXPORT_URL",
@@ -1946,8 +1948,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                         messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
-                        isNotificatonForAdmin :true,
-                        notifiers : [userInfo._id],
+                        isNotificatonForAdmin: true,
+                        notifiers: [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -1996,12 +1998,12 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'localField': 'user',
                             'foreignField': '_id',
                             'as': 'userInfo',
-                            pipeline : [
-                              {
-                                $match :{
-                                  isDeleted : false
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: false
+                                    }
                                 }
-                              }
                             ]
                         }
                     }, {
@@ -2075,7 +2077,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'as': 'quizEvaluations',
                             'let': {
                                 'attemptCount': '$attemptCount',
-                                'status': '$status'  
+                                'status': '$status'
                             },
                             'pipeline': [
                                 {
@@ -2148,7 +2150,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'as': 'initialContents',
                             'let': {
                                 'status': '$status',
-                                'adminMarkedAsCompleted': "$adminMarkedAsCompleted",  
+                                'adminMarkedAsCompleted': "$adminMarkedAsCompleted",
                             },
                             'pipeline': [
                                 {
@@ -2163,11 +2165,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         $expr: {
                                             $or: [
                                                 { $eq: ["$$status", "NOT_STARTED"] },
-                                                { $eq: ["$$adminMarkedAsCompleted", true] } 
+                                                { $eq: ["$$adminMarkedAsCompleted", true] }
                                             ]
                                         }
                                     }
-                                },                                  
+                                },
                                 {
                                     '$lookup': {
                                         'from': 'trainingmodules',
@@ -2200,7 +2202,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                     '$project': {
                                         'moduleId': '$moduleInfo._id',
                                         'moduleName': '$moduleInfo.title',
-                                        'displayOrder' : "$moduleInfo.order",
+                                        'displayOrder': "$moduleInfo.order",
                                         'percentage': '$quizAttemptDetails.percentage',
                                         'isPassed': '$quizAttemptDetails.isPassed',
                                         'contentType': '$contentInfo.contentType',
@@ -2272,8 +2274,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'status': {
                                 '$first': '$status'
                             },
-                            'adminMarkedAsCompleted' : {
-                                '$first' : '$adminMarkedAsCompleted'
+                            'adminMarkedAsCompleted': {
+                                '$first': '$adminMarkedAsCompleted'
                             },
                             'currentVessel': {
                                 '$first': '$vesselInfo.name'
@@ -2310,7 +2312,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'then': {
                                             'moduleName': '$quizEvaluations.moduleName',
                                             'percentage': '$quizEvaluations.percentage',
-                                            'order' : "$quizEvaluations.displayOrder",
+                                            'order': "$quizEvaluations.displayOrder",
                                             'isQuizPassed': '$quizEvaluations.isPassed',
                                             'contentType': '$quizEvaluations.contentType',
                                             'updatedAt': '$quizEvaluations.updatedAt',
@@ -2319,7 +2321,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                         'else': {
                                             'moduleName': '$quizEvaluations.moduleName',
                                             'percentage': 'NOT APPLICABLE',
-                                            'order' : "$quizEvaluations.displayOrder",
+                                            'order': "$quizEvaluations.displayOrder",
                                             'isQuizPassed': "$quizEvaluations.isPassed",
                                             'contentType': '$quizEvaluations.contentType',
                                             'updatedAt': '$quizEvaluations.updatedAt',
@@ -2332,11 +2334,11 @@ const getSingleCourseReport = async ({ input }, context) => {
                     },
                     // Sort the module contents by order
                     {
-                        $addFields: { 
+                        $addFields: {
                             moduleContents: {
                                 $sortArray: {
                                     input: "$moduleContents",
-                                    sortBy: { updatedAt: -1 } 
+                                    sortBy: { updatedAt: -1 }
                                 }
                             }
                         }
@@ -2389,7 +2391,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                                 }
                             }
                         }
-                    }, 
+                    },
                     //Group by user and training
                     {
                         '$group': {
@@ -2543,7 +2545,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                             'user': '$_id.userId',
 
                             'firstName': 1,
-                            lowercaseFirstName: { 
+                            lowercaseFirstName: {
                                 $toLower: "$firstName"
                             },
                             'lastName': 1,
@@ -2575,7 +2577,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         }
                     },
                     { $sort: { createdAt: -1 } },
-                    { $sort: { lowercaseFirstName : 1 } },
+                    { $sort: { lowercaseFirstName: 1 } },
                     ...matchIdsToBeExported,
                     ...pageLimit
                 ]
@@ -2670,8 +2672,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                             messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAllAdmin: false,
-                            isNotificatonForAdmin :true,
-                            notifiers : [userInfo._id],
+                            isNotificatonForAdmin: true,
+                            notifiers: [userInfo._id],
                             additionalInfo: [
                                 {
                                     infoType: "EXPORT_URL",
@@ -2760,8 +2762,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                         messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
-                        isNotificatonForAdmin :true,
-                        notifiers : [userInfo._id],
+                        isNotificatonForAdmin: true,
+                        notifiers: [userInfo._id],
                         additionalInfo: [
                             {
                                 infoType: "EXPORT_URL",
@@ -2778,7 +2780,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                 return {
                     filePath: s3PresignedUrl,
                     fileName: path.basename(excelFilePath),
-                    coursesData : [],
+                    coursesData: [],
                 };
             }
         }
@@ -2794,8 +2796,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                 messageValue: `An error occurred while generating the individual course report.`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
-                isNotificatonForAdmin :true,
-                notifiers : [userInfo._id],
+                isNotificatonForAdmin: true,
+                notifiers: [userInfo._id],
                 status: 'FAILED',
                 icon: notificationiconEnum.ERROR,
                 createdBy: userInfo,
@@ -2806,7 +2808,7 @@ const getSingleCourseReport = async ({ input }, context) => {
 };
 
 const getVesselMainReport = async ({ input }, context) => {
-    const { subscriberId , userInfo } = AuthUser(context);
+    const { subscriberId, userInfo } = AuthUser(context);
     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
     try {
@@ -2872,8 +2874,8 @@ const getVesselMainReport = async ({ input }, context) => {
             "VESSEL_NAME": "vesselName",
             "OWNER_NAME": "ownerName",
         };
-        const sortStage  = await ReportsHelper.generateSortingStage(fieldMapping,["VESSEL_NAME","OWNER_NAME"],"VESSEL_NAME",input?.sortInput); 
-        
+        const sortStage = await ReportsHelper.generateSortingStage(fieldMapping, ["VESSEL_NAME", "OWNER_NAME"], "VESSEL_NAME", input?.sortInput);
+
         const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
         const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
 
@@ -2953,7 +2955,7 @@ const getVesselMainReport = async ({ input }, context) => {
                             {
                                 $match: {
                                     isDeleted: false,
-                                    isSignupAdminAprroved :{ $ne : false}
+                                    isSignupAdminAprroved: { $ne: false }
                                 }
                             },
                             {
@@ -3279,8 +3281,8 @@ const getVesselMainReport = async ({ input }, context) => {
                     messageValue: `The main vessel report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
-                    isNotificatonForAdmin :true,
-                    notifiers : [userInfo._id],
+                    isNotificatonForAdmin: true,
+                    notifiers: [userInfo._id],
                     additionalInfo: [
                         {
                             infoType: "EXPORT_URL",
@@ -3312,8 +3314,8 @@ const getVesselMainReport = async ({ input }, context) => {
             messageValue: `An error occurred while generating the vessel report.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAllAdmin: false,
-            isNotificatonForAdmin :true,
-            notifiers : [userInfo._id],
+            isNotificatonForAdmin: true,
+            notifiers: [userInfo._id],
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,
@@ -3385,7 +3387,7 @@ const generateCustomReport = async ({ input }, context) => {
                 }
                 //filter with designation (designationId accepted from FE)
                 if (input.designation && Array.isArray(input.designation) && input.designation.length > 0) {
-                    matchStage.push( {
+                    matchStage.push({
                         "$match": {
                             "employeeInfo.empDesignation": { "$in": input.designation }
                         }
@@ -3413,242 +3415,253 @@ const generateCustomReport = async ({ input }, context) => {
             }
         }
 
-        let data;
-        let dataToExport = [];
-        if (input?.reportType === "ENROLLMENT") {
-
-            const customEnrollmentReportPipeline = customEnrollmentReportQuery(matchStage);
-            data = await OverallTrainingProgress.aggregate(customEnrollmentReportPipeline);
-
-            data.forEach(item => {
-                const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
-                const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
-                const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
-                const startDate = item?.startDate && item.startDate !== 'startDate'
-                    ? ReportsHelper.formatDate(item.startDate)
-                    : "Not Applicable";
-                const country = item?.country || "Not Applicable";
-                const vesselType = item?.vesselType || "Not Applicable";
-                const currentVessel = item?.currentVessel || "Not Applicable";
-                const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
-                const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "Not Applicable";
-                const userState = item.isRegistered ? "Registered" : "Unregistered";
-                const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
-                const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
-
-                dataToExport.push({
-                    Name: learnerName ?? "-",
-                    Email: item.email || null,
-                    Country: country,
-                    'User Id': item.employeeId || null,
-                    Designation: item.designation || null,
-                    'Current Vessel': currentVessel,
-                    'Vessel Type': vesselType,
-                    'Course Name': item.courseName ? item.courseName[0] : null,
-                    'Course Status': item.status || null,
-                    'Admin Marked As Completed': adminMarkedAsCompleted,
-                    'Course Enrollment Date & Time (UTC)': enrollmentDate,
-                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
-                    'Course Started Date & Time (UTC)': startDate,
-                    'Course Completion Date & Time (UTC)': completionDate,
-                    'Quiz Score': quizScore,
-                    'User State': userState,
-                    'Time Spent': timeSpent,
-                });
-            });
-
-        } else if (input?.reportType === "QUIZ") {
-            const customQuizReportPipeline = customQuizReportQuery(matchStage);
-            data = await OverallTrainingProgress.aggregate(customQuizReportPipeline);
-
-            const flattenDataForSingleSheet = (learner) => {
-                const flattenedData = [];
-                if (learner) {
-                    const email = learner?.email || '';
-                    const designation = learner?.designation || '';
-                    const country = learner?.country || 'Not Applicable';
-                    const firstName = learner?.firstName || '';
-                    const lastName = learner?.lastName || '';
-                    const empId = learner?.empId || '';
-                    const currentVessel = learner?.currentVessel || 'Not Applicable';
-                    const vesselType = learner?.vesselType || 'Not Applicable';
-                    const status = learner?.status || 'Not Applicable';
-                    const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
-                    const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
-                    const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
-                    const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
-                    const startDate = learner?.startDate && learner.startDate !== 'startDate'
-                        ? ReportsHelper.formatDate(learner.startDate)
-                        : "Not Applicable";
-                    const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
-
-
-                    learner.modules.forEach((module, moduleIndex) => {
-                        const moduleName = module?.moduleName[0]?.value || 'Unnamed Module';
-                        const hasQuiz = module?.hasQuiz || false;
-
-
-                        module?.moduleContents.forEach((content, contentIndex) => {
-                            const contentName = content?.contentName[0]?.value || 'Unnamed Content';
-                            const contentType = content?.contentType || 'Not Applicable';
-                            const quizScore = content?.percentage || 'Not Applicable';
-                            const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
-                            if (learner.contentType === 'QUIZ') {
-                                flattenedData.push({
-                                    Name: `${firstName} ${lastName}`,
-                                    Email: email,
-                                    Country: country,
-                                    'User Id': empId,
-                                    Designation: designation,
-                                    'Current Vessel': currentVessel,
-                                    'Vessel Type': vesselType,
-                                    'Course Name': courseName,
-                                    'Course Status': status,
-                                    'Admin Marked As Completed': adminMarkedAsCompleted,
-                                    'Course Enrollment Date & Time (UTC) ': enrollmentDate,
-                                    'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
-                                    'Course Started Date & Time (UTC)': startDate,
-                                    'Course Completion Date & Time (UTC)': completionDate,
-                                    'Lesson Name': `${moduleName}`,
-                                    'Content Name': `${contentName}`,
-                                    // 'Content Type': contentType,
-                                    'Quiz Score': quizScore,
-                                    'Time Spent': timeSpendInContent,
-                                });
-                            }
-                        });
-                    });
-                }
-
-                return flattenedData;
-            };
-
-            const flattenAllLearnersData = (learners) => {
-                const allFlattenedData = [];
-                learners.forEach(learner => {
-                    const learnerData = flattenDataForSingleSheet(learner);
-                    if (learnerData.length > 0) {
-                        allFlattenedData.push(...learnerData);
-                        allFlattenedData.push([]);
-                    }   
-                });
-                return allFlattenedData;
-            };
-            dataToExport = flattenAllLearnersData(data);
-        }
-
-        let s3PresignedUrl = "";
-
-        const workbook = XLSX.utils.book_new();
-        let worksheet;
-        if (dataToExport.length === 0) {
-            
-            const enrollmentReportHeaders = [
-                "Name",
-                "Email",
-                "Country",
-                "User Id",
-                "Designation",
-                "Current Vessel",
-                "Vessel Type",
-                "Course Name",
-                "Status",
-                "Admin Marked As Completed",
-                "Course Enrollment Date & Time (UTC)",
-                "Course Unenrollment Date & Time (UTC)",
-                "Course Started Date & Time (UTC)",
-                "Course Completion Date & Time (UTC)",
-                "Quiz Score",
-                "userState",
-                "Time Spent",
-            ]
-
-            const quizReportHeaders = [
-                "Name",
-                "Email",
-                "Country",
-                "User Id",
-                "Designation",
-                "Current Vessel",
-                "Vessel Type",
-                "Course Name",
-                "Course Status",
-                "Admin Marked As Completed",
-                "Course Enrollment Date & Time (UTC)",
-                "Course Unenrollment Date & Time (UTC)",
-                "Course Started Date & Time (UTC)",
-                "Course Completion Date & Time (UTC)",
-                "Lesson Name",
-                "Content Name",
-                "Content Type",
-                "Quiz Score",
-                "Time Spent",
-            ]
-
-            const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
-            worksheet = XLSX.utils.aoa_to_sheet([
-                headers
-            ]);
-
-
-        }
-        else {
-            worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        }
-        XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        const excelFilePath = await UploadHelper.uploadExcel({
-            data: excelBuffer,
-            folderName: "Custom-Quiz-Reports",
-            fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
-            uploadType: UploadHelper.uploadType.exportCustomQuizReport,
+        console.time(`Processing batch ${i + 1}/${batchCount}`);
+        console.log(`Processing batch ${i + 1}/${batchCount}`);
+        await publishToExchange(EXCHANGES.REPORT_GENERATION, 'reportGen', {
+            matchStage,
+            timestamp: new Date().toISOString()
         });
-        if (excelFilePath) {
-            s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-            const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to download`:`Quiz report is ready to download`
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: notificationMessage,
-                // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
-                notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-                notifyAllAdmin: false,
-                isNotificatonForAdmin :true,
-                notifiers : [userInfo._id],
-                additionalInfo: [
-                    {
-                        infoType: "EXPORT_URL",
-                        infoData: {
-                            filePath: excelFilePath
-                        }
-                    }
-                ],
-                status: 'SENT',
-                createdBy: userInfo,
-                icon: notificationiconEnum.SUCCESS
-            });
+        console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
 
-        }
-
-        const newReport = new Export({
-            filePath: excelFilePath,
-            subscriberId: subscriberId,
-            createdBy: userId,
-            type_of_export: 'CUSTOM_REPORT_EXPORT',
-            additionalData: [{
-                key: "criteria",
-                value: { ...input }
-            }]
-        })
-        await newReport.save();
         return {
-            status: true,
-            fileName: path.basename(excelFilePath),
-            filePath: s3PresignedUrl,
-            message: "report generated successfully"
+            message: "Report is generating in the background. You can continue working.",
         };
 
 
 
+        // let data;
+        // let dataToExport = [];
+        // if (input?.reportType === "ENROLLMENT") {
+
+        //     const customEnrollmentReportPipeline = customEnrollmentReportQuery(matchStage);
+        //     data = await OverallTrainingProgress.aggregate(customEnrollmentReportPipeline);
+
+        //     data.forEach(item => {
+        //         const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
+        //         const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
+        //         const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
+        //         const startDate = item?.startDate && item.startDate !== 'startDate'
+        //             ? ReportsHelper.formatDate(item.startDate)
+        //             : "Not Applicable";
+        //         const country = item?.country || "Not Applicable";
+        //         const vesselType = item?.vesselType || "Not Applicable";
+        //         const currentVessel = item?.currentVessel || "Not Applicable";
+        //         const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
+        //         const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "Not Applicable";
+        //         const userState = item.isRegistered ? "Registered" : "Unregistered";
+        //         const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
+        //         const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
+
+        //         dataToExport.push({
+        //             Name: learnerName ?? "-",
+        //             Email: item.email || null,
+        //             Country: country,
+        //             'User Id': item.employeeId || null,
+        //             Designation: item.designation || null,
+        //             'Current Vessel': currentVessel,
+        //             'Vessel Type': vesselType,
+        //             'Course Name': item.courseName ? item.courseName[0] : null,
+        //             'Course Status': item.status || null,
+        //             'Admin Marked As Completed': adminMarkedAsCompleted,
+        //             'Course Enrollment Date & Time (UTC)': enrollmentDate,
+        //             'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+        //             'Course Started Date & Time (UTC)': startDate,
+        //             'Course Completion Date & Time (UTC)': completionDate,
+        //             'Quiz Score': quizScore,
+        //             'User State': userState,
+        //             'Time Spent': timeSpent,
+        //         });
+        //     });
+
+        // } else if (input?.reportType === "QUIZ") {
+        //     const customQuizReportPipeline = customQuizReportQuery(matchStage);
+        //     data = await OverallTrainingProgress.aggregate(customQuizReportPipeline);
+
+        //     const flattenDataForSingleSheet = (learner) => {
+        //         const flattenedData = [];
+        //         if (learner) {
+        //             const email = learner?.email || '';
+        //             const designation = learner?.designation || '';
+        //             const country = learner?.country || 'Not Applicable';
+        //             const firstName = learner?.firstName || '';
+        //             const lastName = learner?.lastName || '';
+        //             const empId = learner?.empId || '';
+        //             const currentVessel = learner?.currentVessel || 'Not Applicable';
+        //             const vesselType = learner?.vesselType || 'Not Applicable';
+        //             const status = learner?.status || 'Not Applicable';
+        //             const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
+        //             const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
+        //             const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
+        //             const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
+        //             const startDate = learner?.startDate && learner.startDate !== 'startDate'
+        //                 ? ReportsHelper.formatDate(learner.startDate)
+        //                 : "Not Applicable";
+        //             const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
+
+
+        //             learner.modules.forEach((module, moduleIndex) => {
+        //                 const moduleName = module?.moduleName[0]?.value || 'Unnamed Module';
+        //                 const hasQuiz = module?.hasQuiz || false;
+
+
+        //                 module?.moduleContents.forEach((content, contentIndex) => {
+        //                     const contentName = content?.contentName[0]?.value || 'Unnamed Content';
+        //                     const contentType = content?.contentType || 'Not Applicable';
+        //                     const quizScore = content?.percentage || 'Not Applicable';
+        //                     const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
+        //                     if (learner.contentType === 'QUIZ') {
+        //                         flattenedData.push({
+        //                             Name: `${firstName} ${lastName}`,
+        //                             Email: email,
+        //                             Country: country,
+        //                             'User Id': empId,
+        //                             Designation: designation,
+        //                             'Current Vessel': currentVessel,
+        //                             'Vessel Type': vesselType,
+        //                             'Course Name': courseName,
+        //                             'Course Status': status,
+        //                             'Admin Marked As Completed': adminMarkedAsCompleted,
+        //                             'Course Enrollment Date & Time (UTC) ': enrollmentDate,
+        //                             'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
+        //                             'Course Started Date & Time (UTC)': startDate,
+        //                             'Course Completion Date & Time (UTC)': completionDate,
+        //                             'Lesson Name': `${moduleName}`,
+        //                             'Content Name': `${contentName}`,
+        //                             // 'Content Type': contentType,
+        //                             'Quiz Score': quizScore,
+        //                             'Time Spent': timeSpendInContent,
+        //                         });
+        //                     }
+        //                 });
+        //             });
+        //         }
+
+        //         return flattenedData;
+        //     };
+
+        //     const flattenAllLearnersData = (learners) => {
+        //         const allFlattenedData = [];
+        //         learners.forEach(learner => {
+        //             const learnerData = flattenDataForSingleSheet(learner);
+        //             if (learnerData.length > 0) {
+        //                 allFlattenedData.push(...learnerData);
+        //                 allFlattenedData.push([]);
+        //             }   
+        //         });
+        //         return allFlattenedData;
+        //     };
+        //     dataToExport = flattenAllLearnersData(data);
+        // }
+
+        // let s3PresignedUrl = "";
+
+        // const workbook = XLSX.utils.book_new();
+        // let worksheet;
+        // if (dataToExport.length === 0) {
+
+        //     const enrollmentReportHeaders = [
+        //         "Name",
+        //         "Email",
+        //         "Country",
+        //         "User Id",
+        //         "Designation",
+        //         "Current Vessel",
+        //         "Vessel Type",
+        //         "Course Name",
+        //         "Status",
+        //         "Admin Marked As Completed",
+        //         "Course Enrollment Date & Time (UTC)",
+        //         "Course Unenrollment Date & Time (UTC)",
+        //         "Course Started Date & Time (UTC)",
+        //         "Course Completion Date & Time (UTC)",
+        //         "Quiz Score",
+        //         "userState",
+        //         "Time Spent",
+        //     ]
+
+        //     const quizReportHeaders = [
+        //         "Name",
+        //         "Email",
+        //         "Country",
+        //         "User Id",
+        //         "Designation",
+        //         "Current Vessel",
+        //         "Vessel Type",
+        //         "Course Name",
+        //         "Course Status",
+        //         "Admin Marked As Completed",
+        //         "Course Enrollment Date & Time (UTC)",
+        //         "Course Unenrollment Date & Time (UTC)",
+        //         "Course Started Date & Time (UTC)",
+        //         "Course Completion Date & Time (UTC)",
+        //         "Lesson Name",
+        //         "Content Name",
+        //         "Content Type",
+        //         "Quiz Score",
+        //         "Time Spent",
+        //     ]
+
+        //     const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
+        //     worksheet = XLSX.utils.aoa_to_sheet([
+        //         headers
+        //     ]);
+
+
+        // }
+        // else {
+        //     worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        // }
+        // XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
+        // const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        // const excelFilePath = await UploadHelper.uploadExcel({
+        //     data: excelBuffer,
+        //     folderName: "Custom-Quiz-Reports",
+        //     fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+        //     uploadType: UploadHelper.uploadType.exportCustomQuizReport,
+        // });
+        // if (excelFilePath) {
+        //     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+        //     const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to download`:`Quiz report is ready to download`
+        //     await NotificationHelper.createNotificationhelper({
+        //         subscriber: subscriberId,
+        //         titleValue: notificationMessage,
+        //         // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+        //         notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+        //         notifyAllAdmin: false,
+        //         isNotificatonForAdmin :true,
+        //         notifiers : [userInfo._id],
+        //         additionalInfo: [
+        //             {
+        //                 infoType: "EXPORT_URL",
+        //                 infoData: {
+        //                     filePath: excelFilePath
+        //                 }
+        //             }
+        //         ],
+        //         status: 'SENT',
+        //         createdBy: userInfo,
+        //         icon: notificationiconEnum.SUCCESS
+        //     });
+
+        // }
+
+        // const newReport = new Export({
+        //     filePath: excelFilePath,
+        //     subscriberId: subscriberId,
+        //     createdBy: userId,
+        //     type_of_export: 'CUSTOM_REPORT_EXPORT',
+        //     additionalData: [{
+        //         key: "criteria",
+        //         value: { ...input }
+        //     }]
+        // })
+        // await newReport.save();
+        // return {
+        //     status: true,
+        //     fileName: path.basename(excelFilePath),
+        //     filePath: s3PresignedUrl,
+        //     message: "report generated successfully"
+        // };
 
 
     } catch (error) {
@@ -3658,8 +3671,8 @@ const generateCustomReport = async ({ input }, context) => {
             messageValue: `An error occurred while generating the custom report(${await ReportsHelper.getAppliedFilters(input)}). ${error?.message}.`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifyAllAdmin: false,
-            isNotificatonForAdmin :true,
-            notifiers : [userInfo._id],
+            isNotificatonForAdmin: true,
+            notifiers: [userInfo._id],
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,

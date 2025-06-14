@@ -55,14 +55,17 @@ const QUEUES = {
     NOTIFICATION: 'notification_queue',
     EMAIL: 'email_queue',
     COURSE_ENROLLMENT: 'course_enrollment_queue',
-    COURSE_ENROLLMENT_DLQ: 'course_enrollment_dlq'
+    COURSE_ENROLLMENT_DLQ: 'course_enrollment_dlq',
+    REPORT_GENERATION: 'report_generation_queue',
+    REPORT_GENERATION_DLQ: 'report_generation_dlq'
 };
 
 const EXCHANGES = {
     CSV_IMPORT: 'csv_import_exchange',
     NOTIFICATION: 'notification_exchange',
     EMAIL: 'email_exchange',
-    COURSE_ENROLLMENT: 'course_enrollment_exchange'
+    COURSE_ENROLLMENT: 'course_enrollment_exchange',
+    REPORT_GENERATION: 'report_generation_exchange'
 };
 
 module.exports = {
