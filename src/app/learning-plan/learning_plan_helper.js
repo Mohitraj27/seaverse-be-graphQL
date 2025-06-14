@@ -372,7 +372,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
         //     return { success: false, errors: errorList };
         // }
-        console.log('input recived', input);
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
@@ -499,13 +498,39 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
                 const publishedCourseIds = publishedCourses?.map(course => course._id);
                 if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
+                    
+                    const jobId = uuidv4();
+
                     const enrollData = {
                         trainings: publishedCourseIds,
                         users: learnersToAssign?.map(learner => learner._id) || [],
                         type: "ENROLL",
                         learningPlan: existingLearningPlan._id
-                    };
-                    await createTrainingRegistration(enrollData, context);
+                    }
+
+                    const batchSize = Math.min(500, enrollData?.users?.length);
+                    const batchCount = Math.ceil(enrollData?.users?.length / batchSize);
+
+                    for (let i = 0; i < batchCount; i++) {
+
+                        const start = i * batchSize;
+                        const end = start + batchSize;
+
+                        // Create batched enrollment data
+                        const batchedEnrollData = {
+                            ...enrollData,
+                            users: enrollData.users.slice(start, end)
+                        };
+
+                        await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                            jobId,
+                            batchedEnrollData,
+                            context,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+
+
                 }
             }
         }
@@ -1308,13 +1333,13 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         };
 
         console.log('input received for status activation', input);
-        
+
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
-        
+
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -1324,7 +1349,7 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
 
         // Update the existing learning plan object
         Object.assign(existingLearningPlans, {
-            title: input.title, 
+            title: input.title,
             targetAudience: input.targetAudience,
             audienceSelection: input.audienceSelection,
             conditionType: input.conditionType || null,
@@ -1344,14 +1369,14 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         }
 
         await existingLearningPlans.save();
-        
-        
-       const userObjectIds = await LearningPlanAssignment.find({
+
+
+        const userObjectIds = await LearningPlanAssignment.find({
             learningPlanId: ObjectId(existingLearningPlans._id),
             isDeleted: false,
             isManuallyAdded: true
-            }).select('assignedLearnerId -_id');
-            const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
+        }).select('assignedLearnerId -_id');
+        const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
             // For manual selection, we need to get users based on existing assignments or criteria

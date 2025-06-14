@@ -1218,7 +1218,7 @@ module.exports = {
                             // Insert emails into the course_emails table
                             SqliteEmailHelper.insertCourseEmails(emailData);
                             // Send the emails batch by batch. Uncomment for sending emails.
-                            // await sendCourseEmailBulk();
+                            await sendCourseEmailBulk();
                         }
                         if (input.learningPlan) {
 
@@ -1273,7 +1273,7 @@ module.exports = {
 
                             // Step 4: Insert into SQLite queue and send
                             SqliteEmailHelper.insertCourseEmails(emailData);
-                            // await sendCourseEmailBulk();
+                            await sendCourseEmailBulk();
                         }
 
                         return savedTrainingRegistration;
@@ -1666,9 +1666,6 @@ module.exports = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-        console.log('input');
-        console.log(JSON.stringify(input, null, 2));
-
         if (
             !SubRoleHelper.hasPermission({
                 currentRole: role,
@@ -1948,7 +1945,7 @@ module.exports = {
                             // Insert emails into the course_emails table
                             SqliteEmailHelper.insertCourseEmails(emailData);
                             // Send the emails batch by batch
-                            // await sendCourseEmailBulk();
+                            await sendCourseEmailBulk();
                         }
                         if (input.learningPlan) {
 
@@ -2003,7 +2000,7 @@ module.exports = {
 
                             // Step 4: Insert into SQLite queue and send
                             SqliteEmailHelper.insertCourseEmails(emailData);
-                            // await sendCourseEmailBulk();
+                            await sendCourseEmailBulk();
                         }
 
                         return savedTrainingRegistration;
