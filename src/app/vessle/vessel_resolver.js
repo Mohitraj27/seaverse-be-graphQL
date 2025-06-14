@@ -649,7 +649,6 @@ module.exports.mutations = {
                             "users", 
                              `
                             ctx._source.currentVessel = params.currentVessel;
-                            ctx._source.vesselStatus = params.vesselStatus;
                             ctx._source.vesselName = params.vesselName;
                             ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselIsDeleted = params.vesselIsDeleted;
@@ -662,7 +661,6 @@ module.exports.mutations = {
                             },
                             {
                                 currentVessel: null,
-                                vesselStatus: null,
                                 vesselName: null,
                                 vesselId: null,
                                 vesselIsDeleted: null,
