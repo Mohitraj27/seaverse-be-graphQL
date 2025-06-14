@@ -3,7 +3,7 @@ const { connect, getChannel, close, QUEUES, EXCHANGES } = require('../../../util
 const setupQueues = async () => {
     const channel = await getChannel();
     // remove this code before production
-    await channel.purgeQueue('csv_import_queue');
+    // await channel.purgeQueue('csv_import_queue');
     console.log('Queue cleared');
     
     // Clear all queues

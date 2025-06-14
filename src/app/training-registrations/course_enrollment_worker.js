@@ -1,10 +1,9 @@
-const { connect, getChannel, QUEUES, EXCHANGES } = require('../../../util/rabbitmq_helper');
+const { connect, getChannel, QUEUES, EXCHANGES } = require('../../util/rabbitmq_helper');
 const { setupQueues, publishToExchange } = require('./rabbitMq_service');
-const { createEmployeesBackgroundTask } = require('./employee_helper');
-const { connectDb, closeDb } = require('../../../util/child_process_db_helper');
-// const { connectDb } = require('../../../util/db_helper');
+const { connectDb, closeDb } = require('../../util/child_process_db_helper');
 // ******************************************************* 
-const { ImportJob } = require("./import_job_model"); // Make sure this is correctly imported
+// const { ImportJob } = require("./import_job_model");
+const { createTrainingRegistrationBackgroundProcess } = require('./training_registration_helper');
 // ******************************************************* 
 
 let consumerTag = null;
@@ -16,40 +15,15 @@ const processMessage = async (channel, message) => {
     try {
         await connectDb();
         jobData = JSON.parse(message.content.toString());
-        console.log(`Processing CSV import job: ${jobData.jobId}`);
+        console.log(`Processing course enrollment job: ${jobData.jobId}`);
 
         const {
             jobId,
-            users,
-            emailsArray,
-            empIdsArray,
-            subscriberId,
-            userId,
-            userInfo,
-            newFileName,
-            saveCSV,
+            batchedEnrollData,
             context
         } = jobData;
 
-        // Update job status
-        // await ImportJob.findOneAndUpdate(
-        //     { jobId: jobId },
-        //     {
-        //         importStatus: "PROCESSING",
-        //     }
-        // );
-
-        // Process the CSV import
-        await createEmployeesBackgroundTask(
-            users,
-            emailsArray,
-            empIdsArray,
-            subscriberId,
-            userId,
-            newFileName,
-            saveCSV,
-            context
-        );
+        await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
 
         // Acknowledge message after successful processing
         await channel.ack(message);
@@ -72,8 +46,8 @@ const processMessage = async (channel, message) => {
 
             // Publish with retry header
             await publishToExchange(
-                EXCHANGES.CSV_IMPORT,
-                'import',
+                EXCHANGES.COURSE_ENROLLMENT,
+                'courseEnrollment',
                 jobData,
                 {
                     headers: {
@@ -83,28 +57,20 @@ const processMessage = async (channel, message) => {
                 }
             );
         } else {
+
             // Max retries reached, send to DLQ
             console.error(`Job ${jobData?.jobId} failed after ${maxRetries} attempts`);
 
-            if (jobData?.jobId) {
-                await ImportJob.findOneAndUpdate(
-                    { jobId: jobData.jobId },
-                    {
-                        importStatus: "FAILED",
-                        completedAt: new Date(),
-                        description: `Failed after ${maxRetries} attempts: ${error.message}`
-                    }
-                );
-
-                // Send failure notification
-                await sendFailureNotification(jobData, error);
-            }
+            // Send failure notification
+            await sendFailureNotification(jobData, error);
 
             // Reject and don't requeue (will go to DLQ)
             await channel.nack(message, false, false);
+
         }
     }
 };
+
 const sendFailureNotification = async (jobData, error) => {
     await publishToExchange(
         EXCHANGES.NOTIFICATION,
@@ -130,8 +96,9 @@ const startWorker = async () => {
         console.log('CSV Import Worker started, waiting for messages...');
 
         const result = await channel.consume(
-            QUEUES.CSV_IMPORT,
+            QUEUES.COURSE_ENROLLMENT,
             async (message) => {
+                console.log('inside function')
                 if (message) {
                     await processMessage(channel, message);
                 }

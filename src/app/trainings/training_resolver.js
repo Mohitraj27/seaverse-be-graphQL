@@ -58,8 +58,8 @@ module.exports.queries = {
 
         let filterConditions = { subscriber: subscriberId, isDeleted: false };
         let sortOrder = { updatedAt: -1 };
-        if (filterInput) {
 
+        if (filterInput) {
             if (filterInput.search) {
                 const searchRegex = {
                     $regex: ".*" + filterInput.search + ".*",
@@ -76,59 +76,59 @@ module.exports.queries = {
                 filterConditions.isActive = filterInput.isActive;
 
             if (filterInput.status) filterConditions.status = filterInput.status;
+
             if (filterInput?.dateFilter) {
                 if (filterInput.dateFilter === -1) {
-                    sortOrder = { updatedAt: "descending" };
+                    sortOrder = { updatedAt: -1 };
                 } else {
-                    sortOrder = { updatedAt: "ascending" };
+                    sortOrder = { updatedAt: 1 };
                 }
             }
         }
 
-        const result = await Training.aggregate([
+        
+        const totalCount = await Training.countDocuments(filterConditions);
+
+        
+        const trainings = await Training.aggregate([
             { $match: filterConditions },
             { $sort: sortOrder },
+            { $skip: skip },
+            { $limit: limit },
             {
-                $facet: {
-                    trainings: [
-                        { $skip: skip },
-                        { $limit: limit },
-                        {
-                            $lookup: {
-                                from: "users",
-                                localField: "updatedBy",
-                                foreignField: "_id",
-                                as: "createdByDetails",
-                                pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
-                            },
-                        },
-                        {
-                            $lookup: {
-                                from: "overalltrainingprogresses",
-                                localField: "_id",
-                                foreignField: "training",
-                                as: "trainingUsers",
-                            },
-                        },
-                        {
-                            $addFields: {
-                                createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
-                                countOfUsers: { $size: "$trainingUsers" },
-                            },
-                        },
-                        { $project: { createdByDetails: 0 } },
-                    ],
+                $lookup: {
+                    from: "users",
+                    localField: "updatedBy",
+                    foreignField: "_id",
+                    as: "createdByDetails",
+                    pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
+                },
+            },
+            {
+                $lookup: {
+                    from: "overalltrainingprogresses",
+                    localField: "_id",
+                    foreignField: "training",
+                    as: "trainingUsers",
+                    pipeline: [
+                        { $project: { _id: 1 } }
+                    ]
+                },
+            },
+            {
+                $addFields: {
+                    createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                    countOfUsers: { $size: "$trainingUsers" },
                 },
             },
             {
                 $project: {
-                    trainings: 1
-                },
+                    createdByDetails: 0,
+                    trainingUsers: 0
+                }
             },
         ]);
 
-        const { trainings } = result[0];
-        console.log("Trainings:", trainings);
         const decryptedTrainings = trainings?.map((training) => ({
             ...training,
             createdBy: {
@@ -138,7 +138,6 @@ module.exports.queries = {
                 email: decrypt(training?.createdBy?.email),
             },
         }));
-        console.log("Decrypted Trainings:", decryptedTrainings);
 
         return {
             totalCount: trainings.length,
@@ -366,6 +365,11 @@ module.exports.mutations = {
             });
 
             if (input.trainingModules?.length) {
+                await OverallTrainingProgress.updateMany(
+                    { training: input._id, status: 'NOT_STARTED' },
+                    { $set: { totalTrainingModules: input.trainingModules?.length } },
+                    { session }
+                )
                 savedTrainingContent = await TrainingModuleContentHelper.createOrUpdateTrainingModuleContentInTrainingCreation(
                     {
                         input: {

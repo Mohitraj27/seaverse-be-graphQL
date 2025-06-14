@@ -346,6 +346,11 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $addFields: {
+                        moduleCount: "$totalTrainingModules"
+                    }
+                },
+                {
                     $lookup: {
                         from: "trainingmodules",
                         let: { trainingId: "$training._id" },
@@ -355,7 +360,6 @@ module.exports.queries = {
                         as: "trainingModules",
                     },
                 },
-                { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
                     $addFields: {
                         totalDuration: { $ifNull: ["$totalDuration", 0] }
@@ -1851,7 +1855,7 @@ module.exports.mutations = {
                         },
                     },
                 }
-                if(initialStatus === "NOT_STARTED" ){
+                if (initialStatus === "NOT_STARTED") {
                     updatedRecord.updateOne.update.$set.contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
                     updatedRecord.updateOne.update.$set.completedModules = trainingContentDataForOverallTraining?.trainingTotalModules ?? 0;
                 }
@@ -1863,7 +1867,7 @@ module.exports.mutations = {
             await OverallTrainingProgress.bulkWrite(updateOps);
 
             // update progress of individual contents 
-            await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds , trainingContentData, overallProgressRecords: recordsToUpdate , updatedBy : userId });
+            await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds, trainingContentData, overallProgressRecords: recordsToUpdate, updatedBy: userId });
             const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(input?.userIds)
             console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
 

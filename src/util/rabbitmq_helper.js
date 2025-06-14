@@ -3,7 +3,7 @@ const amqp = require('amqplib');
 
 let connection = null;
 let channel = null;
-const connectionUrl = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+const connectionUrl = process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672';
 const retryInterval = 5000;
 
 const connect = async () => {
@@ -53,13 +53,19 @@ const QUEUES = {
     CSV_IMPORT: 'csv_import_queue',
     CSV_IMPORT_DLQ: 'csv_import_dlq', // Dead Letter Queue
     NOTIFICATION: 'notification_queue',
-    EMAIL: 'email_queue'
+    EMAIL: 'email_queue',
+    COURSE_ENROLLMENT: 'course_enrollment_queue',
+    COURSE_ENROLLMENT_DLQ: 'course_enrollment_dlq',
+    REPORT_GENERATION: 'report_generation_queue',
+    REPORT_GENERATION_DLQ: 'report_generation_dlq'
 };
 
 const EXCHANGES = {
     CSV_IMPORT: 'csv_import_exchange',
     NOTIFICATION: 'notification_exchange',
-    EMAIL: 'email_exchange'
+    EMAIL: 'email_exchange',
+    COURSE_ENROLLMENT: 'course_enrollment_exchange',
+    REPORT_GENERATION: 'report_generation_exchange'
 };
 
 module.exports = {

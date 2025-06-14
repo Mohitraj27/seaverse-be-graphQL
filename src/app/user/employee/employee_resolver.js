@@ -2081,9 +2081,21 @@ module.exports.queries = {
             console.log(error);
             throw Error(error);
         }
+    },
+    getEmailsofUser: async ({ input }, context) => {
+        const { userId } = input;
+    
+        try {
+            if (!userId || !Array.isArray(userId) || userId.length === 0) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId list is required");
+            }
+            const users = await User.find({ _id: { $in: userId }, isDeleted: false }).select('email');
+            const emails = users?.map((user) => user.email);
+            return emails;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_EMAIL, `${error}`);
+        }
     }
-
-
 };
 
 const validateDeleteUserRow = row => {
