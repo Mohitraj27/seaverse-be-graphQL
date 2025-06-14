@@ -574,14 +574,23 @@ const updateTrainingProgressesForMigrationUsersHelper = async (trainingProgressI
 
 }
 
-const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId, session) => {
+const createTrainingProgressHelper = async (users, trainings, subscriberId, latestRegistrationId, learningPlanId, session, fromBackground) => {
 
     let trainingProgressData;
     try {
-        const existingProgressRecords = await OverallTrainingProgress.find({
-            training: { $in: trainings.map(training => training._id) },
-            user: { $in: users.map(user => user._id) }
-        }).session(session);
+
+        let existingProgressRecords;
+        if (fromBackground) {
+            existingProgressRecords = await OverallTrainingProgress.find({
+                training: { $in: trainings.map(training => training) },
+                user: { $in: users.map(user => user._id) }
+            }).session(session);
+        } else {
+            existingProgressRecords = await OverallTrainingProgress.find({
+                training: { $in: trainings.map(training => training._id) },
+                user: { $in: users.map(user => user._id) }
+            }).session(session);
+        }
 
         let trainingIds, trainingModuleCounts, trainingIdToModuleCount;
 
@@ -1000,7 +1009,7 @@ module.exports = {
             const fetchedUserIds = allUsersFetched.map(user => user._id);
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds } });
-            let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds }, isEnrolled: {$ne: false} });
+            let nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: input.trainings }, user: { $in: fetchedUserIds }, isEnrolled: { $ne: false } });
 
             const existingSetOfUserTrainings = new Set(
                 nonNotificationRecievers.map(e => `${e.user.toString()}-${e.training.toString()}`)
@@ -1067,7 +1076,7 @@ module.exports = {
                         );
                     }
                 }
-                
+
                 const savedTrainingRegistration = await DbTransactionHelper.performDbTransaction(
                     async session => {
 
@@ -1450,7 +1459,7 @@ module.exports = {
                                 $set: {
                                     isEnrolled: false,
                                     directEnrollment: false,
-                                    unenrollmentDate : unenrollmentDate,
+                                    unenrollmentDate: unenrollmentDate,
                                 }
                             },
                             { session }
@@ -1652,13 +1661,13 @@ module.exports = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    
+
     createTrainingRegistrationBackgroundProcess: async (input, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-            console.log('input');
-            console.log(JSON.stringify(input, null, 2));
+        console.log('input');
+        console.log(JSON.stringify(input, null, 2));
 
         if (
             !SubRoleHelper.hasPermission({
@@ -1852,7 +1861,7 @@ module.exports = {
                             let learningPlanId = input.learningPlan ? input.learningPlan : null;
 
                             const alreadyEnrolledUsers = await OverallTrainingProgress.find({
-                                training: { $in: input.trainings.map(training => training._id) },
+                                training: { $in: input.trainings.map(training => training) },
                                 user: { $in: users.map(user => user._id) },
                                 isEnrolled: { $ne: false },
                                 isDeleted: { $ne: true }
@@ -1872,7 +1881,9 @@ module.exports = {
                                 });
                             });
 
-                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId, session);
+                            const fromBackground = true;
+
+                            trainingProgressData = await createTrainingProgressHelper(users, input.trainings, subscriberId, trainingRegistrationIds, learningPlanId, session, fromBackground);
 
                         }
 
