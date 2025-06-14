@@ -383,8 +383,7 @@ module.exports.queries = {
                 default:
                     let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
                     let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                    let allGroups = [...allAutosynced, ...allCustom];
+                    let allGroups = [...allAutosynced, ...(allCustom?.groups || [])];
                     allGroups = allGroups.filter(group => group._id && group.groupName);
 
                     let filteredGroups = allGroups;
