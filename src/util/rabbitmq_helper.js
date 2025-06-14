@@ -53,13 +53,16 @@ const QUEUES = {
     CSV_IMPORT: 'csv_import_queue',
     CSV_IMPORT_DLQ: 'csv_import_dlq', // Dead Letter Queue
     NOTIFICATION: 'notification_queue',
-    EMAIL: 'email_queue'
+    EMAIL: 'email_queue',
+    COURSE_ENROLLMENT: 'course_enrollment_queue',
+    COURSE_ENROLLMENT_DLQ: 'course_enrollment_dlq'
 };
 
 const EXCHANGES = {
     CSV_IMPORT: 'csv_import_exchange',
     NOTIFICATION: 'notification_exchange',
-    EMAIL: 'email_exchange'
+    EMAIL: 'email_exchange',
+    COURSE_ENROLLMENT: 'course_enrollment_exchange'
 };
 
 module.exports = {
