@@ -2081,9 +2081,21 @@ module.exports.queries = {
             console.log(error);
             throw Error(error);
         }
+    },
+    getEmailsofUser: async ({ input }, context) => {
+        const { userId } = input;
+    
+        try {
+            if (!userId || !Array.isArray(userId) || userId.length === 0) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId list is required");
+            }
+            const users = await User.find({ _id: { $in: userId }, isDeleted: false }).select('email');
+            const emails = users?.map((user) => user.email);
+            return emails;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_EMAIL, `${error}`);
+        }
     }
-
-
 };
 
 const validateDeleteUserRow = row => {
@@ -2654,7 +2666,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     }
 
                     if (updateDeleteRequestHistory) {
-                        if (userHistoryData[0]?.isEmailNotification) {
                             const sendmailforApproval = await aws_helper.sendEmail({
                                 receiverEmail: userHistoryData[0]?.email,
                                 subject: 'Delete request REJECTED',
@@ -2666,7 +2677,6 @@ const respondToDeleteRequest = async ({ input }, context) => {
                             if (!sendmailforApproval) {
                                 throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                             }
-                        }
                     }
                 }
 

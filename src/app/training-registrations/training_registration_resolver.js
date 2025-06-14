@@ -345,6 +345,11 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $addFields: {
+                        moduleCount: "$totalTrainingModules"
+                    }
+                },
+                {
                     $lookup: {
                         from: "trainingmodules",
                         let: { trainingId: "$training._id" },
@@ -354,7 +359,6 @@ module.exports.queries = {
                         as: "trainingModules",
                     },
                 },
-                { $addFields: { moduleCount: { $size: "$trainingModules" } } },
                 {
                     $addFields: {
                         totalDuration: { $ifNull: ["$totalDuration", 0] }
@@ -1808,13 +1812,15 @@ module.exports.mutations = {
                 },
             ]);
 
+            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
+            const trainingContentDataForOverallTraining = await TrainingRegistrationHelper.extractTrainingContentData(trainingData);
+            console.log("trainingContentDataForOverallTraining", trainingContentDataForOverallTraining);
             const trainingDataById = trainingData.reduce((acc, training) => {
                 acc[training._id.toString()] = training;
                 return acc;
             }, {});
 
             const trainingContentData = await TrainingContentBridge.find({ training: ObjectId(input.training) });
-            if (!trainingData.length > 0) throw CustomError(ErrorName.NOT_FOUND, "Training not found");
             const trainingModuleIds = trainingContentData.map(data => data.trainingModule);
             const recordsToUpdate = await OverallTrainingProgress.find({
                 training: input.training,
@@ -1827,7 +1833,8 @@ module.exports.mutations = {
             }, {});
 
             const updateOps = recordsToUpdate.map((record) => {
-                return {
+                const initialStatus = record?.status
+                const updatedRecord = {
                     updateOne: {
                         filter: { _id: record._id },
                         update: {
@@ -1846,15 +1853,25 @@ module.exports.mutations = {
                             },
                         },
                     },
-                };
+                }
+                if (initialStatus === "NOT_STARTED") {
+                    updatedRecord.updateOne.update.$set.contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+                    updatedRecord.updateOne.update.$set.completedModules = trainingContentDataForOverallTraining?.trainingTotalModules ?? 0;
+                }
+
+                console.log("updatedRecord", updatedRecord);
+                return updatedRecord;
             });
 
             await OverallTrainingProgress.bulkWrite(updateOps);
 
+            // update progress of individual contents 
+            await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds, trainingContentData, overallProgressRecords: recordsToUpdate, updatedBy: userId });
+
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
                 select: 'firstName lastName email'
-            });;
+            });
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });

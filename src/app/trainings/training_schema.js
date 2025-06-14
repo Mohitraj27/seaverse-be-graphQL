@@ -262,6 +262,8 @@ module.exports = {
             overallId: ID!
             completionDate: String
             finishedCourseFirstTime: Boolean
+            isFromOfflineSync: Boolean
+            version: Int
             trainingModules: [UpdateTrainingModuleInput!]!
         }
         input courseUpdateInput {
