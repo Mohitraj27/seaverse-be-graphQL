@@ -85,7 +85,7 @@ function decrypt(encrypted) {
     let decrypted = "";
     if(encrypted){
         const trimmed = encrypted?.substring(1); 
-        console.log(trimmed, "trimmed");
+
         for (let i = 0; i < trimmed.length; i += CODEWORD_LENGTH) {
             const codeword = trimmed.substring(i, i + CODEWORD_LENGTH);
             if (decryptionMap.has(codeword)) {
