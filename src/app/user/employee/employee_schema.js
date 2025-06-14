@@ -372,7 +372,12 @@ type FetchFileResponse {
         input userIdInput {
             userId: [ID!]!
         }
-        
+        type UserEmailDetails {
+            firstName: String
+            lastName: String
+            email: String
+        }
+
     `,
     queries: `
         getDeleteAndSignUpRequestCounts: deleteAndSignUpRequestCountResponse!
@@ -388,7 +393,7 @@ type FetchFileResponse {
         fetchSampleFile: FetchFileResponse!
         getDynamicData(userId: ID!): DynamicDataResponse!
         getDeleteHistory(pageInput: deleteRequestPageInput, search: String, filterInput: deleteRequestFilterInput): deleteReqResponse!
-        getEmailsofUser(input: userIdInput!): [String]!
+        getEmailsofUser(input: userIdInput!): [UserEmailDetails]!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
