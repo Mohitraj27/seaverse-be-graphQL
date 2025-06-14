@@ -163,6 +163,23 @@ module.exports = {
             status: String
             groups: [GroupData]
         }
+        input GroupFetchItem {
+            groupType: String!
+            groupIDs: [String!]!
+        }
+        input GetListGroupNamesInput {
+            groups: [GroupFetchItem!]!
+        }
+        type GroupDataList {
+            _id: ID
+            groupName: String
+            groupType: String
+        }
+
+        type getListGroupNamesRes {
+            status: String
+            groups: [GroupDataList]
+        }
     `,
     queries: `
         getGroups(pageInput: PageInput, groupFilter :GroupFilterInput, groupType :GroupType): GroupList!
@@ -173,6 +190,7 @@ module.exports = {
         getSingleAutoSyncGroupUsers(input: SingleGroupInput!): SingleGroupRes!
         getAllGroupMembers(groupKind :groupingCriteria, groupId :ID,pageInput : PageInput,groupFilter : memberFilter, autosyncInput : autosyncInput ):memberResponse
         getGroupNames(groupId: ID!): GetGroupNamesRes!
+        getListGroupNames(input: GetListGroupNamesInput!): getListGroupNamesRes!
     `,
     mutations: `
         createOrUpdateGroup(input: createGroupInput!): GroupResponse!
