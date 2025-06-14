@@ -223,8 +223,8 @@ module.exports.mutations = {
                 const createUser = await User.create([
                     {
                         subscriber: subscriberId,
-                        firstName: encrypt(firstName),
-                        lastName: encrypt(lastName) ?? null,
+                        firstName: encrypt(firstName.toLowerCase()),
+                        lastName: encrypt(lastName.toLowerCase()) ?? null,
                         password: encryptedPassword,
                         email: encrypt(lowerCaseEmail),
                         dummyPassword: dummyPassword,
@@ -301,8 +301,8 @@ module.exports.mutations = {
                                 }
 
                 const result = await SignupRequest.create([{
-                    firstName: encrypt(firstName),
-                    lastName: encrypt(lastName),
+                    firstName: encrypt(firstName.toLowerCase()),
+                    lastName: encrypt(lastName.toLowerCase()),
                     email: encrypt(lowerCaseEmail),
                     country: country,
                     signupStatus: signupstatus.PENDING,

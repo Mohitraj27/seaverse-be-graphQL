@@ -2920,10 +2920,10 @@ module.exports = {
         let newVessel;
 
         //Encryption logic
-        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
-        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName):"";
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
-        input.user.email = input.user.email && encrypt(input.user.email);
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName.toLowerCase());
+        input.user.lastName = input.user.lastName ? encrypt(input.user.lastName.toLowerCase()):"";
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport.toUpperCase());
+        input.user.email = input.user.email && encrypt(input.user.email.toLowerCase());
         if (input?.user?.currentVessel === '') {
             await UserVessel.updateMany(
                 { user: existingEmployee?.user?._id, isActive: true },
@@ -3584,19 +3584,19 @@ module.exports = {
         users=users.map(user => {
             return {
                 ...user,
-                firstName:encrypt(user.firstName.trim()),
-                lastName:encrypt(user.lastName.trim()),
+                firstName:encrypt(user.firstName.trim().toLowerCase()),
+                lastName:encrypt(user.lastName.trim().toLowerCase()),
                 civilIdOrPassport:encrypt(user.civilIdOrPassport.trim().toUpperCase()),
                 email:encrypt(user.email.trim().toLowerCase()),
             }
         })
 
-        emailsArray = emailsArray.map((email) => encrypt(email.trim()));
-        empIdsArray = empIdsArray.map((id) => encrypt(id.trim()));
+        emailsArray = emailsArray.map((email) => encrypt(email.trim().toLowerCase()));
+        empIdsArray = empIdsArray.map((id) => encrypt(id.trim().toUpperCase()));
 
         const existingUsers = await User.find({
             $or: [
-                { civilIdOrPassport: { $in: empIdsArray?.map(id=>encrypt(id)) } },
+                { civilIdOrPassport: { $in: empIdsArray } },
                 { email: { $in: emailsArray } }
             ]
         }).lean();
@@ -4215,13 +4215,6 @@ module.exports = {
                     };
 
                     elasticDocuments.push(document)
-                    
-                    // try {
-                    //     await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
-                    // } catch (error) {
-                    //     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
-                    // }
-
                 });
 
                 try {

@@ -644,6 +644,35 @@ module.exports.mutations = {
                             { session }
                         );
 
+                         try {
+                            await updateByQueryToElasticSearch(
+                            "users", 
+                             `
+                            ctx._source.currentVessel = params.currentVessel;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            `,
+                            {
+                                term: { currentVessel: vessel._id }
+                            },
+                            {
+                                currentVessel: null,
+                                vesselName: null,
+                                vesselId: null,
+                                vesselIsDeleted: null,
+                                vesselIsActive: null,
+                                typeOfVesselName: null,
+                                tyepOfVesselId: null,
+                            }
+                        );
+                        } catch (error) {
+                            throw new Error(error.message);
+                        }
+
                         await DeletedUser.updateMany(
                             { currentVessel: vessel._id },
                             { $set: { currentVessel: null } },

@@ -7,7 +7,8 @@ const SubscriptionHelper = require("../saas/subscriber/subscription/subscription
 const NotificationHelper = require("../notifications/notification_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
-const { decrypt } = require('../../util/encryption_helper');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
+const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
 module.exports = {
     makeAuthUser: async user => {
 
@@ -131,9 +132,9 @@ module.exports = {
         const existingUser = await User.findById(id);
 
         if (existingUser) {
-            if (input.firstName) existingUser.firstName = input.firstName;
+            if (input.firstName) existingUser.firstName = encrypt(input.firstName.trim().toLowerCase());
 
-            if (input.lastName) existingUser.lastName = input.lastName;
+            if (input.lastName) existingUser.lastName = encrypt(input.lastName.trim().toLowerCase());
 
             if (input.country) existingUser.country = input.country.toUpperCase();
 
@@ -143,31 +144,31 @@ module.exports = {
 
             if (
                 input.civilIdOrPassport &&
-                input.civilIdOrPassport !== existingUser.civilIdOrPassport
+                encrypt(input.civilIdOrPassport.toUpperCase()) !== existingUser.civilIdOrPassport
             ) {
                 const civilIdOrPassportExists = await User.findOne({
-                    civilIdOrPassport: input.civilIdOrPassport,
+                    civilIdOrPassport: encrypt(input.civilIdOrPassport.toUpperCase()),
                 })
                     .lean()
                     .select("_id");
                 if (civilIdOrPassportExists) throw CustomError(ErrorName.USER_ALREADY_EXIST);
 
-                existingUser.civilIdOrPassport = input.civilIdOrPassport;
+                existingUser.civilIdOrPassport = encrypt(input.civilIdOrPassport.toUpperCase());
             }
 
             if (
                 input.email &&
-                input.email.trim().toLowerCase() !== existingUser.email.toLowerCase()
+                encrypt(input.email.trim().toLowerCase()) !== existingUser.email
             ) {
                 const emailExists = await User.findOne({
-                    email: { $regex: new RegExp(`^${input.email}$`, "i") },
+                    email: encrypt(input.email.trim().toLowerCase()),
                 })
                     .lean()
                     .select("_id");
 
                 if (emailExists) throw CustomError(ErrorName.USER_ALREADY_EXIST);
 
-                existingUser.email = input.email;
+                existingUser.email = encrypt(input.email.trim().toLowerCase());
             }
             if (input?.consents?.length > 0 ) {
                 const validConsents = input.consents.every(consent =>
@@ -236,6 +237,51 @@ module.exports = {
 
             const savedUser = await existingUser.save();
             if (!savedUser) throw CustomError(ErrorName.FAILED);
+
+            try {
+                await updateByQueryToElasticSearch(
+                    "users", 
+                    `
+                        ctx._source.firstName = params.firstName;
+                        ctx._source.lastName = params.lastName;
+                        ctx._source.email = params.email;
+                        ctx._source.country = params.country;
+                        ctx._source.civilIdOrPassport = params.civilIdOrPassport;
+                        ctx._source.isRegistered = params.isRegistered;
+                        ctx._source.vesselStatus = params.vesselStatus;
+                        ctx._source.currentVessel = params.currentVessel;
+                        ctx._source.subRoles = params.subRoles;
+                        ctx._source.role = params.role;
+                        ctx._source.isActive = params.isActive;
+                        ctx._source.isVerified = params.isVerified;
+                    `,
+                    {
+                        term: { userId: savedUser._id.toString() }
+                    },
+                    {
+                        firstName: savedUser.firstName,
+                        lastName: savedUser.lastName,
+                        email: savedUser.email,
+                        phone: savedUser.phone,
+                        country: savedUser.country,
+                        civilIdOrPassport: savedUser.civilIdOrPassport,
+                        avatar: savedUser.avatar,
+                        languagePreference: savedUser.languagePreference,
+                        isRegistered: savedUser.isRegistered,
+                        vesselStatus: savedUser.vesselStatus,
+                        currentVessel: savedUser.currentVessel,
+                        subRoles: savedUser.subRoles,
+                        role: savedUser.role,
+                        isActive: savedUser.isActive,
+                        isVerified: savedUser.isVerified,
+                        isOrganizationManager: savedUser.isOrganizationManager,
+                        managingOrganization: savedUser.managingOrganization,
+                    }
+                );
+            } catch (error) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
+            
             return savedUser;
         }
 
