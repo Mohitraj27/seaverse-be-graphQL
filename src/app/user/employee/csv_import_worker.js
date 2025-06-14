@@ -14,8 +14,8 @@ const processMessage = async (channel, message) => {
     let jobData;
 
     try {
-        jobData = JSON.parse(message.content.toString());
         await connectDb();
+        jobData = JSON.parse(message.content.toString());
         console.log(`Processing CSV import job: ${jobData.jobId}`);
 
         const {
