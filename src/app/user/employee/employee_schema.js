@@ -369,6 +369,9 @@ type FetchFileResponse {
             flag: Boolean!
             fields: [FilterField!]
         }
+        input userIdInput {
+            userId: [ID!]!
+        }
         
     `,
     queries: `
@@ -385,6 +388,7 @@ type FetchFileResponse {
         fetchSampleFile: FetchFileResponse!
         getDynamicData(userId: ID!): DynamicDataResponse!
         getDeleteHistory(pageInput: deleteRequestPageInput, search: String, filterInput: deleteRequestFilterInput): deleteReqResponse!
+        getEmailsofUser(input: userIdInput!): [String]!
     `,
     mutations: `
         createEmployees(input: EmployeesInput!): BulkCsvUserResponse!
