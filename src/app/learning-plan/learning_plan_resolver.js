@@ -12,6 +12,7 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
+const { decrypt } = require('../../util/encryption_helper')
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -45,7 +46,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -121,7 +122,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -187,7 +188,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -253,7 +254,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -497,6 +498,14 @@ module.exports.queries = {
                 const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
                 learningPlan.overallProgress = overallProgress;
             }
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
+            }
             function filterData(data, statuses) {
 
                 if (!statuses || statuses.length === 0) {
@@ -533,6 +542,14 @@ module.exports.queries = {
                     learningPlans: lpData,
                     totalCount: lpData?.length,
                 };
+            }
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
             }
             return {
                 learningPlans: learningPlans,

@@ -7,7 +7,7 @@ const SubscriptionHelper = require("../saas/subscriber/subscription/subscription
 const NotificationHelper = require("../notifications/notification_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
-
+const { decrypt } = require('../../util/encryption_helper');
 module.exports = {
     makeAuthUser: async user => {
 
@@ -242,7 +242,7 @@ module.exports = {
         throw CustomError(ErrorName.NOT_FOUND);
     },
     sendSignUpNotification: async (notificationData, isInvited = true) => {
-        const nameOrEmail = notificationData.user?.firstName ?? notificationData.user?.email ?? "";
+        const nameOrEmail = decrypt(notificationData.user?.firstName) ?? decrypt(notificationData.user?.email) ?? "";
 
         let notification = {
             subscriber: notificationData.subscriber,
@@ -271,8 +271,8 @@ module.exports = {
                     infoType: "USER_INFO",
                     infoData: {
                         _id: notificationData.user._id,
-                        firstName: notificationData.user?.firstName,
-                        lastName: notificationData.user?.lastName,
+                        firstName: decrypt(notificationData.user?.firstName),
+                        lastName: decrypt(notificationData.user?.lastName),
                     },
                 },
             ],

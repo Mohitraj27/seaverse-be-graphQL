@@ -3,7 +3,7 @@ const { Role } = require("../../../util");
 const NotificationHelper = require("../../notifications/notification_helper");
 
 const NotificationType = require("../../notifications/notification_type.json");
-
+const { decrypt} = require('../../../util/encryption_helper');
 module.exports = {
     /**
      * Check whether user has permissions to do the operation
@@ -65,8 +65,8 @@ module.exports = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {
@@ -85,7 +85,7 @@ module.exports = {
             notification.message = [
                 {
                     lang: "en",
-                    value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${subRoleName}" role`,
+                    value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} "${subRoleName}" role`,
                 },
             ];
 

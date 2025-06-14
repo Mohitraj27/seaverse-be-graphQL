@@ -38,7 +38,7 @@ const { UserCourseMap } = require("./migrationcourses/userCourseMap/user_course_
 const { generateRandomString } = require("../user/user-profile/user_profile_helper");
 const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
-
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -682,7 +682,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             if (emails.length > 0) {
                 for (const item of emails) {
                     await sendEmail({
-                        receiverEmail: item.email,
+                        receiverEmail: decrypt(item.email),
                         subject: `Congratulations on Completing the ${item?.trainingTitle} Course!`,
                         htmlContent: item.emailContent,
                     });
@@ -1924,8 +1924,8 @@ module.exports = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: decrypt(notificationData.createdBy.lastName),
                         },
                     },
                     {
@@ -1945,14 +1945,14 @@ module.exports = {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" submitted the training "${trainingTitle}" for approval`,
+                        value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" submitted the training "${trainingTitle}" for approval`,
                     },
                 ];
             } else {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `A new course "${trainingTitle ?? ""}" has been ${notificationData.action} by "${notificationData.createdBy?.firstName ?? ""}"`,
+                        value: `A new course "${trainingTitle ?? ""}" has been ${notificationData.action} by "${decrypt(notificationData.createdBy?.firstName) ?? ""}"`,
                     },
                 ];
             }
