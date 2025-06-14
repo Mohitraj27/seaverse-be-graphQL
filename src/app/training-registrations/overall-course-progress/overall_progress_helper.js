@@ -6,7 +6,7 @@ const { TrainingProgress } = require("../training-progress/training_progress_mod
 const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { Employee } = require("../../user/employee/employee_model");
 const { ObjectId } = require("../../../tools");
-const { bulkUpdateDocumentsInElastic } = require("../../../util/elastic_helper");
+const { bulkUpdateDocumentsInElastic, updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {

@@ -1507,6 +1507,8 @@ module.exports = {
                             { $match: { _id: { $in: input.trainings } } },
                             { $project: { title: 1 } }
                         ]);
+
+                        const elasticSearchUpdateStatus = await updateCoursesCountAndProgressInElasticSearch(userObjectIds, session);
                         // inputUsers.forEach(user => {
                         //     trainings.forEach(training => {
                         //         const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
