@@ -602,7 +602,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             trainingIds = trainings.map(training => training._id);
             trainingModuleCounts = await TrainingModule.aggregate([
                 {
-                    $match: { training: { $in: trainingIds } }
+                    $match: { training: { $in: trainingIds }, isDeleted: { $ne: true } }
                 },
                 {
                     $group: {
