@@ -133,9 +133,9 @@ module.exports.queries = {
             ...training,
             createdBy: {
                 _id: training.createdBy?._id,
-                firstName: decrypt(training.createdBy.firstName),
-                lastName: decrypt(training.createdBy.lastName),
-                email: decrypt(training.createdBy.email),
+                firstName: decrypt(training?.createdBy?.firstName),
+                lastName: decrypt(training?.createdBy?.lastName),
+                email: decrypt(training?.createdBy?.email),
             },
         }));
 

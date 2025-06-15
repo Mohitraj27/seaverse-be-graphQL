@@ -1299,11 +1299,11 @@ module.exports.queries = {
                 lastSeenEnd:endDate,
                 sortField: sortElasticField,
                 sortOrder: sortElasticOrder,
-                skip: 0,
-                limit: 20,
+                skip: skip,
+                limit: limit,
             });
 
-            console.log("Elastic Results:", elasticResults);
+            // console.log("Elastic Results:", elasticResults);
 
             if (elasticResults?.employees?.length > 0) {
                 elasticResults.employees = elasticResults?.employees.map(employee => {
@@ -1332,7 +1332,7 @@ module.exports.queries = {
 
             const formattedResponse = mapElasticToOldAPI(elasticResults);
 
-            console.log("Formatted Response:", formattedResponse);
+            // console.log("Formatted Response:", formattedResponse);
 
             return {
                 employees: formattedResponse?.employees,
@@ -3096,10 +3096,10 @@ module.exports.mutations = {
         //encryption logic 
 
         //replace the original fields with encrypted on
-        input.user.firstName = input.user.firstName && encrypt(input.user.firstName);
-        input.user.lastName = input.user.lastName && encrypt(input.user.lastName);
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport);
-        input.user.email = input.user.email && encrypt(input.user.email);
+        input.user.firstName = input.user.firstName && encrypt(input.user.firstName.toLowerCase());
+        input.user.lastName = input.user.lastName && encrypt(input.user.lastName.toLowerCase());
+        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport.toUpperCase());
+        input.user.email = input.user.email && encrypt(input.user.email.toLowerCase());
 
         const existingUser = await User.findOne({ email: input.user.email });
 
@@ -3303,6 +3303,8 @@ module.exports.mutations = {
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
                     isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    enrolledCourses : 0,
+                    averageCourseProgress: 0.0,
                     indexedAt: new Date(),
                 };
 
@@ -4203,6 +4205,7 @@ module.exports.mutations = {
                     'First Name*': decrypt(user['First Name*']),
                     'Last Name': decrypt(user['Last Name']),
                     'Email*': decrypt(user['Email*']),
+                    'User ID*': decrypt(user['User ID*']),
                 };
             });
             const workbook = xlsx.utils.book_new();

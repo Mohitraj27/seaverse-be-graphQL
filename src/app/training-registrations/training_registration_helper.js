@@ -40,6 +40,8 @@ const AWS_HELPER = require("../../util/aws_helper");
 const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { decrypt, encrypt}= require('../../util/encryption_helper');
+const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
+const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -927,6 +929,7 @@ const summarizeResults = (results) => {
     };
 };
 
+
 module.exports = {
     enrolUserVerificationHelper,
     createTrainingProgressForMigrationUsersHelper,
@@ -1277,6 +1280,8 @@ module.exports = {
                             await sendCourseEmailBulk();
                         }
 
+                        const elasticSearchUpdateStatus = await updateCoursesCountAndProgressInElasticSearch(userObjectIds, session);
+                        console.log("ElasticSearch update status:", elasticSearchUpdateStatus);
                         return savedTrainingRegistration;
                     }
                 );
@@ -1502,6 +1507,8 @@ module.exports = {
                             { $match: { _id: { $in: input.trainings } } },
                             { $project: { title: 1 } }
                         ]);
+
+                        const elasticSearchUpdateStatus = await updateCoursesCountAndProgressInElasticSearch(userObjectIds, session);
                         // inputUsers.forEach(user => {
                         //     trainings.forEach(training => {
                         //         const trainingTitle = training.title && training.title.length > 0 ? training.title[0].value : ' ';
