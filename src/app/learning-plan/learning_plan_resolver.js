@@ -713,7 +713,7 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
-    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
+    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput,sortInput }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -864,6 +864,34 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+            if (detailedPlan.overallProgress?.users?.length > 0 && sortInput) {
+                const { sortField, sortOrder } = sortInput;
+                const isDesc = sortOrder === -1;
+
+                const sortByEnum = {
+                    Name: (a, b) => {
+                        const nameA = `${a.firstName || ""} ${a.lastName || ""}`.toLowerCase();
+                        const nameB = `${b.firstName || ""} ${b.lastName || ""}`.toLowerCase();
+                        return nameA.localeCompare(nameB);
+                    },
+                    status: (a, b) => {
+                        const order = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
+                        const indexA = order.indexOf(a.status || "");
+                        const indexB = order.indexOf(b.status || "");
+                        return indexA - indexB;
+                    },
+                    progressPercentage: (a, b) => (a.progressPercentage || 0) - (b.progressPercentage || 0),
+                    completedTrainings: (a, b) => (a.completedTrainings || 0) - (b.completedTrainings || 0),
+                    updatedAt: (a, b) => (parseInt(a.updatedAt) || 0) - (parseInt(b.updatedAt) || 0),
+                };
+                const sortFn = sortByEnum[sortField];
+                if (sortFn) {
+                    detailedPlan.overallProgress.users.sort((a, b) => {
+                        const result = sortFn(a, b);
+                        return isDesc ? -result : result;
+                    });
+                }
+            }
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);

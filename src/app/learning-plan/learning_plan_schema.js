@@ -249,13 +249,23 @@ module.exports = {
             groupIDs: [GroupTypeInput!]
             userObjectIds: [ID]
         }
-            
+        enum SortUserField {
+            Name
+            status
+            progressPercentage
+            completedTrainings
+            updatedAt
+        }
+        input SortUserInput {
+            sortField: SortUserField!
+            sortOrder: Int!
+        }   
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
         getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String,filteredLearnerData: [String!], pageInput: pageInput): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
-        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput): LearningPlan
+        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput, sortInput: SortUserInput): LearningPlan
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
