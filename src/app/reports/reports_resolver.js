@@ -1,4 +1,4 @@
-const { Moment, ObjectId, PubSubHelper } = require("../../tools");
+const { Moment, ObjectId, PubSubHelper, ConsoleLog } = require("../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus } = require("../../util");
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -427,7 +427,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         ]);
         console.timeEnd('getMainLearnersReport');
         const data = employeesData.map(item => ({
-            Name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName)} ${decrypt(item?.lastName) ?? ''}` : ' ',
+            Name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName, true)} ${decrypt(item?.lastName,true) ?? ''}` : ' ',
             EmployeeId: item.EmployeeId ? decrypt(item?.EmployeeId) : ' ',
             Designation: item.designation,
             VesselName: item.vesselName,
@@ -465,7 +465,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
@@ -491,7 +491,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         }
         const decryptedData = employeesData.map(item => ({
             ...item,
-            name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName)} ${decrypt(item?.lastName) ?? ''}` : ' ',
+            name: ((item.firstName && item.lastName )|| item.firstName) ? `${decrypt(item.firstName, true)} ${decrypt(item?.lastName, true) ?? ''}` : ' ',
             EmployeeId: item.EmployeeId ? decrypt(item?.EmployeeId) : ' ',
             email: item.email ? decrypt(item.email) : ' ',
         }));
@@ -504,7 +504,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
-                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName)}. `,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true)}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
                 isNotificatonForAdmin: true,
@@ -782,8 +782,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
             console.time('getSingleLearnerReport');
             const learnersReports = (await OverallTrainingProgress.aggregate(singleLearnerEnrollmentPipeline)).map( item => ({
                 ...item,
-                firstName: item?.firstName ? decrypt(item?.firstName) : null,
-                lastName: item?.lastName ? decrypt(item?.lastName) : null,
+                firstName: item?.firstName ? decrypt(item?.firstName,true) : null,
+                lastName: item?.lastName ? decrypt(item?.lastName,true) : null,
             }));
             console.timeEnd('getSingleLearnerReport');
             const learnerReportsByUser = {};
@@ -946,10 +946,10 @@ const getSingleLearnerReport = async ({ input }, context) => {
                     const flattenedData = [];
                     if (learner) {
 
-                        const email = learner?.email || '';
+                        const email = learner?.email ? decrypt(learner?.email) : '';
                         const designation = learner?.designation || '';
-                        const firstName = learner?.firstName || '';
-                        const lastName = learner?.lastName || '';
+                        const firstName = learner?.firstName ? decrypt(learner?.firstName,true) : '';
+                        const lastName = learner?.lastName ? decrypt(learner?.lastName,true) : '';
                         const country = learner?.country || 'Not Applicable';
                         const currentVessel = learner?.currentVessel || 'Not Applicable';
                         const vesselType = learner?.vesselType || 'Not Applicable';
@@ -979,7 +979,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
                                     Country: country,
-                                    'User Id': learner?.empId || 'Not Applicable',
+                                    'User Id': learner?.empId ? decrypt(learner?.empId) :'Not Applicable',
                                     Designation: designation,
                                     'Current Vessel': currentVessel,
                                     'Vessel Type': vesselType,
@@ -1410,7 +1410,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Courses Report Exported Successfully`,
-                    messageValue: `The Courses report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${decrypt(userInfo?.firstName, true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
@@ -1852,7 +1852,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     if (!data) throw CustomError(ErrorName.NOT_FOUND, "No there is no data present");
                     const parsedData = data.map(item => {
 
-                        const learnerName = `${item.firstName || ''} ${item.lastName || ''}`;
+                        const learnerName = `${item.firstName ? decrypt(item?.firstName, true) : ''} ${item.lastName ? decrypt(item?.lastName,true) : ''}`;
                         const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
                         const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
                         const startDate = item?.startDate && item?.startDate !== 'startDate'
@@ -1873,8 +1873,8 @@ const getSingleCourseReport = async ({ input }, context) => {
                         const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? 'Yes' : 'No';
                         const parsedItem = {
                             LearnerName: learnerName,
-                            Email: item.email || '',
-                            'User Id': item.empId || '',
+                            Email: item.email ? decrypt(item.email) : '',
+                            'User Id': item.empId ? decrypt(item.empId) : '',
                             Designation: item.designation || '',
                             CurrentVessel: currentVessel,
                             VesselType: vesselType,
@@ -1907,7 +1907,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Enrollment Report Exported Successfully`,
-                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                            messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                             notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                             notifyAllAdmin: false,
                             isNotificatonForAdmin: true,
@@ -2001,7 +2001,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Enrollment Report Exported Successfully`,
-                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                        messageValue: `The Courses Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                         notificationType: NotificationType.COURSE_ENROLLMENT_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin: true,
@@ -2662,10 +2662,10 @@ const getSingleCourseReport = async ({ input }, context) => {
                     const flattenCourseDataForSingleSheet = (course) => {
                         const flattenedData = [];
                         if (course) {
-                            const email = course?.email || '';
+                            const email = course?.email ? decrypt(course?.email) : '';
                             const designation = course?.designation || '';
-                            const firstName = course?.firstName || '';
-                            const lastName = course?.lastName || '';
+                            const firstName = course?.firstName? decrypt(course?.firstName,true) : '';
+                            const lastName = course?.lastName ? decrypt(course?.lastName,true) : '';
                             const status = course?.status || 'Not Applicable';
                             const courseName = course?.trainingTitle[0].value;
                             const adminMarkedAsCompleted = course?.adminMarkedAsCompleted ? 'Yes' : 'No';
@@ -2725,7 +2725,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                         await NotificationHelper.createNotificationhelper({
                             subscriber: subscriberId,
                             titleValue: `Quiz Report Exported Successfully`,
-                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                            messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                             notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                             notifyAllAdmin: false,
                             isNotificatonForAdmin: true,
@@ -2815,7 +2815,7 @@ const getSingleCourseReport = async ({ input }, context) => {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Quiz Report Exported Successfully`,
-                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                        messageValue: `The Courses Quiz Enrollment report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
                         notificationType: NotificationType.COURSE_QUIZ_REPORT_EXPORT_SUCCESS,
                         notifyAllAdmin: false,
                         isNotificatonForAdmin: true,
@@ -3470,7 +3470,7 @@ const generateCustomReport = async ({ input }, context) => {
                 });
             }
         }
-
+/* 
         const child = fork("./src/app/reports/custom_report_process.js");
 
         child.send({
@@ -3504,240 +3504,260 @@ const generateCustomReport = async ({ input }, context) => {
         return {
             message: "Report is generating in the background. You can continue working.",
         };
+ */
+        let data;
+        let dataToExport = [];
+        if (input?.reportType === "ENROLLMENT") {
+            const customEnrollmentReportPipeline = customEnrollmentReportQuery(matchStage);
+            data = await OverallTrainingProgress.aggregate(customEnrollmentReportPipeline);
 
-        // let data;
-        // let dataToExport = [];
-        // if (input?.reportType === "ENROLLMENT") {
+            data.forEach(item => {
+                const learnerName = `${item.firstName? decrypt(item.firstName,true) : ""} ${item.lastName ? decrypt(item.lastName,true) : ""}`.trim() || "-";
+                const enrollmentDate = item?.createdAt
+                    ? ReportsHelper.formatDate(item.createdAt)
+                    : "Not Applicable";
+                const completionDate = item?.endDate
+                    ? ReportsHelper.formatDate(item.endDate)
+                    : "Not Applicable";
+                const startDate =
+                    item?.startDate && item.startDate !== "startDate"
+                        ? ReportsHelper.formatDate(item.startDate)
+                        : "Not Applicable";
+                const country = item?.country || "Not Applicable";
+                const vesselType = item?.vesselType || "Not Applicable";
+                const currentVessel = item?.currentVessel || "Not Applicable";
+                const unenrollmentDate = item?.unenrollmentDate
+                    ? ReportsHelper.formatDate(item.unenrollmentDate)
+                    : "Not Applicable";
+                const quizScore = item.quizPercentage
+                    ? parseInt(item.quizPercentage) + "%"
+                    : "Not Applicable";
+                const userState = item.isRegistered ? "Registered" : "Unregistered";
+                const timeSpent = item.totalTimeSpent
+                    ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent)
+                    : "00:00:00";
+                const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
 
-        //     const customEnrollmentReportPipeline = customEnrollmentReportQuery(matchStage);
-        //     data = await OverallTrainingProgress.aggregate(customEnrollmentReportPipeline);
+                dataToExport.push({
+                    Name: learnerName ?? "-",
+                    Email: item.email ? decrypt(item.email) : null,
+                    Country: country,
+                    "User Id": item.employeeId ? decrypt(item.employeeId) : null,
+                    Designation: item.designation || null,
+                    "Current Vessel": currentVessel,
+                    "Vessel Type": vesselType,
+                    "Course Name": item.courseName ? item.courseName[0] : null,
+                    "Course Status": item.status || null,
+                    "Admin Marked As Completed": adminMarkedAsCompleted,
+                    "Course Enrollment Date & Time (UTC)": enrollmentDate,
+                    "Course Unenrollment Date & Time (UTC)": unenrollmentDate,
+                    "Course Started Date & Time (UTC)": startDate,
+                    "Course Completion Date & Time (UTC)": completionDate,
+                    "Quiz Score": quizScore,
+                    "User State": userState,
+                    "Time Spent": timeSpent,
+                });
+            });
+        } else if (input?.reportType === "QUIZ") {
+            const customQuizReportPipeline = customQuizReportQuery(matchStage);
+            data = await OverallTrainingProgress.aggregate(customQuizReportPipeline);
 
-        //     data.forEach(item => {
-        //         const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
-        //         const enrollmentDate = item?.createdAt ? ReportsHelper.formatDate(item.createdAt) : "Not Applicable";
-        //         const completionDate = item?.endDate ? ReportsHelper.formatDate(item.endDate) : "Not Applicable";
-        //         const startDate = item?.startDate && item.startDate !== 'startDate'
-        //             ? ReportsHelper.formatDate(item.startDate)
-        //             : "Not Applicable";
-        //         const country = item?.country || "Not Applicable";
-        //         const vesselType = item?.vesselType || "Not Applicable";
-        //         const currentVessel = item?.currentVessel || "Not Applicable";
-        //         const unenrollmentDate = item?.unenrollmentDate ? ReportsHelper.formatDate(item.unenrollmentDate) : "Not Applicable";
-        //         const quizScore = item.quizPercentage ? parseInt(item.quizPercentage)+"%" : "Not Applicable";
-        //         const userState = item.isRegistered ? "Registered" : "Unregistered";
-        //         const timeSpent = item.totalTimeSpent ? ReportsHelper.convertMinutesToHMS(item?.totalTimeSpent) : "00:00:00";
-        //         const adminMarkedAsCompleted = item.adminMarkedAsCompleted ? "Yes" : "No";
+            const flattenDataForSingleSheet = learner => {
+                const flattenedData = [];
+                if (learner) {
+                    const email = learner?.email ? decrypt(learner?.email) : "";
+                    const designation = learner?.designation || "";
+                    const country = learner?.country || "Not Applicable";
+                    const firstName = learner?.firstName ? decrypt(learner?.firstName,true) : "";
+                    const lastName = learner?.lastName ? decrypt(learner?.lastName,true) : "";
+                    const empId = learner?.empId ? decrypt(learner?.empId) : "";
+                    const currentVessel = learner?.currentVessel || "Not Applicable";
+                    const vesselType = learner?.vesselType || "Not Applicable";
+                    const status = learner?.status || "Not Applicable";
+                    const courseName = learner?.trainingTitle[0]?.value || "Unknown Course";
+                    const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? "Yes" : "No";
+                    const enrollmentDate = learner?.createdAt
+                        ? ReportsHelper.formatDate(learner.createdAt)
+                        : "Not Applicable";
+                    const completionDate = learner?.endDate
+                        ? ReportsHelper.formatDate(learner.endDate)
+                        : "Not Applicable";
+                    const startDate =
+                        learner?.startDate && learner.startDate !== "startDate"
+                            ? ReportsHelper.formatDate(learner.startDate)
+                            : "Not Applicable";
+                    const unenrollmentDate = learner?.unenrollmentDate
+                        ? ReportsHelper.formatDate(learner.unenrollmentDate)
+                        : "Not Applicable";
 
-        //         dataToExport.push({
-        //             Name: learnerName ?? "-",
-        //             Email: item.email || null,
-        //             Country: country,
-        //             'User Id': item.employeeId || null,
-        //             Designation: item.designation || null,
-        //             'Current Vessel': currentVessel,
-        //             'Vessel Type': vesselType,
-        //             'Course Name': item.courseName ? item.courseName[0] : null,
-        //             'Course Status': item.status || null,
-        //             'Admin Marked As Completed': adminMarkedAsCompleted,
-        //             'Course Enrollment Date & Time (UTC)': enrollmentDate,
-        //             'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
-        //             'Course Started Date & Time (UTC)': startDate,
-        //             'Course Completion Date & Time (UTC)': completionDate,
-        //             'Quiz Score': quizScore,
-        //             'User State': userState,
-        //             'Time Spent': timeSpent,
-        //         });
-        //     });
+                    learner.modules.forEach((module, moduleIndex) => {
+                        const moduleName = module?.moduleName[0]?.value || "Unnamed Module";
+                        const hasQuiz = module?.hasQuiz || false;
 
-        // } else if (input?.reportType === "QUIZ") {
-        //     const customQuizReportPipeline = customQuizReportQuery(matchStage);
-        //     data = await OverallTrainingProgress.aggregate(customQuizReportPipeline);
+                        module?.moduleContents.forEach((content, contentIndex) => {
+                            const contentName = content?.contentName[0]?.value || "Unnamed Content";
+                            const contentType = content?.contentType || "Not Applicable";
+                            const quizScore = content?.percentage || "Not Applicable";
+                            const timeSpendInContent = content?.timeSpendInContent
+                                ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent)
+                                : "00:00:00";
+                            if (learner.contentType === "QUIZ") {
+                                flattenedData.push({
+                                    Name: `${firstName} ${lastName}`,
+                                    Email: email,
+                                    Country: country,
+                                    "User Id": empId,
+                                    Designation: designation,
+                                    "Current Vessel": currentVessel,
+                                    "Vessel Type": vesselType,
+                                    "Course Name": courseName,
+                                    "Course Status": status,
+                                    "Admin Marked As Completed": adminMarkedAsCompleted,
+                                    "Course Enrollment Date & Time (UTC) ": enrollmentDate,
+                                    "Course Unenrollment Date & Time (UTC)": unenrollmentDate,
+                                    "Course Started Date & Time (UTC)": startDate,
+                                    "Course Completion Date & Time (UTC)": completionDate,
+                                    "Lesson Name": `${moduleName}`,
+                                    "Content Name": `${contentName}`,
+                                    // 'Content Type': contentType,
+                                    "Quiz Score": quizScore,
+                                    "Time Spent": timeSpendInContent,
+                                });
+                            }
+                        });
+                    });
+                }
 
-        //     const flattenDataForSingleSheet = (learner) => {
-        //         const flattenedData = [];
-        //         if (learner) {
-        //             const email = learner?.email || '';
-        //             const designation = learner?.designation || '';
-        //             const country = learner?.country || 'Not Applicable';
-        //             const firstName = learner?.firstName || '';
-        //             const lastName = learner?.lastName || '';
-        //             const empId = learner?.empId || '';
-        //             const currentVessel = learner?.currentVessel || 'Not Applicable';
-        //             const vesselType = learner?.vesselType || 'Not Applicable';
-        //             const status = learner?.status || 'Not Applicable';
-        //             const courseName = learner?.trainingTitle[0]?.value || 'Unknown Course';
-        //             const adminMarkedAsCompleted = learner?.adminMarkedAsCompleted ? 'Yes' : 'No';
-        //             const enrollmentDate = learner?.createdAt ? ReportsHelper.formatDate(learner.createdAt) : "Not Applicable";
-        //             const completionDate = learner?.endDate ? ReportsHelper.formatDate(learner.endDate) : "Not Applicable";
-        //             const startDate = learner?.startDate && learner.startDate !== 'startDate'
-        //                 ? ReportsHelper.formatDate(learner.startDate)
-        //                 : "Not Applicable";
-        //             const unenrollmentDate = learner?.unenrollmentDate ? ReportsHelper.formatDate(learner.unenrollmentDate) : "Not Applicable";
+                return flattenedData;
+            };
 
+            const flattenAllLearnersData = learners => {
+                const allFlattenedData = [];
+                learners.forEach(learner => {
+                    const learnerData = flattenDataForSingleSheet(learner);
 
-        //             learner.modules.forEach((module, moduleIndex) => {
-        //                 const moduleName = module?.moduleName[0]?.value || 'Unnamed Module';
-        //                 const hasQuiz = module?.hasQuiz || false;
+                    if (learnerData.length > 0) {
+                        allFlattenedData.push(...learnerData);
+                        allFlattenedData.push([]);
+                    }
+                });
+                return allFlattenedData;
+            };
+            
+            dataToExport = flattenAllLearnersData(data);
 
+        }
 
-        //                 module?.moduleContents.forEach((content, contentIndex) => {
-        //                     const contentName = content?.contentName[0]?.value || 'Unnamed Content';
-        //                     const contentType = content?.contentType || 'Not Applicable';
-        //                     const quizScore = content?.percentage || 'Not Applicable';
-        //                     const timeSpendInContent = content?.timeSpendInContent ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent) : "00:00:00";
-        //                     if (learner.contentType === 'QUIZ') {
-        //                         flattenedData.push({
-        //                             Name: `${firstName} ${lastName}`,
-        //                             Email: email,
-        //                             Country: country,
-        //                             'User Id': empId,
-        //                             Designation: designation,
-        //                             'Current Vessel': currentVessel,
-        //                             'Vessel Type': vesselType,
-        //                             'Course Name': courseName,
-        //                             'Course Status': status,
-        //                             'Admin Marked As Completed': adminMarkedAsCompleted,
-        //                             'Course Enrollment Date & Time (UTC) ': enrollmentDate,
-        //                             'Course Unenrollment Date & Time (UTC)': unenrollmentDate,
-        //                             'Course Started Date & Time (UTC)': startDate,
-        //                             'Course Completion Date & Time (UTC)': completionDate,
-        //                             'Lesson Name': `${moduleName}`,
-        //                             'Content Name': `${contentName}`,
-        //                             // 'Content Type': contentType,
-        //                             'Quiz Score': quizScore,
-        //                             'Time Spent': timeSpendInContent,
-        //                         });
-        //                     }
-        //                 });
-        //             });
-        //         }
+        let s3PresignedUrl = "";
 
-        //         return flattenedData;
-        //     };
+        const workbook = XLSX.utils.book_new();
+        let worksheet;
+        if (dataToExport.length === 0) {
+            const enrollmentReportHeaders = [
+                "Name",
+                "Email",
+                "Country",
+                "User Id",
+                "Designation",
+                "Current Vessel",
+                "Vessel Type",
+                "Course Name",
+                "Status",
+                "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
+                "Quiz Score",
+                "userState",
+                "Time Spent",
+            ];
 
-        //     const flattenAllLearnersData = (learners) => {
-        //         const allFlattenedData = [];
-        //         learners.forEach(learner => {
-        //             const learnerData = flattenDataForSingleSheet(learner);
-        //             if (learnerData.length > 0) {
-        //                 allFlattenedData.push(...learnerData);
-        //                 allFlattenedData.push([]);
-        //             }   
-        //         });
-        //         return allFlattenedData;
-        //     };
-        //     dataToExport = flattenAllLearnersData(data);
-        // }
+            const quizReportHeaders = [
+                "Name",
+                "Email",
+                "Country",
+                "User Id",
+                "Designation",
+                "Current Vessel",
+                "Vessel Type",
+                "Course Name",
+                "Course Status",
+                "Admin Marked As Completed",
+                "Course Enrollment Date & Time (UTC)",
+                "Course Unenrollment Date & Time (UTC)",
+                "Course Started Date & Time (UTC)",
+                "Course Completion Date & Time (UTC)",
+                "Lesson Name",
+                "Content Name",
+                "Content Type",
+                "Quiz Score",
+                "Time Spent",
+            ];
 
-        // let s3PresignedUrl = "";
+            const headers =
+                input?.reportType === "ENROLLMENT" ? enrollmentReportHeaders : quizReportHeaders;
+            worksheet = XLSX.utils.aoa_to_sheet([headers]);
+        } else {
+            worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        }
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
+        const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+        const excelFilePath = await UploadHelper.uploadExcel({
+            data: excelBuffer,
+            folderName: "Custom-Quiz-Reports",
+            fileName: `custom ${
+                input?.reportType.toLowerCase() ?? ""
+            } report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
+            uploadType: UploadHelper.uploadType.exportCustomQuizReport,
+        });
+        if (excelFilePath) {
+            s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+            const notificationMessage =
+                input?.reportType == "ENROLLMENT"
+                    ? `Custom report is ready to download`
+                    : `Quiz report is ready to download`;
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: notificationMessage,
+                // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
+                notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: true,
+                notifiers: [userInfo._id],
+                additionalInfo: [
+                    {
+                        infoType: "EXPORT_URL",
+                        infoData: {
+                            filePath: excelFilePath,
+                        },
+                    },
+                ],
+                status: "SENT",
+                createdBy: userInfo,
+                icon: notificationiconEnum.SUCCESS,
+            });
+        }
 
-        // const workbook = XLSX.utils.book_new();
-        // let worksheet;
-        // if (dataToExport.length === 0) {
-
-        //     const enrollmentReportHeaders = [
-        //         "Name",
-        //         "Email",
-        //         "Country",
-        //         "User Id",
-        //         "Designation",
-        //         "Current Vessel",
-        //         "Vessel Type",
-        //         "Course Name",
-        //         "Status",
-        //         "Admin Marked As Completed",
-        //         "Course Enrollment Date & Time (UTC)",
-        //         "Course Unenrollment Date & Time (UTC)",
-        //         "Course Started Date & Time (UTC)",
-        //         "Course Completion Date & Time (UTC)",
-        //         "Quiz Score",
-        //         "userState",
-        //         "Time Spent",
-        //     ]
-
-        //     const quizReportHeaders = [
-        //         "Name",
-        //         "Email",
-        //         "Country",
-        //         "User Id",
-        //         "Designation",
-        //         "Current Vessel",
-        //         "Vessel Type",
-        //         "Course Name",
-        //         "Course Status",
-        //         "Admin Marked As Completed",
-        //         "Course Enrollment Date & Time (UTC)",
-        //         "Course Unenrollment Date & Time (UTC)",
-        //         "Course Started Date & Time (UTC)",
-        //         "Course Completion Date & Time (UTC)",
-        //         "Lesson Name",
-        //         "Content Name",
-        //         "Content Type",
-        //         "Quiz Score",
-        //         "Time Spent",
-        //     ]
-
-        //     const headers = input?.reportType === 'ENROLLMENT' ? enrollmentReportHeaders : quizReportHeaders;
-        //     worksheet = XLSX.utils.aoa_to_sheet([
-        //         headers
-        //     ]);
-
-
-        // }
-        // else {
-        //     worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        // }
-        // XLSX.utils.book_append_sheet(workbook, worksheet, `${input.reportType}`);
-        // const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        // const excelFilePath = await UploadHelper.uploadExcel({
-        //     data: excelBuffer,
-        //     folderName: "Custom-Quiz-Reports",
-        //     fileName: `custom ${input?.reportType.toLowerCase() ?? ""} report - ${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
-        //     uploadType: UploadHelper.uploadType.exportCustomQuizReport,
-        // });
-        // if (excelFilePath) {
-        //     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-        //     const notificationMessage = input?.reportType == 'ENROLLMENT'?`Custom report is ready to download`:`Quiz report is ready to download`
-        //     await NotificationHelper.createNotificationhelper({
-        //         subscriber: subscriberId,
-        //         titleValue: notificationMessage,
-        //         // messageValue: `The Custom ${input?.reportType.toLowerCase()} report has been successfully generated and exported by ${userInfo?.firstName} ${userInfo?.lastName}.${await ReportsHelper.getAppliedFilters(input)}`,
-        //         notificationType: NotificationType.CUSTOM_REPORT_EXPORT_SUCCESS,
-        //         notifyAllAdmin: false,
-        //         isNotificatonForAdmin :true,
-        //         notifiers : [userInfo._id],
-        //         additionalInfo: [
-        //             {
-        //                 infoType: "EXPORT_URL",
-        //                 infoData: {
-        //                     filePath: excelFilePath
-        //                 }
-        //             }
-        //         ],
-        //         status: 'SENT',
-        //         createdBy: userInfo,
-        //         icon: notificationiconEnum.SUCCESS
-        //     });
-
-        // }
-
-        // const newReport = new Export({
-        //     filePath: excelFilePath,
-        //     subscriberId: subscriberId,
-        //     createdBy: userId,
-        //     type_of_export: 'CUSTOM_REPORT_EXPORT',
-        //     additionalData: [{
-        //         key: "criteria",
-        //         value: { ...input }
-        //     }]
-        // })
-        // await newReport.save();
-        // return {
-        //     status: true,
-        //     fileName: path.basename(excelFilePath),
-        //     filePath: s3PresignedUrl,
-        //     message: "report generated successfully"
-        // };
+        const newReport = new Export({
+            filePath: excelFilePath,
+            subscriberId: subscriberId,
+            createdBy: userId,
+            type_of_export: "CUSTOM_REPORT_EXPORT",
+            additionalData: [
+                {
+                    key: "criteria",
+                    value: { ...input },
+                },
+            ],
+        });
+        await newReport.save();
+        return {
+            status: true,
+            fileName: path.basename(excelFilePath),
+            filePath: s3PresignedUrl,
+            message: "report generated successfully",
+        };
 
 
     } catch (error) {
@@ -3893,7 +3913,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                 const signedUrl = await aws_helper.fetchFile(item.filePath);
                 return {
                     _id: item._id,
-                    generatedBy: `${decrypt(item?.generatedByFirstName)} ${decrypt(item?.generatedByLastName)}`.trim() || "N/A",
+                    generatedBy: `${decrypt(item?.generatedByFirstName,true)} ${decrypt(item?.generatedByLastName,true)}`.trim() || "N/A",
                     generatedAt: new Date(item?.createdAt).toLocaleString(),
                     from: item?.from ? new Date(item?.from).toLocaleString() : null,
                     to: item?.to ? new Date(item?.to).toLocaleString() : null,

@@ -81,7 +81,7 @@ function encrypt(input) {
     return encrypted;
 }
 
-function decrypt(encrypted) {
+function decrypt(encrypted,isName = false) {
     let decrypted = "";
     if(encrypted){
         const trimmed = encrypted?.substring(1); 
@@ -95,9 +95,20 @@ function decrypt(encrypted) {
             }
         }
     }
+    if(isName === true){
+        decrypted = toPascalCase(decrypted);
+    }
     return decrypted;
 }
 
+function toPascalCase(string) {
+  return string
+    .replace(/([a-z])([A-Z])/g, '$1 $2') 
+    .replace(/[-_]+|[^\p{L}\p{N}]/gu, ' ') 
+    .toLowerCase() 
+    .replace(/(?:^|\s)(\p{L})/gu, (_, letter) => letter.toUpperCase()) 
+    .replace(/\s+/g, ''); 
+}
 
 // Initialize mappings
 generateMappingsFromSecret(SECRET_KEY);
