@@ -22,7 +22,7 @@ const Export = require("../user/exportUser/exportUser_model");
 const { User } = require("../user/user_model");
 const ReportsHelper = require("./reports_helper");
 const { pipeline } = require("stream");
-const { decrypt } = require("../../util/encryption_helper");
+const { decrypt, encrypt } = require("../../util/encryption_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery, customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
 const { fork } = require("child_process");
 const NotificationEvent = require("../notifications/notification_event.json");
@@ -3505,14 +3505,6 @@ const generateCustomReport = async ({ input }, context) => {
             message: "Report is generating in the background. You can continue working.",
         };
 
-
-        // await publishToExchange(EXCHANGES.REPORT_GENERATION, 'reportGen', {
-        //     matchStage,
-        //     input,
-        //     userInfo,
-        //     timestamp: new Date().toISOString()
-        // });
-
         // let data;
         // let dataToExport = [];
         // if (input?.reportType === "ENROLLMENT") {
@@ -3782,7 +3774,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
 
         if (searchQuery) {
 
-            const searchTerms = searchQuery.split(/\s+/).map(term => term.trim()).filter(Boolean);
+            const searchTerms = searchQuery.split(/\s+/).map(term => encrypt(term.trim())).filter(Boolean);
 
 
             if (searchTerms.length > 0) {
@@ -3880,13 +3872,12 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                     },
                     createdAt: 1,
                     filePath: 1,
-                    generatedBy: {
-                        $concat: [
-                            { $ifNull: ["$usersInfo.firstName", ""] },
-                            " ",
-                            { $ifNull: ["$usersInfo.lastName", ""] }
-                        ]
-                    }
+                    generatedByFirstName: {
+                        $ifNull: ["$usersInfo.firstName", null]
+                    },
+                    generatedByLastName: {
+                        $ifNull: ["$usersInfo.lastName", null]
+                    },
                 }
             },
             {
@@ -3902,7 +3893,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                 const signedUrl = await aws_helper.fetchFile(item.filePath);
                 return {
                     _id: item._id,
-                    generatedBy: item?.generatedBy,
+                    generatedBy: `${decrypt(item?.generatedByFirstName)} ${decrypt(item?.generatedByLastName)}`.trim() || "N/A",
                     generatedAt: new Date(item?.createdAt).toLocaleString(),
                     from: item?.from ? new Date(item?.from).toLocaleString() : null,
                     to: item?.to ? new Date(item?.to).toLocaleString() : null,
