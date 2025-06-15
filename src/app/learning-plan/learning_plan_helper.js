@@ -1060,8 +1060,7 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
 
     try {
         const matchCriteria = { learningPlan: { $in: [learningPlanId] }, isEnrolled: { $ne: false } };
-
-        // const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
+        const skip = pageInput?.skip ?? 0, limit = pageInput?.limit ?? 50;
         let activityFilter;
 
         let startDate, endDate;
@@ -1106,12 +1105,12 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             {
                 $match: matchCriteria,
             },
-            // {
-            //     $skip: skip
-            // },
-            // {
-            //     $limit: limit
-            // },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
+            },
             {
                 $unwind: "$learningPlan"
             },

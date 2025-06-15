@@ -36,6 +36,7 @@ const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assi
 const { enrollUsers } = require('../employee/employee_helper');
 const { filterLearningPlans } = require("../employee/employee_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
+const owner = require("../../vessle/owner")
 async function checkIfGroupMatchedInPlanConditionalFields(plan, customGroupId) {
 
     if (!plan?.conditionalCustomFields) {
@@ -149,7 +150,12 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
         })
     );
 }
-
+    const GROUP_COLLECTION_MAPPING = {
+        custom: Group,
+        designation: Designation, 
+        vessel: Vessel, 
+        vesselType: VesselType, 
+    }
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -383,8 +389,7 @@ module.exports.queries = {
                 default:
                     let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
                     let allCustom = await getCustomGroupsOnly(groupFilter?.customGroupId, skip, limit);
-
-                    let allGroups = [...allAutosynced, ...allCustom];
+                    let allGroups = [...allAutosynced, ...(allCustom?.groups || [])];
                     allGroups = allGroups.filter(group => group._id && group.groupName);
 
                     let filteredGroups = allGroups;
@@ -718,6 +723,61 @@ module.exports.queries = {
             groups: groupData,
         };
     },
+  
+    getListGroupNames: async ({ input }, context) => {
+        const { subscriberId } = AuthUser(context);
+        try
+        {
+            if (!input?.groups || !Array.isArray(input.groups) || input.groups.length === 0) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Groups and IDs are required");
+            }
+    
+            const finalGroups = [];
+
+            const fetchPromises = input.groups.filter(({ groupType, groupIDs }) =>  Array.isArray(groupIDs) && groupIDs.length > 0
+                ).map(async ({ groupType, groupIDs }) => {
+                if ([groupTypes.role, groupTypes.vesselStatus, groupTypes.owner].includes(groupType)) {
+                    const roleGroups = groupIDs.map(id => ({
+                        _id: id,
+                        groupName: id,
+                        groupType,
+                    }));
+                    return roleGroups;
+                }
+    
+                const Model = GROUP_COLLECTION_MAPPING[groupType];
+                if (!Model) return [];
+    
+                const records = await Model.find({
+                    _id: { $in: groupIDs },
+                    isDeleted: { $ne: true },
+                });
+    
+                const groupDataMap = new Map(
+                    records.map(group => [
+                    String(group._id),
+                    group.groupName || group.name || group.title,
+                    ])
+                );
+    
+                return groupIDs.map(id => ({
+                    _id: id,
+                    groupName: groupDataMap.get(String(id)),
+                    groupType,
+                }));
+                });
+    
+            const resolvedGroups = await Promise.all(fetchPromises);
+            resolvedGroups.forEach(groupList => finalGroups.push(...groupList));
+    
+            return {
+                status: "Group Names Fetched Successfully",
+                groups: finalGroups,
+            };
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_GROUP_NAMES, error.message);
+        }
+    }
 };
 
 const bulkInsertGroupMembers = async (subscriberId, groupId, users, session) => {

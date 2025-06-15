@@ -129,7 +129,9 @@ const errorName = {
     FAILED_TO_SWITCH_NOTIFICATION:"FAILED_TO_SWITCH_NOTIFICATION",
     INVALID_CONSENT_FORMAT:"INVALID_CONSENT_FORMAT",
     VESSEL_LINKED_TO_LEARNING_PLAN:"VESSEL_LINKED_TO_LEARNING_PLAN",
-    FAILED_TO_FETCH_EMAIL:"FAILED_TO_FETCH_EMAIL"
+    FAILED_TO_FETCH_EMAIL:"FAILED_TO_FETCH_EMAIL",
+    FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN:"FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN",
+    FAILED_TO_FETCH_GROUP_NAMES: "FAILED_TO_FETCH_GROUP_NAMES",
 };
 
 const errorType = {
@@ -782,6 +784,16 @@ const errorType = {
         message: 'Failed to fetch email',
         statusCode: 400,    
         type: "FAILED_TO_FETCH_EMAIL"
+    },
+    FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN: {
+        message: 'Failed to fetch user list for learning plan',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN"
+    },
+    FAILED_TO_FETCH_GROUP_NAMES:{
+        message: 'Failed to fetch group names',
+        statusCode: 400,    
+        type: "FAILED_TO_FETCH_GROUP_NAMES"
     }
 };
 
