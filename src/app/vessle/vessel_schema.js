@@ -30,6 +30,7 @@ module.exports = {
             ownerId: ID
             address: String
         }
+            
         input VesselFilterInput {
             search: String
             vesselType: [String]
@@ -64,9 +65,14 @@ module.exports = {
             status: Boolean
             message: String
         }
+        input SortVesselInput {
+            sortField: String!
+            sortOrder: Int!
+        }
+
     `,
     queries: `
-        getVessels(pageInput: PageInput, filterInput: VesselFilterInput): VesselList!
+        getVessels(pageInput: PageInput, filterInput: VesselFilterInput, sortInput: SortVesselInput): VesselList!
         getVesselById(id: ID!): Vessel!
         validateImoNumber(imoNumber: String!): valdateImoNumberResponse!
     `,
