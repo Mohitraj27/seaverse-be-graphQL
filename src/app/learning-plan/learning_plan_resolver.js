@@ -713,7 +713,7 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
-    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
+    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput,sortOrder }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -864,6 +864,13 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+            if (detailedPlan.overallProgress?.users?.length > 0 && sortOrder) {
+                const isDesc = sortOrder === -1;
+                detailedPlan.overallProgress.users.sort((a, b) => {
+                    const diff = new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0);
+                    return isDesc ? -diff : diff;
+                });
+            }
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
