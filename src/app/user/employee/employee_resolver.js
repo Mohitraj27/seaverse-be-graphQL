@@ -1303,7 +1303,7 @@ module.exports.queries = {
                 limit: limit,
             });
 
-            console.log("Elastic Results:", elasticResults);
+            // console.log("Elastic Results:", elasticResults);
 
             if (elasticResults?.employees?.length > 0) {
                 elasticResults.employees = elasticResults?.employees.map(employee => {
@@ -1332,7 +1332,7 @@ module.exports.queries = {
 
             const formattedResponse = mapElasticToOldAPI(elasticResults);
 
-            console.log("Formatted Response:", formattedResponse);
+            // console.log("Formatted Response:", formattedResponse);
 
             return {
                 employees: formattedResponse?.employees,

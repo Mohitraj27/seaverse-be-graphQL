@@ -253,7 +253,9 @@ const searchEmployeesFromElastic = async ({
   }
 
   // Remove deleted or not approved
-  mustNot.push({ term: { "isDeleted": true } });
+  if (filterInput?.includeDeletedUsers !== true) {
+    mustNot.push({ term: { "isDeleted": true } });
+  }
   mustNot.push({ term: { "isSignupAdminAprroved": false } });
 
   const query = {
