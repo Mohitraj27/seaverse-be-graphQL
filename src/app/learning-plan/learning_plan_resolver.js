@@ -882,8 +882,12 @@ module.exports.queries = {
                     },
                     progressPercentage: (a, b) => (a.progressPercentage || 0) - (b.progressPercentage || 0),
                     completedTrainings: (a, b) => (a.completedTrainings || 0) - (b.completedTrainings || 0),
-                    updatedAt: (a, b) => (parseInt(a.updatedAt) || 0) - (parseInt(b.updatedAt) || 0),
-                };
+                    updatedAt: (a, b) => {
+                        const timeA = new Date(a.updatedAt || 0).getTime();
+                        const timeB = new Date(b.updatedAt || 0).getTime();
+                        return timeA - timeB;
+                    }
+                    };
                 const sortFn = sortByEnum[sortField];
                 if (sortFn) {
                     detailedPlan.overallProgress.users.sort((a, b) => {
