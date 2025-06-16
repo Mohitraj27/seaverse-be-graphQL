@@ -8,6 +8,10 @@ const DbHelper = require("./src/util/db_helper");
 const { GraphqlSchema, GraphqlResolver } = require("./src/graphql");
 const { RestResolver } = require("./src/rest");
 
+require('./src/app/user/employee/csv_import_worker');
+require('./src/app/training-registrations/course_enrollment_worker');
+
+
 const SubscriptionRemainder = require("./src/app/saas/subscriber/subscription/subscription_reminder");
 const TrainingRegistrationRemainder = require("./src/app/training-registrations/training_registration_reminder");
 const TrainingCertificateRemainder = require("./src/app/training-registrations/training-certificates/training_certificate_reminder");
