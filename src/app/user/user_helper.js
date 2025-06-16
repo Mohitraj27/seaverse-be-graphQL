@@ -1,7 +1,7 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
 const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
-const { User, AppUser } = require("./user_model");
+const { User  } = require("./user_model");
 
 const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationHelper = require("../notifications/notification_helper");
@@ -318,7 +318,7 @@ module.exports = {
                     infoData: {
                         _id: notificationData.user._id,
                         firstName: decrypt(notificationData.user?.firstName),
-                        lastName: decrypt(notificationData.user?.lastName),
+                        lastName: notificationData.user?.lastName ? decrypt(notificationData.user?.lastName):'',
                     },
                 },
             ],

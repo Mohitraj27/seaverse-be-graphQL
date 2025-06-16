@@ -1,4 +1,4 @@
-const NotificationHelper = require("../../notifications/notification_helper");
+;const NotificationHelper = require("../../notifications/notification_helper");
 
 const NotificationType = require("../../notifications/notification_type.json");
 const {decrypt } = require('../../../util/encryption_helper');
@@ -35,7 +35,7 @@ module.exports = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName) ,
-                            lastName: decrypt(notificationData.createdBy.lastName),
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {

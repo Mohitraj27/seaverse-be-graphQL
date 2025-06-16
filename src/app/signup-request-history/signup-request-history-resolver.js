@@ -50,7 +50,7 @@ module.exports.queries = {
                     return {
                         ...obj,
                         firstName: decrypt(obj?.firstName),
-                        lastName: decrypt(obj?.lastName),
+                        lastName: obj?.lastName ? decrypt(obj?.lastName) : '',
                         email: decrypt(obj?.email?.trim())
                     };
                 });

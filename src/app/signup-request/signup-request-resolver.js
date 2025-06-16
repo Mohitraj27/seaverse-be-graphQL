@@ -72,7 +72,7 @@ module.exports.queries = {
                     return {
                         ...obj,
                         firstName: decrypt(obj?.firstName),
-                        lastName: decrypt(obj?.lastName),
+                        lastName: obj?.lastName ? decrypt(obj?.lastName): '',
                         email: decrypt(obj?.email?.trim())
                     };
                 });
@@ -93,7 +93,7 @@ module.exports.queries = {
             const decryptedUserDetails = {
                 ...user.toObject(),
                 firstName: decrypt(user.firstName),
-                lastName: decrypt(user.lastName),
+                lastName: user.lastName ? decrypt(user.lastName) : '',
                 email: decrypt(user.email.trim())
             };
             return decryptedUserDetails;
@@ -270,7 +270,7 @@ module.exports.mutations = {
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
-                    const userName = `${decrypt(signupRequest?.firstName)} ${decrypt(signupRequest?.lastName) || ''}`.trim();
+                    const userName = `${decrypt(signupRequest?.firstName)} ${signupRequest?.lastName ? decrypt(signupRequest?.lastName):'' || ''}`.trim();
                     return {
                         status: true,
                         message: `Signup request for ${userName} has been APPROVED successfully.`
@@ -316,7 +316,7 @@ module.exports.mutations = {
                         isRegistered: input?.isRegistered
                     }], { session });
                     await SignupRequest.deleteOne({ userId }, { session });
-                    const userName = `${decrypt(signupRequest?.firstName)} ${decrypt(signupRequest?.lastName) || ''}`.trim();
+                    const userName = `${decrypt(signupRequest?.firstName)} ${signupRequest?.lastName ? decrypt(signupRequest?.lastName) : '' || ''}`.trim();
                     const decryptfirstNameforEmail =  decrypt(signupRequest?.firstName);
                     const sendmailforRejection = await aws_helper.sendEmail({
                         receiverEmail: decrypt(signupRequest?.email),

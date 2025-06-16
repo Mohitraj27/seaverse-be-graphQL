@@ -66,7 +66,7 @@ module.exports = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: decrypt(notificationData.createdBy.lastName),
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {

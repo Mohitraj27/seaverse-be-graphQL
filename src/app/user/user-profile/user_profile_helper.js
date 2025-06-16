@@ -154,7 +154,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
                     infoType: "USER_DELETE_REQUEST_INFO",
                     infoData: {
                         firstName: decrypt(notificationData.createdBy.firstName),
-                        lastName: decrypt(notificationData.createdBy.lastName),
+                        lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         civilIdOrPassport: civilIdOrPassport,
                         email: email
                     },
@@ -167,7 +167,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
             notification.message = [
                 {
                     lang: "en",
-                    value: `${decrypt(notificationData.createdBy.firstName)} ${decrypt(notificationData.createdBy.lastName)}'s account has been deleted. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
+                    value: `${decrypt(notificationData.createdBy.firstName)} ${notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):''}'s account has been deleted. FullName: ${firstName} ${lastName} Employee ID: ${civilIdOrPassport} Email: ${email}. Reason: ${reasonForDelete}`,
                 },
             ];
         }
@@ -180,7 +180,7 @@ const sendNotificationOnDELETEREQUEST = async (notificationData) => {
 const sendNotificationOn = async (notificationData) => {
     const { firstName, lastName, civilIdOrPassport, email } = notificationData.user;
     notificationData.user.firstName = decrypt(firstName);
-    notificationData.user.lastName = decrypt(lastName);
+    notificationData.user.lastName = lastName ? decrypt(lastName):'';
     notificationData.user.email = decrypt(email);
     const { message } = notificationData;
     const notificationMessage = {

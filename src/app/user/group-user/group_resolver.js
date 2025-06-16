@@ -255,7 +255,7 @@ module.exports.queries = {
 
             const data = userDetails?.map(user => ({
                 "First Name": decrypt(user?.firstName),
-                "Last Name": decrypt(user?.lastName),
+                "Last Name": user?.lastName ? decrypt(user?.lastName):'',
                 "Email": decrypt(user?.email),
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
@@ -725,7 +725,7 @@ module.exports.queries = {
                 const data = {
                     ...member,
                     firstName: decrypt(member?.firstName),
-                    lastName: member?.lastName ?? decrypt(member?.lastName),
+                    lastName: member?.lastName ? decrypt(member?.lastName):'',
                     email: decrypt(member?.email)
                 };
                 return data;

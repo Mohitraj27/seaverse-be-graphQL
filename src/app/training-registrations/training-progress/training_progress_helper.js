@@ -129,7 +129,7 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                         user: {
                             _id: trainingRegistration?.employee?.user?._id,
                             firstName: decrypt(trainingRegistration?.employee?.user?.firstName),
-                            lastName: decrypt(trainingRegistration?.employee?.user?.lastName),
+                            lastName: trainingRegistration?.employee?.user?.lastName ?decrypt(trainingRegistration?.employee?.user?.lastName):'',
                         },
                     },
                 },
@@ -205,7 +205,7 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                         infoData: {
                             _id: updatedBy._id,
                             firstName: decrypt(updatedBy.firstName),
-                            lastName: decrypt(updatedBy.lastName),
+                            lastName: updatedBy.lastName ? decrypt(updatedBy.lastName) : '',
                         },
                     });
                 } else {
@@ -235,7 +235,7 @@ const sendTrainingProgressNotification = async (notificationsList, context) => {
                         infoData: {
                             _id: updatedBy._id,
                             firstName: decrypt(updatedBy.firstName),
-                            lastName: decrypt(updatedBy.lastName),
+                            lastName: updatedBy.lastName ? decrypt(updatedBy.lastName):'',
                         },
                     });
                 } else {

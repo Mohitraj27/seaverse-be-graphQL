@@ -3156,7 +3156,7 @@ const getVesselMainReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Main Vessel Report Exported Successfully`,
-                    messageValue: `The main vessel report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${decrypt(userInfo?.lastName) ?? ""}.`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,

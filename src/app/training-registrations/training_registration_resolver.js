@@ -189,7 +189,7 @@ module.exports.queries = {
         const decryptedFormattedResults = formattedResults?.map(user => ({
             id: user.id,
             firstName: decrypt(user.firstName),
-            lastName: decrypt(user.lastName),
+            lastName: user?.lastName ? decrypt(user.lastName):'',
             email: decrypt(user.email),
             status: user.status,
             isRegistered: user.isRegistered,

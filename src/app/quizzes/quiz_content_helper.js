@@ -72,7 +72,7 @@ module.exports.QuizContentHelper = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: decrypt(notificationData.createdBy.lastName),
+                            lastName: notificationData.createdBy.firstName ? decrypt(notificationData.createdBy.lastName): "",
                         },
                     },
                     {

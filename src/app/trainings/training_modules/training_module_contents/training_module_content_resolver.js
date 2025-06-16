@@ -259,7 +259,7 @@ module.exports.queries = {
             const decryptedUpdatedBy = {
                 ...content.updatedBy,
                 firstName: decrypt(content.updatedBy.firstName),
-                lastName: decrypt(content.updatedBy.lastName),
+                lastName: content.updatedBy.lastName ? decrypt(content.updatedBy.lastName): '',
             };
             return {
                 ...content,

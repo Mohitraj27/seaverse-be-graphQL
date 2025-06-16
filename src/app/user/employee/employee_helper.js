@@ -1359,7 +1359,7 @@ const sendDeleteNotification = async (notificationsData) => {
         const notifications = [];
 
         for (const notificationData of notificationsData) {
-            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${decrypt(notificationData.deletedEmployee?.user?.lastName)}`;
+            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${notificationData.deletedEmployee?.user?.lastName ? decrypt(notificationData.deletedEmployee?.user?.lastName):''}`;
             const employeeEmail = decrypt(notificationData.deletedEmployee?.user?.email);
 
             const notification = {
@@ -1412,7 +1412,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${decrypt(notificationData.employee?.user?.lastName) ?? ""}`.trim();
+            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${notificationData.employee?.user?.lastName ? decrypt(notificationData.employee?.user?.lastName):''}`.trim();
             const employeeEmail = decrypt(notificationData.employee?.user?.email);
 
             const notification = {
@@ -1489,7 +1489,7 @@ const sendEnrollmentNotification = async notificationsData => {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: decrypt(notificationData.createdBy.lastName),
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {
@@ -1501,7 +1501,7 @@ const sendEnrollmentNotification = async notificationsData => {
                                 firstName:
                                     decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    decrypt(notificationData.trainingRegistration.employee?.user?.lastName),
+                                    notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
                             },
                         },
                     },
@@ -1621,7 +1621,7 @@ const sendNotificationOnCRUD = async notificationData => {
                         user: {
                             _id: notificationData.employee.user._id,
                             firstName: decrypt(notificationData.employee.user.firstName),
-                            lastName: decrypt(notificationData.employee.user.lastName),
+                            lastName: notificationData.employee.user.lastName ? decrypt(notificationData.employee.user.lastName):'',
                         },
                     },
                 },
@@ -1645,7 +1645,7 @@ const sendNotificationOnCRUD = async notificationData => {
                 infoData: {
                     _id: notificationData.createdBy._id,
                     firstName: decrypt(notificationData.createdBy.firstName),
-                    lastName: decrypt(notificationData.createdBy.lastName),
+                    lastName: notifcationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                 },
             });
 
@@ -3595,7 +3595,7 @@ module.exports = {
             return {
                 ...user,
                 firstName: encrypt(user.firstName.trim().toLowerCase()),
-                lastName: encrypt(user.lastName.trim().toLowerCase()),
+                lastName: user.lastName.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
                 civilIdOrPassport: encrypt(user.civilIdOrPassport.trim().toUpperCase()),
                 email: encrypt(user.email.trim().toLowerCase()),
             }

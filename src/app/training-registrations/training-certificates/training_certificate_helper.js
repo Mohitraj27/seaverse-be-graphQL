@@ -112,7 +112,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: decrypt(notificationData.createdBy.lastName),
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {
@@ -124,7 +124,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                                 firstName:
                                     decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    decrypt(notificationData.trainingRegistration.employee?.user?.lastName),
+                                   notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
                             },
                         },
                     },
