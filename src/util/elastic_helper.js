@@ -8,9 +8,9 @@ const { encrypt } = require('./encryption_helper');
 require("dotenv").config();
 
 const client = new Client({
-  node: process.env.ELASTICSEARCH_URL,
+  node: 'https://my-elasticsearch-project-fff538.es.us-east-1.aws.elastic.cloud:443',
   auth: {
-    apiKey: process.env.ELASTICSEARCH_API_KEY,
+    apiKey: 'MTRaR2Q1Y0JCZ2VjRy1sblhBQUM6a1p2T28yejdPcnExWUE1ZDYtYmJQQQ==',
   }
 });
 

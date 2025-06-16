@@ -85,7 +85,7 @@ const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => 
     }
 };
 module.exports.queries = {
-    getVessels: async ({ pageInput, filterInput }, context) => {
+    getVessels: async ({ pageInput, filterInput, sortInput }, context) => {
         try {
             const { subscriberId } = AuthUser(context);
 
@@ -180,12 +180,32 @@ module.exports.queries = {
                 });
             }
 
+            if (sortInput?.sortField) {
+                const sortFieldMap = {
+                    name: "name",
+                    companyName: "companyName",
+                    ownerName: "owner.name",
+                    vesselType: "typeOfVessel.name"
+                };
+
+                const field = sortFieldMap[sortInput.sortField];
+
+                if (field) {
+                    pipeline.push({
+                        $sort: {
+                            [field]: sortInput.sortOrder ?? 1,
+                        },
+                    });
+                }
+            } else {
+                pipeline.push({ $sort: { updatedAt: -1 } });
+              }
+
             const vessels = await Vessel.aggregatePaginate(
                 Vessel.aggregate(pipeline),
                 {
                     offset: skip,
                     limit,
-                    sort: { updatedAt: -1 },
                     customLabels: {
                         docs: "vessels",
                         totalDocs: "totalCount",
