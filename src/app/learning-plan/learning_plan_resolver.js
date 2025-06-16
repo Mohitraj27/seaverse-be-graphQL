@@ -971,6 +971,16 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+            if (detailedPlan.overallProgress?.users?.length > 0) {
+                detailedPlan.overallProgress.users = detailedPlan.overallProgress.users.map(user => {
+                    return {
+                        ...user,
+                        firstName: decrypt(user.firstName),
+                        lastName: user.lastName ? decrypt(user.lastName) : '',
+                        email: decrypt(user.email),
+                    };
+                });
+            }
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
@@ -1173,6 +1183,16 @@ module.exports.queries = {
                         return isDesc ? -result : result;
                     });
                 }
+            }
+            if (detailedPlan.overallProgress?.users?.length > 0) {
+                detailedPlan.overallProgress.users = detailedPlan.overallProgress.users.map(user => {
+                    return {
+                        ...user,
+                        firstName: decrypt(user.firstName),
+                        lastName: user.lastName ? decrypt(user.lastName) : '',
+                        email: decrypt(user.email),
+                    };
+                });
             }
             return detailedPlan;
         } catch (error) {
