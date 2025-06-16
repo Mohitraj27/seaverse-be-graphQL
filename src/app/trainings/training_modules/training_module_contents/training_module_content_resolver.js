@@ -88,7 +88,7 @@ module.exports.queries = {
             const escapedSearch = escapeRegex(search);
             filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
         }
-
+        const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
@@ -272,7 +272,7 @@ module.exports.queries = {
         
         return {
             contents: decryptedContents,
-            totalCount: contents.contents.length,
+            totalCount: totalCountBeforePagination,
         };
     },
     getTrainingModuleContent: async ({ id }, context) => {
@@ -596,79 +596,80 @@ module.exports.mutations = {
         const invalidUpdates = [];
         const updatedContents = [];
 
-        for (const id of ids) {
-            const content = await TrainingModuleContent.findOne({
-                _id: id,
-                subscriber: subscriberId,
-                isUpdated: { $ne: true },
+        const filter = {
+            subscriber: subscriberId,
+            isUpdated: { $ne: true },
+            ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {})
+        };
+
+        const contents = await TrainingModuleContent.find(filter);
+
+        if (!contents || contents.length === 0) {
+            return {
+                success: false,
+                message: "No content items found to update.",
+                updatedContents,
+                invalidUpdates
+            };
+        }
+
+        const bulkOps = [];
+
+        const validStatusTransitions = {
+            [Content_status.PUBLISHED]: [Content_status.RETIRED],
+            [Content_status.DRAFT]: [Content_status.PUBLISHED],
+            [Content_status.RETIRED]: [Content_status.PUBLISHED]
+        };
+
+        for (const content of contents) {
+            const currentStatus = content.contentStatus;
+
+            if (currentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
+                invalidUpdates.push({
+                    id: content._id,
+                    reason: "Published to Draft is not allowed directly. Must move to Retired first."
+                });
+                continue;
+            }
+
+            if (!validStatusTransitions[currentStatus]?.includes(newStatus)) {
+                invalidUpdates.push({
+                    id: content._id,
+                    reason: `No valid transition from ${currentStatus} to ${newStatus}.`
+                });
+                continue;
+            }
+
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: content._id },
+                    update: {
+                        $set: {
+                            contentStatus: newStatus,
+                            updatedBy: userId,
+                            updatedAt: new Date(),
+                            modifiedDate: new Date()
+                        }
+                    }
+                }
             });
 
-            if (!content) {
-                invalidUpdates.push({
-                    id: id,
-                    reason: "Content not found."
-                });
-                continue;
-            }
+            updatedContents.push({
+                _id: content._id,
+                title: content.title,
+                previousStatus: currentStatus,
+                newStatus
+            });
+        }
 
-            const validUpdate = (() => {
-                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
-                    invalidUpdates.push({
-                        name: title,
-                        reason: "Published to Draft is not allowed directly. Must move to Retired first."
-                    });
-                    return false;
-                }
-                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
-                    return true;
-                }
-                if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
-                    return true;
-                }
-                if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
-                    return true;
-                }
-                invalidUpdates.push({
-                    id: id,
-                    reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
-                });
-                return false;
-            })();
-
-            if (!validUpdate) {
-                continue;
-            }
-
-            content.contentStatus = newStatus;
-            content.updatedBy = userId;
-            content.updatedAt = new Date();
-            content.modifiedDate = new Date();
-            await content.save();
-
-            updatedContents.push(content);
-            //content status update notification
-            /*  await NotificationHelper.createNotificationhelper({
-                 subscriber: subscriberId,
-                 titleValue: `Content Status Updated`,
-                 messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
-                 notifyAllAdmin: true,
-                 affected: [
-                     {
-                         targetRef: "TrainingModuleContent",
-                         target: content._id,
-                     },
-                 ],
-                 status: 'SENT',
-                 icon: notificationiconEnum.SUCCESS,
-                 createdBy: userId,
-             }); */
+        if (bulkOps.length > 0) {
+            await TrainingModuleContent.bulkWrite(bulkOps);
         }
 
         return {
             success: invalidUpdates.length === 0,
             message: invalidUpdates.length === 0
-                ? `All content statuses updated to ${newStatus}.`
+                ? `All applicable content statuses updated to ${newStatus}.`
                 : `Some content statuses could not be updated.`,
             updatedContents,
             invalidUpdates
