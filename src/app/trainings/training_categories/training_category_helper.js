@@ -1,7 +1,7 @@
-const NotificationHelper = require("../../notifications/notification_helper");
+;const NotificationHelper = require("../../notifications/notification_helper");
 
 const NotificationType = require("../../notifications/notification_type.json");
-
+const {decrypt } = require('../../../util/encryption_helper');
 module.exports = {
     sendNotificationOnCRUD: async notificationData => {
         try {
@@ -15,7 +15,7 @@ module.exports = {
                 message: [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${trainingCategoryName}" training category`,
+                        value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} "${trainingCategoryName}" training category`,
                     },
                 ],
                 notificationType: NotificationType["TRAINING_CATEGORY_" + notificationData.action],
@@ -34,8 +34,8 @@ module.exports = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName) ,
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {

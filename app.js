@@ -8,6 +8,10 @@ const DbHelper = require("./src/util/db_helper");
 const { GraphqlSchema, GraphqlResolver } = require("./src/graphql");
 const { RestResolver } = require("./src/rest");
 
+require('./src/app/user/employee/csv_import_worker');
+require('./src/app/training-registrations/course_enrollment_worker');
+
+
 const SubscriptionRemainder = require("./src/app/saas/subscriber/subscription/subscription_reminder");
 const TrainingRegistrationRemainder = require("./src/app/training-registrations/training_registration_reminder");
 const TrainingCertificateRemainder = require("./src/app/training-registrations/training-certificates/training_certificate_reminder");
@@ -15,6 +19,7 @@ const BatchRemainder = require("./src/app/batches/batch_reminder");
 const BackupHelper = require("./src/app/backup/backup_helper");
 const firebaseHelper = require('./src/util/firebase_helper');
 const EmployeeHelper = require("./src/app/user/employee/employee_helper");
+const {client} = require("./src/util/elastic_helper");
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
     process.env.MONGO_DB = process.env.MONGO_DB_LIVE;
@@ -73,14 +78,27 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     return { httpsServer, httpServer, apolloServer };
 })();
 firebaseHelper.init();
+const elasticConnect = async () => {
+    try {
+      await client.info();
+        console.log("Elasticsearch is connected");
+    } catch (error) {
+        console.error("Elasticsearch connection failed:", error);
+    }
+};
+elasticConnect();
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
 
+ExpressServer.get('/health-check', (req, res) => {
+    res.status(200).send('App is up and running');
+});
 
 
 TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
 BatchRemainder.batchCompletionRemainder();
 EmployeeHelper.scheduledForEveryDayMidnight();
+
