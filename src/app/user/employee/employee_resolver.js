@@ -1789,14 +1789,14 @@ module.exports.queries = {
             const notifications = [];
             await Promise.all(
                 emails.map(async (email) => {
-                    const decryptEmail = decrypt(email);
+                    const decryptEmail = email;
                     console.log('decrypted Email', decryptEmail);
                     if (!emailRegex.test(decryptEmail)) {
                         messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
                     }
 
-                    let currentUserData = await User.findOne({ email: email, isDeleted: false, isRegistered: true });
+                    let currentUserData = await User.findOne({ email: encrypt(email), isDeleted: false, isRegistered: true });
                     console.log('this is current USer Data', currentUserData);
                     const fieldsToUpdate = ['firstName', 'lastName', 'email'];
                     fieldsToUpdate.forEach(field => {
