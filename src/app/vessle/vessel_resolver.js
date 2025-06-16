@@ -25,6 +25,8 @@ const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_st
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
+const { decrypt } = require("../../util/encryption_helper");
+const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
         const result = await LearningPlan.aggregate([
@@ -341,7 +343,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -501,13 +503,41 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `Vessel "${vessel.name}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Vessel "${vessel.name}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}`,
                 notificationType: NotificationType.VESSEL_UPDATED,
                 notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
+            if(userIds?.length >0){
+               await Promise.all(
+                    userIds.map(userId => updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                        `,
+                        {
+                            term: {
+                            userId: userId._id
+                            }
+                        },
+                        {
+                            vesselId: vesselData?._id ?? null,
+                            vesselName: vesselData?.name ?? null,
+                            vesselIsActive: vesselData?.isActive ?? null,
+                            typeOfVesselName: vesselData?.typeOfVessel?.name ?? null,
+                            tyepOfVesselId: vesselData?.typeOfVessel?._id ?? null
+                        }
+                    ))
+                );
+            }
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
@@ -634,6 +664,35 @@ module.exports.mutations = {
                             { session }
                         );
 
+                         try {
+                            await updateByQueryToElasticSearch(
+                            "users", 
+                             `
+                            ctx._source.currentVessel = params.currentVessel;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                            `,
+                            {
+                                term: { currentVessel: vessel._id }
+                            },
+                            {
+                                currentVessel: null,
+                                vesselName: null,
+                                vesselId: null,
+                                vesselIsDeleted: null,
+                                vesselIsActive: null,
+                                typeOfVesselName: null,
+                                tyepOfVesselId: null,
+                            }
+                        );
+                        } catch (error) {
+                            throw new Error(error.message);
+                        }
+
                         await DeletedUser.updateMany(
                             { currentVessel: vessel._id },
                             { $set: { currentVessel: null } },
@@ -668,7 +727,7 @@ module.exports.mutations = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Vessel Status Updated Successfully`,
-                        messageValue: `The following vessels have been updated: ${statusSummary} by ${userInfo?.firstName} ${userInfo?.lastName ?? ''}.`,
+                        messageValue: `The following vessels have been updated: ${statusSummary} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName): ''}`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
                         notifyAllAdmin: true,
                         affected: updatedVessels.map(v => ({

@@ -25,6 +25,7 @@ const notificationiconEnum = require("../../../notifications/notification_icon.j
 const { TrainingProgress } = require("../../../training-registrations/training-progress/training_progress_model");
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
 const { default: mongoose } = require("mongoose");
+const { decrypt } = require("../../../../util/encryption_helper");
 
 const axios = require('axios');
 const FormData = require('form-data');
@@ -249,9 +250,28 @@ module.exports.queries = {
                 totalCount: 0,
             };
         }
+          const decryptedContents = contents?.contents?.map((content) => {
+            const decryptedCreatedBy = {
+                ...content.createdBy,
+                firstName: decrypt(content.createdBy.firstName),
+                lastName: decrypt(content.createdBy.lastName),
+            };
+            const decryptedUpdatedBy = {
+                ...content.updatedBy,
+                firstName: decrypt(content.updatedBy.firstName),
+                lastName: content.updatedBy.lastName ? decrypt(content.updatedBy.lastName): '',
+            };
+            return {
+                ...content,
+                createdBy: decryptedCreatedBy,
+                updatedBy: decryptedUpdatedBy,
+            };
+          });
 
+
+        
         return {
-            contents: contents.contents,
+            contents: decryptedContents,
             totalCount: contents.contents.length,
         };
     },

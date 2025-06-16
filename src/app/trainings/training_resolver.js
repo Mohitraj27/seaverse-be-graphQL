@@ -43,6 +43,7 @@ const { createOrUpdateTrainingMigrationCourses } = require("../../app/trainings/
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
 
 const { fork } = require("child_process");
+const { decrypt } = require("../../util/encryption_helper");
 
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -128,9 +129,19 @@ module.exports.queries = {
             },
         ]);
 
+        const decryptedTrainings = trainings?.map((training) => ({
+            ...training,
+            createdBy: {
+                _id: training.createdBy?._id,
+                firstName: decrypt(training?.createdBy?.firstName),
+                lastName: training?.createdBy?.lastName ? decrypt(training?.createdBy?.lastName):'',
+                email: decrypt(training?.createdBy?.email),
+            },
+        }));
+
         return {
-            totalCount,
-            trainings,
+            totalCount: trainings.length,
+            trainings: decryptedTrainings,
         };
     },
     getTraining: async ({ id }, context) => {

@@ -15,8 +15,11 @@ const notificationEnum = require("../../notifications/notification_icon.json")
 const {filterLearningPlans} = require('../employee/employee_helper');
 const {LearningPlan} = require('../../learning-plan/learning_plan_model');
 const {Employee} = require('../employee/employee_model');
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
+
+        console.log("came here to assignVesselToUser");
 
         try {
 
@@ -47,6 +50,13 @@ module.exports.mutations = {
             let vesselId = input.vesselId === "" ? null : input.vesselId;
             let vesselStatus = input.vesselStatus === "" ? null : input.vesselStatus;
 
+            const userVesselsDetails = await Vessel.find({ _id: vesselId, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+
+            const vesselName= userVesselsDetails?.[0]?.name;
+            const vesselIsActive= userVesselsDetails?.[0]?.isActive
+            const typeOfVesselName= userVesselsDetails?.[0]?.typeOfVessel?.name
+            const tyepOfVesselId= userVesselsDetails?.[0]?.typeOfVessel?._id
+
             if (vesselId) {
 
                 if (String(getUser?.currentVessel) === String(vesselId)) {
@@ -64,6 +74,36 @@ module.exports.mutations = {
                     getUser.currentVessel = vesselId ?? null;
                     getUser.vesselStatus = vesselStatus ?? null;
                     updateUser = await getUser.save();
+
+                    try {
+                        await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED, `${error.message}`);
+                    }
 
                 } else {
 
@@ -88,6 +128,35 @@ module.exports.mutations = {
                     getUser.vesselStatus = vesselStatus;
                     updateUser = await getUser.save();
 
+                    try {
+                        await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
+                    } catch (error) {
+                        throw CustomError(ErrorName.FAILED, `${error.message}`);
+                    }
                 }
             } else {
 
@@ -115,6 +184,35 @@ module.exports.mutations = {
                 getUser.vesselStatus = vesselStatus;
                 updateUser = await getUser.save();
 
+                try {
+                    await updateByQueryToElasticSearch(
+                        'users', 
+                        `
+                            ctx._source.currentVessel = params.vesselId;
+                            ctx._source.vesselId = params.vesselId;
+                            ctx._source.vesselStatus = params.vesselStatus;
+                            ctx._source.vesselName = params.vesselName;
+                            ctx._source.vesselIsActive = params.vesselIsActive;
+                            ctx._source.typeOfVesselName = params.typeOfVesselName;
+                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                        `,
+                        {
+                            term: {
+                            userId: input.userId
+                            }
+                        },
+                        {
+                            vesselId: vesselId ?? null,
+                            vesselStatus: vesselStatus ?? null,
+                            vesselName: vesselName ?? null,
+                            vesselIsActive: vesselIsActive ?? null,
+                            typeOfVesselName: typeOfVesselName ?? null,
+                            tyepOfVesselId: tyepOfVesselId ?? null
+                        }
+                    );
+                } catch (error) {
+                    throw CustomError(ErrorName.FAILED, `${error.message}`);
+                }
             }
 
             if (updateUser) {

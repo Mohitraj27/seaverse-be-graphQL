@@ -33,6 +33,8 @@ const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
+const { encrypt, decrypt } = require("../../../util/encryption_helper");
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 
 module.exports.queries = {
@@ -42,6 +44,7 @@ module.exports.queries = {
         const fetchResult = async (userId, population) => {
             const existingUser = await User.findById(userId)
                 .lean()
+                .select("-consents")
                 .populate({
                     path: "subRoles",
                     match: { isActive: true, isDeleted: { $ne: true } },
@@ -65,6 +68,12 @@ module.exports.queries = {
             }
 
             existingUser.employee = employeeData || null;
+
+            for(let key in existingUser) {
+                if(key==="firstName" || key==="lastName" || key==="email" || key==="civilIdOrPassport") {
+                    existingUser[key]=decrypt(existingUser[key]);
+                }
+            }
             return existingUser;
         };
         const fetchMenuItems = (userInfo) => {
@@ -460,6 +469,28 @@ module.exports.mutations = {
             existingUser.isResetPasswordDialog = true;
 
             await existingUser.save();
+
+            try {
+                await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.password = params.password;
+                    ctx._source.isResetPasswordDialog = params.isResetPasswordDialog;
+                `,
+                {
+                    term: {
+                    userId: existingUser._id.toString() 
+                    }
+                },
+                {
+                    password: existingUser.password,
+                    isResetPasswordDialog: true
+                }
+            );
+            } catch (error) {
+                throw CustomError(ErrorName.SERVER_ERROR, error.message);
+            }
+
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,
@@ -476,7 +507,7 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-            const existingUser = await User.findOne({ email });
+            const existingUser = await User.findOne({ email:encrypt(email) });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
@@ -590,6 +621,25 @@ module.exports.mutations = {
 
             const updateUser = await user.save();
 
+            try {
+                 await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.isResetPasswordDialog = true;
+                `,
+                {
+                    match: {
+                    userId: user._id.toString(), 
+                    }
+                },
+                {
+                    password: user.password
+                }
+            );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED);
+            }
+
             if (updateUser) {
                 return "Password updated successfully!";
             } else {
@@ -653,6 +703,30 @@ module.exports.mutations = {
                     reasonForDelete: reasonForDelete,
                 },
             });
+
+            try {
+             await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.deleteRequest = params.deleteRequest;
+                    ctx._source.deleteRequestDate = params.deleteRequestDate;
+                    ctx._source.reasonForDelete = params.reasonForDelete;
+                `,
+                {
+                    match: {
+                    userId: userId,
+                    },
+                },
+                {
+                    deleteRequest: true,
+                    deleteRequestDate: Date.now(),
+                    reasonForDelete: reasonForDelete,
+                }
+            );   
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED, error.message);
+                
+            }
 
             if (updateUser) {
                 const subscriber = await Subscriber.findOne();

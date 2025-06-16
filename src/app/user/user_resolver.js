@@ -41,6 +41,8 @@ const mongoose = require('mongoose');
 const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
+const { encrypt,decrypt }= require("../../util/encryption_helper");
+const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -188,7 +190,7 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { firstName, lastName, password, confirmPassword, email, country, TermsAndConditions } = input;
+                const { password, confirmPassword, country, TermsAndConditions ,email,firstName,lastName } = input;
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
@@ -221,10 +223,10 @@ module.exports.mutations = {
                 const createUser = await User.create([
                     {
                         subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
+                        firstName: encrypt(firstName.toLowerCase()),
+                        lastName: encrypt(lastName.toLowerCase()) ?? null,
                         password: encryptedPassword,
-                        email: lowerCaseEmail,
+                        email: encrypt(lowerCaseEmail),
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
@@ -249,10 +251,59 @@ module.exports.mutations = {
                     UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
                 });
                 if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+
+                const document = {
+                                    employeeId: savedEmployee._id?.toString(),
+                                    UID: savedEmployee.UID,
+                                    designation: savedEmployee.designation,
+                                    empDesignation: savedEmployee.empDesignation?.toString(),
+                                    bulkId: savedEmployee.bulkId,
+                                    regType: savedEmployee.regType,
+                                    isActive: savedEmployee.isActive,
+                                    isDeleted: savedEmployee.isDeleted,
+                                    subscriber: savedEmployee.subscriber?.toString(),
+                                    createdAt: savedEmployee.createdAt,
+                                    updatedAt: savedEmployee.updatedAt,
+                
+                                    // Nested user fields
+                                    userId: savedEmployee.user?._id?.toString(),
+                                    firstName: savedEmployee.user?.firstName,
+                                    lastName: savedEmployee.user?.lastName,
+                                    email: savedEmployee.user?.email,
+                                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                                    country: savedEmployee.user?.country,
+                                    languagePreference: savedEmployee.user?.languagePreference,
+                                    role: savedEmployee.user?.role,
+                                    subRoles: savedEmployee.user?.subRoles,
+                                    isVerified: savedEmployee.user?.isVerified,
+                                    isRegistered: savedEmployee.user?.isRegistered,
+                                    superAdmin: savedEmployee.user?.superAdmin,
+                                    deleteRequest: savedEmployee.user?.deleteRequest,
+                                    isDeleted_user: savedEmployee.user?.isDeleted,
+                                    directSignup: savedEmployee.user?.directSignup,
+                                    contentlanguages: savedEmployee.user?.contentlanguages,
+                                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                                    vesselStatus: savedEmployee.user?.vesselStatus,
+                                    isEmailNotification: savedEmployee.user?.isEmailNotification,
+                                    isPushNotification: savedEmployee.user?.isPushNotification,
+                                    lastLoginAt: savedEmployee.user?.lastLoginAt,
+                                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                                    userCreatedAt: savedEmployee.user?.createdAt,
+                                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                                    indexedAt: new Date(),
+                                };
+
+                                try {
+                                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                                } catch (error) {
+                                    throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
+                                }
+
                 const result = await SignupRequest.create([{
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: lowerCaseEmail,
+                    firstName: encrypt(firstName.toLowerCase()),
+                    lastName: encrypt(lastName.toLowerCase()),
+                    email: encrypt(lowerCaseEmail),
                     country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
@@ -330,17 +381,16 @@ module.exports.mutations = {
     signIn: async ({ input }, context) => {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
-
-                const emailOrCivilIdOrPassport = input.emailOrCivilIdOrPassport;
+                const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
                 const password = input.password;
-                const deleteRequest = await User.find({email: input.emailOrCivilIdOrPassport,deleteRequest: true }).session(session);
+                const deleteRequest = await User.find({email: encryptedEmail,deleteRequest: true }).session(session);
                 if(deleteRequest?.length > 0){
                     return CustomError(ErrorName.DELETE_REQUEST_PENDING,'Your account delete request is pending. Please contact your admin');
                 }
                 // for app signup
                 const fetchAppUser = await AppUser.findOne({
                     $or: [
-                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { email: encryptedEmail },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                     ],
                 }).session(session);
@@ -387,7 +437,7 @@ module.exports.mutations = {
 
                     const existingUser = await User.findOne({
                         $or: [
-                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                            { email: encryptedEmail },
                             { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                         ],
                         role: { $ne: Role.SAAS_ADMIN },
@@ -429,15 +479,21 @@ module.exports.mutations = {
                           }
                         });
                         if(input?.consents?.some(consent => consent.status === false)) {
+                            const  decryptedUserEmail = decrypt(existingUser?.email);
                            await AwsHelper.sendEmail({
-                                receiverEmail: existingUser?.email,
+                                receiverEmail: decryptedUserEmail,
                                 subject: `Your Sign In Was Not Complete`,
                                 htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
                             });
                             const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
                             const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
-                            const adminUsers = adminUserEmails.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
-                            await Promise.all(adminUsers.map(async user => await AwsHelper.sendEmail({
+                            const decryptedAdminUsers = adminUserEmails?.map(user => ({
+                                email: decrypt(user?.email),
+                                firstName: decrypt(user?.firstName),
+                                lastName: user?.lastName ? decrypt(user?.lastName): '',
+                            }));
+                            const adminUsers = decryptedAdminUsers?.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
+                            await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
                                 receiverEmail: user?.email,
                                 subject: `Alert: Learner Rejected Terms and Conditions`,
                                 htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email } ),
@@ -456,6 +512,26 @@ module.exports.mutations = {
 
                         existingUser.lastLoginAt = Moment().format();
                         await existingUser.save({ session });
+
+                        try {
+                            await updateByQueryToElasticSearch(
+                            "users", 
+                            `
+                                ctx._source.lastLoginAt = params.lastLoginAt;
+                            `,
+                            {
+                                match: {
+                                userId: existingUser._id.toString(), 
+                                }
+                            },
+                            {
+                                lastLoginAt: Moment().format()
+                            }
+                        );
+                        } catch (error) {
+                            throw error;
+                        }
+
                         return await UserHelper.makeAuthUser(existingUser);
                     };
 

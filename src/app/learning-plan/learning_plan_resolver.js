@@ -12,6 +12,7 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
+const { decrypt } = require('../../util/encryption_helper')
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -45,7 +46,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -121,7 +122,7 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -187,7 +188,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -253,7 +254,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -274,9 +275,279 @@ module.exports.mutations = {
     }
 };
 module.exports.queries = {
+    // getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
+    //     const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+    //         AuthUser(context);
+    //     const skip = pageInput?.skip || 0;
+    //     const limit = pageInput?.limit || 50;
+
+    //     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+    //     try {
+    //         const { subscriberId, userInfo } = AuthUser(context);
+
+    //         const queryConditions = {
+    //             ...filterInput,
+    //             isDeleted: false,
+    //         };
+    //         if (filterInput?.title) {
+    //             delete queryConditions.title;
+    //         }
+
+    //         if (filterInput?.status && Array.isArray(filterInput.status)) {
+    //             queryConditions.status = { $in: filterInput.status };
+    //         }
+    //         if (filterInput?.audienceSelection) {
+    //             queryConditions.audienceSelection = {
+    //                 $in: Array.isArray(filterInput.audienceSelection)
+    //                     ? filterInput.audienceSelection
+    //                     : [filterInput.audienceSelection]
+    //             };
+    //         }
+    //         let startDate, endDate;
+    //         if (filterInput?.lastModified) {
+    //             delete queryConditions.lastModified
+    //             const today = Moment();
+    //             const endOfToday = today.clone().endOf("day").toDate();
+    //             switch (filterInput.lastModified) {
+    //                 case "TODAY":
+    //                     startDate = today.clone().startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "YESTERDAY":
+    //                     startDate = today.clone().subtract(1, "day").startOf("day").toDate();
+    //                     endDate = today.clone().subtract(1, "day").endOf("day").toDate();
+    //                     break;
+    //                 case "LAST_7_DAYS":
+    //                     startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_30_DAYS":
+    //                     startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_3_MONTHS":
+    //                     startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_6_MONTHS":
+    //                     startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_YEAR":
+    //                     startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 default:
+    //                     break;
+    //             }
+
+    //             if (startDate && endDate) {
+    //                 queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+    //             }
+    //         }
+    //         console.time('queryTime');
+    //         const totalCount = await LearningPlan.countDocuments(queryConditions);
+
+    //         const learningPlans = await LearningPlan.aggregate([
+    //             { $match: queryConditions },
+    //             { $sort: { updatedAt: -1 } },
+    //             // { $skip: skip },
+    //             // { $limit: limit },
+    //             {
+    //                 $lookup: {
+    //                     from: "groups",
+    //                     localField: "groupIDs",
+    //                     foreignField: "_id",
+    //                     as: "groupDetails"
+    //                 }
+    //             },
+    //             {
+    //                 $unwind: {
+    //                     path: "$groupDetails",
+    //                     preserveNullAndEmptyArrays: true
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "createdBy",
+    //                     foreignField: "_id",
+    //                     as: "createdByDetails"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+    //                 }
+    //             },
+    //             {
+    //                 $match: {
+    //                     ...queryConditions,
+    //                     ...(filterInput?.title?.trim() ? {
+    //                         $or: [
+    //                             { title: { $regex: filterInput.title, $options: "i" } },
+    //                             { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
+    //                             { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
+    //                         ]
+    //                     } : {})
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "trainings",
+    //                     localField: "selectCourses",
+    //                     foreignField: "_id",
+    //                     as: "courseDetails",
+    //                     pipeline: [
+    //                         {
+    //                             $project: {
+    //                                 _id: 1,
+    //                                 UID: 1,
+    //                                 title: 1,
+    //                                 status: 1,
+    //                                 bannerImage: 1,
+    //                                 coverImage: 1,
+    //                                 isDeleted: 1,
+    //                             },
+    //                         },
+    //                     ],
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "learningplanassignments",
+    //                     localField: "_id",
+    //                     foreignField: "learningPlanId",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     assignedLearnerIDs: {
+    //                         $map: {
+    //                             input: "$assignedLearners",
+    //                             as: "assignment",
+    //                             in: "$$assignment.assignedLearnerId"
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     selectCourses: {
+    //                         $filter: {
+    //                             input: "$courseDetails",
+    //                             as: "course",
+    //                             cond: { $eq: ["$$course.isDeleted", false] }
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "assignedLearnerIDs",
+    //                     foreignField: "_id",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     numberOfAssignedLearners: {
+    //                         $size: { $ifNull: ["$assignedLearners", []] }
+    //                     },
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "assignedLearnerIDs",
+    //                     foreignField: "_id",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     assignedLearnerIDs: {
+    //                         $filter: {
+    //                             input: "$assignedLearners",
+    //                             as: "learner",
+    //                             cond: { $eq: ["$$learner.isDeleted", false] }
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $project: {
+    //                     _id: 1,
+    //                     title: 1,
+    //                     status: 1,
+    //                     isDeleted: 1,
+    //                     createdAt: 1,
+    //                     updatedAt: 1,
+    //                     selectCourses: 1,
+    //                     audienceSelection: 1,
+    //                     numberOfAssignedLearners: 1,
+    //                     "createdBy._id": "$createdByDetails._id",
+    //                     "createdBy.firstName": "$createdByDetails.firstName",
+    //                     "createdBy.lastName": "$createdByDetails.lastName",
+    //                 }
+    //             }
+    //         ]);
+    //         console.timeEnd('queryTime');
+
+    //         for (const learningPlan of learningPlans) {
+    //             const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
+    //             learningPlan.overallProgress = overallProgress;
+    //         }
+    //         function filterData(data, statuses) {
+
+    //             if (!statuses || statuses.length === 0) {
+    //                 return data;
+    //             }
+
+    //             return data?.filter(item => {
+    //                 const avgProgress = item.overallProgress?.averageProgress || 0;
+
+
+    //                 return statuses.some(status => {
+    //                     if (status === "NOT_STARTED" && avgProgress === 0) {
+    //                         return true;
+    //                     }
+
+    //                     if (status === "IN_PROGRESS" && avgProgress > 0 && avgProgress < 100) {
+    //                         return true;
+    //                     }
+
+    //                     if (status === "COMPLETED" && avgProgress === 100) {
+    //                         return true;
+    //                     }
+
+    //                     return false;
+    //                 });
+    //             });
+    //         }
+
+    //         const lpData = filterData(learningPlans, status);
+
+    //         if (status) {
+
+    //             return {
+    //                 learningPlans: lpData,
+    //                 totalCount: lpData?.length,
+    //             };
+    //         }
+    //         return {
+    //             learningPlans: learningPlans,
+    //             totalCount: learningPlans?.length,
+    //         };
+    //     } catch (error) {
+    //         throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
+    //     }
+    // },
+
     getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
-            AuthUser(context);
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
         const skip = pageInput?.skip || 0;
         const limit = pageInput?.limit || 50;
 
@@ -304,7 +575,7 @@ module.exports.queries = {
             }
             let startDate, endDate;
             if (filterInput?.lastModified) {
-                delete queryConditions.lastModified
+                delete queryConditions.lastModified;
                 const today = Moment();
                 const endOfToday = today.clone().endOf("day").toDate();
                 switch (filterInput.lastModified) {
@@ -344,32 +615,20 @@ module.exports.queries = {
                     queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
                 }
             }
-            const totalCount = await LearningPlan.countDocuments(queryConditions);
-            const learningPlans = await LearningPlan.aggregate([
+
+            // OPTIMIZED: Single aggregation pipeline with FULL progress details
+            const pipeline = [
                 { $match: queryConditions },
                 { $sort: { updatedAt: -1 } },
-                // { $skip: skip },
-                // { $limit: limit },
-                {
-                    $lookup: {
-                        from: "groups",
-                        localField: "groupIDs",
-                        foreignField: "_id",
-                        as: "groupDetails"
-                    }
-                },
-                {
-                    $unwind: {
-                        path: "$groupDetails",
-                        preserveNullAndEmptyArrays: true
-                    }
-                },
+
+                // Get creator details
                 {
                     $lookup: {
                         from: "users",
                         localField: "createdBy",
                         foreignField: "_id",
-                        as: "createdByDetails"
+                        as: "createdByDetails",
+                        pipeline: [{ $project: { _id: 1, firstName: 1, lastName: 1 } }]
                     }
                 },
                 {
@@ -377,9 +636,10 @@ module.exports.queries = {
                         createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
                     }
                 },
+
+                // Apply title/name search filter
                 {
                     $match: {
-                        ...queryConditions,
                         ...(filterInput?.title?.trim() ? {
                             $or: [
                                 { title: { $regex: filterInput.title, $options: "i" } },
@@ -389,6 +649,8 @@ module.exports.queries = {
                         } : {})
                     }
                 },
+
+                // Get course details
                 {
                     $lookup: {
                         from: "trainings",
@@ -396,84 +658,73 @@ module.exports.queries = {
                         foreignField: "_id",
                         as: "courseDetails",
                         pipeline: [
-                            {
-                                $project: {
-                                    _id: 1,
-                                    UID: 1,
-                                    title: 1,
-                                    status: 1,
-                                    bannerImage: 1,
-                                    coverImage: 1,
-                                    isDeleted: 1,
-                                },
-                            },
-                        ],
+                            { $match: { isDeleted: false } },
+                            { $project: { _id: 1, UID: 1, title: 1, status: 1, bannerImage: 1, coverImage: 1 } }
+                        ]
                     }
                 },
+
+                // Get assigned learner count
                 {
                     $lookup: {
                         from: "learningplanassignments",
                         localField: "_id",
                         foreignField: "learningPlanId",
-                        as: "assignedLearners"
-                    }
-                },
-                {
-                    $addFields: {
-                        assignedLearnerIDs: {
-                            $map: {
-                                input: "$assignedLearners",
-                                as: "assignment",
-                                in: "$$assignment.assignedLearnerId"
-                            }
-                        }
-                    }
-                },
-                {
-                    $addFields: {
-                        selectCourses: {
-                            $filter: {
-                                input: "$courseDetails",
-                                as: "course",
-                                cond: { $eq: ["$$course.isDeleted", false] }
-                            }
-                        }
+                        as: "assignments"
                     }
                 },
                 {
                     $lookup: {
                         from: "users",
-                        localField: "assignedLearnerIDs",
+                        localField: "assignments.assignedLearnerId",
                         foreignField: "_id",
-                        as: "assignedLearners"
+                        as: "assignedLearners",
+                        pipeline: [
+                            { $match: { isDeleted: false } },
+                            { $project: { _id: 1 } }
+                        ]
                     }
                 },
-                {
-                    $addFields: {
-                        numberOfAssignedLearners: {
-                            $size: { $ifNull: ["$assignedLearners", []] }
-                        },
-                    }
-                },
+
+                // OPTIMIZED: Get only essential progress data (no user details)
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "assignedLearnerIDs",
-                        foreignField: "_id",
-                        as: "assignedLearners"
-                    }
-                },
-                {
-                    $addFields: {
-                        assignedLearnerIDs: {
-                            $filter: {
-                                input: "$assignedLearners",
-                                as: "learner",
-                                cond: { $eq: ["$$learner.isDeleted", false] }
+                        from: "overalltrainingprogresses",
+                        let: { learningPlanId: "$_id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $in: ["$learningPlanId", "$learningPlan"] },
+                                            { $ne: ["$isEnrolled", false] }
+                                        ]
+                                    }
+                                }
+                            },
+                            // Group to get only summary data (no user details lookup)
+                            {
+                                $group: {
+                                    _id: null,
+                                    averageProgress: { $avg: "$progressPercentage" },
+                                    totalTimeSpend: { $sum: "$timeSpend" },
+                                    overallTrainingprogressStatus: { $addToSet: "$status" }
+                                }
+                            },
+                            {
+                                $project: {
+                                    _id: 0,
+                                    averageProgress: { $round: ["$averageProgress", 2] },
+                                    totalTimeSpend: 1,
+                                    overallTrainingprogressStatus: 1
+                                }
                             }
-                        }
+                        ],
+                        as: "progressData"
                     }
                 },
+
+                // Project final structure using assignments for userCount
                 {
                     $project: {
                         _id: 1,
@@ -482,64 +733,91 @@ module.exports.queries = {
                         isDeleted: 1,
                         createdAt: 1,
                         updatedAt: 1,
-                        selectCourses: 1,
+                        selectCourses: "$courseDetails",
                         audienceSelection: 1,
-                        numberOfAssignedLearners: 1,
+                        numberOfAssignedLearners: { $size: "$assignedLearners" },
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
+                        overallProgress: {
+                            $cond: {
+                                if: { $gt: [{ $size: "$progressData" }, 0] },
+                                then: {
+                                    averageProgress: { $arrayElemAt: ["$progressData.averageProgress", 0] },
+                                    totalTimeSpend: { $arrayElemAt: ["$progressData.totalTimeSpend", 0] },
+                                    userCount: { $size: "$assignedLearners" }, // Use assignments count instead
+                                    overallTrainingprogressStatus: { $arrayElemAt: ["$progressData.overallTrainingprogressStatus", 0] }
+                                },
+                                else: {
+                                    averageProgress: 0,
+                                    totalTimeSpend: 0,
+                                    userCount: { $size: "$assignedLearners" }, // Use assignments count for zero state too
+                                    overallTrainingprogressStatus: []
+                                }
+                            }
+                        }
                     }
                 }
-            ]);
+            ];
 
-
-            for (const learningPlan of learningPlans) {
-                const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
-                learningPlan.overallProgress = overallProgress;
-            }
-            function filterData(data, statuses) {
-
-                if (!statuses || statuses.length === 0) {
-                    return data;
-                }
-
-                return data?.filter(item => {
-                    const avgProgress = item.overallProgress?.averageProgress || 0;
-
-
-                    return statuses.some(status => {
-                        if (status === "NOT_STARTED" && avgProgress === 0) {
-                            return true;
+            // Apply status filtering based on progress if needed
+            if (status && status.length > 0) {
+                pipeline.push({
+                    $match: {
+                        $expr: {
+                            $or: status.map(s => {
+                                if (s === "NOT_STARTED") {
+                                    return { $eq: ["$overallProgress.averageProgress", 0] };
+                                } else if (s === "IN_PROGRESS") {
+                                    return {
+                                        $and: [
+                                            { $gt: ["$overallProgress.averageProgress", 0] },
+                                            { $lt: ["$overallProgress.averageProgress", 100] }
+                                        ]
+                                    };
+                                } else if (s === "COMPLETED") {
+                                    return { $eq: ["$overallProgress.averageProgress", 100] };
+                                }
+                                return false;
+                            })
                         }
-
-                        if (status === "IN_PROGRESS" && avgProgress > 0 && avgProgress < 100) {
-                            return true;
-                        }
-
-                        if (status === "COMPLETED" && avgProgress === 100) {
-                            return true;
-                        }
-
-                        return false;
-                    });
+                    }
                 });
             }
 
-            const lpData = filterData(learningPlans, status);
+            // Get total count before pagination
+            const countPipeline = [...pipeline];
+            countPipeline.push({ $count: "total" });
 
-            if (status) {
+            // Apply pagination to main pipeline
+            pipeline.push({ $skip: skip });
+            pipeline.push({ $limit: limit });
 
-                return {
-                    learningPlans: lpData,
-                    totalCount: lpData?.length,
-                };
+            const [learningPlansResult, countResult] = await Promise.all([
+                LearningPlan.aggregate(pipeline),
+                LearningPlan.aggregate(countPipeline)
+            ]);
+
+            // Post-process filtering is no longer needed since we're not returning users
+            const learningPlans = learningPlansResult;
+
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
             }
+
+            const totalCount = countResult.length > 0 ? countResult[0].total : 0;
             return {
-                learningPlans: learningPlans,
-                totalCount: learningPlans?.length,
+                learningPlans,
+                totalCount
             };
+
         } catch (error) {
-        throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
     getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
