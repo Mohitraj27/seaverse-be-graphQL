@@ -1213,12 +1213,27 @@ module.exports = {
                             }));
 
                             // Prepare email data for insertion into SQLite queue
-                            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                                receiverEmail: decrypt(user.email),
-                                firstName: decrypt(user.firstName),
-                                courses: coursesDataMap,
-                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                            }));
+                            const emailData = notEnrolledUsers
+                                .filter(user => user.isEmailNotification)
+                                .map(user => {
+                                    let firstName = "";
+                                    let email = "";
+
+                                    if (user.firstName) {
+                                        firstName = decrypt(user.firstName, true);
+                                    }
+
+                                    if (user.email) {
+                                        email = decrypt(user.email, false);
+                                    }
+
+                                    return {
+                                        receiverEmail: email,
+                                        firstName: firstName,
+                                        courses: coursesDataMap,
+                                        isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                                    };
+                                });
 
                             // Insert emails into the course_emails table
                             SqliteEmailHelper.insertCourseEmails(emailData);
@@ -1268,9 +1283,19 @@ module.exports = {
                                     courseImage: imageUrlMap.get(training._id.toString())
                                 }));
 
+                                let decryptedFirstName = '';
+                                let decryptedEmail = '';
+
+                                if (user?.firstName) {
+                                    decryptedFirstName = decrypt(user.firstName);
+                                }
+                                if (user?.email) {
+                                    decryptedEmail = decrypt(user.email);
+                                }
+
                                 emailData.push({
-                                    receiverEmail: user.email,
-                                    firstName: user.firstName,
+                                    receiverEmail: decryptedFirstName,
+                                    firstName: decryptedEmail,
                                     isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                                     courses
                                 });
@@ -1390,10 +1415,19 @@ module.exports = {
                     createdBy: userInfo,
                 });
 
+                let decryptedFirstName;
+                let decryptedLastName;
+
+                if (userInfo?.firstName) {
+                    decryptedFirstName = decrypt(userInfo.firstName);
+                }
+                if (userInfo?.lastName) {
+                    decryptedLastName = decrypt(userInfo.lastName);
+                }
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",
-                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName || ''}.`,
+                    body: `You have been enrolled in a new course by ${decryptedFirstName} ${decryptedLastName || ''}.`,
                     content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
                     webUrl: ""
                 });
@@ -1944,12 +1978,22 @@ module.exports = {
                             }));
 
                             // Prepare email data for insertion into SQLite queue
-                            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                                receiverEmail: decrypt(user.email),
-                                firstName: decrypt(user.firstName),
-                                courses: coursesDataMap,
-                                isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
-                            }));
+                            const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => {
+                                let decryptedEmail = '';
+                                let decryptedFirstName = '';
+                                if (user.email) {
+                                    decryptedEmail = decrypt(user.email);
+                                }
+                                if (user.firstName) {
+                                    decryptedFirstName = decrypt(user.firstName, true);
+                                }
+                                return {
+                                    receiverEmail: decryptedEmail,
+                                    firstName: decryptedFirstName,
+                                    courses: coursesDataMap,
+                                    isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
+                                };
+                            });
 
                             // Insert emails into the course_emails table
                             SqliteEmailHelper.insertCourseEmails(emailData);
@@ -1999,9 +2043,18 @@ module.exports = {
                                     courseImage: imageUrlMap.get(training._id.toString())
                                 }));
 
+                                let decryptedFirstName = '';
+                                let decryptedEmail = '';
+
+                                if (user?.firstName) {
+                                    decryptedFirstName = decrypt(user.firstName);
+                                }
+                                if (user?.email) {
+                                    decryptedEmail = decrypt(user.email);
+                                }
                                 emailData.push({
-                                    receiverEmail: decrypt(user.email),
-                                    firstName: decrypt(user.firstName),
+                                    receiverEmail: decryptedFirstName,
+                                    firstName: decryptedEmail,
                                     isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                                     courses
                                 });
@@ -2119,10 +2172,19 @@ module.exports = {
                     createdBy: userInfo,
                 });
 
+                let decryptedFirstName = '';
+                let decryptedLastName = '';
+                if (userInfo?.firstName) {
+                    decryptedFirstName = decrypt(userInfo.firstName, true);
+                }
+                if (userInfo?.lastName) {
+                    decryptedLastName = decrypt(userInfo.lastName, true);
+                }
+
                 await sendNotifications({
                     userIds: userObjectIds,
                     title: "Course Enrollment",
-                    body: `You have been enrolled in a new course by ${userInfo.firstName} ${userInfo.lastName || ''}.`,
+                    body: `You have been enrolled in a new course by ${decryptedFirstName || ''} ${decryptedLastName || ''}.`,
                     content: { type: "COURSE_ENROLLMENT", courseIds: input.trainings },
                     webUrl: ""
                 });

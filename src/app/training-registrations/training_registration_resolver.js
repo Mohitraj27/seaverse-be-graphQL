@@ -331,7 +331,7 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
-                { $unwind: { path: "$training", preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: "$training", preserveNullAndEmptyArrays: false } },
                 {
                     $match: {
                         ...filterConditions,
@@ -1875,6 +1875,18 @@ module.exports.mutations = {
                 path: 'user',
                 select: 'firstName lastName email'
             });
+
+            let decryptedFirstName = '';
+            let decryptedEmail = '';
+
+            if(overallTrainingProgressUsers[0].user.firstName){
+                decryptedFirstName = decrypt(overallTrainingProgressUsers[0].user.firstName);
+            }
+
+            if(overallTrainingProgressUsers[0].user.email){
+                decryptedEmail = decrypt(overallTrainingProgressUsers[0].user.email);
+            }
+            
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
@@ -1942,14 +1954,14 @@ module.exports.mutations = {
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             if (overallTrainingProgressUsers[0].user.isEmailNotification) {
                 const emailContent = courseCompletion({
-                    firstName: overallTrainingProgressUsers[0].user.firstName,
+                    firstName: decryptedFirstName,
                     trainingTitle: trainingData[0].title[0]?.value,
                     durationHours: trainingData[0].durationHours,
                     courseId: trainingData[0]._id,
                     courseImage: courseImages,
                 });
                 sendEmail({
-                    receiverEmail: overallTrainingProgressUsers[0].user.email,
+                    receiverEmail: decryptedEmail,
                     subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                     htmlContent: emailContent,
                 });
