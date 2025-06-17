@@ -267,6 +267,7 @@ const searchEmployeesFromElastic = async ({
       size: limit,
       sort,
       query,
+      track_total_hits: true,
     },
   });
 
