@@ -90,6 +90,7 @@ module.exports = {
         }
     },
     sendEmail: async ({ receiverEmail, subject, htmlContent }) => {
+        return true
         if (
             receiverEmail?.trim()?.length &&
             subject?.trim()?.length &&
