@@ -571,19 +571,43 @@ module.exports.mutations = {
         return savedContent;
     },
 
-    updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
+    updateTrainingModuleContentStatus: async ({ ids, currentStatus, newStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
 
-        for (const id of ids) {
-            const content = await TrainingModuleContent.findOne({
-                _id: id,
-                subscriber: subscriberId,
-                isUpdated: { $ne: true },
-            });
+        const filter = {
+            subscriber: subscriberId,
+            isUpdated: { $ne: true },
+            ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {}),
+        };
+        if(currentStatus){
+            filter.contentStatus = currentStatus;
+        }   
 
-            if (!content) {
+        const contents = await TrainingModuleContent.find(filter);
+
+        if (!contents || contents.length === 0) {
+            return {
+                success: false,
+                message: "No content items found to update.",
+                updatedContents,
+                invalidUpdates
+            };
+        }
+
+        const bulkOps = [];
+
+        const validStatusTransitions = {
+            [Content_status.PUBLISHED]: [Content_status.RETIRED],
+            [Content_status.DRAFT]: [Content_status.PUBLISHED],
+            [Content_status.RETIRED]: [Content_status.PUBLISHED]
+        };
+
+        for (const content of contents) {
+            const currentStatus = content.contentStatus;
+
+            if (currentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
                 invalidUpdates.push({
                     id: id,
                     reason: "Content not found."
@@ -655,10 +679,56 @@ module.exports.mutations = {
         };
     },
 
-    deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
+    deleteTrainingModuleContentByIDs: async ({ ids , currentStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
         const successfullyDeleted = [];
+
+        if (!Array.isArray(ids)) {
+            return {
+                success: false,
+                message: "Invalid request. 'ids' must be an array.",
+                invalidDeletes: [],
+            };
+        }
+
+        if (ids.length === 0) {
+            try {
+                const contents = await TrainingModuleContent.find({
+                    subscriber: subscriberId,
+                    contentStatus: currentStatus,
+                    isDeleted: { $ne: true }, 
+                });
+                if (contents.length === 0) {
+                    return {
+                        success: false,
+                        message: "No RETIRED content found to delete.",
+                        invalidDeletes: [],
+                    };
+                }
+                for (const content of contents) {
+                    content.isDeleted = true;
+                    content.updatedAt = new Date();
+                    content.updatedBy = userId;
+                    content.modifiedDate = new Date();
+                    await content.save();
+                    successfullyDeleted.push(content);
+                }
+
+                return {
+                    success: true,
+                    message: `${successfullyDeleted.length} RETIRED content item(s) deleted successfully.`,
+                    invalidDeletes: [],
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    message: "Error occurred while deleting RETIRED content.",
+                    invalidDeletes: [{ reason: error.message }],
+                };
+            }
+        }
+
         for (const id of ids) {
             try {
                 const content = await TrainingModuleContent.findOne({
