@@ -39,7 +39,7 @@ const Roles = require("../../util/role.json");
 const AWS_HELPER = require("../../util/aws_helper");
 const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const { decrypt, encrypt}= require('../../util/encryption_helper');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
 const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
@@ -355,14 +355,14 @@ const enrolUserVerificationHelper = async (inputUsers, existingTrainings, fromUn
             const existUser = userMap.get(user.email);
 
             if (!Validator.isEmail(decrypt(user.email) ?? '')) {
-                invalidEmails.push(decrypt(user.email));
+                invalidEmails.push(user.email);
             } else if (!user.isRegistered) {
-                unRegEmails.push(decrypt(user.email));
+                unRegEmails.push(user.email);
                 if (fromUnenroll) {
                     remainingUsers.push(user);
                 }
             } else if (!existUser) {
-                invalidEmails.push(decrypt(user.email));
+                invalidEmails.push(user.email);
             } else {
                 remainingUsers.push(user);
             }
@@ -1048,7 +1048,7 @@ module.exports = {
                         }
 
                         if (verifiedUsers.invalidEmails.length > 0) {
-                            throw CustomError(ErrorName.INVALID_EMAIL);
+                            throw CustomError(ErrorName.INVALID_EMAIL, 'Email is not valid for enrollment!');
                         }
 
                     }
@@ -1168,6 +1168,7 @@ module.exports = {
                         }
                         const trainingsData = await Training.find({ _id: { $in: input.trainings } });
                         const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
+
                         // users.forEach(async user => {
                         //     const isAdmin = user?.subRoles?.includes(subRoleAdminId?._id);
                         //     const coursesData = await Promise.all(
@@ -1213,8 +1214,8 @@ module.exports = {
 
                             // Prepare email data for insertion into SQLite queue
                             const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                                receiverEmail: user.email,
-                                firstName: user.firstName,
+                                receiverEmail: decrypt(user.email),
+                                firstName: decrypt(user.firstName),
                                 courses: coursesDataMap,
                                 isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                             }));
@@ -1432,7 +1433,7 @@ module.exports = {
                     const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses, true);
 
                     if (verifiedUsers.invalidEmails.length > 0) {
-                        throw CustomError(ErrorName.INVALID_EMAIL);
+                        throw CustomError(ErrorName.INVALID_EMAIL, 'Email is not valid!');
                     }
 
                     if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
@@ -1775,7 +1776,7 @@ module.exports = {
                         }
 
                         if (verifiedUsers.invalidEmails.length > 0) {
-                            throw CustomError(ErrorName.INVALID_EMAIL);
+                            throw CustomError(ErrorName.INVALID_EMAIL, 'Email is not valid for enroll 1!');
                         }
 
                     }
@@ -1944,8 +1945,8 @@ module.exports = {
 
                             // Prepare email data for insertion into SQLite queue
                             const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => ({
-                                receiverEmail: user.email,
-                                firstName: user.firstName,
+                                receiverEmail: decrypt(user.email),
+                                firstName: decrypt(user.firstName),
                                 courses: coursesDataMap,
                                 isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                             }));
@@ -1999,8 +2000,8 @@ module.exports = {
                                 }));
 
                                 emailData.push({
-                                    receiverEmail: user.email,
-                                    firstName: user.firstName,
+                                    receiverEmail: decrypt(user.email),
+                                    firstName: decrypt(user.firstName),
                                     isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                                     courses
                                 });
@@ -2161,7 +2162,7 @@ module.exports = {
                     const verifiedUsers = await enrolUserVerificationHelper(inputUsers, existingOverallProgresses, true);
 
                     if (verifiedUsers.invalidEmails.length > 0) {
-                        throw CustomError(ErrorName.INVALID_EMAIL);
+                        throw CustomError(ErrorName.INVALID_EMAIL, 'Email is not valid for unenroll!');
                     }
 
                     if (verifiedUsers.alreadyEnrolledEmails.length != userObjectIds.length) {
@@ -2428,7 +2429,7 @@ module.exports = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ?decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {

@@ -3,7 +3,7 @@ const amqp = require('amqplib');
 
 let connection = null;
 let channel = null;
-const connectionUrl = `amqps://seaverse:seaverse-lms@b-075903ef-9a03-4627-9c99-4dd76355d241.mq.ap-south-1.on.aws:5671`
+const connectionUrl = `amqps://seaverse:seaverse-lms@b-3aa1cd35-a840-4b89-9566-5af7f4ccd108.mq.ap-south-1.on.aws:5671`
 // const connectionUrl = process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672';
 const retryInterval = 5000;
 

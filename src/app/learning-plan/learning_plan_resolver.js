@@ -971,6 +971,7 @@ module.exports.queries = {
 
             const detailedPlan = learningPlan[0];
             detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+          
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
@@ -1174,6 +1175,7 @@ module.exports.queries = {
                     });
                 }
             }
+            
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);

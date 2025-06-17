@@ -151,12 +151,12 @@ async function autoenrollmentfromCustomGroup(learningPlans, customGroupId, userI
         })
     );
 }
-    const GROUP_COLLECTION_MAPPING = {
-        custom: Group,
-        designation: Designation, 
-        vessel: Vessel, 
-        vesselType: VesselType, 
-    }
+const GROUP_COLLECTION_MAPPING = {
+    custom: Group,
+    designation: Designation,
+    vessel: Vessel,
+    vesselType: VesselType,
+}
 module.exports.queries = {
     exportGroupToCSV: async ({ groupKind, groupId, autosyncInput }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
@@ -255,7 +255,7 @@ module.exports.queries = {
 
             const data = userDetails?.map(user => ({
                 "First Name": decrypt(user?.firstName),
-                "Last Name": user?.lastName ? decrypt(user?.lastName):'',
+                "Last Name": user?.lastName ? decrypt(user?.lastName) : '',
                 "Email": decrypt(user?.email),
                 "Date Added (UTC)": formatDate(user?.createdAt),
                 // "Date Deleted": "",
@@ -296,7 +296,7 @@ module.exports.queries = {
                     ],
                     notificationType: NotificationType.EXPORT_SUCCESSFUL,
                     notifyAllAdmin: false,
-                    isNotificatonForAdmin : true,
+                    isNotificatonForAdmin: true,
                     notifiers: [userId],
                     employeeNotifiers: [],
                     additionalInfo: [
@@ -332,7 +332,7 @@ module.exports.queries = {
         const { subscriberId } = AuthUser(context);
         try {
             const skip = pageInput?.skip ?? 0;
-            const limit = pageInput?.limit ?? 200000;
+            const limit = pageInput?.limit ?? 50;
 
             let filterConditions = {
                 subscriber: subscriberId,
@@ -404,17 +404,16 @@ module.exports.queries = {
                     totalCount = paginatedGroups.length;
                     break;
             }
+            
             groups = groups.map(group => {
-                const decryptedGroup = { ...group };
-
-                if (decryptedGroup.createdBy) {
-                    decryptedGroup.createdBy = {
-                        ...decryptedGroup.createdBy,
-                        firstName: decryptedGroup.createdBy.firstName ? decrypt(decryptedGroup.createdBy.firstName) : '',
-                        lastName: decryptedGroup.createdBy.lastName ? decrypt(decryptedGroup.createdBy.lastName) : ''
+                if (group?.createdBy) {
+                    group.createdBy = {
+                        ...group?.createdBy,
+                        firstName: group?.createdBy.firstName ? decrypt(group?.createdBy.firstName) : '',
+                        lastName: group?.createdBy.lastName ? decrypt(group?.createdBy.lastName) : ''
                     };
                 }
-                return decryptedGroup;
+                return group;
             });
             return {
                 status: "Success",
@@ -725,7 +724,7 @@ module.exports.queries = {
                 const data = {
                     ...member,
                     firstName: decrypt(member?.firstName),
-                    lastName: member?.lastName ? decrypt(member?.lastName):'',
+                    lastName: member?.lastName ? decrypt(member?.lastName) : '',
                     email: decrypt(member?.email)
                 };
                 return data;
@@ -737,7 +736,7 @@ module.exports.queries = {
             };
         } catch (error) {
             console.error('Error fetching group members:', error);
-            throw CustomError(ErrorName.FAILED_TO_FETCH_GROUP_MEMBERS,error.message);
+            throw CustomError(ErrorName.FAILED_TO_FETCH_GROUP_MEMBERS, error.message);
         }
     },
 
@@ -755,19 +754,18 @@ module.exports.queries = {
             groups: groupData,
         };
     },
-  
+
     getListGroupNames: async ({ input }, context) => {
         const { subscriberId } = AuthUser(context);
-        try
-        {
+        try {
             if (!input?.groups || !Array.isArray(input.groups) || input.groups.length === 0) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Groups and IDs are required");
             }
-    
+
             const finalGroups = [];
 
-            const fetchPromises = input.groups.filter(({ groupType, groupIDs }) =>  Array.isArray(groupIDs) && groupIDs.length > 0
-                ).map(async ({ groupType, groupIDs }) => {
+            const fetchPromises = input.groups.filter(({ groupType, groupIDs }) => Array.isArray(groupIDs) && groupIDs.length > 0
+            ).map(async ({ groupType, groupIDs }) => {
                 if ([groupTypes.role, groupTypes.vesselStatus, groupTypes.owner].includes(groupType)) {
                     const roleGroups = groupIDs.map(id => ({
                         _id: id,
@@ -776,32 +774,32 @@ module.exports.queries = {
                     }));
                     return roleGroups;
                 }
-    
+
                 const Model = GROUP_COLLECTION_MAPPING[groupType];
                 if (!Model) return [];
-    
+
                 const records = await Model.find({
                     _id: { $in: groupIDs },
                     isDeleted: { $ne: true },
                 });
-    
+
                 const groupDataMap = new Map(
                     records.map(group => [
-                    String(group._id),
-                    group.groupName || group.name || group.title,
+                        String(group._id),
+                        group.groupName || group.name || group.title,
                     ])
                 );
-    
+
                 return groupIDs.map(id => ({
                     _id: id,
                     groupName: groupDataMap.get(String(id)),
                     groupType,
                 }));
-                });
-    
+            });
+
             const resolvedGroups = await Promise.all(fetchPromises);
             resolvedGroups.forEach(groupList => finalGroups.push(...groupList));
-    
+
             return {
                 status: "Group Names Fetched Successfully",
                 groups: finalGroups,
@@ -863,35 +861,35 @@ const bulkInsertGroups = async (subscriberId, groupId, groupType, groupData, ses
         return 0;
     }
 };
-    
-  const checkCustomGroupsInActiveLearningPlans = async (activeLearningPlans, customGroupIds) => {
+
+const checkCustomGroupsInActiveLearningPlans = async (activeLearningPlans, customGroupIds) => {
     const customGroupIdStrings = new Set(customGroupIds.map(id => id.toString()))
-  
+
     const isCustomGroupMatch = (groupEntry) => {
-      return ( groupEntry.groupType === groupTypes?.custom && Array.isArray(groupEntry.groupIDs) && groupEntry.groupIDs.some(groupId => {
-          const idToCompare = groupId?.$oid || groupId?.toString();
-          return customGroupIdStrings.has(idToCompare)
+        return (groupEntry.groupType === groupTypes?.custom && Array.isArray(groupEntry.groupIDs) && groupEntry.groupIDs.some(groupId => {
+            const idToCompare = groupId?.$oid || groupId?.toString();
+            return customGroupIdStrings.has(idToCompare)
         })
-      )
+        )
     }
-  
+
     const isAssociated = activeLearningPlans.some(plan => {
-      if (plan?.targetAudience === targetAudience.GROUP_BASED) {
-        return Array.isArray(plan.groupIDs) && plan.groupIDs.some(isCustomGroupMatch)
-      }
-  
-      if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION) {
-        return Array.isArray(plan?.conditionalCustomFields) &&
-          plan?.conditionalCustomFields.some(field => field?.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field?.groupIDs) &&
-            field?.groupIDs.some(isCustomGroupMatch)
-          )
-      }
-      return false;
+        if (plan?.targetAudience === targetAudience.GROUP_BASED) {
+            return Array.isArray(plan.groupIDs) && plan.groupIDs.some(isCustomGroupMatch)
+        }
+
+        if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION) {
+            return Array.isArray(plan?.conditionalCustomFields) &&
+                plan?.conditionalCustomFields.some(field => field?.type_of_Field === typeOfConditionalCustomFieldEnum.GROUP && Array.isArray(field?.groupIDs) &&
+                    field?.groupIDs.some(isCustomGroupMatch)
+                )
+        }
+        return false;
     })
-  
+
     return { isAssociated };
-  }
-  
+}
+
 module.exports.mutations = {
     createOrUpdateGroup: async ({ id, input }, context) => {
 
@@ -1319,52 +1317,53 @@ module.exports.mutations = {
 
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
-    try{
-        let failedDeletions = [];
-        const activeLearningPlans = await LearningPlan.find({status: LearningPlanStatus.ACTIVE,isDeleted: false});
-        if(activeLearningPlans?.length > 0){
-            const { isAssociated } = await checkCustomGroupsInActiveLearningPlans(activeLearningPlans, ids);
-        if (isAssociated) {
-            throw CustomError(ErrorName.CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN, "This group is associated with an active Learning Plan. Deletion is restricted.");
-        }
-        }
-        const getGroups = await Group.find({
-            _id: { $in: ids },
-            subscriber: subscriberId,
-            isManagerDefault: false,
-        });
-
-        if (getGroups.length <= 0) {
-            throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
-        }
-
-        const deletedGroups = getGroups.map(group => {
-            const groupObject = group.toObject();
-            groupObject.isDeleted = true;
-            return new DeletedGroup(groupObject);
-        });
-
-        const deleteGroup = await DeletedGroup.insertMany(deletedGroups);
-
-        if (deleteGroup.length > 0) {
-            const deleteFromGroups = await Group.deleteMany({
+        try {
+            let failedDeletions = [];
+            const activeLearningPlans = await LearningPlan.find({ status: LearningPlanStatus.ACTIVE, isDeleted: false });
+            if (activeLearningPlans?.length > 0) {
+                const { isAssociated } = await checkCustomGroupsInActiveLearningPlans(activeLearningPlans, ids);
+                if (isAssociated) {
+                    throw CustomError(ErrorName.CUSTOM_GROUP_EXIST_FOR_LEARNING_PLAN, "This group is associated with an active Learning Plan. Deletion is restricted.");
+                }
+            }
+            const getGroups = await Group.find({
                 _id: { $in: ids },
                 subscriber: subscriberId,
                 isManagerDefault: false,
             });
 
-            if (deleteFromGroups) {
-                return {
-                    success: true,
-                    message: `${deleteGroup.length} group(s) deleted successfully.`,
-                    failedDeletions,
-                };
+            if (getGroups.length <= 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
             }
-        } else {
-            throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
-        }}
-        catch(error){
-         throw CustomError(ErrorName.FAILED_TO_DELETE_CUSTOM_GROUP, error.message);
+
+            const deletedGroups = getGroups.map(group => {
+                const groupObject = group.toObject();
+                groupObject.isDeleted = true;
+                return new DeletedGroup(groupObject);
+            });
+
+            const deleteGroup = await DeletedGroup.insertMany(deletedGroups);
+
+            if (deleteGroup.length > 0) {
+                const deleteFromGroups = await Group.deleteMany({
+                    _id: { $in: ids },
+                    subscriber: subscriberId,
+                    isManagerDefault: false,
+                });
+
+                if (deleteFromGroups) {
+                    return {
+                        success: true,
+                        message: `${deleteGroup.length} group(s) deleted successfully.`,
+                        failedDeletions,
+                    };
+                }
+            } else {
+                throw CustomError(ErrorName.NOT_FOUND, "Groups not found");
+            }
+        }
+        catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_DELETE_CUSTOM_GROUP, error.message);
         }
     },
 };

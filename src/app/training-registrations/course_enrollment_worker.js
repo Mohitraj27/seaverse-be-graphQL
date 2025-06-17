@@ -32,7 +32,7 @@ const processMessage = async (channel, message) => {
         console.log(`Job ${jobId} completed in ${processingTime}ms`);
 
     } catch (error) {
-        console.error('Error processing CSV import:', error);
+        console.error('Error processing course enrollment:', error);
 
         // Handle retry logic
         const retryCount = (message.properties.headers['x-retry-count'] || 0) + 1;
@@ -93,7 +93,7 @@ const startWorker = async () => {
         await setupQueues();
         const channel = await getChannel();
 
-        console.log('CSV Import Worker started, waiting for messages...');
+        console.log('Course enrollment Worker started, waiting for messages...');
 
         const result = await channel.consume(
             QUEUES.COURSE_ENROLLMENT,
