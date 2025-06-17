@@ -206,8 +206,8 @@ module.exports = {
         uploadTrainingModuleContentVideo(input: TrainingModuleContentInput!,video: Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentFiles(input: TrainingModuleContentInput!,file : Upload!, thumbnail: Upload): TrainingModuleContent!
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
-        updateTrainingModuleContentStatus(ids: [ID!], newStatus: TrainingModuleContentStatus!): UpdateStatusResult!
-        deleteTrainingModuleContentByIDs(ids: [ID!]): DeleteResponse!
+        updateTrainingModuleContentStatus(ids: [ID!], currentStatus: TrainingModuleContentStatus, newStatus: TrainingModuleContentStatus): UpdateStatusResult!
+        deleteTrainingModuleContentByIDs(ids: [ID!], currentStatus: TrainingModuleContentStatus): DeleteResponse!
         createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],subtitles: [Upload], videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],subtitles: [Upload], videoMetas: [VideoMetaInput],deletedVideos: [ID],deletedSubtitles: [ID], audio: Upload, file: Upload): UpdateContentResponse!
