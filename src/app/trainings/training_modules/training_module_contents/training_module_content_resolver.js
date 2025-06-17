@@ -250,26 +250,26 @@ module.exports.queries = {
                 totalCount: 0,
             };
         }
-          const decryptedContents = contents?.contents?.map((content) => {
+        const decryptedContents = contents?.contents?.map((content) => {
             const decryptedCreatedBy = {
                 ...content.createdBy,
-                firstName: decrypt(content.createdBy.firstName),
-                lastName: decrypt(content.createdBy.lastName),
+                firstName: content.createdBy.firstName !== 'Unknown' ? decrypt(content.createdBy.firstName) : 'Unknown',
+                lastName: content.createdBy.lastName && content.createdBy.lastName !== 'User' ? decrypt(content.createdBy.lastName) : 'User',
             };
             const decryptedUpdatedBy = {
                 ...content.updatedBy,
-                firstName: decrypt(content.updatedBy.firstName),
-                lastName: content.updatedBy.lastName ? decrypt(content.updatedBy.lastName): '',
+                firstName: content.updatedBy.firstName !== 'Unknown' ? decrypt(content.updatedBy.firstName) : 'Unknown',
+                lastName: content.updatedBy.lastName && content.updatedBy.lastName !== 'User' ? decrypt(content.updatedBy.lastName) : 'User',
             };
             return {
                 ...content,
                 createdBy: decryptedCreatedBy,
                 updatedBy: decryptedUpdatedBy,
             };
-          });
+        });
 
 
-        
+
         return {
             contents: decryptedContents,
             totalCount: totalCountBeforePagination,

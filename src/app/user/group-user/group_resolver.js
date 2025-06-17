@@ -409,8 +409,8 @@ module.exports.queries = {
                 if (group?.createdBy) {
                     group.createdBy = {
                         ...group?.createdBy,
-                        firstName: group?.createdBy.firstName ? decrypt(group?.createdBy.firstName) : '',
-                        lastName: group?.createdBy.lastName ? decrypt(group?.createdBy.lastName) : ''
+                        firstName: group?.createdBy.firstName && group?.createdBy.firstName !== "Unknown" ? decrypt(group?.createdBy.firstName) : 'Unknown',
+                        lastName: group?.createdBy.lastName && group?.createdBy.lastName !== "User" ? decrypt(group?.createdBy.lastName) : 'User',
                     };
                 }
                 return group;
