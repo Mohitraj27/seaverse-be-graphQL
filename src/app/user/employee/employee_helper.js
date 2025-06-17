@@ -459,9 +459,10 @@ async function enrollUsers(enrollDataArray, context) {
                 console.timeEnd('Batch Insert');
             } catch (err) {
                 console.error('❌ Error inserting batches:', err);
-            } finally {
-                await client.close();
-            }
+            } 
+            // finally {
+            //     await client.close();
+            // }
 
             return allEnrollments;
         };
@@ -1563,7 +1564,10 @@ const sendNotificationOnBULK = async notificationData => {
         if (notification?.updatedAt) {
             notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
         }
-        await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
+        // await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
+        await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, {
+            onNotification: createdNotification,
+        });
 
 
     } catch (error) {
