@@ -591,7 +591,7 @@ module.exports.mutations = {
         return savedContent;
     },
 
-    updateTrainingModuleContentStatus: async ({ ids, newStatus }, context) => {
+    updateTrainingModuleContentStatus: async ({ ids, currentStatus, newStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidUpdates = [];
         const updatedContents = [];
@@ -599,8 +599,11 @@ module.exports.mutations = {
         const filter = {
             subscriber: subscriberId,
             isUpdated: { $ne: true },
-            ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {})
+            ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {}),
         };
+        if(currentStatus){
+            filter.contentStatus = currentStatus;
+        }   
 
         const contents = await TrainingModuleContent.find(filter);
 
@@ -676,10 +679,56 @@ module.exports.mutations = {
         };
     },
 
-    deleteTrainingModuleContentByIDs: async ({ ids }, context) => {
+    deleteTrainingModuleContentByIDs: async ({ ids , currentStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
         const successfullyDeleted = [];
+
+        if (!Array.isArray(ids)) {
+            return {
+                success: false,
+                message: "Invalid request. 'ids' must be an array.",
+                invalidDeletes: [],
+            };
+        }
+
+        if (ids.length === 0) {
+            try {
+                const contents = await TrainingModuleContent.find({
+                    subscriber: subscriberId,
+                    contentStatus: currentStatus,
+                    isDeleted: { $ne: true }, 
+                });
+                if (contents.length === 0) {
+                    return {
+                        success: false,
+                        message: "No RETIRED content found to delete.",
+                        invalidDeletes: [],
+                    };
+                }
+                for (const content of contents) {
+                    content.isDeleted = true;
+                    content.updatedAt = new Date();
+                    content.updatedBy = userId;
+                    content.modifiedDate = new Date();
+                    await content.save();
+                    successfullyDeleted.push(content);
+                }
+
+                return {
+                    success: true,
+                    message: `${successfullyDeleted.length} RETIRED content item(s) deleted successfully.`,
+                    invalidDeletes: [],
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    message: "Error occurred while deleting RETIRED content.",
+                    invalidDeletes: [{ reason: error.message }],
+                };
+            }
+        }
+
         for (const id of ids) {
             try {
                 const content = await TrainingModuleContent.findOne({
