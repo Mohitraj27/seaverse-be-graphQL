@@ -577,7 +577,10 @@ module.exports.queries = {
     getUsersAndAutoSyncedGroups: async ({ search }, context) => {
 
         const { subscriberId, role } = AuthUser(context);
-
+        let encryptedSearch = '';
+        if (search) {
+            encryptedSearch = encrypt(search.trim());
+        }
         if (role && role === Role.LEARNER) {
             throw CustomError(ErrorName.FORBIDDEN);
         }
@@ -589,8 +592,8 @@ module.exports.queries = {
                     {
                         $match: {
                             $or: [
-                                { firstName: { $regex: search, $options: 'i' } },
-                                { lastName: { $regex: search, $options: 'i' } },
+                                { firstName: { $regex: encryptedSearch, $options: 'i' } },
+                                { lastName: { $regex: encryptedSearch, $options: 'i' } },
                             ],
                         },
                     },
