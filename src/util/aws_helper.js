@@ -90,12 +90,12 @@ module.exports = {
         }
     },
     sendEmail: async ({ receiverEmail, subject, htmlContent }) => {
+        return true
         if (
             receiverEmail?.trim()?.length &&
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
-            return true;
             try {
                 const ses = new AWS.SES({
                     accessKeyId: process.env.AWS_ACCESS_KEY,
