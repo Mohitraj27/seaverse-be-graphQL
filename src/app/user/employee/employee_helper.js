@@ -420,8 +420,13 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP insertion')
         let allEnrollments = [];
 
+        const getDbNameFromUri = (uri) => {
+            return uri?.split('/').pop()?.split('?')[0] || null;
+        };
+
         const MONGO_URI = process.env.MONGO_DB;
-        const DB_NAME = 'seaverse';
+        const DB_NAME = getDbNameFromUri(MONGO_URI);
+        console.log('DB_NAME', DB_NAME);
         const COLLECTION_NAME = 'overalltrainingprogresses';
         const BATCH_SIZE = 200;
 
