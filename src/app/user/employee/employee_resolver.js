@@ -82,12 +82,12 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 
-const { setupQueues, publishToQueue, publishToExchange,publishMessagesOneByOne } = require('./rabbitMq_service');
+const { setupQueues, publishToQueue, publishToExchange, publishMessagesOneByOne } = require('./rabbitMq_service');
 const { EXCHANGES } = require('../../../util/rabbitmq_helper');
 const { ImportJob } = require("./import_job_model");
 
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
-const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch,updateByQueryToElasticSearch,searchEmployeesFromElastic  } = require('../../../util/elastic_helper');
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -191,56 +191,56 @@ function formatDateWithSuffix(date) {
 }
 
 function mapElasticToOldAPI(elasticResults) {
-  return {
-    totalCount: elasticResults.total,
-    totalEmployees: elasticResults.total,
-    employees: elasticResults.employees.map(emp => {
-      return {
-        user: {
-          _id: emp.userId || null,
-          firstName: emp.firstName || null,
-          lastName: emp.lastName || null,
-          civilIdOrPassport: emp.civilIdOrPassport || null,
-          email: emp.email || null,
-          role: emp.role || null,
-          lastLoginAt: new Date(emp.lastLoginAt).getTime() || null,
-          isRegistered: emp.isRegistered || false,
-          vesselStatus: emp.vesselStatus || null,
-          country: emp.country || null,
-          subRoles: emp.subRoles || [],
-          isResetPasswordDialog: emp.isResetPasswordDialog || false,
-          __typename: "User",
-        },
-        empDesignation: emp.empDesignation
-          ? {
-              _id: emp.empDesignation,
-              name: emp.designation || null,
-              __typename: "Designation",
-            }
-          : null,
-        userVessels: emp.vesselName
-          ? {
-              _id: emp.vesselId || null,
-              vesselStatus: emp.vesselStatus || null,
-              vesselDetails: {
-                _id: emp.vesselId || null,
-                name: emp.vesselName || null,
-                isActive: emp.vesselIsActive || false,
-                typeOfVesselDetails: {
-                  _id: emp.tyepOfVesselId || null,  // note typo? "tyepOfVesselId"
-                  name: emp.typeOfVesselName || null,
-                  __typename: "TypeOfVesselDetails",
+    return {
+        totalCount: elasticResults.total,
+        totalEmployees: elasticResults.total,
+        employees: elasticResults.employees.map(emp => {
+            return {
+                user: {
+                    _id: emp.userId || null,
+                    firstName: emp.firstName || null,
+                    lastName: emp.lastName || null,
+                    civilIdOrPassport: emp.civilIdOrPassport || null,
+                    email: emp.email || null,
+                    role: emp.role || null,
+                    lastLoginAt: new Date(emp.lastLoginAt).getTime() || null,
+                    isRegistered: emp.isRegistered || false,
+                    vesselStatus: emp.vesselStatus || null,
+                    country: emp.country || null,
+                    subRoles: emp.subRoles || [],
+                    isResetPasswordDialog: emp.isResetPasswordDialog || false,
+                    __typename: "User",
                 },
-                __typename: "VesselDetails",
-              },
-              __typename: "userVessels",
-            }
-          : null,
-        __typename: "Employee",
-      };
-    }),
-    __typename: "EmployeeList",
-  };
+                empDesignation: emp.empDesignation
+                    ? {
+                        _id: emp.empDesignation,
+                        name: emp.designation || null,
+                        __typename: "Designation",
+                    }
+                    : null,
+                userVessels: emp.vesselName
+                    ? {
+                        _id: emp.vesselId || null,
+                        vesselStatus: emp.vesselStatus || null,
+                        vesselDetails: {
+                            _id: emp.vesselId || null,
+                            name: emp.vesselName || null,
+                            isActive: emp.vesselIsActive || false,
+                            typeOfVesselDetails: {
+                                _id: emp.tyepOfVesselId || null,  // note typo? "tyepOfVesselId"
+                                name: emp.typeOfVesselName || null,
+                                __typename: "TypeOfVesselDetails",
+                            },
+                            __typename: "VesselDetails",
+                        },
+                        __typename: "userVessels",
+                    }
+                    : null,
+                __typename: "Employee",
+            };
+        }),
+        __typename: "EmployeeList",
+    };
 }
 
 
@@ -1283,20 +1283,20 @@ module.exports.queries = {
 
             let subRoleAdminId = null;
             if (filterInput?.role?.includes("ADMIN")) {
-                subRoleAdminId = await  SubRole.findOne({
+                subRoleAdminId = await SubRole.findOne({
                     name: "ADMIN"
                 }).select("_id").lean();
                 if (subRoleAdminId) {
                     subRoleAdminId = subRoleAdminId._id;
-                }   
+                }
             }
 
             const elasticResults = await searchEmployeesFromElastic({
                 indexName: "users",
                 filterInput: filterInput,
                 subRoleAdminId: subRoleAdminId,
-                lastSeenStart:startDate,
-                lastSeenEnd:endDate,
+                lastSeenStart: startDate,
+                lastSeenEnd: endDate,
                 sortField: sortElasticField,
                 sortOrder: sortElasticOrder,
                 skip: skip,
@@ -2061,11 +2061,11 @@ module.exports.queries = {
                 return { totalCount: 0 };
             }
 
-            const decryptedResult = result?.map((item)=>{
-                return{
+            const decryptedResult = result?.map((item) => {
+                return {
                     ...item.toObject(),
                     firstName: decrypt(item.firstName) || null,
-                    lastName: item.lastName ? decrypt(item.lastName):'' || null,
+                    lastName: item.lastName ? decrypt(item.lastName) : '' || null,
                     email: decrypt(item.email) || null
                 }
             })
@@ -2084,7 +2084,7 @@ module.exports.queries = {
     },
     getEmailsofUser: async ({ input }, context) => {
         const { userId } = input;
-    
+
         try {
             if (!userId || !Array.isArray(userId) || userId.length === 0) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "UserId list is required");
@@ -2096,7 +2096,7 @@ module.exports.queries = {
                 email: user.email
             }));
 
-        return emailDetails;
+            return emailDetails;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_EMAIL, `${error}`);
         }
@@ -2277,10 +2277,10 @@ const changeRegisterEmployees = async ({ input }, context) => {
 
             try {
                 await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
-                terms: {
-                    userId: input.users  // input.users is an array of IDs
-                }
-            });
+                    terms: {
+                        userId: input.users  // input.users is an array of IDs
+                    }
+                });
             } catch (error) {
                 throw error;
             }
@@ -2314,10 +2314,10 @@ const changeRegisterEmployees = async ({ input }, context) => {
 
             try {
                 await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
-                terms: {
-                    userId: input.users  // input.users is an array of IDs
-                }
-            });
+                    terms: {
+                        userId: input.users  // input.users is an array of IDs
+                    }
+                });
             } catch (error) {
                 throw error;
             }
@@ -2392,7 +2392,7 @@ const manageRole = async ({ input }, context) => {
             { $set: { role: input.assignType } }
         );
         operationType = `Assigned role ${input.assignType}`;
-        notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`;
+        notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`;
     } else if (input.change === "Remove") {
         if (!input.removeType) throw CustomError(ErrorName.REMOVETYPE_ERROR);
 
@@ -2417,21 +2417,21 @@ const manageRole = async ({ input }, context) => {
             console.log("input.users", input.users);
             try {
                 await updateByQueryToElasticSearch(
-                'users',
-                `
+                    'users',
+                    `
                     ctx._source.subRoles = [];
                     ctx._source.roleAssignmentDate = null;
                 `,
-                {
-                    bool: {
-                    must: [
-                        { terms: { userId: input.users } },
-                        { term: { superAdmin: false } },
-                        { term: { "role.keyword": "LEARNER" } }
-                    ]
+                    {
+                        bool: {
+                            must: [
+                                { terms: { userId: input.users } },
+                                { term: { superAdmin: false } },
+                                { term: { "role.keyword": "LEARNER" } }
+                            ]
+                        }
                     }
-                }
-            );  
+                );
             } catch (error) {
                 throw error;
             }
@@ -2493,13 +2493,13 @@ const manageRole = async ({ input }, context) => {
                 // const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo, context);
             }
             operationType = "Removed Roles for LEARNER";
-            notificationMessage = `Your Roles have been removed by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`;
+            notificationMessage = `Your Roles have been removed by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`;
         }
     } else if (input.change === "Delete") {
         // updateUserRole = await EmployeeHelper.deleteUsers(input.users);
         updateUserRole = await EmployeeHelper.softDeleteUsers(input.users);
         operationType = "Deleted users";
-        notificationMessage = `Your account has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`;
+        notificationMessage = `Your account has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`;
     } else {
         throw CustomError(ErrorName.VALIDATION_ERROR);
     }
@@ -2514,7 +2514,7 @@ const manageRole = async ({ input }, context) => {
                 message: [
                     {
                         lang: "en",
-                        value: `${decrypt(userInfo.firstName)} ${userInfo.lastName? decrypt(userInfo.lastName):''} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
+                        value: `${decrypt(userInfo.firstName)} ${userInfo.lastName ? decrypt(userInfo.lastName) : ''} has successfully performed the operation: ${operationType} on ${updateUserRole.n} users.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
@@ -2624,7 +2624,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
 
             try {
                 await updateByQueryToElasticSearch(
-                    "users", 
+                    "users",
                     `
                         ctx._source.deleteRequest = false;
                         ctx._source.deleteRequestDate = null;
@@ -2632,7 +2632,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     `,
                     {
                         terms: {
-                        userId: input.users,
+                            userId: input.users,
                         },
                     }
                 );
@@ -2640,7 +2640,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
             } catch (error) {
                 console.error("Error updating delete request in Elasticsearch:", error);
                 throw CustomError(ErrorName.FAILED, "Failed to update delete request in Elasticsearch");
-                
+
             }
 
             if (rejectDeleteRequest.nModified > 0) {
@@ -2662,7 +2662,7 @@ const respondToDeleteRequest = async ({ input }, context) => {
                                 email: user.email,
                             },
                             action: "rejected",
-                            message: `Admin ${decrypt(userInfo.firstName)} ${userInfo.lastName? decrypt(userInfo.lastName):''} has rejected your delete request.`,
+                            message: `Admin ${decrypt(userInfo.firstName)} ${userInfo.lastName ? decrypt(userInfo.lastName) : ''} has rejected your delete request.`,
                             createdBy: userInfo,
                             icon: notificationiconEnum.DELETE_REQUEST
                         });
@@ -2671,17 +2671,17 @@ const respondToDeleteRequest = async ({ input }, context) => {
                     }
 
                     if (updateDeleteRequestHistory) {
-                            const sendmailforApproval = await aws_helper.sendEmail({
-                                receiverEmail: userHistoryData[0]?.email,
-                                subject: 'Delete request REJECTED',
-                                htmlContent: DeleteRequestRejected({
-                                    firstName: userHistoryData[0]?.firstName,
-                                })
-                            });
+                        const sendmailforApproval = await aws_helper.sendEmail({
+                            receiverEmail: decrypt(userHistoryData?.[0]?.email),
+                            subject: 'Delete request REJECTED',
+                            htmlContent: DeleteRequestRejected({
+                                firstName: decrypt(userHistoryData?.[0]?.firstName),
+                            })
+                        });
 
-                            if (!sendmailforApproval) {
-                                throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
-                            }
+                        if (!sendmailforApproval) {
+                            throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
+                        }
                     }
                 }
 
@@ -3308,7 +3308,7 @@ module.exports.mutations = {
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
                     isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
-                    enrolledCourses : 0,
+                    enrolledCourses: 0,
                     averageCourseProgress: 0.0,
                     indexedAt: new Date(),
                 };
@@ -3316,7 +3316,7 @@ module.exports.mutations = {
                 try {
                     await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
                 } catch (error) {
-                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`) 
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
                 }
             } catch (err) {
                 console.error("Elasticsearch indexing error:", err);
@@ -3703,35 +3703,35 @@ module.exports.mutations = {
             }
 
             try {
-                 await User.updateMany(
-                { _id: { $in: users } },
-                { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
-            );
+                await User.updateMany(
+                    { _id: { $in: users } },
+                    { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+                );
 
-            console.log("Users updated with subrole:", users, subrole);
+                console.log("Users updated with subrole:", users, subrole);
             } catch (error) {
                 throw error
             }
 
             try {
                 await updateByQueryToElasticSearch(
-                'users',
-                `
+                    'users',
+                    `
                     if (!ctx._source.subRoles.contains(params.subrole)) {
                     ctx._source.subRoles.add(params.subrole);
                     }
                     ctx._source.roleAssignmentDate = params.currentDate;
                 `,
-                {
-                    terms: {
-                    userId: users
+                    {
+                        terms: {
+                            userId: users
+                        }
+                    },
+                    {
+                        subrole,
+                        currentDate: new Date().toISOString()
                     }
-                },
-                {
-                    subrole,
-                    currentDate: new Date().toISOString()
-                }
-            );
+                );
             } catch (error) {
                 throw error
             }
@@ -3761,7 +3761,7 @@ module.exports.mutations = {
             });
 
             const assignedUserNames = usersToUpdate?.map(user => decrypt(user?.firstName)).join(", ");
-            const adminNotificationMessage = `${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
+            const adminNotificationMessage = `${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''} has assigned the Role "${validSubRole?.name}" successfully to ${assignedUserNames}.`;
             const adminNotification = {
                 subscriber: subscriberId,
                 title: [{ lang: "en", value: "Role Assigned Successfully" }],
@@ -3791,7 +3791,7 @@ module.exports.mutations = {
                 message: [
                     {
                         lang: "en",
-                        value: `You have been assigned to the Role "${validSubRole.name}" by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`,
+                        value: `You have been assigned to the Role "${validSubRole.name}" by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`,
                     },
                 ],
                 notificationType: NotificationType.ROLE_MANAGEMENT,
