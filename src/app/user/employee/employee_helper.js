@@ -1,3 +1,4 @@
+require("dotenv").config();
 const {
     SendEmail,
     AuthUser,
@@ -419,7 +420,7 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP insertion')
         let allEnrollments = [];
 
-        const MONGO_URI = 'mongodb://localhost:27017';
+        const MONGO_URI = process.env.MONGO_DB;
         const DB_NAME = 'seaverse';
         const COLLECTION_NAME = 'overalltrainingprogresses';
         const BATCH_SIZE = 200;
