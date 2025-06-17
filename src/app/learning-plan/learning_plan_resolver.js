@@ -713,4 +713,192 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
+    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput,sortInput }, context) => {
+        const { role, userId, userInfo, subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        try {
+            const queryConditions = {
+                _id: id,
+                isDeleted: false,
+            };
+            if (queryConditions?.status && Array.isArray(queryConditions.status)) {
+                queryConditions.status = { $in: queryConditions.status };
+            }
+            const learningPlan = await LearningPlan.aggregate([
+                { $match: queryConditions },
+                {
+                    $lookup: {
+                        from: "learningplanassignments",
+                        localField: "_id",
+                        foreignField: "learningPlanId",
+                        as: "assignedLearners"
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "selectCourses",
+                        foreignField: "_id",
+                        as: "courseDetails",
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    title: 1,
+                                    description: 1,
+                                    status: 1,
+                                    images: 1,
+                                    courseId: 1,
+                                    bannerImage: 1,
+                                    coverImage: 1,
+                                    isDeleted: 1
+                                },
+                            },
+                        ],
+                    }
+                },
+                {
+                    $addFields: {
+                        selectCourses: {
+                            $filter: {
+                                input: "$courseDetails",
+                                as: "course",
+                                cond: { $eq: ["$$course.isDeleted", false] }
+                            }
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        assignedLearnerIDs: {
+                            $map: {
+                                input: "$assignedLearners",
+                                as: "assignment",
+                                in: "$$assignment.assignedLearnerId"
+                            }
+                        },
+                        numberOfAssignedLearners: {
+                            $size: { $ifNull: ["$assignedLearners", []] }
+                        },
+                        userObjectIds: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: "$assignedLearners",
+                                        as: "assignment",
+                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] }
+                                    }
+                                },
+                                as: "filteredAssignment",
+                                in: "$$filteredAssignment.assignedLearnerId"
+                            }
+                        }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userObjectIds",
+                        foreignField: "_id",
+                        as: "userDetails",
+                        pipeline: [
+                            /* {
+                                $match: { isDeleted: { $ne: true } }    //for gdpr change of keeping users name only 
+                            }, */
+                            {
+                                $project: {
+                                    _id: 1,
+                                    firstName: 1,
+                                    isRegistered: 1,
+                                    lastName: 1,
+                                    email: 1
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    $addFields: {
+                        userObjectIds: {
+                            $map: {
+                                input: "$userDetails",
+                                as: "user",
+                                in: {
+                                    _id: "$$user._id",
+                                    firstName: "$$user.firstName",
+                                    lastName: "$$user.lastName",
+                                    isRegistered: "$$user.isRegistered",
+                                    email: "$$user.email"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        targetAudience: 1,
+                        groupIDs: 1,
+                        userObjectIds: 1,
+                        status: 1,
+                        audienceSelection: 1,
+                        conditionType: 1,
+                        isDeleted: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        selectCourses: 1,
+                        numberOfAssignedLearners: 1,
+                        conditionalCustomFields: 1,
+                        overallTrainingProgress: 1,
+                        emailNotification: 1,
+                        pushNotification: 1,
+                    }
+                }
+            ]);
+
+            if (!learningPlan.length) {
+                throw CustomError(ErrorName.NOT_FOUND, "Learning Plan not found");
+            }
+
+            const detailedPlan = learningPlan[0];
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+            if (detailedPlan.overallProgress?.users?.length > 0 && sortInput) {
+                const { sortField, sortOrder } = sortInput;
+                const isDesc = sortOrder === -1;
+
+                const sortByEnum = {
+                    Name: (a, b) => {
+                        const nameA = `${a.firstName || ""} ${a.lastName || ""}`.toLowerCase();
+                        const nameB = `${b.firstName || ""} ${b.lastName || ""}`.toLowerCase();
+                        return nameA.localeCompare(nameB);
+                    },
+                    status: (a, b) => {
+                        const order = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
+                        const indexA = order.indexOf(a.status || "");
+                        const indexB = order.indexOf(b.status || "");
+                        return indexA - indexB;
+                    },
+                    progressPercentage: (a, b) => (a.progressPercentage || 0) - (b.progressPercentage || 0),
+                    completedTrainings: (a, b) => (a.completedTrainings || 0) - (b.completedTrainings || 0),
+                    updatedAt: (a, b) => {
+                        const timeA = new Date(a.updatedAt || 0).getTime();
+                        const timeB = new Date(b.updatedAt || 0).getTime();
+                        return timeA - timeB;
+                    }
+                    };
+                const sortFn = sortByEnum[sortField];
+                if (sortFn) {
+                    detailedPlan.overallProgress.users.sort((a, b) => {
+                        const result = sortFn(a, b);
+                        return isDesc ? -result : result;
+                    });
+                }
+            }
+            return detailedPlan;
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
+        }
+    }
 };
