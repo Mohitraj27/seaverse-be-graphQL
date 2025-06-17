@@ -7,7 +7,7 @@ const setupQueues = async () => {
     console.log('Queue cleared');
     
     // Clear all queues
-    await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
+    // await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
     // remove this code before production
     
     console.log('reached inside setupQueues!');
