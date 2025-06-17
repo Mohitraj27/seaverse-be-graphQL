@@ -331,7 +331,7 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
-                { $unwind: { path: "$training", preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: "$training", preserveNullAndEmptyArrays: false } },
                 {
                     $match: {
                         ...filterConditions,
