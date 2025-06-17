@@ -1359,7 +1359,7 @@ const sendDeleteNotification = async (notificationsData) => {
         const notifications = [];
 
         for (const notificationData of notificationsData) {
-            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${notificationData.deletedEmployee?.user?.lastName ? decrypt(notificationData.deletedEmployee?.user?.lastName):''}`;
+            const employeeName = `${decrypt(notificationData.deletedEmployee?.user?.firstName)} ${notificationData.deletedEmployee?.user?.lastName ? decrypt(notificationData.deletedEmployee?.user?.lastName) : ''}`;
             const employeeEmail = decrypt(notificationData.deletedEmployee?.user?.email);
 
             const notification = {
@@ -1412,7 +1412,7 @@ const notifyEmployeeStatusChange = async (notificationsData) => {
     if (notificationsData?.length) {
         const notifications = [];
         for (const notificationData of notificationsData) {
-            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${notificationData.employee?.user?.lastName ? decrypt(notificationData.employee?.user?.lastName):''}`.trim();
+            const employeeName = `${decrypt(notificationData.employee?.user?.firstName)} ${notificationData.employee?.user?.lastName ? decrypt(notificationData.employee?.user?.lastName) : ''}`.trim();
             const employeeEmail = decrypt(notificationData.employee?.user?.email);
 
             const notification = {
@@ -1489,7 +1489,7 @@ const sendEnrollmentNotification = async notificationsData => {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {
@@ -1501,7 +1501,7 @@ const sendEnrollmentNotification = async notificationsData => {
                                 firstName:
                                     decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
+                                    notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName) : '',
                             },
                         },
                     },
@@ -1621,7 +1621,7 @@ const sendNotificationOnCRUD = async notificationData => {
                         user: {
                             _id: notificationData.employee.user._id,
                             firstName: decrypt(notificationData.employee.user.firstName),
-                            lastName: notificationData.employee.user.lastName ? decrypt(notificationData.employee.user.lastName):'',
+                            lastName: notificationData.employee.user.lastName ? decrypt(notificationData.employee.user.lastName) : '',
                         },
                     },
                 },
@@ -1645,7 +1645,7 @@ const sendNotificationOnCRUD = async notificationData => {
                 infoData: {
                     _id: notificationData.createdBy._id,
                     firstName: decrypt(notificationData.createdBy.firstName),
-                    lastName: notifcationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                    lastName: notifcationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                 },
             });
 
@@ -2596,14 +2596,10 @@ const sendBulkEmails = async (passwordEmailList) => {
 
     try {
 
-        if (message.type === 'EMAIL') {
+        SqliteEmailHelper.insertEmails(passwordEmailList);
+        const emails = SqliteEmailHelper.fetchEmailBatch();
 
-            SqliteEmailHelper.insertEmails(passwordEmailList);
-            const emails = SqliteEmailHelper.fetchEmailBatch();
-
-            await sendNodeEmailBulk({ subject: 'Welcome To Seaverse!' });
-
-        }
+        await sendNodeEmailBulk({ subject: 'Welcome To Seaverse!' });
 
     } catch (error) {
         console.error(`Error sending emails`, error);
@@ -4176,20 +4172,28 @@ module.exports = {
 
                     const document = {
                         id: savedEmployee?._id,
-                        employeeId: savedEmployee._id?.toString(),
+                        employeeId: (savedEmployee._id !== null && savedEmployee._id !== undefined)
+                            ? savedEmployee._id.toString()
+                            : undefined,
                         UID: savedEmployee.UID,
                         designation: designation?.name,
-                        empDesignation: savedEmployee.empDesignation?.toString(),
+                        empDesignation: (savedEmployee.empDesignation !== null && savedEmployee.empDesignation !== undefined)
+                            ? savedEmployee.empDesignation.toString()
+                            : undefined,
                         bulkId: savedEmployee.bulkId,
                         regType: savedEmployee.regType,
                         isActive: savedEmployee.isActive,
                         isDeleted: savedEmployee.isDeleted,
-                        subscriber: savedEmployee.subscriber?.toString(),
+                        subscriber: (savedEmployee.subscriber !== null && savedEmployee.subscriber !== undefined)
+                            ? savedEmployee.subscriber.toString()
+                            : undefined,
                         createdAt: savedEmployee.createdAt,
                         updatedAt: savedEmployee.updatedAt,
 
                         // Nested user fields
-                        userId: user?._id?.toString(),
+                        userId: (user?._id !== null && user?._id !== undefined)
+                            ? user._id.toString()
+                            : undefined,
                         firstName: user?.firstName,
                         lastName: user?.lastName,
                         email: user?.email,
@@ -4205,8 +4209,9 @@ module.exports = {
                         isDeleted_user: user?.isDeleted,
                         directSignup: user?.directSignup,
                         contentlanguages: user?.contentlanguages,
-                        currentVessel: user?.currentVessel?.toString(),
-                        vesselStatus: user?.vesselStatus,
+                        currentVessel: (user?.currentVessel !== null && user?.currentVessel !== undefined)
+                            ? user.currentVessel.toString()
+                            : undefined, vesselStatus: user?.vesselStatus,
                         isEmailNotification: user?.isEmailNotification,
                         isPushNotification: user?.isPushNotification,
                         lastLoginAt: user?.lastLoginAt,
@@ -4243,101 +4248,107 @@ module.exports = {
                 console.error(`Error in Autoenrollment Learning Plans ${error.message}`);
             }
 
+            const decryptedPasswordEmailList = passwordEmailList?.map((item) => {
+                return {
+                    ...item,
+                    email: decrypt(item.email),
+                    firstName: decrypt(item.firstName),
+                }
+            })
 
+            if (decryptedPasswordEmailList.length > 0) {
 
-            if (passwordEmailList.length > 0) {
-
-                await sendBulkEmails(passwordEmailList);
+                await sendBulkEmails(decryptedPasswordEmailList);
 
             }
 
 
         });
 
-        // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
+        if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
 
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
-        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "Bulk Import Success",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                creatorId: userInfo._id,
+            })
 
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: userCount,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully created ${insertedUsers.length} user(s)`
-        //     })
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        // }
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: userCount,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `Successfully created ${insertedUsers.length} user(s)`
+            })
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
 
-        // if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
+        if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
 
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
-        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "Bulk Import Success",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
+                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                creatorId: userInfo._id,
+            })
 
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: 0,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
-        //     })
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        // }
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: 0,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+            })
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        }
 
-        // if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
+        if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
 
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
+            await sendNotificationOnBULK({
+                subscriber: subscriberId,
+                action: "Bulk Import Success",
+                createdBy: adminUser?._id,
+                uploadedBy: adminUser?._id,
+                isError: false,
+                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
+                notificationType: 'BULK_IMPORT_SUCCESS',
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                creatorId: userInfo._id,
+            })
 
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
-        //     })
+            const createImportLog = await ImportLog.create({
+                subscriber: subscriberId,
+                usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
+                uploadedBy: userId,
+                fileName: newFileName,
+                filePath: { url: saveCSV },
+                importStatus: "SUCCESS",
+                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
+            })
 
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
-        // }
+        }
 
     },
 

@@ -88,7 +88,7 @@ const sendFailureNotification = async (jobData, error) => {
 
 const startWorker = async () => {
     try {
-        console.log('Reached inside startWorker');
+        
         // await connectDb();
         await setupQueues();
         const channel = await getChannel();
@@ -98,7 +98,6 @@ const startWorker = async () => {
         const result = await channel.consume(
             QUEUES.COURSE_ENROLLMENT,
             async (message) => {
-                console.log('inside function')
                 if (message) {
                     await processMessage(channel, message);
                 }
@@ -108,13 +107,13 @@ const startWorker = async () => {
 
         consumerTag = result.consumerTag;
     } catch (error) {
-        console.error('Error starting CSV Import Worker:', error);
+        console.error('Error starting Course Enrollment Worker:', error);
         process.exit(1);
     }
 };
 
 const stopWorker = async () => {
-    console.log('Stopping CSV Import Worker...');
+    console.log('Stopping Course Enrollment Worker...');
     const channel = await getChannel();
 
     if (consumerTag) {
@@ -122,7 +121,7 @@ const stopWorker = async () => {
     }
 
     await closeDb();
-    console.log('CSV Import Worker stopped');
+    console.log('Course Enrollment Worker stopped');
 };
 
 // Handle graceful shutdown
@@ -139,84 +138,83 @@ process.on('SIGINT', async () => {
 // Start the worker
 startWorker();
 
-function createNotificationWorker() {
-    let channel = null;
-    let consumerTag = null;
+// function createNotificationWorker() {
+//     let channel = null;
+//     let consumerTag = null;
 
-    const start = async () => {
-        channel = await rabbitmqConnection.getChannel();
+//     const start = async () => {
+//         channel = await rabbitmqConnection.getChannel();
 
-        const { consumerTag: tag } = await channel.consume(QUEUES.NOTIFICATION, async (message) => {
-            if (message) {
-                try {
-                    const data = JSON.parse(message.content.toString());
+//         const { consumerTag: tag } = await channel.consume(QUEUES.NOTIFICATION, async (message) => {
+//             if (message) {
+//                 try {
+//                     const data = JSON.parse(message.content.toString());
 
-                    if (data.createdAt) data.createdAt = new Date(data.createdAt).getTime().toString();
-                    if (data.updatedAt) data.updatedAt = new Date(data.updatedAt).getTime().toString();
+//                     if (data.createdAt) data.createdAt = new Date(data.createdAt).getTime().toString();
+//                     if (data.updatedAt) data.updatedAt = new Date(data.updatedAt).getTime().toString();
 
-                    await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, { onNotification: data });
-                    channel.ack(message);
-                } catch (error) {
-                    console.error('Error processing notification:', error);
-                    channel.nack(message, false, false);
-                }
-            }
-        });
+//                     await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, { onNotification: data });
+//                     channel.ack(message);
+//                 } catch (error) {
+//                     console.error('Error processing notification:', error);
+//                     channel.nack(message, false, false);
+//                 }
+//             }
+//         });
 
-        consumerTag = tag;
-        console.log('Notification Worker started');
-    };
+//         consumerTag = tag;
+//         console.log('Notification Worker started');
+//     };
 
-    const stop = async () => {
-        console.log('Stopping Notification Worker...');
-        if (channel && consumerTag) {
-            await channel.cancel(consumerTag);
-            await channel.close();
-        }
-        console.log('Notification Worker stopped');
-    };
+//     const stop = async () => {
+//         console.log('Stopping Notification Worker...');
+//         if (channel && consumerTag) {
+//             await channel.cancel(consumerTag);
+//             await channel.close();
+//         }
+//         console.log('Notification Worker stopped');
+//     };
 
-    return { start, stop };
-}
+//     return { start, stop };
+// }
 
-function createEmailWorker() {
-    let channel = null;
-    let consumerTag = null;
+// function createEmailWorker() {
+//     let channel = null;
+//     let consumerTag = null;
 
-    const start = async () => {
-        channel = await rabbitmqConnection.getChannel();
+//     const start = async () => {
+//         channel = await rabbitmqConnection.getChannel();
 
-        const { consumerTag: tag } = await channel.consume(QUEUES.EMAIL, async (message) => {
-            if (message) {
-                try {
-                    const data = JSON.parse(message.content.toString());
+//         const { consumerTag: tag } = await channel.consume(QUEUES.EMAIL, async (message) => {
+//             if (message) {
+//                 try {
+//                     const data = JSON.parse(message.content.toString());
 
-                    SqliteEmailHelper.insertEmails(data.email);
-                    const emails = SqliteEmailHelper.fetchEmailBatch(); // optional usage check
-                    await sendNodeEmailBulk({ subject: data.subject });
+//                     SqliteEmailHelper.insertEmails(data.email);
+//                     const emails = SqliteEmailHelper.fetchEmailBatch(); // optional usage check
+//                     await sendNodeEmailBulk({ subject: data.subject });
 
-                    channel.ack(message);
-                } catch (error) {
-                    console.error('Error processing email:', error);
-                    channel.nack(message, false, true); // requeue on failure
-                }
-            }
-        });
+//                     channel.ack(message);
+//                 } catch (error) {
+//                     console.error('Error processing email:', error);
+//                     channel.nack(message, false, true); // requeue on failure
+//                 }
+//             }
+//         });
 
-        consumerTag = tag;
-        console.log('Email Worker started');
-    };
+//         consumerTag = tag;
+//         console.log('Email Worker started');
+//     };
 
-    const stop = async () => {
-        console.log('Stopping Email Worker...');
-        if (channel && consumerTag) {
-            await channel.cancel(consumerTag);
-            await channel.close();
-        }
-        console.log('Email Worker stopped');
-    };
+//     const stop = async () => {
+//         console.log('Stopping Email Worker...');
+//         if (channel && consumerTag) {
+//             await channel.cancel(consumerTag);
+//             await channel.close();
+//         }
+//         console.log('Email Worker stopped');
+//     };
 
-    return { start, stop };
-}
-
-module.exports = { createNotificationWorker, createEmailWorker };
+//     return { start, stop };
+// }
+// module.exports = { createNotificationWorker, createEmailWorker };
