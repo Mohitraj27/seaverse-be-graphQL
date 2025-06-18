@@ -1,18 +1,25 @@
-const { MongoClient } = require('mongodb');
+const mongoose = require('mongoose');
 
-const MONGO_URI = 'mongodb://localhost:27017';
-const DB_NAME = 'seaverse';
-const COLLECTION_NAME = 'OverallTrainingProgress';
+let connection;
 
-const run = async () => {
-    const client = new MongoClient(MONGO_URI);
-    await client.connect();
+const connectToMongo = async (uri) => {
+    if (connection) return connection;
 
-    const db = client.db(DB_NAME);
-    const collection = db.collection(COLLECTION_NAME);
+    await mongoose.connect(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    });
 
-    console.log('🚀 Connected to MongoDB');
-    await client.close();
+    connection = mongoose.connection;
+
+    console.log('✅ MongoDB connected to', connection.db.databaseName);
+    return connection;
 };
 
-module.exports = run;
+const getDb = () => {
+    if (!connection) throw new Error('MongoDB not connected yet!');
+    return connection;
+};
+
+module.exports = { connectToMongo, getDb };
+

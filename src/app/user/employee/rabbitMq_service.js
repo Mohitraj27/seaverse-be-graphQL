@@ -3,11 +3,11 @@ const { connect, getChannel, close, QUEUES, EXCHANGES } = require('../../../util
 const setupQueues = async () => {
     const channel = await getChannel();
     // remove this code before production
-    // await channel.purgeQueue('csv_import_queue');
+    //  await channel.purgeQueue('csv_import_queue');
     console.log('Queue cleared');
     
     // Clear all queues
-    // await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
+    //  await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
     // remove this code before production
     
     console.log('reached inside setupQueues!');

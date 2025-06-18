@@ -312,6 +312,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
 });
 
 async function enrollUsers(enrollDataArray, context) {
+    console.log("Enrolling users...");
     try {
         const { userInfo } = AuthUser(context);
         const allUserIds = [];
@@ -420,55 +421,49 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP insertion')
         let allEnrollments = [];
 
-        const getDbNameFromUri = (uri) => {
-            return uri?.split('/').pop()?.split('?')[0] || null;
-        };
-
         const MONGO_URI = process.env.MONGO_DB;
-        const DB_NAME = getDbNameFromUri(MONGO_URI);
-        console.log('DB_NAME', DB_NAME);
-        const COLLECTION_NAME = 'overalltrainingprogresses';
+
+
         const BATCH_SIZE = 200;
 
         const run = async () => {
-            const client = new MongoClient(MONGO_URI);
-
             try {
-                await client.connect();
-                const db = client.db(DB_NAME);
-                const collection = db.collection(COLLECTION_NAME);
+                await mongoose.connect(MONGO_URI, {
+                    useNewUrlParser: true,
+                    useUnifiedTopology: true,
+                });
 
                 console.time('Batch Insert');
 
+                const allEnrollments = [];
                 const insertPromises = [];
 
                 for (let i = 0; i < insertedEnrollments.length; i += BATCH_SIZE) {
                     const batch = insertedEnrollments.slice(i, i + BATCH_SIZE);
-                    insertPromises.push(collection.insertMany(batch, { ordered: false }));
+                    insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
                 const results = await Promise.all(insertPromises);
 
-                console.log('results');
-                // console.log(results);
-
                 for (const result of results) {
-                    allEnrollments.push(...result.ops ?? result.insertedDocs ?? []);
+                    allEnrollments.push(...result); // result is an array of inserted docs
                 }
 
+                // console.log('results', results);
+
                 console.timeEnd('Batch Insert');
+                return allEnrollments;
+
             } catch (err) {
                 console.error('❌ Error inserting batches:', err);
             } 
             // finally {
-            //     await client.close();
+            //     await mongoose.disconnect();
             // }
-
-            return allEnrollments;
         };
 
-        run().then((enrollments) => {
-            console.log('✅ Total Inserted Documents:', enrollments.length);
+        run().then(() => {
+            console.log('✅ Total Inserted Documents:');
         });
 
 
