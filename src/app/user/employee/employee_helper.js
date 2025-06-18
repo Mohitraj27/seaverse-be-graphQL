@@ -1,3 +1,4 @@
+require("dotenv").config();
 const {
     SendEmail,
     AuthUser,
@@ -419,8 +420,13 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP insertion')
         let allEnrollments = [];
 
-        const MONGO_URI = 'mongodb://localhost:27017';
-        const DB_NAME = 'seaverse';
+        const getDbNameFromUri = (uri) => {
+            return uri?.split('/').pop()?.split('?')[0] || null;
+        };
+
+        const MONGO_URI = process.env.MONGO_DB;
+        const DB_NAME = getDbNameFromUri(MONGO_URI);
+        console.log('DB_NAME', DB_NAME);
         const COLLECTION_NAME = 'overalltrainingprogresses';
         const BATCH_SIZE = 200;
 
@@ -453,9 +459,10 @@ async function enrollUsers(enrollDataArray, context) {
                 console.timeEnd('Batch Insert');
             } catch (err) {
                 console.error('❌ Error inserting batches:', err);
-            } finally {
-                await client.close();
-            }
+            } 
+            // finally {
+            //     await client.close();
+            // }
 
             return allEnrollments;
         };
@@ -1557,7 +1564,10 @@ const sendNotificationOnBULK = async notificationData => {
         if (notification?.updatedAt) {
             notification.updatedAt = new Date(notification.updatedAt).getTime().toString();
         }
-        await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
+        // await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, createdNotification);
+        await PubSubHelper.publish(NotificationEvent.ON_NOTIFICATION, {
+            onNotification: createdNotification,
+        });
 
 
     } catch (error) {
