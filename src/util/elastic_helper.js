@@ -1,4 +1,5 @@
-const { Client } = require('@elastic/elasticsearch');
+// const { Client } = require('@elastic/elasticsearch');
+const { Client } = require('@opensearch-project/opensearch');
 const {
   CustomError,
   ErrorName
@@ -7,22 +8,32 @@ const { encrypt } = require('./encryption_helper');
 
 require("dotenv").config();
 
+// const client = new Client({
+//   node: process.env.ELASTICSEARCH_URL,
+//   auth: {
+//     apiKey: process.env.ELASTICSEARCH_API_KEY,
+//   }
+// });
+
 const client = new Client({
-  node: 'https://my-elasticsearch-project-fff538.es.us-east-1.aws.elastic.cloud:443',
+  node: process.env.OPENSEARCH_URL,
   auth: {
-    apiKey: 'MTRaR2Q1Y0JCZ2VjRy1sblhBQUM6a1p2T28yejdPcnExWUE1ZDYtYmJQQQ==',
-  }
+    username: process.env.OPENSEARCH_USERNAME,
+    password: process.env.OPENSEARCH_PASSWORD,
+  },
 });
+
+// console.log("client----------->", client);
 
 
 // Create or Insert Document
 async function indexDocumenttoElasticSearch(indexName, id, document) {
   try {
     const response = await client.index({
-      index: indexName,
-      refresh: true,
       id: id.toString(),
-      document,
+      index: indexName,
+      body: document,
+      refresh: true,
     });
     console.log(`Indexed into ${indexName}:`, response);
   } catch (err) {
@@ -37,7 +48,7 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
       index: indexName,
       refresh: true,
       id: id.toString(),
-      doc: document,
+      body: document,
     });
     console.log(`Updated in ${indexName}:`, response);
   } catch (err) {
@@ -120,11 +131,10 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
     console.log(`Updated documents in ${indexName} by query:`, response);
     return response;
   } catch (err) {
-   /*  throw CustomError(
+    throw CustomError(
       ErrorName.UPDATE_DOC_ELASTIC_SEARCH,
       `Elastic UpdateByQuery Error (${indexName}): ${err}`
-    ); */
-    console.error(`Elastic UpdateByQuery Error (${indexName}): ${err}`);
+    );
   }
 }
 
@@ -146,22 +156,6 @@ const searchEmployeesFromElastic = async ({
   console.log("Search parameters in filter input now came---->", filterInput);
   console.log("sortField:", sortField);
   console.log("sortOrder:", sortOrder);
-
-  // Match search keyword (full name, email, civilIdOrPassport)
-  // if (filterInput?.search) {
-  //   must.push({
-  //     multi_match: {
-  //       query:encrypt(filterInput?.search?.trim()),
-  //       fields: [
-  //         "firstName",
-  //         "lastName",
-  //         "email",
-  //         "civilIdOrPassport",
-  //       ],
-  //       type: "phrase_prefix",
-  //     },
-  //   });
-  // }
 
   if (filterInput?.search?.trim()) {
   const searchTerm = filterInput.search.trim();
@@ -253,9 +247,7 @@ const searchEmployeesFromElastic = async ({
   }
 
   // Remove deleted or not approved
-  if (filterInput?.includeDeletedUsers !== true) {
-    mustNot.push({ term: { "isDeleted": true } });
-  }
+  mustNot.push({ term: { "isDeleted": true } });
   mustNot.push({ term: { "isSignupAdminAprroved": false } });
 
   const query = {
@@ -279,11 +271,11 @@ const searchEmployeesFromElastic = async ({
     },
   });
 
-  console.log("result---->", result);
+  // console.log("result?.body---->", result?.body?.hits?.hits);
 
   return {
-    total: result?.hits?.total?.value,
-    employees: result?.hits?.hits?.map(hit => hit._source),
+    total: result?.body?.hits?.total?.value,
+    employees: result?.body?.hits?.hits?.map(hit => hit._source),
   };
 };
 
@@ -299,7 +291,7 @@ async function bulkIndexDocumentsToElasticSearch(indexName, documents = []) {
 
     const response = await client.bulk({
       refresh: true,
-      operations,
+      body:operations,
     });
 
     if (response.errors) {
@@ -315,42 +307,7 @@ async function bulkIndexDocumentsToElasticSearch(indexName, documents = []) {
   }
 }
 
-/**
- * Simple bulk update helper for Elasticsearch.
- * 
- * @param {string} indexName - Elasticsearch index name.
- * @param {Array} updates - Array of update operations.
- *    Each update is an object: { id: string, doc: object, upsert?: boolean }
- * @param {boolean} refresh - Whether to refresh the index after bulk operation.
- */
-async function bulkUpdateDocumentsInElastic(indexName, updatesMap, refresh = true) {
-  const body = [];
 
-  for (const [id, doc] of Object.entries(updatesMap)) {
-    if (!id || !doc || typeof doc !== 'object') continue;
-
-    body.push({ update: { _index: indexName, _id: id } });
-    body.push({ doc });
-  }
-
-  if (body.length === 0) return;
-
-  try {
-    const response = await client.bulk({ refresh, body });
-
-    if (response.errors) {
-      const erroredItems = response.items.filter(item => {
-        const actionType = Object.keys(item)[0];
-        return item[actionType].error;
-      });
-      console.error('Bulk update errors:', erroredItems);
-    } else {
-      console.log(`Bulk update succeeded (${Object.keys(updatesMap).length} docs)`);
-    }
-  } catch (err) {
-    console.error('Elasticsearch bulk update failed:', err);
-  }
-}
 
 module.exports = {
   indexDocumenttoElasticSearch,
@@ -361,6 +318,5 @@ module.exports = {
   updateByQueryToElasticSearch,
   searchEmployeesFromElastic,
   bulkIndexDocumentsToElasticSearch,
-  bulkUpdateDocumentsInElastic,
   client
 };
