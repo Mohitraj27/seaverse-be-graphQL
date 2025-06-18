@@ -2,6 +2,13 @@ module.exports = {
     stringNormalize: value => {
         if (value && typeof value === "string") return value.normalize("NFKC");
     },
+    toUpperCaseFirstLetter: (str) => {
+        if (typeof str !== 'string') {
+            return str;
+        }
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    },
+
     convertMinutesToHHMMSS: (decimalMinutes) => {
         if (typeof decimalMinutes !== "number" || decimalMinutes < 0) {
             throw new Error("Invalid input. Minutes must be a non-negative number.");

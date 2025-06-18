@@ -88,6 +88,7 @@ const { ImportJob } = require("./import_job_model");
 
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
 const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
+const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -4207,12 +4208,13 @@ module.exports.mutations = {
             const decryptedData = data?.map(user => {
                 return {
                     ...user,
-                    'First Name*': decrypt(user['First Name*']),
-                    'Last Name': decrypt(user['Last Name']),
+                    'First Name*': toUpperCaseFirstLetter(decrypt(user['First Name*'])),
+                    'Last Name': toUpperCaseFirstLetter(decrypt(user['Last Name'])),
                     'Email*': decrypt(user['Email*']),
                     'User ID*': decrypt(user['User ID*']),
                 };
             });
+            console.log(decryptedData);
             const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(decryptedData);
             xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
