@@ -16,6 +16,7 @@ const BackupHelper = require("./src/app/backup/backup_helper");
 const firebaseHelper = require('./src/util/firebase_helper');
 const EmployeeHelper = require("./src/app/user/employee/employee_helper");
 const { client } = require("./src/util/elastic_helper");
+const { connectToMongo } = require("./src/util/mongodb_helper");
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
     process.env.MONGO_DB = process.env.MONGO_DB_LIVE;
@@ -95,7 +96,7 @@ ExpressServer.get('/health-check', (req, res) => {
     res.status(200).send('App is up and running');
 });
 
-
+// connectToMongo(process.env.MONGO_DB);
 
 TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
