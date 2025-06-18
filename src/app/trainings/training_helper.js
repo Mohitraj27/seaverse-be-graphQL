@@ -939,8 +939,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 const courseImages = await AWS_HELPER.fetchFile(item?.training?.coverImage?.url) ||
                     'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
                 if (item.user.isEmailNotification) {
+                    const decryptedUserName = decrypt(item?.user?.firstName);
                     emailContent = courseCompletion({
-                        firstName: item.user.firstName,
+                        firstName: decryptedUserName,
                         trainingTitle: trainingName,
                         durationHours: item?.training?.durationHours,
                         courseId: item._id,
