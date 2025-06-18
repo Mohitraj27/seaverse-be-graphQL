@@ -1,9 +1,18 @@
 // const amqp = require('amqplib/callback_api');
 const amqp = require('amqplib');
-
+require('dotenv').config();
 let connection = null;
 let channel = null;
-const connectionUrl = `amqps://seaverse:seaverse-lms@b-3aa1cd35-a840-4b89-9566-5af7f4ccd108.mq.ap-south-1.on.aws:5671`
+const {
+    RABBITMQ_PROTOCOL,
+    RABBITMQ_USER,
+    RABBITMQ_PASSWORD,
+    RABBITMQ_HOST,
+    RABBITMQ_PORT,
+} = process.env;
+
+const connectionUrl = `${RABBITMQ_PROTOCOL}://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`;
+// const connectionUrl = `amqps://seaverse:seaverse-lms@b-3aa1cd35-a840-4b89-9566-5af7f4ccd108.mq.ap-south-1.on.aws:5671`
 // const connectionUrl = process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672';
 const retryInterval = 5000;
 

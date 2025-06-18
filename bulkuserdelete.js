@@ -273,7 +273,7 @@ const bulkDeleteAllExcept = async () => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const encryptedEmail = encrypt("kuldeep@squadramedia.com");
+    const encryptedEmail = encrypt("mohit@squadramedia.com");
     // Step 1: Find all users to be deleted (excluding the specific one)
     const usersToDelete = await User.find(
       { email: { $ne: encryptedEmail } },
