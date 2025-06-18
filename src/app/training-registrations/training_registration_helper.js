@@ -599,7 +599,12 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
 
         if (trainings.length > 0) {
 
-            trainingIds = trainings.map(training => training._id);
+            if (fromBackground) {
+                trainingIds = trainings.map(training => ObjectId(training));
+            } else {
+                trainingIds = trainings.map(training => training._id);
+            }
+
             trainingModuleCounts = await TrainingModule.aggregate([
                 {
                     $match: { training: { $in: trainingIds }, isDeleted: { $ne: true } }
@@ -619,7 +624,12 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
 
         }
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate durationHours').session(session).lean();
+        let trainingData;
+        if (fromBackground) {
+            trainingData = await Training.find({ _id: { $in: trainings.map(training => ObjectId(training)) } }).select('_id isCertificate durationHours').session(session).lean();
+        } else {
+            trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).select('_id isCertificate durationHours').session(session).lean();
+        }
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -1211,7 +1221,7 @@ module.exports = {
                                 durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                 courseImage: imageUrlMap.get(training?._id),
                             }));
-                            
+
                             // Prepare email data for insertion into SQLite queue
                             const emailData = notEnrolledUsers
                                 .filter(user => user.isEmailNotification)
@@ -1282,7 +1292,7 @@ module.exports = {
                                     durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseImage: imageUrlMap.get(training._id.toString())
                                 }));
-                                
+
                                 let decryptedFirstName1 = '';
                                 let decryptedEmail1 = '';
 
@@ -1414,7 +1424,7 @@ module.exports = {
                     ],
                     createdBy: userInfo,
                 });
-                
+
                 let decryptedFirstName2;
                 let decryptedLastName2;
 
@@ -1976,7 +1986,7 @@ module.exports = {
                                 durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                 courseImage: imageUrlMap.get(training?._id),
                             }));
-                            
+
                             // Prepare email data for insertion into SQLite queue
                             const emailData = notEnrolledUsers.filter(user => user.isEmailNotification).map(user => {
                                 let decryptedEmail3 = '';
@@ -2042,7 +2052,7 @@ module.exports = {
                                     durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseImage: imageUrlMap.get(training._id.toString())
                                 }));
-                                
+
                                 let decryptedFirstName4 = '';
                                 let decryptedEmail4 = '';
 
