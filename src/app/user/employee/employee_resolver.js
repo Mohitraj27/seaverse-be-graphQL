@@ -3101,11 +3101,6 @@ module.exports.mutations = {
 
         //encryption logic 
 
-        //replace the original fields with encrypted on
-        input.user.firstName = input.user.firstName && encrypt(input.user.firstName.toLowerCase());
-        input.user.lastName = input.user.lastName && encrypt(input.user.lastName.toLowerCase());
-        input.user.civilIdOrPassport = input.user.civilIdOrPassport && encrypt(input.user.civilIdOrPassport.toUpperCase());
-        input.user.email = input.user.email && encrypt(input.user.email.toLowerCase());
 
         const existingUser = await User.findOne({ email: input.user.email });
 
@@ -3155,13 +3150,13 @@ module.exports.mutations = {
 
             const savedUser = await User.create({
                 subscriber: subscriberId,
-                firstName: input.user.firstName,
-                lastName: input.user.lastName ?? null,
-                civilIdOrPassport: input.user.civilIdOrPassport,
+                firstName: encrypt(input.user.firstName.toLowerCase()),
+                lastName: input.user.lastName ? encrypt(input.user.lastName.toLowerCase()) : null,
+                civilIdOrPassport: encrypt(input.user.civilIdOrPassport.toUpperCase()),
                 isRegistered: input.user.isRegistered ?? true,
                 currentVessel: input.user.currentVessel && input.user.currentVessel != "" ? ObjectId(input.user.currentVessel) : null,
                 vesselStatus: input.user.vesselStatus && input.user.vesselStatus != "" ? input.user.vesselStatus : null,
-                email: input.user.email,
+                email: encrypt(input.user.email.toLowerCase()),
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
