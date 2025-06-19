@@ -1,7 +1,7 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
 const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress,updateLearningPlanStatusActivationHelper } = require("./learning_plan_helper");
+const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress, updateLearningPlanStatusActivationHelper } = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const { Moment } = require("../../tools");
@@ -12,7 +12,8 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
 const NotificationHelper = require("../notifications/notification_helper")
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
-const { decrypt } = require('../../util/encryption_helper')
+const { decrypt, encrypt } = require('../../util/encryption_helper');
+const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -46,7 +47,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
+                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -89,8 +90,8 @@ module.exports.mutations = {
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
             console.log('data recied', existingLearningPlans);
-               
-            if(existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE){
+
+            if (existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE) {
                 console.log('data received', existingLearningPlans[0]);
                 const data = existingLearningPlans[0];
                 await updateLearningPlanStatusActivationHelper(data, context);
@@ -116,13 +117,13 @@ module.exports.mutations = {
             });
 
             const actionInNotification = newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
-            
+
             await Promise.all(
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
+                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -188,7 +189,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
+                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -254,7 +255,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName? decrypt(userInfo?.lastName) :""}.`,
+                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -978,7 +979,7 @@ module.exports.queries = {
                     lastName: user.lastName ? decrypt(user.lastName) : '',
                     email: decrypt(user.email)
                 }));
-            }          
+            }
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
@@ -999,192 +1000,135 @@ module.exports.queries = {
             throw Error(error.message);
         }
     },
-    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput,sortInput }, context) => {
+    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput, sortInput }, context) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
+        const skip = pageInput?.skip ?? 0;
+        const limit = pageInput?.limit ?? 50;
+
         try {
             const queryConditions = {
-                _id: id,
-                isDeleted: false,
+                learningPlan: { $in: [id] },
+                isDeleted: { $ne: true },
             };
-            if (queryConditions?.status && Array.isArray(queryConditions.status)) {
-                queryConditions.status = { $in: queryConditions.status };
+            if (status?.length > 0) {
+                queryConditions.status = { $in: status };
             }
-            const learningPlan = await LearningPlan.aggregate([
-                { $match: queryConditions },
+            // const searchCondition ={};
+            // if (search?.trim()) {
+            //     const encryptedSearch = encrypt(search.trim());
+            //     console.log('encryptedSearch', encryptedSearch);
+            //     searchCondition.$or = [
+            //         { "usersList.firstName": { $regex: encryptedSearch, $options: "i" } },
+            //         { "usersList.lastName": { $regex: encryptedSearch, $options: "i" } },
+            //         { "usersList.email": { $regex: encryptedSearch, $options: "i" } }
+            //     ];
+            // }
+
+            const pipeline = [
                 {
-                    $lookup: {
-                        from: "learningplanassignments",
-                        localField: "_id",
-                        foreignField: "learningPlanId",
-                        as: "assignedLearners"
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "trainings",
-                        localField: "selectCourses",
-                        foreignField: "_id",
-                        as: "courseDetails",
-                        pipeline: [
-                            {
-                                $project: {
-                                    _id: 1,
-                                    title: 1,
-                                    description: 1,
-                                    status: 1,
-                                    images: 1,
-                                    courseId: 1,
-                                    bannerImage: 1,
-                                    coverImage: 1,
-                                    isDeleted: 1
-                                },
-                            },
-                        ],
-                    }
-                },
-                {
-                    $addFields: {
-                        selectCourses: {
-                            $filter: {
-                                input: "$courseDetails",
-                                as: "course",
-                                cond: { $eq: ["$$course.isDeleted", false] }
-                            }
-                        }
-                    }
-                },
-                {
-                    $addFields: {
-                        assignedLearnerIDs: {
-                            $map: {
-                                input: "$assignedLearners",
-                                as: "assignment",
-                                in: "$$assignment.assignedLearnerId"
-                            }
-                        },
-                        numberOfAssignedLearners: {
-                            $size: { $ifNull: ["$assignedLearners", []] }
-                        },
-                        userObjectIds: {
-                            $map: {
-                                input: {
-                                    $filter: {
-                                        input: "$assignedLearners",
-                                        as: "assignment",
-                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] }
-                                    }
-                                },
-                                as: "filteredAssignment",
-                                in: "$$filteredAssignment.assignedLearnerId"
-                            }
-                        }
-                    }
+                    $match: queryConditions
                 },
                 {
                     $lookup: {
                         from: "users",
-                        localField: "userObjectIds",
+                        localField: "user",
                         foreignField: "_id",
-                        as: "userDetails",
+                        as: "usersList",
                         pipeline: [
-                            /* {
-                                $match: { isDeleted: { $ne: true } }    //for gdpr change of keeping users name only 
-                            }, */
                             {
                                 $project: {
                                     _id: 1,
                                     firstName: 1,
-                                    isRegistered: 1,
                                     lastName: 1,
-                                    email: 1
+                                    email: 1,
+                                    lastLoginAt: 1
                                 }
                             }
                         ]
                     }
                 },
+                { $unwind: "$usersList" },
                 {
-                    $addFields: {
-                        userObjectIds: {
-                            $map: {
-                                input: "$userDetails",
-                                as: "user",
-                                in: {
-                                    _id: "$$user._id",
-                                    firstName: "$$user.firstName",
-                                    lastName: "$$user.lastName",
-                                    isRegistered: "$$user.isRegistered",
-                                    email: "$$user.email"
-                                }
+                    $group: {
+                        _id: "$user",
+                        averageProgress: { $avg: "$progressPercentage" },
+                        statusSet: { $addToSet: "$status" },
+                        totalTrainings: { $sum: 1 },
+                        completedTrainings: {
+                            $sum: {
+                                $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0]
                             }
-                        }
+                        },
+                        user: { $first: "$usersList" }
                     }
                 },
                 {
                     $project: {
-                        _id: 1,
-                        title: 1,
-                        targetAudience: 1,
-                        groupIDs: 1,
-                        userObjectIds: 1,
+                        _id: 0,
+                        userId: "$user._id",
+                        averageProgress: 1,
+                        totalTrainings: 1,
+                        completedTrainings: 1,
                         status: 1,
-                        audienceSelection: 1,
-                        conditionType: 1,
-                        isDeleted: 1,
-                        createdAt: 1,
-                        updatedAt: 1,
-                        selectCourses: 1,
-                        numberOfAssignedLearners: 1,
-                        conditionalCustomFields: 1,
-                        overallTrainingProgress: 1,
-                        emailNotification: 1,
-                        pushNotification: 1,
+                        firstName: "$user.firstName",
+                        lastName: "$user.lastName",
+                        email: "$user.email",
+                        lastLoginAt: "$user.lastLoginAt",
+                        status: {
+                            $switch: {
+                                branches: [
+                                    {
+                                        case: { $eq: ["$statusSet", ["NOT_STARTED"]] },
+                                        then: "NOT_STARTED"
+                                    },
+                                    {
+                                        case: { $eq: ["$statusSet", ["COMPLETED"]] },
+                                        then: "COMPLETED"
+                                    }
+                                ],
+                                default: "IN_PROGRESS"
+                            }
+                        }
                     }
                 }
-            ]);
+            ];
 
-            if (!learningPlan.length) {
-                throw CustomError(ErrorName.NOT_FOUND, "Learning Plan not found");
-            }
+            // Sort (before skip & limit)
+            if (sortInput?.sortField) {
+                const sortFieldMap = {
+                    Name: "firstName",
+                    status: "status",
+                    progressPercentage: "averageProgress",
+                    completedTrainings: "completedTrainings",
+                    updatedAt: "lastLoginAt"
+                };
 
-            const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
-            if (detailedPlan.overallProgress?.users?.length > 0 && sortInput) {
-                const { sortField, sortOrder } = sortInput;
-                const isDesc = sortOrder === -1;
-
-                const sortByEnum = {
-                    Name: (a, b) => {
-                        const nameA = `${a.firstName || ""} ${a.lastName || ""}`.toLowerCase();
-                        const nameB = `${b.firstName || ""} ${b.lastName || ""}`.toLowerCase();
-                        return nameA.localeCompare(nameB);
-                    },
-                    status: (a, b) => {
-                        const order = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
-                        const indexA = order.indexOf(a.status || "");
-                        const indexB = order.indexOf(b.status || "");
-                        return indexA - indexB;
-                    },
-                    progressPercentage: (a, b) => (a.progressPercentage || 0) - (b.progressPercentage || 0),
-                    completedTrainings: (a, b) => (a.completedTrainings || 0) - (b.completedTrainings || 0),
-                    updatedAt: (a, b) => {
-                        const timeA = new Date(a.updatedAt || 0).getTime();
-                        const timeB = new Date(b.updatedAt || 0).getTime();
-                        return timeA - timeB;
-                    }
-                    };
-                const sortFn = sortByEnum[sortField];
-                if (sortFn) {
-                    detailedPlan.overallProgress.users.sort((a, b) => {
-                        const result = sortFn(a, b);
-                        return isDesc ? -result : result;
+                const field = sortFieldMap[sortInput.sortField];
+                if (field) {
+                    pipeline.push({
+                        $sort: {
+                            [field]: sortInput.sortOrder ?? 1
+                        }
                     });
                 }
+            } else {
+                pipeline.push({ $sort: { lastLoginAt: -1 } });
             }
-            
+
+            // Then paginate
+            pipeline.push({ $skip: skip });
+            pipeline.push({ $limit: limit });
+
+            const detailedPlan = await OverallTrainingProgress.aggregate(pipeline);
+
+            console.log('detailedPlan');
+            console.log(detailedPlan);
+
             return detailedPlan;
         } catch (error) {
+            console.log(error);
             throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
         }
     }
