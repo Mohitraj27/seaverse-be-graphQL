@@ -1,7 +1,20 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
-const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress, updateLearningPlanStatusActivationHelper } = require("./learning_plan_helper");
+const {
+    ErrorName,
+    AuthUser,
+    Permission,
+    SubRoleHelper,
+    subscriberId,
+    context,
+} = require("../../util");
+const {
+    createLearningPlanHelper,
+    getUsersAndCount,
+    updateLearningPlanHelper,
+    getLearningPlanAverageProgress,
+    updateLearningPlanStatusActivationHelper,
+} = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const { Moment } = require("../../tools");
@@ -10,10 +23,12 @@ const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
-const NotificationHelper = require("../notifications/notification_helper")
-const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
-const { decrypt, encrypt } = require('../../util/encryption_helper');
-const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const NotificationHelper = require("../notifications/notification_helper");
+const LearningPlanAssignment = require("../learning-plan/assignedLearner/assignedLearnerModel");
+const { decrypt, encrypt } = require("../../util/encryption_helper");
+const {
+    OverallTrainingProgress,
+} = require("../training-registrations/overall-course-progress/overall_progress_model");
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -21,7 +36,10 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userId, userInfo } = AuthUser(context);
-            const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId }, context);
+            const result = await createLearningPlanHelper(
+                { ...input, createdBy: userId, updatedBy: userId },
+                context
+            );
             if (!result?.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result?.errors[0]);
             }
@@ -47,7 +65,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
+                messageValue: `Learning plan "${
+                    result?.learningPlan?.title ?? ""
+                }" has been created by  ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -56,7 +78,7 @@ module.exports.mutations = {
                         target: result.learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
@@ -72,16 +94,25 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             if (!Array.isArray(learningPlanIDs) || learningPlanIDs.length === 0) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Learning Plan IDs must be provided.");
+                throw CustomError(
+                    ErrorName.ARGUMENTS_REQUIRED,
+                    "Learning Plan IDs must be provided."
+                );
             }
             if (newStatus === LearningPlanStatus.DRAFT) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN_STATUS_UPDATE, 'Learning Plan Status Update Cannot be DRAFT');
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN_STATUS_UPDATE,
+                    "Learning Plan Status Update Cannot be DRAFT"
+                );
             }
             const existingLearningPlans = await LearningPlan.find({
                 _id: { $in: learningPlanIDs },
             });
             if (existingLearningPlans.length !== learningPlanIDs.length) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, "One or more provided Learning Plan IDs do not exist.");
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN,
+                    "One or more provided Learning Plan IDs do not exist."
+                );
             }
             const updatedLearningPlans = await LearningPlan.updateMany(
                 { _id: { $in: learningPlanIDs } },
@@ -89,10 +120,13 @@ module.exports.mutations = {
                 { new: true }
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
-            console.log('data recied', existingLearningPlans);
+            console.log("data recied", existingLearningPlans);
 
-            if (existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE) {
-                console.log('data received', existingLearningPlans[0]);
+            if (
+                existingLearningPlans[0].status === LearningPlanStatus.INACTIVE &&
+                newStatus === LearningPlanStatus.ACTIVE
+            ) {
+                console.log("data received", existingLearningPlans[0]);
                 const data = existingLearningPlans[0];
                 await updateLearningPlanStatusActivationHelper(data, context);
             }
@@ -116,14 +150,19 @@ module.exports.mutations = {
                 createdBy: userInfo,
             });
 
-            const actionInNotification = newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
+            const actionInNotification =
+                newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
 
             await Promise.all(
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
+                        messageValue: `Learning plan "${
+                            plan.title
+                        }" status changed to ${actionInNotification} by ${decrypt(
+                            userInfo?.firstName
+                        )} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -132,7 +171,7 @@ module.exports.mutations = {
                                 target: plan._id,
                             },
                         ],
-                        status: 'SENT',
+                        status: "SENT",
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     })
@@ -154,13 +193,20 @@ module.exports.mutations = {
 
             const learningPlan = await LearningPlan.findById({ _id: id });
             if (!learningPlan) {
-                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Learning Plan not found.");
             }
             if (learningPlan.isDeleted) {
-                throw CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
+                throw CustomError(ErrorName.ALREADY_DELETED, "Learning Plan already deleted.");
             }
-            if (![LearningPlanStatus.INACTIVE, LearningPlanStatus.DRAFT].includes(learningPlan.status)) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, 'Only Learning Plans with status INACTIVE or DRAFT can be deleted.');
+            if (
+                ![LearningPlanStatus.INACTIVE, LearningPlanStatus.DRAFT].includes(
+                    learningPlan.status
+                )
+            ) {
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN,
+                    "Only Learning Plans with status INACTIVE or DRAFT can be deleted."
+                );
             }
             learningPlan.isDeleted = true;
             learningPlan.updatedBy = userId;
@@ -189,7 +235,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
+                messageValue: `Learning plan "${
+                    learningPlan.title ?? ""
+                }" has been deleted by ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -198,18 +248,17 @@ module.exports.mutations = {
                         target: learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return {
                 success: true,
-                message: 'Learning Plan  deleted successfully.'
+                message: "Learning Plan  deleted successfully.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_DELETE_LEARNING_PLAN, `${error.message}`);
         }
-
     },
     updateLearningPlan: async ({ id, input }, context) => {
         const { userId, userInfo } = AuthUser(context);
@@ -225,7 +274,10 @@ module.exports.mutations = {
             const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
             const learningPlanName = updatedLearningPlan?.title ?? "";
             if (!updatedLearningPlan) {
-                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
+                throw CustomError(
+                    ErrorName.LEARNING_PLAN_NOT_FOUND,
+                    "Updated Learning Plan not found"
+                );
             }
             updatedLearningPlan.updatedBy = userId;
             updatedLearningPlan.updatedAt = new Date();
@@ -255,7 +307,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
+                messageValue: `Learning plan "${
+                    learningPlanName ?? ""
+                }" has been updated by ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -264,16 +320,16 @@ module.exports.mutations = {
                         target: validation.learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            console.log('updated Learning Plan', updatedLearningPlan);
+            console.log("updated Learning Plan", updatedLearningPlan);
             return updatedLearningPlan;
         } catch (error) {
             throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
         }
-    }
+    },
 };
 module.exports.queries = {
     // getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
@@ -510,7 +566,6 @@ module.exports.queries = {
     //             return data?.filter(item => {
     //                 const avgProgress = item.overallProgress?.averageProgress || 0;
 
-
     //                 return statuses.some(status => {
     //                     if (status === "NOT_STARTED" && avgProgress === 0) {
     //                         return true;
@@ -548,7 +603,8 @@ module.exports.queries = {
     // },
 
     getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
-        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } = AuthUser(context);
+        const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+            AuthUser(context);
         const skip = pageInput?.skip || 0;
         const limit = pageInput?.limit || 50;
 
@@ -571,7 +627,7 @@ module.exports.queries = {
                 queryConditions.audienceSelection = {
                     $in: Array.isArray(filterInput.audienceSelection)
                         ? filterInput.audienceSelection
-                        : [filterInput.audienceSelection]
+                        : [filterInput.audienceSelection],
                 };
             }
             let startDate, endDate;
@@ -629,26 +685,38 @@ module.exports.queries = {
                         localField: "createdBy",
                         foreignField: "_id",
                         as: "createdByDetails",
-                        pipeline: [{ $project: { _id: 1, firstName: 1, lastName: 1 } }]
-                    }
+                        pipeline: [{ $project: { _id: 1, firstName: 1, lastName: 1 } }],
+                    },
                 },
                 {
                     $addFields: {
-                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
-                    }
+                        createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] },
+                    },
                 },
 
                 // Apply title/name search filter
                 {
                     $match: {
-                        ...(filterInput?.title?.trim() ? {
-                            $or: [
-                                { title: { $regex: filterInput.title, $options: "i" } },
-                                { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
-                                { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
-                            ]
-                        } : {})
-                    }
+                        ...(filterInput?.title?.trim()
+                            ? {
+                                  $or: [
+                                      { title: { $regex: filterInput.title, $options: "i" } },
+                                      {
+                                          "createdByDetails.firstName": {
+                                              $regex: filterInput.title,
+                                              $options: "i",
+                                          },
+                                      },
+                                      {
+                                          "createdByDetails.lastName": {
+                                              $regex: filterInput.title,
+                                              $options: "i",
+                                          },
+                                      },
+                                  ],
+                              }
+                            : {}),
+                    },
                 },
 
                 // Get course details
@@ -660,9 +728,18 @@ module.exports.queries = {
                         as: "courseDetails",
                         pipeline: [
                             { $match: { isDeleted: false } },
-                            { $project: { _id: 1, UID: 1, title: 1, status: 1, bannerImage: 1, coverImage: 1 } }
-                        ]
-                    }
+                            {
+                                $project: {
+                                    _id: 1,
+                                    UID: 1,
+                                    title: 1,
+                                    status: 1,
+                                    bannerImage: 1,
+                                    coverImage: 1,
+                                },
+                            },
+                        ],
+                    },
                 },
 
                 // Get assigned learner count
@@ -671,8 +748,8 @@ module.exports.queries = {
                         from: "learningplanassignments",
                         localField: "_id",
                         foreignField: "learningPlanId",
-                        as: "assignments"
-                    }
+                        as: "assignments",
+                    },
                 },
                 {
                     $lookup: {
@@ -680,11 +757,8 @@ module.exports.queries = {
                         localField: "assignments.assignedLearnerId",
                         foreignField: "_id",
                         as: "assignedLearners",
-                        pipeline: [
-                            { $match: { isDeleted: false } },
-                            { $project: { _id: 1 } }
-                        ]
-                    }
+                        pipeline: [{ $match: { isDeleted: false } }, { $project: { _id: 1 } }],
+                    },
                 },
 
                 // OPTIMIZED: Get only essential progress data (no user details)
@@ -698,10 +772,10 @@ module.exports.queries = {
                                     $expr: {
                                         $and: [
                                             { $in: ["$learningPlanId", "$learningPlan"] },
-                                            { $ne: ["$isEnrolled", false] }
-                                        ]
-                                    }
-                                }
+                                            { $ne: ["$isEnrolled", false] },
+                                        ],
+                                    },
+                                },
                             },
                             // Group to get only summary data (no user details lookup)
                             {
@@ -709,20 +783,20 @@ module.exports.queries = {
                                     _id: null,
                                     averageProgress: { $avg: "$progressPercentage" },
                                     totalTimeSpend: { $sum: "$timeSpend" },
-                                    overallTrainingprogressStatus: { $addToSet: "$status" }
-                                }
+                                    overallTrainingprogressStatus: { $addToSet: "$status" },
+                                },
                             },
                             {
                                 $project: {
                                     _id: 0,
                                     averageProgress: { $round: ["$averageProgress", 2] },
                                     totalTimeSpend: 1,
-                                    overallTrainingprogressStatus: 1
-                                }
-                            }
+                                    overallTrainingprogressStatus: 1,
+                                },
+                            },
                         ],
-                        as: "progressData"
-                    }
+                        as: "progressData",
+                    },
                 },
 
                 // Project final structure using assignments for userCount
@@ -744,21 +818,30 @@ module.exports.queries = {
                             $cond: {
                                 if: { $gt: [{ $size: "$progressData" }, 0] },
                                 then: {
-                                    averageProgress: { $arrayElemAt: ["$progressData.averageProgress", 0] },
-                                    totalTimeSpend: { $arrayElemAt: ["$progressData.totalTimeSpend", 0] },
+                                    averageProgress: {
+                                        $arrayElemAt: ["$progressData.averageProgress", 0],
+                                    },
+                                    totalTimeSpend: {
+                                        $arrayElemAt: ["$progressData.totalTimeSpend", 0],
+                                    },
                                     userCount: { $size: "$assignedLearners" }, // Use assignments count instead
-                                    overallTrainingprogressStatus: { $arrayElemAt: ["$progressData.overallTrainingprogressStatus", 0] }
+                                    overallTrainingprogressStatus: {
+                                        $arrayElemAt: [
+                                            "$progressData.overallTrainingprogressStatus",
+                                            0,
+                                        ],
+                                    },
                                 },
                                 else: {
                                     averageProgress: 0,
                                     totalTimeSpend: 0,
                                     userCount: { $size: "$assignedLearners" }, // Use assignments count for zero state too
-                                    overallTrainingprogressStatus: []
-                                }
-                            }
-                        }
-                    }
-                }
+                                    overallTrainingprogressStatus: [],
+                                },
+                            },
+                        },
+                    },
+                },
             ];
 
             // Apply status filtering based on progress if needed
@@ -773,16 +856,16 @@ module.exports.queries = {
                                     return {
                                         $and: [
                                             { $gt: ["$overallProgress.averageProgress", 0] },
-                                            { $lt: ["$overallProgress.averageProgress", 100] }
-                                        ]
+                                            { $lt: ["$overallProgress.averageProgress", 100] },
+                                        ],
                                     };
                                 } else if (s === "COMPLETED") {
                                     return { $eq: ["$overallProgress.averageProgress", 100] };
                                 }
                                 return false;
-                            })
-                        }
-                    }
+                            }),
+                        },
+                    },
                 });
             }
 
@@ -796,7 +879,7 @@ module.exports.queries = {
 
             const [learningPlansResult, countResult] = await Promise.all([
                 LearningPlan.aggregate(pipeline),
-                LearningPlan.aggregate(countPipeline)
+                LearningPlan.aggregate(countPipeline),
             ]);
 
             // Post-process filtering is no longer needed since we're not returning users
@@ -814,14 +897,16 @@ module.exports.queries = {
             const totalCount = countResult.length > 0 ? countResult[0].total : 0;
             return {
                 learningPlans,
-                totalCount
+                totalCount,
             };
-
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
         }
     },
-    getLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput }, context) => {
+    getLearningPlan: async (
+        { id, status, lastActivity, search, filteredLearnerData, pageInput },
+        context
+    ) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -840,8 +925,8 @@ module.exports.queries = {
                         from: "learningplanassignments",
                         localField: "_id",
                         foreignField: "learningPlanId",
-                        as: "assignedLearners"
-                    }
+                        as: "assignedLearners",
+                    },
                 },
                 {
                     $lookup: {
@@ -860,11 +945,11 @@ module.exports.queries = {
                                     courseId: 1,
                                     bannerImage: 1,
                                     coverImage: 1,
-                                    isDeleted: 1
+                                    isDeleted: 1,
                                 },
                             },
                         ],
-                    }
+                    },
                 },
                 {
                     $addFields: {
@@ -872,10 +957,10 @@ module.exports.queries = {
                             $filter: {
                                 input: "$courseDetails",
                                 as: "course",
-                                cond: { $eq: ["$$course.isDeleted", false] }
-                            }
-                        }
-                    }
+                                cond: { $eq: ["$$course.isDeleted", false] },
+                            },
+                        },
+                    },
                 },
                 {
                     $addFields: {
@@ -883,11 +968,11 @@ module.exports.queries = {
                             $map: {
                                 input: "$assignedLearners",
                                 as: "assignment",
-                                in: "$$assignment.assignedLearnerId"
-                            }
+                                in: "$$assignment.assignedLearnerId",
+                            },
                         },
                         numberOfAssignedLearners: {
-                            $size: { $ifNull: ["$assignedLearners", []] }
+                            $size: { $ifNull: ["$assignedLearners", []] },
                         },
                         userObjectIds: {
                             $map: {
@@ -895,14 +980,14 @@ module.exports.queries = {
                                     $filter: {
                                         input: "$assignedLearners",
                                         as: "assignment",
-                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] }
-                                    }
+                                        cond: { $eq: ["$$assignment.isManuallyAdded", true] },
+                                    },
                                 },
                                 as: "filteredAssignment",
-                                in: "$$filteredAssignment.assignedLearnerId"
-                            }
-                        }
-                    }
+                                in: "$$filteredAssignment.assignedLearnerId",
+                            },
+                        },
+                    },
                 },
                 {
                     $lookup: {
@@ -920,11 +1005,11 @@ module.exports.queries = {
                                     firstName: 1,
                                     isRegistered: 1,
                                     lastName: 1,
-                                    email: 1
-                                }
-                            }
-                        ]
-                    }
+                                    email: 1,
+                                },
+                            },
+                        ],
+                    },
                 },
                 {
                     $addFields: {
@@ -937,11 +1022,11 @@ module.exports.queries = {
                                     firstName: "$$user.firstName",
                                     lastName: "$$user.lastName",
                                     isRegistered: "$$user.isRegistered",
-                                    email: "$$user.email"
-                                }
-                            }
-                        }
-                    }
+                                    email: "$$user.email",
+                                },
+                            },
+                        },
+                    },
                 },
                 {
                     $project: {
@@ -962,8 +1047,8 @@ module.exports.queries = {
                         overallTrainingProgress: 1,
                         emailNotification: 1,
                         pushNotification: 1,
-                    }
-                }
+                    },
+                },
             ]);
 
             if (!learningPlan.length) {
@@ -971,13 +1056,20 @@ module.exports.queries = {
             }
 
             const detailedPlan = learningPlan[0];
-            detailedPlan.overallProgress = await getLearningPlanAverageProgress(detailedPlan._id, status, search, lastActivity, filteredLearnerData, pageInput);
+            detailedPlan.overallProgress = await getLearningPlanAverageProgress(
+                detailedPlan._id,
+                status,
+                search,
+                lastActivity,
+                filteredLearnerData,
+                pageInput
+            );
             if (detailedPlan?.userObjectIds?.length > 0) {
                 detailedPlan.userObjectIds = detailedPlan.userObjectIds.map(user => ({
                     ...user,
                     firstName: decrypt(user.firstName),
-                    lastName: user.lastName ? decrypt(user.lastName) : '',
-                    email: decrypt(user.email)
+                    lastName: user.lastName ? decrypt(user.lastName) : "",
+                    email: decrypt(user.email),
                 }));
             }
             return detailedPlan;
@@ -994,13 +1086,16 @@ module.exports.queries = {
             const { userIds, count } = await getUsersAndCount(input);
             return {
                 userIds,
-                count
+                count,
             };
         } catch (error) {
             throw Error(error.message);
         }
     },
-    getUsersListforLearningPlan: async ({ id, status, lastActivity, search, filteredLearnerData, pageInput, sortInput }, context) => {
+    getUsersListforLearningPlan: async (
+        { id, status, lastActivity, search, filteredLearnerData, pageInput, sortInput },
+        context
+    ) => {
         const { role, userId, userInfo, subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
@@ -1015,20 +1110,23 @@ module.exports.queries = {
             if (status?.length > 0) {
                 queryConditions.status = { $in: status };
             }
-            // const searchCondition ={};
-            // if (search?.trim()) {
-            //     const encryptedSearch = encrypt(search.trim());
-            //     console.log('encryptedSearch', encryptedSearch);
-            //     searchCondition.$or = [
-            //         { "usersList.firstName": { $regex: encryptedSearch, $options: "i" } },
-            //         { "usersList.lastName": { $regex: encryptedSearch, $options: "i" } },
-            //         { "usersList.email": { $regex: encryptedSearch, $options: "i" } }
-            //     ];
-            // }
+            const searchCondition =[];
+            if (search?.trim()) {
+                const encryptedSearch = encrypt(search.trim());
+                searchCondition.push({
+                    $match: {
+                        $or: [
+                            { "usersList.firstName": { $regex: encryptedSearch, $options: "i" } },
+                            { "usersList.lastName": { $regex: encryptedSearch, $options: "i" } },
+                            { "usersList.email": { $regex: encryptedSearch, $options: "i" } },
+                        ],
+                    },
+                });
+            }
 
             const pipeline = [
                 {
-                    $match: queryConditions
+                    $match: queryConditions,
                 },
                 {
                     $lookup: {
@@ -1043,13 +1141,15 @@ module.exports.queries = {
                                     firstName: 1,
                                     lastName: 1,
                                     email: 1,
-                                    lastLoginAt: 1
-                                }
-                            }
-                        ]
-                    }
+                                    lastLoginAt: 1,
+                                    isRegistered: 1,
+                                },
+                            },
+                        ],
+                    },
                 },
                 { $unwind: "$usersList" },
+                ...searchCondition,
                 {
                     $group: {
                         _id: "$user",
@@ -1058,11 +1158,11 @@ module.exports.queries = {
                         totalTrainings: { $sum: 1 },
                         completedTrainings: {
                             $sum: {
-                                $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0]
-                            }
+                                $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0],
+                            },
                         },
-                        user: { $first: "$usersList" }
-                    }
+                        user: { $first: "$usersList" },
+                    },
                 },
                 {
                     $project: {
@@ -1076,23 +1176,24 @@ module.exports.queries = {
                         lastName: "$user.lastName",
                         email: "$user.email",
                         lastLoginAt: "$user.lastLoginAt",
+                        isRegistered: "$user.isRegistered",
                         status: {
                             $switch: {
                                 branches: [
                                     {
                                         case: { $eq: ["$statusSet", ["NOT_STARTED"]] },
-                                        then: "NOT_STARTED"
+                                        then: "NOT_STARTED",
                                     },
                                     {
                                         case: { $eq: ["$statusSet", ["COMPLETED"]] },
-                                        then: "COMPLETED"
-                                    }
+                                        then: "COMPLETED",
+                                    },
                                 ],
-                                default: "IN_PROGRESS"
-                            }
-                        }
-                    }
-                }
+                                default: "IN_PROGRESS",
+                            },
+                        },
+                    },
+                },
             ];
 
             // Sort (before skip & limit)
@@ -1102,15 +1203,15 @@ module.exports.queries = {
                     status: "status",
                     progressPercentage: "averageProgress",
                     completedTrainings: "completedTrainings",
-                    updatedAt: "lastLoginAt"
+                    updatedAt: "lastLoginAt",
                 };
 
                 const field = sortFieldMap[sortInput.sortField];
                 if (field) {
                     pipeline.push({
                         $sort: {
-                            [field]: sortInput.sortOrder ?? 1
-                        }
+                            [field]: sortInput.sortOrder ?? 1,
+                        },
                     });
                 }
             } else {
@@ -1122,14 +1223,19 @@ module.exports.queries = {
             pipeline.push({ $limit: limit });
 
             const detailedPlan = await OverallTrainingProgress.aggregate(pipeline);
-
-            console.log('detailedPlan');
-            console.log(detailedPlan);
-
-            return detailedPlan;
+            const decryptedResult = detailedPlan.map(user => {
+                return {
+                    ...user,
+                    firstName: decrypt(user.firstName),
+                    lastName: user.lastName ? decrypt(user.lastName) : "",
+                    email: decrypt(user.email),
+                };
+            });
+            
+            return decryptedResult;
         } catch (error) {
             console.log(error);
             throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
         }
-    }
+    },
 };
