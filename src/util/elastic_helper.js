@@ -48,11 +48,13 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
       index: indexName,
       refresh: true,
       id: id.toString(),
-      body: document,
+      body: {
+        doc: document 
+      },
     });
     console.log(`Updated in ${indexName}:`, response);
   } catch (err) {
-    throw CustomError(ErrorName.UPDATE_DOC_ELASTIC_SEARCH, `Elastic Update Error (${indexName}): ${err}`)
+    throw CustomError(ErrorName.UPDATE_DOC_ELASTIC_SEARCH, `Elastic Update Error (${indexName}): ${err}`);
   }
 }
 
