@@ -553,9 +553,9 @@ module.exports.queries = {
                     customGroupNames = customGroup.map(group => group.groupName);
                 }
             }
-            existingUser.firstName = existingUser?.firstName ?? decrypt(existingUser?.firstName);
-            existingUser.lastName = existingUser?.lastName ?? decrypt(existingUser?.lastName);
-            existingUser.email = existingUser?.email ?? decrypt(existingUser?.email);
+            existingUser.firstName =  decrypt(existingUser?.firstName);
+            existingUser.lastName = existingUser?.lastName ? decrypt(existingUser?.lastName) : '';
+            existingUser.email =  decrypt(existingUser?.email);
             if (existingUser && user && designation) {
                 return {
                     designation: designationName ?? null,
