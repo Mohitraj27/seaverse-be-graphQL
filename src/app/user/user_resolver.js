@@ -206,7 +206,7 @@ module.exports.mutations = {
                     );
                 }
 
-                const existingUser = await User.findOne({ email: encrypt(email), isDeleted: false }).session(session);
+                const existingUser = await User.findOne({ email: encrypt(email?.toLowerCase()), isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
 
@@ -225,7 +225,7 @@ module.exports.mutations = {
                         firstName: encrypt(firstName.toLowerCase()),
                         lastName: encrypt(lastName.toLowerCase()) ?? null,
                         password: encryptedPassword,
-                        email: encrypt(lowerCaseEmail),
+                        email: encrypt(email?.toLowerCase()),
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
@@ -302,7 +302,7 @@ module.exports.mutations = {
                 const result = await SignupRequest.create([{
                     firstName: encrypt(firstName.toLowerCase()),
                     lastName: encrypt(lastName.toLowerCase()),
-                    email: encrypt(lowerCaseEmail),
+                    email: encrypt(email?.toLowerCase()),
                     country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
