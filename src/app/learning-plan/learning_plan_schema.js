@@ -269,7 +269,8 @@ module.exports = {
             firstName: String,
             lastName: String,
             email: String,
-            lastLoginAt: String
+            lastLoginAt: String,
+            isRegistered: Boolean,
         }
     `,
     queries: `
