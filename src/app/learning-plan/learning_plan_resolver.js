@@ -1156,6 +1156,7 @@ module.exports.queries = {
                         averageProgress: { $avg: "$progressPercentage" },
                         statusSet: { $addToSet: "$status" },
                         totalTrainings: { $sum: 1 },
+                        timeSpend: { $sum: "$timeSpend" },
                         completedTrainings: {
                             $sum: {
                                 $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0],
@@ -1177,6 +1178,7 @@ module.exports.queries = {
                         email: "$user.email",
                         lastLoginAt: "$user.lastLoginAt",
                         isRegistered: "$user.isRegistered",
+                        timeSpend: 1,
                         status: {
                             $switch: {
                                 branches: [
