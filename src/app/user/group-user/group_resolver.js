@@ -579,7 +579,7 @@ module.exports.queries = {
         const { subscriberId, role } = AuthUser(context);
         let encryptedSearch = '';
         if (search) {
-            encryptedSearch = encrypt(search.trim());
+            encryptedSearch = encrypt(search?.trim()?.toLowerCase());
         }
         if (role && role === Role.LEARNER) {
             throw CustomError(ErrorName.FORBIDDEN);
