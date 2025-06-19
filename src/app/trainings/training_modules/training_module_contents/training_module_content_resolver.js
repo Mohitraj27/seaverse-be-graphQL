@@ -85,8 +85,8 @@ module.exports.queries = {
         }
 
         if (search) {
-            const escapedSearch = escapeRegex(search);
-            filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
+            // const escapedSearch = escapeRegex(search);
+            filterConditions['title.value'] = { $regex: search?.trim(), $options: "i" };
         }
         const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
         const skip = pageInput?.skip ?? 0;
