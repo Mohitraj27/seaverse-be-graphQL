@@ -271,6 +271,7 @@ module.exports = {
             email: String,
             lastLoginAt: String,
             isRegistered: Boolean,
+            timeSpend: Float,
         }
     `,
     queries: `
