@@ -23,8 +23,6 @@ const client = new Client({
   },
 });
 
-// console.log("client----------->", client);
-
 
 // Create or Insert Document
 async function indexDocumenttoElasticSearch(indexName, id, document) {
@@ -35,7 +33,6 @@ async function indexDocumenttoElasticSearch(indexName, id, document) {
       body: document,
       refresh: true,
     });
-    console.log(`Indexed into ${indexName}:`, response);
   } catch (err) {
     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (${indexName}): ${err}`)
   }
@@ -52,7 +49,6 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
         doc: document 
       },
     });
-    console.log(`Updated in ${indexName}:`, response);
   } catch (err) {
     throw CustomError(ErrorName.UPDATE_DOC_ELASTIC_SEARCH, `Elastic Update Error (${indexName}): ${err}`);
   }
@@ -66,7 +62,6 @@ async function deleteDocumenttoElasticSearch(indexName, id) {
       refresh: true,
       id: id.toString(),
     });
-    console.log(`Deleted from ${indexName}:`, response);
   } catch (err) {
     throw CustomError(ErrorName.DELETE_DOC_ELASTIC_SEARCH, `Elastic Delete Error (${indexName}): ${err}`)
   }
@@ -80,7 +75,6 @@ async function getDocumentfromElasticSearch(indexName, id) {
         index: indexName,
         id: id.toString(),
       });
-      console.log(`Fetched from ${indexName}:`, response);
       return response._source;
     } catch (err) {
       throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH, `Elastic Get Error (${indexName}): ${err}`)
@@ -90,7 +84,6 @@ async function getDocumentfromElasticSearch(indexName, id) {
       const response = await client.search({
         index: indexName
       });
-      console.log(`Fetched from ${indexName}:`, response);
       return response.hits.hits.map(hit => hit._source);
     } catch (err) {
       throw CustomError(ErrorName.GET_DOC_ELASTIC_SEARCH, `Elastic Get Error (${indexName}): ${err}`)
@@ -108,7 +101,6 @@ async function deleteByQueryFromElasticSearch(indexName, query) {
         query: query
       }
     });
-    console.log(`Deleted documents from ${indexName} by query:`, response);
     return response;
   } catch (err) {
     throw CustomError(ErrorName.DELETE_DOC_ELASTIC_SEARCH, `Elastic DeleteByQuery Error (${indexName}): ${err}`)
@@ -130,7 +122,6 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
         query: query
       }
     });
-    console.log(`Updated documents in ${indexName} by query:`, response);
     return response;
   } catch (err) {
     throw CustomError(
@@ -153,11 +144,6 @@ const searchEmployeesFromElastic = async ({
 }) => {
   const must = [];
   const mustNot = [];
-
-  console.log("Searching in index:", indexName);
-  console.log("Search parameters in filter input now came---->", filterInput);
-  console.log("sortField:", sortField);
-  console.log("sortOrder:", sortOrder);
 
   if (filterInput?.search?.trim()) {
   const searchTerm = filterInput.search.trim();
@@ -261,7 +247,6 @@ const searchEmployeesFromElastic = async ({
   };
 
   const sort = [{ [sortField]: { order: sortOrder } }];
-  console.log("sort---------->", sort);
 
   const result = await client.search({
     index: indexName,
@@ -273,8 +258,6 @@ const searchEmployeesFromElastic = async ({
       track_total_hits: true,
     },
   });
-
-  // console.log("result?.body---->", result?.body?.hits?.hits);
 
   return {
     total: result?.body?.hits?.total?.value,
@@ -302,8 +285,6 @@ async function bulkIndexDocumentsToElasticSearch(indexName, documents = []) {
       console.error(`Bulk index had errors in ${indexName}:`, errorDetails);
       throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Bulk Insert Error (${indexName})`);
     }
-
-    console.log(`Bulk indexed ${documents.length} documents into ${indexName}`);
     return response;
   } catch (err) {
     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Bulk Insert Error (${indexName}): ${err}`);

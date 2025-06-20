@@ -1239,8 +1239,6 @@ module.exports.queries = {
             //     });
             // }
 
-            console.log(encrypt(filterInput?.search), "filterInput.search");
-            console.log(filterInput?.empDesignation?.[0], "filterInput.empDesignation");
             const filterClauses = [];
             if (filterInput?.empDesignation) {
                 filterClauses.push({
@@ -1276,11 +1274,6 @@ module.exports.queries = {
             //     },
             // });
 
-
-            // console.log("getUsers---------->", getUsers);
-            // console.log(getUsers.hits.hits);
-
-            console.log("filterInput------------->", filterInput);
 
             let subRoleAdminId = null;
             if (filterInput?.role?.includes("ADMIN")) {
@@ -1791,14 +1784,12 @@ module.exports.queries = {
             await Promise.all(
                 emails.map(async (email) => {
                     const decryptEmail = email;
-                    console.log('decrypted Email', decryptEmail);
                     if (!emailRegex.test(decryptEmail)) {
                         messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
                     }
 
                     let currentUserData = await User.findOne({ email: encrypt(email), isDeleted: false, isRegistered: true });
-                    console.log('this is current USer Data', currentUserData);
                     const fieldsToUpdate = ['firstName', 'lastName', 'email'];
                     fieldsToUpdate.forEach(field => {
                         if (currentUserData[field]) {
