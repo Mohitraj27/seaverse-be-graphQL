@@ -2063,8 +2063,8 @@ module.exports = {
                                     decryptedEmail4 = decrypt(user.email);
                                 }
                                 emailData.push({
-                                    receiverEmail: decryptedFirstName4,
-                                    firstName: decryptedEmail4,
+                                    receiverEmail: decryptedEmail4,
+                                    firstName: decryptedFirstName4,
                                     isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                                     courses
                                 });
@@ -2157,9 +2157,18 @@ module.exports = {
                     if (notifications?.length > 0) {
                         await NotificationHelper.createNotification(notifications);
                     }
-                } else {
+                } 
+                
+                /**
+                 * i have no idea why this error is being thrown and 
+                 * it is throwing this error when there is no users matching the learning plan condition 
+                 * 
+                 * if someone finds a valid reason , @todo: please uncomment the code 
+                 */
+
+                /* else { 
                     throw CustomError(ErrorName.SELECTED_GROUP_DONOT_HAVE_ANY_MEMEBER, "Selected Group doesn't have members enrollment is not possible");
-                }
+                } */
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
 
                 LogHelper.logActivity({
