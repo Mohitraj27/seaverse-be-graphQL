@@ -25,7 +25,14 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
-const learningPlanStatus = require('./enumFields/learning_plan_status.json')
+const learningPlanStatus = require('./enumFields/learning_plan_status.json');
+const { ImportJob } = require("../user/employee/import_job_model");
+const { EXCHANGES } = require('../../util/rabbitmq_helper');
+const { v4: uuidv4 } = require('uuid')
+// const { setupQueues, publishToQueue, publishMessagesOneByOne } = require('../../util/rabbitMq_service');
+const { publishToExchange } = require('../training-registrations/rabbitMq_service');
+
+const { decrypt } = require("../../util/encryption_helper");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -289,13 +296,41 @@ const createLearningPlanHelper = async (input, context) => {
         if (newLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE) {
             const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
             if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
+
+                // Create a job ID for tracking
+                const jobId = uuidv4();
+
                 const enrollData = {
                     trainings: newLearningPlan.selectCourses,
                     users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
                     type: "ENROLL",
                     learningPlan: newLearningPlan._id
                 }
-                await createTrainingRegistration(enrollData, context);
+
+                const batchSize = Math.min(500, enrollData?.users?.length);
+                const batchCount = Math.ceil(enrollData?.users?.length / batchSize);
+
+                for (let i = 0; i < batchCount; i++) {
+
+                    const start = i * batchSize;
+                    const end = start + batchSize;
+
+                    // Create batched enrollment data
+                    const batchedEnrollData = {
+                        ...enrollData,
+                        users: enrollData.users.slice(start, end)
+                    };
+
+                    await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                        jobId,
+                        batchedEnrollData,
+                        context,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                // await createTrainingRegistration(enrollData, context);
+
             }
         }
         return { success: true, learningPlan: newLearningPlan };
@@ -338,7 +373,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
         //     return { success: false, errors: errorList };
         // }
-        console.log('input recived', input);
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
@@ -435,8 +469,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     createdBy: existingLearningPlan.createdBy,
                     updatedBy: existingLearningPlan.updatedBy,
                 }));
-            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE  
- ) {                   
+            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE
+            ) {
                 await OverallTrainingProgress.updateMany(
                     {
                         user: { $in: learnersToAssign },
@@ -463,17 +497,43 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     isDeleted: false
                 }).select('_id');
 
-            const publishedCourseIds = publishedCourses?.map(course => course._id);
-            if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
-                const enrollData = {
-                    trainings: publishedCourseIds,
-                    users: learnersToAssign?.map(learner => learner._id) || [],
-                    type: "ENROLL",
-                    learningPlan: existingLearningPlan._id
-                };
-                await createTrainingRegistration(enrollData, context);
+                const publishedCourseIds = publishedCourses?.map(course => course._id);
+                if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
+                    
+                    const jobId = uuidv4();
+
+                    const enrollData = {
+                        trainings: publishedCourseIds,
+                        users: learnersToAssign?.map(learner => learner._id) || [],
+                        type: "ENROLL",
+                        learningPlan: existingLearningPlan._id
+                    }
+
+                    const batchSize = Math.min(500, enrollData?.users?.length);
+                    const batchCount = Math.ceil(enrollData?.users?.length / batchSize);
+
+                    for (let i = 0; i < batchCount; i++) {
+
+                        const start = i * batchSize;
+                        const end = start + batchSize;
+
+                        // Create batched enrollment data
+                        const batchedEnrollData = {
+                            ...enrollData,
+                            users: enrollData.users.slice(start, end)
+                        };
+
+                        await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                            jobId,
+                            batchedEnrollData,
+                            context,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+
+
+                }
             }
-        }
         }
         let inputCourses = [], excludedCourses = [];
         if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
@@ -1244,6 +1304,14 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             );
         }
 
+        if(mergedData.users?.length > 0 ){
+            mergedData.users = mergedData.users.map(user => ({
+                ...user,
+                firstName: decrypt(user?.firstName),
+                lastName: user?.lastName? decrypt(user?.lastName) : "",
+                email: decrypt(user?.email)
+            }));
+        }
         return mergedData || [];
 
     } catch (error) {
@@ -1273,13 +1341,13 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         };
 
         console.log('input received for status activation', input);
-        
+
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
-        
+
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -1289,7 +1357,7 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
 
         // Update the existing learning plan object
         Object.assign(existingLearningPlans, {
-            title: input.title, 
+            title: input.title,
             targetAudience: input.targetAudience,
             audienceSelection: input.audienceSelection,
             conditionType: input.conditionType || null,
@@ -1309,14 +1377,14 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         }
 
         await existingLearningPlans.save();
-        
-        
-       const userObjectIds = await LearningPlanAssignment.find({
+
+
+        const userObjectIds = await LearningPlanAssignment.find({
             learningPlanId: ObjectId(existingLearningPlans._id),
             isDeleted: false,
             isManuallyAdded: true
-            }).select('assignedLearnerId -_id');
-            const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
+        }).select('assignedLearnerId -_id');
+        const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
             // For manual selection, we need to get users based on existing assignments or criteria

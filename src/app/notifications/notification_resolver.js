@@ -588,8 +588,8 @@ module.exports.subscriptions = {
                     AuthUser(context, false);
 
                 const notification = payload.onNotification;
-                console.log("notifiers: ",notification.notifiers);
-                const isTargetedNotifier = (notification.notifiers || [])
+                console.log("notifiers: ",notification?.notifiers);
+                const isTargetedNotifier = (notification?.notifiers || [])
                     .filter(x => x != null)
                     .map(x => x?.toString())
                     .includes(userId?.toString());

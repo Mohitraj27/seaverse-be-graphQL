@@ -4,6 +4,7 @@ module.exports = {
         _id: ID!
         title: [LocalisedData]!
         isFromMigration: Boolean
+        UID: Int
       }  
   type MigrationCoursePage {
         migrationCourses: [migrationCourses]

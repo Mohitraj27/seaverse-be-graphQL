@@ -91,7 +91,10 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                     from: "users",
                     localField: "userIds",
                     foreignField: "_id",
-                    as: "userDetails"
+                    as: "userDetails",
+                    pipeline: [
+                        { $match: { isDeleted: { $ne: true } } },
+                    ]
                 }
             },
             {
@@ -175,7 +178,11 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                     from: "users",
                     localField: "userIds",
                     foreignField: "_id",
-                    as: "userDetails"
+                    as: "userDetails",
+                    pipeline: [
+                        { $match: { isDeleted: { $ne: true } } },
+                        { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, isSignupAdminAprroved: 1 } }
+                    ]
                 }
             },
             {
@@ -255,7 +262,11 @@ const getUserIdsInAutoSyncedGroups = async (groups, fromGetGroups) => {
                     from: "users",
                     localField: "userIds",
                     foreignField: "_id",
-                    as: "userDetails"
+                    as: "userDetails",
+                    pipeline: [
+                        { $match: { isDeleted: { $ne: true } } },
+                        { $project: { _id: 1, firstName: 1, lastName: 1, email: 1, isSignupAdminAprroved: 1 } }
+                    ]
                 }
             },
             {
