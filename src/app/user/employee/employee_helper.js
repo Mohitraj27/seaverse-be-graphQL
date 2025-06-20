@@ -418,6 +418,20 @@ async function enrollUsers(enrollDataArray, context) {
             }
         }
 
+        const uniqueEnrollments = [];
+        if (insertedEnrollments.length > 0) {
+            const seen = new Set();
+
+            for (const enrollment of insertedEnrollments) {
+                const key = `${enrollment.training}_${enrollment.user}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueEnrollments.push(enrollment);
+                }
+            }
+        }
+
+
         console.time('OTP insertion')
         let allEnrollments = [];
 
@@ -438,8 +452,8 @@ async function enrollUsers(enrollDataArray, context) {
                 const allEnrollments = [];
                 const insertPromises = [];
 
-                for (let i = 0; i < insertedEnrollments.length; i += BATCH_SIZE) {
-                    const batch = insertedEnrollments.slice(i, i + BATCH_SIZE);
+                for (let i = 0; i < uniqueEnrollments.length; i += BATCH_SIZE) {
+                    const batch = uniqueEnrollments.slice(i, i + BATCH_SIZE);
                     insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
@@ -456,7 +470,7 @@ async function enrollUsers(enrollDataArray, context) {
 
             } catch (err) {
                 console.error('❌ Error inserting batches:', err);
-            } 
+            }
             // finally {
             //     await mongoose.disconnect();
             // }

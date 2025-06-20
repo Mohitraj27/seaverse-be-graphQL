@@ -133,7 +133,7 @@ const overallProgressSchema = new Schema(
 )
 
 
-overallProgressSchema.index({ user: 1, training: 1 });
+overallProgressSchema.index({ user: 1, training: 1 }, { unique: true });
 overallProgressSchema.index({ status: 1 });
 
 module.exports.OverallTrainingProgress = Model("OverallTrainingProgress", overallProgressSchema);

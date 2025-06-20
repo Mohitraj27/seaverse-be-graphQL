@@ -488,6 +488,26 @@ const updateLearningPlanHelper = async (id, input, context) => {
         }
 
 
+        let inputCourses = [], excludedCourses = [];
+        if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
+
+            inputCourses = input.selectCourses.map(course => course.toString());
+
+            excludedCourses = existingCoursesToString
+                .filter(courseId => !inputCourses.includes(courseId))
+                .map(courseId => new ObjectId(courseId));
+
+        }
+
+        const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
+            { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
+            {
+                $pull: {
+                    learningPlan: existingLearningPlan._id
+                }
+            }
+        );
+
         if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
             const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
             if (courseIds?.length > 0) {
@@ -499,7 +519,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
                 const publishedCourseIds = publishedCourses?.map(course => course._id);
                 if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
-                    
                     const jobId = uuidv4();
 
                     const enrollData = {
@@ -535,28 +554,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
                 }
             }
         }
-        let inputCourses = [], excludedCourses = [];
-        if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
-
-            inputCourses = input.selectCourses.map(course => course.toString());
-
-            excludedCourses = existingCoursesToString
-                .filter(courseId => !inputCourses.includes(courseId))
-                .map(courseId => new ObjectId(courseId));
-
-        }
-
-
-        const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
-            { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
-            {
-                $pull: {
-                    learningPlan: existingLearningPlan._id
-                }
-            }
-        );
-
-
         // const updatedLearningPlan = await LearningPlan.findById(id).lean();
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
