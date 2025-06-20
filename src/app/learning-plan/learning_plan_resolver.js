@@ -1110,7 +1110,7 @@ module.exports.queries = {
             if (status?.length > 0) {
                 queryConditions.status = { $in: status };
             }
-            const searchCondition =[];
+            const searchCondition = [];
             if (search?.trim()) {
                 const encryptedSearch = encrypt(search.trim());
                 searchCondition.push({
@@ -1166,19 +1166,28 @@ module.exports.queries = {
                     },
                 },
                 {
+                    $sort: { "_id": 1 }
+                },
+                {
                     $project: {
                         _id: 0,
                         userId: "$user._id",
                         averageProgress: 1,
                         totalTrainings: 1,
                         completedTrainings: 1,
-                        status: 1,
                         firstName: "$user.firstName",
                         lastName: "$user.lastName",
                         email: "$user.email",
                         lastLoginAt: "$user.lastLoginAt",
                         isRegistered: "$user.isRegistered",
                         timeSpend: 1,
+                        lastLoginAtNumeric: {
+                            $cond: {
+                                if: { $type: "$user.lastLoginAt" },
+                                then: { $toLong: "$user.lastLoginAt" },
+                                else: 0
+                            }
+                        },
                         status: {
                             $switch: {
                                 branches: [
@@ -1198,31 +1207,49 @@ module.exports.queries = {
                 },
             ];
 
-            // Sort (before skip & limit)
             if (sortInput?.sortField) {
                 const sortFieldMap = {
                     Name: "firstName",
                     status: "status",
                     progressPercentage: "averageProgress",
                     completedTrainings: "completedTrainings",
-                    updatedAt: "lastLoginAt",
+                    updatedAt: "lastLoginAtNumeric",
                 };
 
                 const field = sortFieldMap[sortInput.sortField];
                 if (field) {
+                    const sortOrder = sortInput.sortOrder ?? 1;
                     pipeline.push({
                         $sort: {
-                            [field]: sortInput.sortOrder ?? 1,
+                            [field]: sortOrder,
+                            userId: 1, 
                         },
+                    });
+                } else {
+                    pipeline.push({
+                        $sort: {
+                            lastLoginAtNumeric: -1,
+                            userId: 1
+                        }
                     });
                 }
             } else {
-                pipeline.push({ $sort: { lastLoginAt: -1 } });
+                pipeline.push({
+                    $sort: {
+                        lastLoginAtNumeric: -1,
+                        userId: 1
+                    }
+                });
             }
 
-            // Then paginate
             pipeline.push({ $skip: skip });
             pipeline.push({ $limit: limit });
+
+            pipeline.push({
+                $project: {
+                    lastLoginAtNumeric: 0 
+                }
+            });
 
             const detailedPlan = await OverallTrainingProgress.aggregate(pipeline);
             const decryptedResult = detailedPlan.map(user => {
@@ -1233,7 +1260,7 @@ module.exports.queries = {
                     email: decrypt(user.email),
                 };
             });
-            
+
             return decryptedResult;
         } catch (error) {
             console.log(error);
