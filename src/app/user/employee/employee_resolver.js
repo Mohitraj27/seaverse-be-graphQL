@@ -3091,9 +3091,6 @@ module.exports.mutations = {
         )
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-        //encryption logic 
-
-
         const existingUser = await User.findOne({ email: input.user.email });
 
         if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST);
@@ -3314,7 +3311,7 @@ module.exports.mutations = {
 
         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
 
-        EmployeeHelper.sendEnrollmentNotification(notificationList);
+        // EmployeeHelper.sendEnrollmentNotification(notificationList);
 
         // Jira Ticket SEAV-55
         /*

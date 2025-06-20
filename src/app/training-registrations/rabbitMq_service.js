@@ -51,6 +51,7 @@ const publishToQueue = async (queue, data, options = {}) => {
 
 const publishToExchange = async (exchange, routingKey, data, options = {}) => {
     try {
+        console.log('Publishing to exchange:', exchange, 'with routing key:', routingKey, 'and data:', data);
         const channel = await getChannel();
         const message = Buffer.from(JSON.stringify(data));
         
