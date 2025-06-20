@@ -697,6 +697,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                         },
                     },
                 };
+
                 // return {
                 //     learningPlan: learningPlanId ? [learningPlanId] : [],
                 //     directEnrollment: learningPlanId ? false : true,
@@ -714,6 +715,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 //     endDate: null,
                 //     unenrollmentDate: null,
                 // };
+            
             })
         ).filter(entry => entry !== null);
 
@@ -1767,11 +1769,11 @@ module.exports = {
                 allUsersFetched = [...allUsersFetched, ...inputUsers];
             }
 
-            if (input.groups && input.groups.length > 0) {
+            if (input?.groups && input?.groups.length > 0) {
 
-                autoSyncUsers = await getAutoSyncUsers(input.groups);
+                autoSyncUsers = await getAutoSyncUsers(input?.groups);
 
-                customGroups = input.groups.filter(group => group.groupType === 'custom' || group.groupType === 'MEMBER' || group.groupType === 'GROUP');
+                customGroups = input?.groups.filter(group => group.groupType === 'custom' || group.groupType === 'MEMBER' || group.groupType === 'GROUP');
 
 
                 if (customGroups?.length > 0) {
@@ -1868,7 +1870,7 @@ module.exports = {
                             updateFields.$addToSet.users = { $each: userObjectIds };
                         }
 
-                        if (input.groups?.length) {
+                        if (input?.groups?.length > 0) {
                             updateFields.$addToSet.groups = { $each: input.groups };
                         }
 
@@ -1876,7 +1878,7 @@ module.exports = {
                         let trainingRegistrationIds = [];
                         let notEnrolledUsers = [];
 
-                        if (existingTrainingRegs?.length) {
+                        if (existingTrainingRegs?.length > 0) {
 
                             savedTrainingRegistration = await TrainingRegistration.updateMany(
                                 { _id: { $in: existingTrainingRegIds } },
@@ -1894,7 +1896,7 @@ module.exports = {
                             ...updateFields,
                             training: trainingId,
                             users: userObjectIds || [],
-                            groups: input.groups || []
+                            groups: input?.groups || []
                         }));
 
                         if (newRegistrations?.length) {
