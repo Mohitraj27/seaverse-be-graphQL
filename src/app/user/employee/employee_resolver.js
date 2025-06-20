@@ -2083,6 +2083,7 @@ module.exports.queries = {
             }
             const users = await User.find({ _id: { $in: userId }, isDeleted: false }).select('firstName lastName email').lean();
             const emailDetails = users?.map((user) => ({
+                id: user._id,
                 firstName: decrypt(user.firstName),
                 lastName: user.lastName ? decrypt(user.lastName) : "",
                 email: decrypt(user.email)
