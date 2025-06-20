@@ -30,7 +30,9 @@ const { ImportJob } = require("../user/employee/import_job_model");
 const { EXCHANGES } = require('../../util/rabbitmq_helper');
 const { v4: uuidv4 } = require('uuid')
 // const { setupQueues, publishToQueue, publishMessagesOneByOne } = require('../../util/rabbitMq_service');
+const pLimit = require('p-limit');
 const { publishToExchange } = require('../training-registrations/rabbitMq_service');
+
 
 const { decrypt } = require("../../util/encryption_helper");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
@@ -307,27 +309,38 @@ const createLearningPlanHelper = async (input, context) => {
                     learningPlan: newLearningPlan._id
                 }
 
-                const batchSize = Math.min(500, enrollData?.users?.length);
-                const batchCount = Math.ceil(enrollData?.users?.length / batchSize);
+                // const limit = pLimit(1); // Only 1 at a time
 
-                for (let i = 0; i < batchCount; i++) {
+                // const batchCount = 500;
+                // const batchSize = Math.ceil(enrollData.users.length / batchCount);
 
-                    const start = i * batchSize;
-                    const end = start + batchSize;
+                // for (let i = 0; i < batchCount; i++) {
+                //     await limit(async () => {
+                //         const start = i * batchSize;
+                //         const end = Math.min(start + batchSize, enrollData.users.length);
 
-                    // Create batched enrollment data
-                    const batchedEnrollData = {
-                        ...enrollData,
-                        users: enrollData.users.slice(start, end)
-                    };
+                //         const batchedEnrollData = {
+                //             ...enrollData,
+                //             users: enrollData.users.slice(start, end)
+                //         };
 
-                    await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
-                        jobId,
-                        batchedEnrollData,
-                        context,
-                        timestamp: new Date().toISOString()
-                    });
-                }
+                //         console.log(`Processing batch ${i + 1}/${batchCount}`);
+
+                //         return await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                //             jobId,
+                //             batchedEnrollData,
+                //             context,
+                //             timestamp: new Date().toISOString()
+                //         });
+                //     });
+                // }
+                
+                await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                    jobId,
+                    enrollData,
+                    context,
+                    timestamp: new Date().toISOString()
+                });
 
                 // await createTrainingRegistration(enrollData, context);
 
@@ -1301,11 +1314,11 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             );
         }
 
-        if(mergedData.users?.length > 0 ){
+        if (mergedData.users?.length > 0) {
             mergedData.users = mergedData.users.map(user => ({
                 ...user,
                 firstName: decrypt(user?.firstName),
-                lastName: user?.lastName? decrypt(user?.lastName) : "",
+                lastName: user?.lastName ? decrypt(user?.lastName) : "",
                 email: decrypt(user?.email)
             }));
         }

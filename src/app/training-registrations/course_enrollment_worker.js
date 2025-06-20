@@ -13,17 +13,18 @@ const processMessage = async (channel, message) => {
     let jobData;
 
     try {
+        console.log('reached inside worker!');
         await connectDb();
         jobData = JSON.parse(message.content.toString());
-        console.log(`Processing course enrollment job: ${jobData.jobId}`);
+        console.log(`Processing course enrollment job`);
 
         const {
             jobId,
-            batchedEnrollData,
+            enrollData,
             context
         } = jobData;
 
-        await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
+        await createTrainingRegistrationBackgroundProcess(enrollData, context);
 
         // Acknowledge message after successful processing
         await channel.ack(message);
