@@ -373,6 +373,7 @@ type FetchFileResponse {
             userId: [ID!]!
         }
         type UserEmailDetails {
+            id: ID!
             firstName: String
             lastName: String
             email: String
