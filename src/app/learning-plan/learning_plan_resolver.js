@@ -1107,9 +1107,7 @@ module.exports.queries = {
                 learningPlan: { $in: [id] },
                 isDeleted: { $ne: true },
             };
-            if (status?.length > 0) {
-                queryConditions.status = { $in: status };
-            }
+           
             const searchCondition = [];
             if (search?.trim()) {
                 const encryptedSearch = encrypt(search.trim());
@@ -1206,6 +1204,14 @@ module.exports.queries = {
                     },
                 },
             ];
+
+            if (status?.length > 0) {
+                pipeline.push({
+                    $match: {
+                        status: { $in: status }
+                    }
+                });
+            }
 
             if (sortInput?.sortField) {
                 const sortFieldMap = {
