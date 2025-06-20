@@ -604,8 +604,8 @@ const getSingleLearnerReport = async ({ input }, context) => {
             console.time('getSingleLearnerReport');
             const learnersReports = (await OverallTrainingProgress.aggregate(singleLearnerEnrollmentPipeline)).map( item => ({
                 ...item,
-                firstName: item?.firstName ? decrypt(item?.firstName,true) : null,
-                lastName: item?.lastName ? decrypt(item?.lastName,true) : null,
+                firstName: item?.firstName ? decrypt(item?.firstName,true) : '',
+                lastName: item?.lastName ? decrypt(item?.lastName,true) : '',
             }));
             console.timeEnd('getSingleLearnerReport');
             const learnerReportsByUser = {};
@@ -653,7 +653,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
                 });
             } else {
                 learnersReports.forEach(item => {
-                    const learnerName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || "-";
+                    const learnerName = `${item.firstName || ''} ${item.lastName ?? ''}`.trim() || "-";
                     if (!learnerReportsByUser[learnerName]) {
                         learnerReportsByUser[learnerName] = [];
                     }
