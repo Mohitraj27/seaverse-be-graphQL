@@ -14,19 +14,29 @@ services:
   #   networks:
   #     - app-network
 
-  # Worker service
-  worker:
+  # Enrollment Worker 
+  enrollment-worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.enrollmentworker
     env_file:
       - .env
     restart: unless-stopped
     networks:
       - app-network
-    # If your worker needs to access files, you can add volumes
     # volumes:
     #   - ./logs:/usr/src/app/logs
+
+     # CSV Worker
+  csv-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.csvworker
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - app-network
 
 networks:
   app-network:

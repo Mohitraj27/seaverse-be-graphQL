@@ -1,0 +1,14 @@
+# Dockerfile.csvworker
+FROM node:18.20.2
+
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# EXPOSE 8094
+
+CMD ["node", "src/app/user/employee/csv_import_worker.js"]
