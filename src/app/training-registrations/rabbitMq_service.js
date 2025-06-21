@@ -3,11 +3,11 @@ const { connect, getChannel, close, QUEUES, EXCHANGES } = require('../../util/ra
 const setupQueues = async () => {
     const channel = await getChannel();
     // remove this code before production
-     await channel.purgeQueue('course_enrollment_queue');
-    console.log('Queue cleared');
+    //  await channel.purgeQueue('course_enrollment_queue');
+    // console.log('Queue cleared');
 
     // Clear all queues
-      await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
+    //   await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
     // remove this code before production
     // Setup exchanges
     await channel.assertExchange(EXCHANGES.COURSE_ENROLLMENT, 'direct', { durable: true });
