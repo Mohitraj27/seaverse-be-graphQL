@@ -9,6 +9,7 @@ const { createTrainingRegistrationBackgroundProcess } = require('./training_regi
 let consumerTag = null;
 
 const processMessage = async (channel, message) => {
+    // console.log('Received message:', message.content.toString());
     const startTime = Date.now();
     let jobData;
 
@@ -20,11 +21,14 @@ const processMessage = async (channel, message) => {
 
         const {
             jobId,
-            enrollData,
+            batchedEnrollData,
             context
         } = jobData;
 
-        await createTrainingRegistrationBackgroundProcess(enrollData, context);
+        console.log(`Job ID: ${jobId}`);
+        console.log(`Enroll Data: ${JSON.stringify(batchedEnrollData)}`);
+
+        await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
 
         // Acknowledge message after successful processing
         await channel.ack(message);

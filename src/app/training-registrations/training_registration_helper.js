@@ -1721,6 +1721,8 @@ module.exports = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
+            console.log("createTrainingRegistrationBackgroundProcess input:", input);
+
         if (
             !SubRoleHelper.hasPermission({
                 currentRole: role,

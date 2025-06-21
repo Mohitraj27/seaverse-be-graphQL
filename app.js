@@ -1,7 +1,7 @@
 require("dotenv").config();
 
-require('./src/app/training-registrations/course_enrollment_worker');
-require('./src/app/user/employee/csv_import_worker');
+// require('./src/app/training-registrations/course_enrollment_worker');
+// require('./src/app/user/employee/csv_import_worker');
 
 const { ExpressServer, ApolloServer, HttpsHelper, HttpHelper, FileHelper } = require("./src/tools");
 const { FormatError, VerifyToken, FirebaseHelper, IpInfo } = require("./src/util");

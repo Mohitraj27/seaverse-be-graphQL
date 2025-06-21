@@ -2,7 +2,13 @@ const { connect, getChannel, close, QUEUES, EXCHANGES } = require('../../util/ra
 
 const setupQueues = async () => {
     const channel = await getChannel();
+    // remove this code before production
+     await channel.purgeQueue('course_enrollment_queue');
+    console.log('Queue cleared');
 
+    // Clear all queues
+      await Promise.all(Object.keys(QUEUES).map(queueName => channel.assertQueue(queueName, { durable: true }).then(() => channel.purgeQueue(queueName))));
+    // remove this code before production
     // Setup exchanges
     await channel.assertExchange(EXCHANGES.COURSE_ENROLLMENT, 'direct', { durable: true });
     
@@ -51,7 +57,7 @@ const publishToQueue = async (queue, data, options = {}) => {
 
 const publishToExchange = async (exchange, routingKey, data, options = {}) => {
     try {
-        console.log('Publishing to exchange:', exchange, 'with routing key:', routingKey, 'and data:', data);
+        console.log('Publishing to exchange:',);
         const channel = await getChannel();
         const message = Buffer.from(JSON.stringify(data));
         

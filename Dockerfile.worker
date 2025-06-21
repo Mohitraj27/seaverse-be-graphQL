@@ -1,0 +1,19 @@
+# Dockerfile.worker
+FROM node:18.20.2
+
+WORKDIR /usr/src/app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Don't expose any port since this is a worker, not a web server
+# EXPOSE 8094
+
+# Run the specific worker file
+CMD ["node", "src/app/training-registrations/course_enrollment_worker.js"]

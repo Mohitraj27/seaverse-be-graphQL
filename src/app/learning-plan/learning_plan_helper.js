@@ -334,13 +334,48 @@ const createLearningPlanHelper = async (input, context) => {
                 //         });
                 //     });
                 // }
-                
-                await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
-                    jobId,
-                    enrollData,
-                    context,
-                    timestamp: new Date().toISOString()
-                });
+
+                async function publishEnrollmentInBatches(enrollData, jobId, context) {
+                    if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
+                        console.warn('No users found for enrollment');
+                        return;
+                    }
+
+                    const users = enrollData.users;
+                    const batchSize = 500;
+                    const totalUsers = users.length;
+                    const batchCount = Math.ceil(totalUsers / batchSize);
+
+                    console.log(`Publishing ${totalUsers} users in ${batchCount} batches`);
+
+                    for (let i = 0; i < batchCount; i++) {
+                        const start = i * batchSize;
+                        const end = Math.min(start + batchSize, totalUsers);
+
+                        const batchedUsers = users.slice(start, end);
+
+                        const batchedEnrollData = {
+                            ...enrollData,
+                            users: batchedUsers
+                        };
+
+                        try {
+                            await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                                jobId,
+                                batchedEnrollData,
+                                context,
+                                timestamp: new Date().toISOString()
+                            });
+
+                            console.log(`Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
+                        } catch (err) {
+                            console.error(`Failed to publish batch ${i + 1}:`, err);
+                            throw err; 
+                        }
+                    }
+                }
+                await publishEnrollmentInBatches(enrollData, jobId, context);
+
 
                 // await createTrainingRegistration(enrollData, context);
 
