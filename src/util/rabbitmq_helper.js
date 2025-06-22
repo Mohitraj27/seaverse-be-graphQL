@@ -1,8 +1,11 @@
-// const amqp = require('amqplib/callback_api');
 const amqp = require('amqplib');
 require('dotenv').config();
+
 let connection = null;
 let channel = null;
+let isConnecting = false;
+const retryInterval = 5000;
+
 const {
     RABBITMQ_PROTOCOL,
     RABBITMQ_USER,
@@ -12,41 +15,47 @@ const {
 } = process.env;
 
 const connectionUrl = `${RABBITMQ_PROTOCOL}://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`;
-// const connectionUrl = `amqps://seaverse:seaverse-lms@b-3aa1cd35-a840-4b89-9566-5af7f4ccd108.mq.ap-south-1.on.aws:5671`
-// const connectionUrl = process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672';
-const retryInterval = 5000;
 
+// Helper to establish connection and channel
 const connect = async () => {
+    if (isConnecting || (connection && connection.connection?.stream?.writable)) {
+        return channel;
+    }
+
+    isConnecting = true;
+
     try {
+        console.log('Connecting to RabbitMQ...');
         connection = await amqp.connect(connectionUrl);
         channel = await connection.createChannel();
-        
-        // Handle connection events
+
         connection.on('error', (err) => {
-            console.error('RabbitMQ connection error:', err);
-            reconnect();
+            console.error('RabbitMQ connection error:', err.message);
         });
-        
+
         connection.on('close', () => {
-            console.log('RabbitMQ connection closed');
-            reconnect();
+            console.warn('RabbitMQ connection closed. Attempting to reconnect...');
+            connection = null;
+            channel = null;
+            setTimeout(connect, retryInterval);
         });
-        
+
+        channel.on('error', (err) => {
+            console.error('RabbitMQ channel error:', err.message);
+        });
+
         console.log('RabbitMQ connected successfully');
         return channel;
     } catch (error) {
-        console.error('Failed to connect to RabbitMQ:', error);
+        console.error('Failed to connect to RabbitMQ:', error.message);
+        setTimeout(connect, retryInterval);
         throw error;
+    } finally {
+        isConnecting = false;
     }
 };
 
-const reconnect = () => {
-    console.log('Attempting to reconnect to RabbitMQ...');
-    setTimeout(() => {
-        connect();
-    }, retryInterval);
-};
-
+// Always returns a valid channel (waits if necessary)
 const getChannel = async () => {
     if (!channel) {
         await connect();
@@ -54,20 +63,35 @@ const getChannel = async () => {
     return channel;
 };
 
+// Graceful shutdown
 const close = async () => {
-    if (channel) await channel.close();
-    if (connection) await connection.close();
+    try {
+        if (channel) {
+            await channel.close();
+            console.log('RabbitMQ channel closed');
+        }
+        if (connection) {
+            await connection.close();
+            console.log('RabbitMQ connection closed');
+        }
+    } catch (err) {
+        console.error('Error closing RabbitMQ connection/channel:', err.message);
+    } finally {
+        channel = null;
+        connection = null;
+    }
 };
 
+// Queue & Exchange Definitions
 const QUEUES = {
     CSV_IMPORT: 'csv_import_queue',
-    CSV_IMPORT_DLQ: 'csv_import_dlq', // Dead Letter Queue
+    CSV_IMPORT_DLQ: 'csv_import_dlq',
     NOTIFICATION: 'notification_queue',
     EMAIL: 'email_queue',
     COURSE_ENROLLMENT: 'course_enrollment_queue',
     COURSE_ENROLLMENT_DLQ: 'course_enrollment_dlq',
     REPORT_GENERATION: 'report_generation_queue',
-    REPORT_GENERATION_DLQ: 'report_generation_dlq'
+    REPORT_GENERATION_DLQ: 'report_generation_dlq',
 };
 
 const EXCHANGES = {
@@ -75,7 +99,7 @@ const EXCHANGES = {
     NOTIFICATION: 'notification_exchange',
     EMAIL: 'email_exchange',
     COURSE_ENROLLMENT: 'course_enrollment_exchange',
-    REPORT_GENERATION: 'report_generation_exchange'
+    REPORT_GENERATION: 'report_generation_exchange',
 };
 
 module.exports = {
@@ -83,5 +107,9 @@ module.exports = {
     getChannel,
     close,
     QUEUES,
-    EXCHANGES
+    EXCHANGES,
 };
+
+
+
+// const connectionUrl = process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672';

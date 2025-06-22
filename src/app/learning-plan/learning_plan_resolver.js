@@ -1110,7 +1110,7 @@ module.exports.queries = {
            
             const searchCondition = [];
             if (search?.trim()) {
-                const encryptedSearch = encrypt(search.trim());
+                const encryptedSearch = encrypt(search.trim()?.toLowerCase());
                 searchCondition.push({
                     $match: {
                         $or: [
@@ -1234,7 +1234,7 @@ module.exports.queries = {
                 } else {
                     pipeline.push({
                         $sort: {
-                            lastLoginAtNumeric: -1,
+                            firstName: 1,
                             userId: 1
                         }
                     });
@@ -1242,8 +1242,7 @@ module.exports.queries = {
             } else {
                 pipeline.push({
                     $sort: {
-                        lastLoginAtNumeric: -1,
-                        userId: 1
+                        firstName: 1,
                     }
                 });
             }

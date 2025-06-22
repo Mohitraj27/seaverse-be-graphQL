@@ -35,6 +35,8 @@ const { publishToExchange } = require('../training-registrations/rabbitMq_servic
 
 
 const { decrypt } = require("../../util/encryption_helper");
+const courseEnrollmentQueue = require("../queues/course_enrollment_queue");
+const { JOB_NAMES } = require("../queues/queue.enum");
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -335,9 +337,14 @@ const createLearningPlanHelper = async (input, context) => {
                 //     });
                 // }
 
+
+                async function publishCourseEnrollmentJob(jobData) {
+                    await courseEnrollmentQueue.add(JOB_NAMES.CREATE_ENROLL, jobData);
+                }
+
                 async function publishEnrollmentInBatches(enrollData, jobId, context) {
                     if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
-                        console.warn('No users found for enrollment');
+                        console.warn('⚠️ No users found for enrollment');
                         return;
                     }
 
@@ -346,12 +353,11 @@ const createLearningPlanHelper = async (input, context) => {
                     const totalUsers = users.length;
                     const batchCount = Math.ceil(totalUsers / batchSize);
 
-                    console.log(`Publishing ${totalUsers} users in ${batchCount} batches`);
+                    console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
 
                     for (let i = 0; i < batchCount; i++) {
                         const start = i * batchSize;
                         const end = Math.min(start + batchSize, totalUsers);
-
                         const batchedUsers = users.slice(start, end);
 
                         const batchedEnrollData = {
@@ -360,20 +366,22 @@ const createLearningPlanHelper = async (input, context) => {
                         };
 
                         try {
-                            await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
+                            await publishCourseEnrollmentJob({
                                 jobId,
                                 batchedEnrollData,
                                 context,
                                 timestamp: new Date().toISOString()
                             });
 
-                            console.log(`Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
+                            console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
                         } catch (err) {
-                            console.error(`Failed to publish batch ${i + 1}:`, err);
-                            throw err; 
+                            console.error(`❌ Failed to publish batch ${i + 1}:`, err);
+                            throw err; // you may choose to continue instead of breaking entire loop
                         }
                     }
                 }
+
+
                 await publishEnrollmentInBatches(enrollData, jobId, context);
 
 
@@ -576,27 +584,51 @@ const updateLearningPlanHelper = async (id, input, context) => {
                         learningPlan: existingLearningPlan._id
                     }
 
-                    const batchSize = Math.min(500, enrollData?.users?.length);
-                    const batchCount = Math.ceil(enrollData?.users?.length / batchSize);
-
-                    for (let i = 0; i < batchCount; i++) {
-
-                        const start = i * batchSize;
-                        const end = start + batchSize;
-
-                        // Create batched enrollment data
-                        const batchedEnrollData = {
-                            ...enrollData,
-                            users: enrollData.users.slice(start, end)
-                        };
-
-                        await publishToExchange(EXCHANGES.COURSE_ENROLLMENT, 'courseEnrollment', {
-                            jobId,
-                            batchedEnrollData,
-                            context,
-                            timestamp: new Date().toISOString()
-                        });
+                    async function publishCourseEnrollmentJob(jobData) {
+                        await courseEnrollmentQueue.add(JOB_NAMES.UPDATE_ENROLL, jobData);
                     }
+
+                    async function publishEnrollmentInBatches(enrollData, jobId, context) {
+                        if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
+                            console.warn('⚠️ No users found for enrollment');
+                            return;
+                        }
+
+                        const users = enrollData.users;
+                        const batchSize = 500;
+                        const totalUsers = users.length;
+                        const batchCount = Math.ceil(totalUsers / batchSize);
+
+                        console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+
+                        for (let i = 0; i < batchCount; i++) {
+                            const start = i * batchSize;
+                            const end = Math.min(start + batchSize, totalUsers);
+                            const batchedUsers = users.slice(start, end);
+
+                            const batchedEnrollData = {
+                                ...enrollData,
+                                users: batchedUsers
+                            };
+
+                            try {
+                                await publishCourseEnrollmentJob({
+                                    jobId,
+                                    batchedEnrollData,
+                                    context,
+                                    timestamp: new Date().toISOString()
+                                });
+
+                                console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
+                            } catch (err) {
+                                console.error(`❌ Failed to publish batch ${i + 1}:`, err);
+                                throw err; // you may choose to continue instead of breaking entire loop
+                            }
+                        }
+                    }
+
+
+                    await publishEnrollmentInBatches(enrollData, jobId, context);
 
 
                 }

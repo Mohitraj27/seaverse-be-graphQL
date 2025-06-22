@@ -455,16 +455,14 @@ async function enrollUsers(enrollDataArray, context) {
                 for (let i = 0; i < uniqueEnrollments.length; i += BATCH_SIZE) {
                     const batch = uniqueEnrollments.slice(i, i + BATCH_SIZE);
 
-                    console.log('batch');
-                    console.log(batch);
+                   
 
                     insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
                 const results = await Promise.all(insertPromises);
 
-                console.log('results');
-                console.log(results);
+             
 
                 for (const result of results) {
                     allEnrollments.push(...result); // result is an array of inserted docs
@@ -484,15 +482,13 @@ async function enrollUsers(enrollDataArray, context) {
         };
 
         run().then(() => {
-            console.log('✅ Total Inserted Documents:');
+            console.log('✅ Total Inserted Documents:', allEnrollments?.length);
         });
 
 
 
         console.timeEnd('OTP insertion')
 
-        console.log('bulkOps');
-        console.log(JSON.stringify(bulkOps, null, 2));
 
         console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
@@ -2622,7 +2618,8 @@ function mapCSVRowToUser(row) {
 }
 
 const sendBulkEmails = async (passwordEmailList) => {
-
+    console.log("Sending bulk emails...");
+    console.log(passwordEmailList);
     try {
 
         SqliteEmailHelper.insertEmails(passwordEmailList);
