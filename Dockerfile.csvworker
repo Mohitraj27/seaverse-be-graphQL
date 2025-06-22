@@ -11,4 +11,4 @@ COPY . .
 
 # EXPOSE 8094
 
-CMD ["node", "src/app/user/employee/csv_import_worker.js"]
+CMD ["node", "src/app/workers/csv_import_worker.js"]
