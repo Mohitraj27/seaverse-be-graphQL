@@ -2618,8 +2618,7 @@ function mapCSVRowToUser(row) {
 }
 
 const sendBulkEmails = async (passwordEmailList) => {
-    console.log("Sending bulk emails...");
-    console.log(passwordEmailList);
+  
     try {
 
         SqliteEmailHelper.insertEmails(passwordEmailList);
