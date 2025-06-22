@@ -1,4 +1,8 @@
 // const { Client } = require('@elastic/elasticsearch');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
+
 const { Client } = require('@opensearch-project/opensearch');
 const {
   CustomError,
@@ -6,7 +10,6 @@ const {
 } = require("../util");
 const { encrypt } = require('./encryption_helper');
 
-require("dotenv").config();
 
 // const client = new Client({
 //   node: process.env.ELASTICSEARCH_URL,

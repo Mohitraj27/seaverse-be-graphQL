@@ -89,6 +89,8 @@ const { ImportJob } = require("./import_job_model");
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
 const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
 const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
+const csvImportQueue = require("../../queues/csv_import_queue");
+const { JOB_NAMES } = require("../../queues/queue.enum");
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2957,58 +2959,120 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
-            const empIdsArray = Array.from(empIds);
-            const emailsArray = Array.from(emails);
+            // const empIdsArray = Array.from(empIds);
+            // const emailsArray = Array.from(emails);
 
 
             // Create a job ID for tracking
-            const jobId = uuidv4();
+            // const jobId = uuidv4();
 
-            // Store job metadata in database
-            await ImportJob.create({
-                jobId,
-                subscriber: subscriberId,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "PROCESSING",
-                totalRecords: users.length,
-                description: "Processing CSV import"
-            });
+            // // Store job metadata in database
+            // await ImportJob.create({
+            //     jobId,
+            //     subscriber: subscriberId,
+            //     uploadedBy: userId,
+            //     fileName: newFileName,
+            //     filePath: { url: saveCSV },
+            //     importStatus: "PROCESSING",
+            //     totalRecords: users.length,
+            //     description: "Processing CSV import"
+            // });
 
             // Publish message to RabbitMQ
-            const batchSize = Math.min(500, users.length);
-            const batchCount = Math.ceil(users.length / batchSize);
-            console.time('Processing all batches');
-            for (let i = 0; i < batchCount; i++) {
-                console.time(`Processing batch ${i + 1}/${batchCount}`);
-                const start = i * batchSize;
-                const end = start + batchSize;
-                const batchUsers = users.slice(start, end);
-                const batchEmails = emailsArray.slice(start, end);
-                const batchEmpIds = empIdsArray.slice(start, end);
+            // const batchSize = Math.min(500, users.length);
+            // const batchCount = Math.ceil(users.length / batchSize);
+            // console.time('Processing all batches');
+            // for (let i = 0; i < batchCount; i++) {
+            //     console.time(`Processing batch ${i + 1}/${batchCount}`);
+            //     const start = i * batchSize;
+            //     const end = start + batchSize;
+            //     const batchUsers = users.slice(start, end);
+            //     const batchEmails = emailsArray.slice(start, end);
+            //     const batchEmpIds = empIdsArray.slice(start, end);
 
-                console.log(`Processing batch ${i + 1}/${batchCount}`);
-                await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
-                    jobId,
-                    users: batchUsers,
-                    emailsArray: batchEmails,
-                    empIdsArray: batchEmpIds,
-                    subscriberId,
-                    userId,
-                    userInfo,
-                    newFileName,
-                    saveCSV,
-                    context,
-                    timestamp: new Date().toISOString()
-                });
-                console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+            //     console.log(`Processing batch ${i + 1}/${batchCount}`);
+            //     await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
+            //         jobId,
+            //         users: batchUsers,
+            //         emailsArray: batchEmails,
+            //         empIdsArray: batchEmpIds,
+            //         subscriberId,
+            //         userId,
+            //         userInfo,
+            //         newFileName,
+            //         saveCSV,
+            //         context,
+            //         timestamp: new Date().toISOString()
+            //     });
+            //     console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+            // }
+            // console.timeEnd('Processing all batches');
+
+
+
+            async function publishCsvImportJob(jobData) {
+                await csvImportQueue.add(JOB_NAMES.IMPORT_CSV, jobData);
             }
-            console.timeEnd('Processing all batches');
+
+            async function publishCsvImportInBatches(users, emails, empIds, subscriberId, userId, userInfo, newFileName, saveCSV, context) {
+                const empIdsArray = Array.from(empIds);
+                const emailsArray = Array.from(emails);
+                const jobId = uuidv4();
+
+                await ImportJob.create({
+                    jobId,
+                    subscriber: subscriberId,
+                    uploadedBy: userId,
+                    fileName: newFileName,
+                    filePath: { url: saveCSV },
+                    importStatus: "PROCESSING",
+                    totalRecords: users.length,
+                    description: "Processing CSV import"
+                });
+
+                const batchSize = 500;
+                const totalUsers = users.length;
+                const batchCount = Math.ceil(totalUsers / batchSize);
+
+                console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+
+                for (let i = 0; i < batchCount; i++) {
+                    const start = i * batchSize;
+                    const end = Math.min(start + batchSize, totalUsers);
+
+                    const batchUsers = users.slice(start, end);
+                    const batchEmails = emailsArray.slice(start, end);
+                    const batchEmpIds = empIdsArray.slice(start, end);
+
+                    try {
+                        await publishCsvImportJob({
+                            jobId,
+                            users: batchUsers,
+                            emailsArray: batchEmails,
+                            empIdsArray: batchEmpIds,
+                            subscriberId,
+                            userId,
+                            userInfo,
+                            newFileName,
+                            saveCSV,
+                            context,
+                            timestamp: new Date().toISOString()
+                        });
+
+                        console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchUsers.length} users`);
+                    } catch (err) {
+                        console.error(`❌ Failed to publish batch ${i + 1}:`, err);
+                        throw err;
+                    }
+                }
+
+                return jobId;
+            }
+
+            await publishCsvImportInBatches(users, emails, empIds, subscriberId, userId, userInfo, newFileName, saveCSV, context);
 
             return {
                 status: "The bulk import is being processed in the background. You can continue working.",
-                // jobId
             };
 
             // const child = fork("./src/app/user/employee/csv_import_process.js");

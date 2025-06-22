@@ -2,6 +2,7 @@ require("dotenv").config();
 
 // require('./src/app/training-registrations/course_enrollment_worker');
 // require('./src/app/user/employee/csv_import_worker');
+const redis = require('./src/util/redis_helper'); 
 
 const { ExpressServer, ApolloServer, HttpsHelper, HttpHelper, FileHelper } = require("./src/tools");
 const { FormatError, VerifyToken, FirebaseHelper, IpInfo } = require("./src/util");
@@ -129,7 +130,7 @@ const elasticConnect = async () => {
         console.error("Elasticsearch connection failed:", error);
     }
 };
-elasticConnect();
+ elasticConnect();
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
