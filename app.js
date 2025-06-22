@@ -130,7 +130,7 @@ const elasticConnect = async () => {
         console.error("Elasticsearch connection failed:", error);
     }
 };
-// elasticConnect();
+ elasticConnect();
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
