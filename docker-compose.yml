@@ -15,8 +15,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.enrollmentworker
-    # environment:
-    #   - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     restart: unless-stopped
@@ -28,8 +26,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.csvworker
-    # environment:
-    #   - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     restart: unless-stopped
