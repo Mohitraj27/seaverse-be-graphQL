@@ -6,14 +6,19 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const redis = new Redis(
     // 'redis://localhost:6379',
-       process.env.REDIS_URL,
+    //    process.env.REDIS_URL,
     // || "rediss://default:AZfsAAIjcDE5OWIwZDJjNmRlYjk0MThjODljYWRjOTYzZDA4MjYwZXAxMA@viable-hermit-38892.upstash.io:6379" ,
     {
-        // host: process.env.REDIS_HOST ,
+        host: 'redis-13438.fcrce171.ap-south-1-1.ec2.redns.redis-cloud.com',
+        port: Number(13438),
+
+        username: 'default', // optional
+        password: 'mWkY8anjZR93MhOYbPwV2b0R3V04A2jV', // optional
+        // host: process.env.REDIS_HOST,
         // port: Number(process.env.REDIS_PORT),
 
-        username: process.env.REDIS_USERNAME, // optional
-        password: process.env.REDIS_PASSWORD, // optional
+        // username: process.env.REDIS_USERNAME, // optional
+        // password: process.env.REDIS_PASSWORD, // optional
         maxRetriesPerRequest: null, // ✅ Required by BullMQ
         enableReadyCheck: true,     // Helps detect if Redis is ready
         // tls:{},
