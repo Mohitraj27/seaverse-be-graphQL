@@ -131,7 +131,14 @@ const elasticConnect = async () => {
     }
 };
  elasticConnect();
-
+setInterval(async () => {
+    try {
+        const pong = await redis.ping();
+        console.log(`✅ Redis ping: ${pong}`);
+    } catch (err) {
+        console.error('❌ Redis ping failed:', err);
+    }
+}, 5000000);
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
