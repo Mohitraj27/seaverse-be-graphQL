@@ -189,7 +189,7 @@ module.exports.queries = {
         const decryptedFormattedResults = formattedResults?.map(user => ({
             id: user.id,
             firstName: decrypt(user.firstName),
-            lastName: user?.lastName ? decrypt(user.lastName):'',
+            lastName: user?.lastName ? decrypt(user.lastName) : '',
             email: decrypt(user.email),
             status: user.status,
             isRegistered: user.isRegistered,
@@ -307,7 +307,12 @@ module.exports.queries = {
                 filterConditions = {
                     ...filterConditions,
                     $or: [
-                        { "training.title.value": { $regex: filterInput.search, $options: "i" } },
+                        {
+                            $and: [
+                                { "training.title.value": { $regex: filterInput.search, $options: "i" }, },
+                                { isEnrolled: { $ne: false } },
+                            ]
+                        },
                     ],
                 };
             }
@@ -1879,14 +1884,14 @@ module.exports.mutations = {
             let decryptedFirstName = '';
             let decryptedEmail = '';
 
-            if(overallTrainingProgressUsers[0].user.firstName){
+            if (overallTrainingProgressUsers[0].user.firstName) {
                 decryptedFirstName = decrypt(overallTrainingProgressUsers[0].user.firstName);
             }
 
-            if(overallTrainingProgressUsers[0].user.email){
+            if (overallTrainingProgressUsers[0].user.email) {
                 decryptedEmail = decrypt(overallTrainingProgressUsers[0].user.email);
             }
-            
+
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
