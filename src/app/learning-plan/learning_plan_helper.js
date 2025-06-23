@@ -27,11 +27,11 @@ const { Moment } = require("../../tools");
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 const learningPlanStatus = require('./enumFields/learning_plan_status.json');
 const { ImportJob } = require("../user/employee/import_job_model");
-const { EXCHANGES } = require('../../util/rabbitmq_helper');
+// const { EXCHANGES } = require('../../util/rabbitmq_helper');
 const { v4: uuidv4 } = require('uuid')
 // const { setupQueues, publishToQueue, publishMessagesOneByOne } = require('../../util/rabbitMq_service');
 const pLimit = require('p-limit');
-const { publishToExchange } = require('../training-registrations/rabbitMq_service');
+// const { publishToExchange } = require('../training-registrations/rabbitMq_service');
 
 
 const { decrypt } = require("../../util/encryption_helper");
