@@ -27,11 +27,11 @@ const { Moment } = require("../../tools");
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
 const learningPlanStatus = require('./enumFields/learning_plan_status.json');
 const { ImportJob } = require("../user/employee/import_job_model");
-const { EXCHANGES } = require('../../util/rabbitmq_helper');
+// const { EXCHANGES } = require('../../util/rabbitmq_helper');
 const { v4: uuidv4 } = require('uuid')
 // const { setupQueues, publishToQueue, publishMessagesOneByOne } = require('../../util/rabbitMq_service');
 const pLimit = require('p-limit');
-const { publishToExchange } = require('../training-registrations/rabbitMq_service');
+// const { publishToExchange } = require('../training-registrations/rabbitMq_service');
 
 
 const { decrypt } = require("../../util/encryption_helper");
@@ -338,14 +338,90 @@ const createLearningPlanHelper = async (input, context) => {
                 // }
 
 
+                // async function publishCourseEnrollmentJob(jobData) {
+                //     await courseEnrollmentQueue.add(JOB_NAMES.CREATE_ENROLL, jobData);
+                // }
                 async function publishCourseEnrollmentJob(jobData) {
-                    await courseEnrollmentQueue.add(JOB_NAMES.CREATE_ENROLL, jobData);
+                    try {
+                        // Validate job data
+                        if (!jobData || !jobData.jobId) {
+                            throw new Error('Invalid job data: missing jobId');
+                        }
+
+                        // Add job with unique ID to prevent duplicates
+                        const job = await courseEnrollmentQueue.add(
+                            JOB_NAMES.CREATE_ENROLL,
+                            jobData,
+                            {
+                                jobId: `${jobData.jobId}-${Date.now()}`, // Ensure unique job ID
+                                // Override default options if needed
+                                attempts: 5,
+                                backoff: {
+                                    type: 'exponential',
+                                    delay: 5000
+                                }
+                            }
+                        );
+
+                        console.log(`📋 Job added to queue: ${job.id}`);
+                        return job;
+                    } catch (error) {
+                        console.error('❌ Failed to add job to queue:', error);
+                        throw error;
+                    }
                 }
 
+                // async function publishEnrollmentInBatches(enrollData, jobId, context) {
+                //     if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
+                //         console.warn('⚠️ No users found for enrollment');
+                //         return;
+                //     }
+
+                //     const users = enrollData.users;
+                //     const batchSize = 500;
+                //     const totalUsers = users.length;
+                //     const batchCount = Math.ceil(totalUsers / batchSize);
+
+                //     console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+
+                //     for (let i = 0; i < batchCount; i++) {
+                //         const start = i * batchSize;
+                //         const end = Math.min(start + batchSize, totalUsers);
+                //         const batchedUsers = users.slice(start, end);
+
+                //         const batchedEnrollData = {
+                //             ...enrollData,
+                //             users: batchedUsers
+                //         };
+
+                //         console.log('batchedEnrollData');
+                //         console.log(batchedEnrollData);
+
+                //         try {
+                //             await publishCourseEnrollmentJob({
+                //                 jobId,
+                //                 batchedEnrollData,
+                //                 context,
+                //                 timestamp: new Date().toISOString()
+                //             });
+
+                //             console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
+                //         } catch (err) {
+                //             console.error(`❌ Failed to publish batch ${i + 1}:`, err);
+                //             throw err; // you may choose to continue instead of breaking entire loop
+                //         }
+                //     }
+                // }
                 async function publishEnrollmentInBatches(enrollData, jobId, context) {
+                    // Input validation
                     if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
                         console.warn('⚠️ No users found for enrollment');
-                        return;
+                        return { success: false, reason: 'No users found' };
+                    }
+
+                    if (!enrollData.trainings || !Array.isArray(enrollData.trainings) || enrollData.trainings.length === 0) {
+                        console.warn('⚠️ No trainings found for enrollment');
+                        return { success: false, reason: 'No trainings found' };
                     }
 
                     const users = enrollData.users;
@@ -353,8 +429,26 @@ const createLearningPlanHelper = async (input, context) => {
                     const totalUsers = users.length;
                     const batchCount = Math.ceil(totalUsers / batchSize);
 
-                    console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+                    const results = {
+                        totalBatches: batchCount,
+                        successfulBatches: 0,
+                        failedBatches: 0,
+                        jobs: []
+                    };
 
+                    console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+                    console.log(`📚 Courses to enroll: ${enrollData.trainings.length}`);
+
+                    // Check Redis connection before processing
+                    // try {
+                    //     await courseEnrollmentQueue.client.ping();
+                    //     console.log('✅ Redis connection verified');
+                    // } catch (error) {
+                    //     console.error('❌ Redis connection failed:', error);
+                    //     throw new Error('Redis connection failed');
+                    // }
+
+                    // Process batches with retry logic
                     for (let i = 0; i < batchCount; i++) {
                         const start = i * batchSize;
                         const end = Math.min(start + batchSize, totalUsers);
@@ -362,24 +456,75 @@ const createLearningPlanHelper = async (input, context) => {
 
                         const batchedEnrollData = {
                             ...enrollData,
-                            users: batchedUsers
+                            users: batchedUsers,
+                            batchInfo: {
+                                batchNumber: i + 1,
+                                totalBatches: batchCount,
+                                batchSize: batchedUsers.length
+                            }
                         };
 
-                        try {
-                            await publishCourseEnrollmentJob({
-                                jobId,
-                                batchedEnrollData,
-                                context,
-                                timestamp: new Date().toISOString()
-                            });
+                        console.log(`\n📦 Processing batch ${i + 1}/${batchCount}`);
+                        console.log(`👥 Users in batch: ${batchedUsers.length}`);
 
-                            console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
-                        } catch (err) {
-                            console.error(`❌ Failed to publish batch ${i + 1}:`, err);
-                            throw err; // you may choose to continue instead of breaking entire loop
+                        let retryCount = 0;
+                        const maxRetries = 3;
+                        let batchPublished = false;
+
+                        while (retryCount < maxRetries && !batchPublished) {
+                            try {
+                                const job = await publishCourseEnrollmentJob({
+                                    jobId: `${jobId}-batch-${i + 1}`,
+                                    batchedEnrollData,
+                                    context,
+                                    timestamp: new Date().toISOString(),
+                                    attempt: retryCount + 1
+                                });
+
+                                results.jobs.push({
+                                    jobId: job.id,
+                                    batch: i + 1,
+                                    userCount: batchedUsers.length
+                                });
+
+                                console.log(`✅ Batch ${i + 1}/${batchCount} sent successfully`);
+                                results.successfulBatches++;
+                                batchPublished = true;
+
+                            } catch (err) {
+                                retryCount++;
+                                console.error(`❌ Failed to publish batch ${i + 1} (attempt ${retryCount}/${maxRetries}):`, err.message);
+
+                                if (retryCount >= maxRetries) {
+                                    console.error(`❌ Batch ${i + 1} failed after ${maxRetries} attempts`);
+                                    results.failedBatches++;
+
+                                    // Decide whether to continue or fail fast
+                                    // Option 1: Continue with remaining batches
+                                    // break; // Uncomment to stop on first failure
+
+                                    // Option 2: Log and continue
+                                    console.warn(`⚠️ Continuing with remaining batches despite failure`);
+                                } else {
+                                    // Wait before retry
+                                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                                }
+                            }
+                        }
+
+                        // Add small delay between batches to prevent overwhelming the queue
+                        if (i < batchCount - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
                         }
                     }
+
+                    console.log('\n📊 Batch publishing summary:');
+                    console.log(`✅ Successful: ${results.successfulBatches}/${results.totalBatches}`);
+                    console.log(`❌ Failed: ${results.failedBatches}/${results.totalBatches}`);
+
+                    return results;
                 }
+
 
 
                 await publishEnrollmentInBatches(enrollData, jobId, context);
