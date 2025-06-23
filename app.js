@@ -138,7 +138,7 @@ setInterval(async () => {
     } catch (err) {
         console.error('❌ Redis ping failed:', err);
     }
-}, 2000);
+}, 5000000);
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
