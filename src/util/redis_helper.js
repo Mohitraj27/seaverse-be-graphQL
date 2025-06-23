@@ -9,11 +9,12 @@ const redis = new Redis(
     //    process.env.REDIS_URL,
     // || "rediss://default:AZfsAAIjcDE5OWIwZDJjNmRlYjk0MThjODljYWRjOTYzZDA4MjYwZXAxMA@viable-hermit-38892.upstash.io:6379" ,
     {
-        host: 'redis-13438.fcrce171.ap-south-1-1.ec2.redns.redis-cloud.com',
-        port: Number(13438),
+        
+        host: "redis-15287.c301.ap-south-1-1.ec2.redns.redis-cloud.com",
+        port: 15287,
 
-        username: 'default', // optional
-        password: 'mWkY8anjZR93MhOYbPwV2b0R3V04A2jV', // optional
+        username: "default", // optional
+        password: "JGo5zNW7cBysrPTm8VTvrJmCfRl7wbMy", // optional
         // host: process.env.REDIS_HOST,
         // port: Number(process.env.REDIS_PORT),
 
@@ -21,7 +22,7 @@ const redis = new Redis(
         // password: process.env.REDIS_PASSWORD, // optional
         maxRetriesPerRequest: null, // ✅ Required by BullMQ
         enableReadyCheck: true,     // Helps detect if Redis is ready
-        // tls:{},
+       
         reconnectOnError: (err) => {
             const targetMessage = 'READONLY';
             if (err.message.includes(targetMessage)) {
