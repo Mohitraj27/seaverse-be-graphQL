@@ -1,16 +1,12 @@
 
+
 services:
-  # # Main application server
-  # app:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
+  # Redis Service
+  # redis:
+  #   image: redis
+  #   container_name: redis
   #   ports:
-  #     - "8094:8094"
-  #   environment:
-  #     - NODE_ENV=stage
-  #   depends_on:
-  #     - worker
+  #     - "6379:6379"
   #   networks:
   #     - app-network
 
@@ -24,10 +20,8 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    # volumes:
-    #   - ./logs:/usr/src/app/logs
 
-     # CSV Worker
+  # CSV Worker
   csv-worker:
     build:
       context: .
