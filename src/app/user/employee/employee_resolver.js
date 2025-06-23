@@ -82,8 +82,8 @@ const { enrollUsers } = require('./employee_helper')
 const operationTypeRoleEnum = require('./operationType.json');
 const { processFilters } = require('./user_exportCSV_filter');
 
-const { setupQueues, publishToQueue, publishToExchange, publishMessagesOneByOne } = require('./rabbitMq_service');
-const { EXCHANGES } = require('../../../util/rabbitmq_helper');
+// const { setupQueues, publishToQueue, publishToExchange, publishMessagesOneByOne } = require('./rabbitMq_service');
+// const { EXCHANGES } = require('../../../util/rabbitmq_helper');
 const { ImportJob } = require("./import_job_model");
 
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
