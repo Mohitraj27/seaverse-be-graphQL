@@ -88,6 +88,8 @@ module.exports.queries = {
             filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
         }
 
+        const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
+
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
@@ -252,7 +254,7 @@ module.exports.queries = {
 
         return {
             contents: contents.contents,
-            totalCount: contents.contents.length,
+            totalCount: totalCountBeforePagination,
         };
     },
     getTrainingModuleContent: async ({ id }, context) => {
