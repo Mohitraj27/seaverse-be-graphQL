@@ -6,15 +6,15 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const redis = new Redis(
     // 'redis://localhost:6379',
-    //    process.env.REDIS_URL,
+       process.env.REDIS_URL,
     // || "rediss://default:AZfsAAIjcDE5OWIwZDJjNmRlYjk0MThjODljYWRjOTYzZDA4MjYwZXAxMA@viable-hermit-38892.upstash.io:6379" ,
     {
         
-        host: "redis-15287.c301.ap-south-1-1.ec2.redns.redis-cloud.com",
-        port: 15287,
+        // host: "redis-15287.c301.ap-south-1-1.ec2.redns.redis-cloud.com",
+        // port: 15287,
 
-        username: "default", // optional
-        password: "JGo5zNW7cBysrPTm8VTvrJmCfRl7wbMy", // optional
+        // username: "default", // optional
+        // password: "JGo5zNW7cBysrPTm8VTvrJmCfRl7wbMy", // optional
         // host: process.env.REDIS_HOST,
         // port: Number(process.env.REDIS_PORT),
 
@@ -39,7 +39,7 @@ const redis = new Redis(
 
 
 
-redis.on('connect', () => console.log(process.env.REDIS_HOST, '✅ Redis connected'));
+redis.on('connect', () => console.log( '✅ Redis connected'));
 redis.on('error', (err) => console.error('❌ Redis error:', err));
 redis.on('reconnecting', () => console.log('🔁 Redis reconnecting...'));
 
