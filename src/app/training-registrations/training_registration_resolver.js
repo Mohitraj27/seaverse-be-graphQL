@@ -292,7 +292,12 @@ module.exports.queries = {
                 filterConditions = {
                     ...filterConditions,
                     $or: [
-                        { "training.title.value": { $regex: filterInput.search, $options: "i" } },
+                        {
+                            $and: [
+                                { "training.title.value": { $regex: filterInput.search, $options: "i" }, },
+                                { isEnrolled: { $ne: false } },
+                            ]
+                        },
                     ],
                 };
             }
@@ -316,7 +321,7 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
-                { $unwind: { path: "$training", preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: "$training", preserveNullAndEmptyArrays: false } },
                 {
                     $match: {
                         ...filterConditions,

@@ -197,7 +197,7 @@ module.exports.queries = {
                 }
             } else {
                 pipeline.push({ $sort: { updatedAt: -1 } });
-              }
+            }
 
             const vessels = await Vessel.aggregatePaginate(
                 Vessel.aggregate(pipeline),
@@ -216,7 +216,7 @@ module.exports.queries = {
 
             return {
                 vessels: vessels.vessels,
-                totalCount: vessels.vessels.length,
+                totalCount: vessels?.totalCount || 0,
             };
 
         } catch (error) {
@@ -584,24 +584,24 @@ module.exports.mutations = {
         const { role, userId, userInfo, userPermissions, subscriberId } = AuthUser(context);
         try {
             const result = await DbTransactionHelper.performDbTransaction(async (session) => {
-             const vesselsToCheck = await Vessel.find({ 
-                  _id: { $in: ids },
-                isActive: true 
-             }).populate('typeOfVessel');
-        if(vesselsToCheck?.length > 0 ){
-            const checkPromises = vesselsToCheck.map(vessel => {
-             const vesselTypeId = vessel.typeOfVessel?._id?.toString() || vessel.typeOfVessel?.toString();
-                return checkVesselLinkedToActiveLearningPlan(
-                        vessel._id.toString(), 
-                        vesselTypeId
-                    );
-            });
-            const results = await Promise.all(checkPromises);
-            const hasLinkedVessel = results.some(isLinked => isLinked === true);
-            if (hasLinkedVessel) {
-             throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN,'One or more vessels are linked to active Learning Plans and cannot be deactivated or deleted' );
-             }
-        }                                
+                const vesselsToCheck = await Vessel.find({
+                    _id: { $in: ids },
+                    isActive: true
+                }).populate('typeOfVessel');
+                if (vesselsToCheck?.length > 0) {
+                    const checkPromises = vesselsToCheck.map(vessel => {
+                        const vesselTypeId = vessel.typeOfVessel?._id?.toString() || vessel.typeOfVessel?.toString();
+                        return checkVesselLinkedToActiveLearningPlan(
+                            vessel._id.toString(),
+                            vesselTypeId
+                        );
+                    });
+                    const results = await Promise.all(checkPromises);
+                    const hasLinkedVessel = results.some(isLinked => isLinked === true);
+                    if (hasLinkedVessel) {
+                        throw CustomError(ErrorName.VESSEL_LINKED_TO_LEARNING_PLAN, 'One or more vessels are linked to active Learning Plans and cannot be deactivated or deleted');
+                    }
+                }
                 let vessel;
                 const updatedVessels = [];
                 for (let id of ids) {
