@@ -199,6 +199,20 @@ module.exports = {
             userIds: [ID]
             count: Int
         }
+
+        type learningPlanUserResponse {
+            averageProgress: Float,
+            totalTrainings: Int,
+            completedTrainings: Int,
+            userId: ID,
+            status: TrainingProgressStatusEnum,
+            firstName: String,
+            lastName: String,
+            email: String,
+            lastLoginAt: String,
+            isRegistered: Boolean,
+            timeSpend: Float,
+        }
         input UpdateLearningPlanStatusInput {
             learningPlanIDs: [ID!]!
             newStatus: LearningPlanStatus!
@@ -265,7 +279,7 @@ module.exports = {
         getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
         getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String,filteredLearnerData: [String!], pageInput: pageInput): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
-        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput, sortInput: SortUserInput): LearningPlan
+        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput, sortInput: SortUserInput): [learningPlanUserResponse]
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!
