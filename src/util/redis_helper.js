@@ -10,11 +10,11 @@ const redis = new Redis(
     // || "rediss://default:AZfsAAIjcDE5OWIwZDJjNmRlYjk0MThjODljYWRjOTYzZDA4MjYwZXAxMA@viable-hermit-38892.upstash.io:6379" ,
     {
         
-        host: "redis-15287.c301.ap-south-1-1.ec2.redns.redis-cloud.com",
-        port: 15287,
+        host: "redis-19535.c264.ap-south-1-1.ec2.redns.redis-cloud.com",
+        port: 19535,
 
         username: "default", // optional
-        password: "JGo5zNW7cBysrPTm8VTvrJmCfRl7wbMy", // optional
+        password: "OaEpO0TMWl5MwMPJt4JqlUaqJ6B2GmL5", // optional
         // host: process.env.REDIS_HOST,
         // port: Number(process.env.REDIS_PORT),
 
