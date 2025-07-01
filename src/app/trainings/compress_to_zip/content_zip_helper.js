@@ -9,6 +9,10 @@ const { uploadType, uploadZip } = require("../../../util/upload_helper");
 const AwsHelper = require("../../../util/aws_helper");
 const { PassThrough } = require('stream');
 const AWS = require('aws-sdk');
+const ffmpeg = require('fluent-ffmpeg');
+const { pipeline } = require('stream/promises');
+const tmp = require('tmp');
+const VIDEO_MIME_TYPES = ['video/mp4'];
 
 const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
@@ -144,6 +148,8 @@ const fileDownloader = async (contentMap) => {
 
 // Helper function to create the zip file
 const createZipFile = async (contentMap, outputPath) => {
+    const tempCleanups = [];
+
     return new Promise(async (resolve, reject) => {
         const archive = archiver('zip', {
             zlib: { level: 5 } // Balanced compression
@@ -160,6 +166,15 @@ const createZipFile = async (contentMap, outputPath) => {
 
         fileWriteStream.on('close', () => {
             console.log(`Zip file created: ${archive.pointer()} total bytes`);
+
+            for (const { path, cleanupCallback } of tempCleanups) {
+                try {
+                    cleanupCallback();
+                    console.log(`Cleaned up temp file: ${path}`);
+                } catch (err) {
+                    console.warn(`Failed to clean up temp file: ${path} - ${err.message}`);
+                }
+            }
             resolve();
         });
 
@@ -193,10 +208,18 @@ const createZipFile = async (contentMap, outputPath) => {
 
                     console.log(`Downloading: ${fileName}`);
 
-                    const response = await downloadWithRetry(updatedUrl);
+                    console.log('\n\n we downloading---')
+                    const { path, contentType, cleanupCallback } = await downloadWithRetry(updatedUrl);
+                    tempCleanups.push({ path, cleanupCallback });
+                    let streamToZip = fs.createReadStream(path);
+                    console.log("response content-type:", contentType);
 
+                    if (VIDEO_MIME_TYPES.includes(contentType)) {
+                        console.log(`Compressing video: ${fileName}`);
+                        streamToZip = compressVideoStream(path, { maxResolution: 720 });
+                    }  
                     // Append stream to archive
-                    archive.append(response.data, { name: fileName });
+                    archive.append(streamToZip, { name: fileName });
                     metadata[contentId] = fileName;
 
                 } catch (error) {
@@ -218,19 +241,27 @@ const createZipFile = async (contentMap, outputPath) => {
 const downloadWithRetry = async (url, maxRetries = 3) => {
     for (let i = 0; i < maxRetries; i++) {
         try {
-            return await axios.get(url, {
+            const response = await axios.get(url, {
                 responseType: 'stream',
-                timeout: 300000, // 5 minutes
+                timeout: 300000 * 6, // 5 minutes
                 maxContentLength: Infinity,
                 maxBodyLength: Infinity,
-                headers: {
-                    'Accept-Encoding': 'gzip, deflate'
-                }
+                decompress: false, // ⬅️ important for signed S3 URLs
+                headers: {}
             });
+
+            const tmpFile = tmp.fileSync({ postfix: '.mp4' });
+            await pipeline(response.data, fs.createWriteStream(tmpFile.name));
+
+            return {
+                path: tmpFile.name,
+                cleanupCallback: tmpFile.removeCallback, // in case you want to delete later
+                contentType: response.headers['content-type']
+            };
         } catch (error) {
             if (i === maxRetries - 1) throw error;
 
-            console.log(`Retry ${i + 1} for ${url}`);
+            console.warn(`Retry ${i + 1} for ${url}`);
             await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         }
     }
@@ -298,6 +329,50 @@ const getTheContent = async (contents, userLanguages = []) => {
     }
 
     return zipUrl || null;
+}
+/**
+ * Compresses a video stream using FFmpeg and returns a compressed stream.
+ * If FFmpeg fails, returns the original stream.
+ *
+ * @param {ReadableStream} inputStream - Original video stream (e.g., from S3 or disk)
+ * @param {Object} [options]
+ * @param {number} [options.crf=28] - Constant Rate Factor (lower = higher quality)
+ * @param {number} [options.maxResolution=720] - Maximum output height
+ * @returns {ReadableStream} - Compressed video stream (or original stream on failure)
+ */
+ function compressVideoStream(filePath, options = {}) {
+    const { maxResolution = 720 } = options;
+    const outputStream = new PassThrough();
+
+    ffmpeg(filePath)
+        .inputOptions([
+            '-probesize', '5000000',
+            '-analyzeduration', '10000000'
+        ])
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+            '-preset', 'fast',
+            '-crf', '28',
+            `-vf`, `scale=-2:${maxResolution}`,
+            '-pix_fmt', 'yuv420p',
+            '-movflags', 'frag_keyframe+empty_moov'
+        ])
+        .format('mp4')
+        .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
+        .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
+        .on('error', (err, stdout, stderr) => {
+            console.error('[FFMPEG] Error:', err.message);
+            console.error('[FFMPEG] Stderr:', stderr);
+            outputStream.emit('error', err);
+        })
+        .on('end', () => {
+            console.log('[FFMPEG] Compression finished');
+            outputStream.end();
+        })
+        .pipe(outputStream, { end: true });
+
+    return outputStream;
 }
 
 module.exports = {
