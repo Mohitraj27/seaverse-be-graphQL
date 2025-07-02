@@ -2,7 +2,7 @@ const HistorySignupRequest = require('./signup-request-history-model');
 const { CustomError } = require('../../util/error_helper');
 const { AuthUser,ErrorName } = require('../../util');
 const sortingFieldJSONData = require('../signup-request/sortingField.json');
-const { decrypt } = require('../../util/encryption_helper');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 module.exports.queries = {
     getHistorySignupRequest: async ({ id, search, filterInput, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -22,11 +22,13 @@ module.exports.queries = {
             }
             let query = { isDeleted: false };
 
+            let encryptedSearch = search ? encrypt(search?.trim()?.toLowerCase()) : '';
+
             if (search) {
                 query.$or = [
-                    { email: { $regex: search, $options: 'i' } },
-                    { firstName: { $regex: search, $options: 'i' } },
-                    { lastName: { $regex: search, $options: 'i' } }
+                    { email: { $regex: encryptedSearch, $options: 'i' } },
+                    { firstName: { $regex: encryptedSearch, $options: 'i' } },
+                    { lastName: { $regex: encryptedSearch, $options: 'i' } }
                 ];
             }
 
