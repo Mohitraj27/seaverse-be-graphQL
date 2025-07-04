@@ -2024,18 +2024,20 @@ module.exports.queries = {
             const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
 
             const searchInput = search?.trim();
-            const searchRegex = new RegExp(searchInput, "i");
+            const searchRegex = new RegExp(encrypt(searchInput), "i");
             const requestStatus = filterInput?.deleteRequestStatus?.trim() || null;
             let searchCriteria;
             let requestStatusFilter;
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
+                const firstNameSearch=encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
+                const lastNameSearch = encrypt(nameParts?.slice(1)?.join(" ")) || '';
                 const fullNameSearch =
                     nameParts.length > 1
                         ? {
                             $and: [
-                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
-                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                                { firstName: { $regex: new RegExp(`^${firstNameSearch}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${lastNameSearch}`, "i") } }
                             ]
                         }
                         : {};
