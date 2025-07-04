@@ -1838,11 +1838,17 @@ module.exports.queries = {
                             const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
                             currentUserData.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
                             currentUserData.password = dummyPasswordHash;
+                            currentUserData.firstName = encrypt(currentUserData.firstName);
+                            currentUserData.lastName = encrypt(currentUserData.lastName);
+                            currentUserData.email = encrypt(currentUserData.email);
                         } else {
                             const parts = currentUserData.dummyPassword.split('~~~');
                             const newDummyPassword = parts[1];
                             generatePassword = newDummyPassword;
                             currentUserData.password = await CryptoHelper.hash(newDummyPassword, 10);
+                            currentUserData.firstName = encrypt(currentUserData.firstName);
+                            currentUserData.lastName = encrypt(currentUserData.lastName);
+                            currentUserData.email = encrypt(currentUserData.email);
                         }
 
                         try {
