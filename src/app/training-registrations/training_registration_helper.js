@@ -2084,7 +2084,7 @@ module.exports = {
 
                             // Step 4: Insert into SQLite queue and send
                             SqliteEmailHelper.insertCourseEmails(emailData);
-                            await sendCourseEmailBulk();
+                            // await sendCourseEmailBulk();
                         }
 
                         return savedTrainingRegistration;
