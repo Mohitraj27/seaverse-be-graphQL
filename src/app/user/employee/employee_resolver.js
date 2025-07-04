@@ -89,8 +89,21 @@ const { ImportJob } = require("./import_job_model");
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
 const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
 const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
-const csvImportQueue = require("../../queues/csv_import_queue");
-const { JOB_NAMES } = require("../../queues/queue.enum");
+// const csvImportQueue = require("../../queues/csv_import_queue");
+// const { JOB_NAMES } = require("../../queues/queue.enum");
+
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+
+ const sqsClient = new SQSClient({
+    region: process.env.SQS_AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
+    },
+});
+
+const CSV_IMPORT_QUEUE_URL = process.env.SQS_CSV_IMPORT_QUEUE_URL;
+
 async function fetchVesselUsersByStatus(vesselStatus, vesselType, vesselObjectId) {
     const userVesselFilter = {
         isActive: true,
@@ -2011,18 +2024,20 @@ module.exports.queries = {
             const sortOrderValue = pageInput?.sortOrder !== undefined ? pageInput?.sortOrder : -1;
 
             const searchInput = search?.trim();
-            const searchRegex = new RegExp(searchInput, "i");
+            const searchRegex = new RegExp(encrypt(searchInput), "i");
             const requestStatus = filterInput?.deleteRequestStatus?.trim() || null;
             let searchCriteria;
             let requestStatusFilter;
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
+                const firstNameSearch=encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
+                const lastNameSearch = encrypt(nameParts?.slice(1)?.join(" ")) || '';
                 const fullNameSearch =
                     nameParts.length > 1
                         ? {
                             $and: [
-                                { firstName: { $regex: new RegExp(`^${nameParts[0]}`, "i") } },
-                                { lastName: { $regex: new RegExp(`${nameParts.slice(1).join(" ")}`, "i") } }
+                                { firstName: { $regex: new RegExp(`^${firstNameSearch}`, "i") } },
+                                { lastName: { $regex: new RegExp(`${lastNameSearch}`, "i") } }
                             ]
                         }
                         : {};
@@ -2967,52 +2982,38 @@ module.exports.mutations = {
             // const jobId = uuidv4();
 
             // // Store job metadata in database
-            // await ImportJob.create({
-            //     jobId,
-            //     subscriber: subscriberId,
-            //     uploadedBy: userId,
-            //     fileName: newFileName,
-            //     filePath: { url: saveCSV },
-            //     importStatus: "PROCESSING",
-            //     totalRecords: users.length,
-            //     description: "Processing CSV import"
-            // });
+          
 
-            // Publish message to RabbitMQ
-            // const batchSize = Math.min(500, users.length);
-            // const batchCount = Math.ceil(users.length / batchSize);
-            // console.time('Processing all batches');
-            // for (let i = 0; i < batchCount; i++) {
-            //     console.time(`Processing batch ${i + 1}/${batchCount}`);
-            //     const start = i * batchSize;
-            //     const end = start + batchSize;
-            //     const batchUsers = users.slice(start, end);
-            //     const batchEmails = emailsArray.slice(start, end);
-            //     const batchEmpIds = empIdsArray.slice(start, end);
-
-            //     console.log(`Processing batch ${i + 1}/${batchCount}`);
-            //     await publishToExchange(EXCHANGES.CSV_IMPORT, 'import', {
-            //         jobId,
-            //         users: batchUsers,
-            //         emailsArray: batchEmails,
-            //         empIdsArray: batchEmpIds,
-            //         subscriberId,
-            //         userId,
-            //         userInfo,
-            //         newFileName,
-            //         saveCSV,
-            //         context,
-            //         timestamp: new Date().toISOString()
-            //     });
-            //     console.timeEnd(`Processing batch ${i + 1}/${batchCount}`);
+            // async function publishCsvImportJob(jobData) {
+            //     await csvImportQueue.add(JOB_NAMES.IMPORT_CSV, jobData);
             // }
-            // console.timeEnd('Processing all batches');
-
-
 
             async function publishCsvImportJob(jobData) {
-                await csvImportQueue.add(JOB_NAMES.IMPORT_CSV, jobData);
-            }
+                                try {
+                                    if (!jobData || !jobData.jobId) {
+                                        throw new Error('Invalid job data: missing jobId');
+                                    }
+            
+                                    const params = {
+                                        QueueUrl: CSV_IMPORT_QUEUE_URL,
+                                        MessageBody: JSON.stringify(jobData),
+                                    };
+            
+                                    // 👉 If FIFO queue:
+                                    if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                                        params.MessageGroupId = 'csv-import'; // Required for FIFO
+                                        params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                                    }
+            
+                                    const data = await sqsClient.send(new SendMessageCommand(params));
+            
+                                    console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                                    return { id: data.MessageId };
+                                } catch (error) {
+                                    console.error('❌ Failed to send job to SQS:', error);
+                                    throw error;
+                                }
+                            }
 
             async function publishCsvImportInBatches(users, emails, empIds, subscriberId, userId, userInfo, newFileName, saveCSV, context) {
                 const empIdsArray = Array.from(empIds);
@@ -3030,7 +3031,7 @@ module.exports.mutations = {
                     description: "Processing CSV import"
                 });
 
-                const batchSize = 500;
+                const batchSize = 200;
                 const totalUsers = users.length;
                 const batchCount = Math.ceil(totalUsers / batchSize);
 
@@ -3050,6 +3051,8 @@ module.exports.mutations = {
                             users: batchUsers,
                             emailsArray: batchEmails,
                             empIdsArray: batchEmpIds,
+                            MessageGroupId: 'csv-import', // Required for FIFO queues
+                            MessageDeduplicationId: `${jobId}-${i}-${Date.now()}`, // Ensure
                             subscriberId,
                             userId,
                             userInfo,

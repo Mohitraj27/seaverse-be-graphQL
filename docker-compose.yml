@@ -11,12 +11,13 @@ services:
   #     - app-network
 
   # Enrollment Worker 
+   # Enrollment Worker 
   enrollment-worker:
     build:
       context: .
       dockerfile: Dockerfile.enrollmentworker
-    env_file:
-      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     networks:
       - app-network
@@ -26,8 +27,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.csvworker
-    env_file:
-      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     networks:
       - app-network

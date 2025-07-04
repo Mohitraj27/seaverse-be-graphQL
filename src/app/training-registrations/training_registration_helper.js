@@ -675,26 +675,30 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 }
 
                 return {
-                    insertOne: {
-                        document: {
-                            learningPlan: learningPlanId ? [learningPlanId] : [],
-                            directEnrollment: learningPlanId ? false : true,
-                            training: training,
-                            user: user._id,
-                            trainingRegistration: registrationId,
-                            subscriberId: subscriberId.toString(),
-                            status: 'NOT_STARTED',
-                            isEnrolled: true,
-                            progressPercentage: 0.0,
-                            completedModules: 0,
-                            contentData: [],
-                            totalDuration: durationHours,
-                            totalTrainingModules: trainingIdToModuleCount[training] || 0,
-                            startDate: null,
-                            endDate: null,
-                            unenrollmentDate: null,
-                            isCertificatePresent: isCertificatePresent,
+                    updateOne: {
+                        filter: { training, user: user._id },
+                        update: {
+                            $setOnInsert: {
+                                learningPlan: learningPlanId ? [learningPlanId] : [],
+                                directEnrollment: learningPlanId ? false : true,
+                                training: training,
+                                user: user._id,
+                                trainingRegistration: registrationId,
+                                subscriberId: subscriberId.toString(),
+                                status: 'NOT_STARTED',
+                                isEnrolled: true,
+                                progressPercentage: 0.0,
+                                completedModules: 0,
+                                contentData: [],
+                                totalDuration: durationHours,
+                                totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                                startDate: null,
+                                endDate: null,
+                                unenrollmentDate: null,
+                                isCertificatePresent: isCertificatePresent,
+                            },
                         },
+                        upsert: true,
                     },
                 };
 
@@ -715,13 +719,17 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 //     endDate: null,
                 //     unenrollmentDate: null,
                 // };
-            
+
             })
         ).filter(entry => entry !== null);
 
+        console.log('reached here 1');
         if (newProgressEntries.length > 0) {
+            console.log('newProgressEntries');
+            console.log(JSON.stringify(newProgressEntries, null, 2));
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
         }
+        console.log('reached here 2');
     } catch (error) {
         throw Error(error.message);
     }
@@ -1721,7 +1729,7 @@ module.exports = {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
-            // console.log("createTrainingRegistrationBackgroundProcess input:", input);
+        // console.log("createTrainingRegistrationBackgroundProcess input:", input);
 
         if (
             !SubRoleHelper.hasPermission({
@@ -2161,8 +2169,8 @@ module.exports = {
                     if (notifications?.length > 0) {
                         await NotificationHelper.createNotification(notifications);
                     }
-                } 
-                
+                }
+
                 /**
                  * i have no idea why this error is being thrown and 
                  * it is throwing this error when there is no users matching the learning plan condition 
