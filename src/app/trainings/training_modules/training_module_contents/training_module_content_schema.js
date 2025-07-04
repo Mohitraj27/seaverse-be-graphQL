@@ -215,9 +215,9 @@ module.exports = {
         uploadTrainingModuleContentaudio(input: TrainingModuleContentInput!,audio: Upload!, thumbnail: Upload): TrainingModuleContent!
         updateTrainingModuleContentStatus(ids: [ID!], currentStatus: TrainingModuleContentStatus, newStatus: TrainingModuleContentStatus): UpdateStatusResult!
         deleteTrainingModuleContentByIDs(ids: [ID!], currentStatus: TrainingModuleContentStatus): DeleteResponse!
-        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [Upload],subtitles: [Upload], videoMetas: [VideoMetaInput], audio: Upload, file: Upload): TrainingModuleContent!
+        createTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload,  videos: [String],subtitles: [Upload], videoMetas: [VideoMetaInput], audio: Upload, file: String): TrainingModuleContent!
         createTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): TrainingModuleContent!
-        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [Upload],subtitles: [Upload], videoMetas: [VideoMetaInput],deletedVideos: [ID],deletedSubtitles: [ID], audio: Upload, file: Upload): UpdateContentResponse!
+        updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [String],subtitles: [Upload], videoMetas: [VideoMetaInput],deletedVideos: [ID],deletedSubtitles: [ID], audio: Upload, file: String): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
         pushLatestContent(ids: [ID!]): creationRes!
          `,

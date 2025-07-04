@@ -1212,9 +1212,9 @@ module.exports.mutations = {
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
-        const videoFiles = videos ? await videos : null;
+        const videoFiles = videos ?  videos : null;
         const audioFile = audio ? await audio : null;
-        const fileFile = file ? await file : null;
+        const fileFile = file ?  file : null;
 
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
@@ -1340,15 +1340,15 @@ module.exports.mutations = {
                         return null;
                     }
 
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: videoFile,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
+                    // const videoUrl = await UploadHelper.uploadVideo({
+                    //     data: videoFile,
+                    //     folderName: `video-content`,
+                    //     fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
+                    //     uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    // });
 
                     return {
-                        url: videoUrl,
+                        url: videoFile,
                         meta: videoMeta
                     };
                 })
