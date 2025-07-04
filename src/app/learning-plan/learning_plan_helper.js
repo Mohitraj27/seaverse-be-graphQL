@@ -334,11 +334,11 @@ const createLearningPlanHelper = async (input, context) => {
                             MessageBody: JSON.stringify(jobData),
                         };
 
-                        // 👉 If FIFO queue:
-                        if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                            params.MessageGroupId = 'course-enrollment'; // Required for FIFO
-                            params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
-                        }
+                        // // 👉 If FIFO queue:
+                        // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                        //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
+                        //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                        // }
 
                         const data = await sqsClient.send(new SendMessageCommand(params));
 
@@ -365,7 +365,7 @@ const createLearningPlanHelper = async (input, context) => {
                     }
 
                     const users = enrollData.users;
-                    const batchSize = 200;
+                    const batchSize = 1;
                     const totalUsers = users.length;
                     const batchCount = Math.ceil(totalUsers / batchSize);
 
@@ -680,10 +680,10 @@ const updateLearningPlanHelper = async (id, input, context) => {
                                 MessageBody: JSON.stringify(jobData),
                             };
 
-                            if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                                params.MessageGroupId = 'course-enrollment'; 
-                                params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`;
-                            }
+                            // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                            //     params.MessageGroupId = 'course-enrollment'; 
+                            //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`;
+                            // }
 
                             const data = await sqsClient.send(new SendMessageCommand(params));
 

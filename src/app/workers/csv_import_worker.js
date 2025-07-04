@@ -3,9 +3,10 @@ require('dotenv').config({ path: '../../.env' });
 const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } = require('@aws-sdk/client-sqs');
 const { connectDb, closeDb } = require('../../util/child_process_db_helper');
 const { createEmployeesBackgroundTask } = require('../user/employee/employee_helper');
+const { ImportJob } = require('../user/employee/import_job_model');
 
-const QUEUE_URL = process.env.SQS_CSV_IMPORT_QUEUE_URL; // Use a separate env for CSV Import
-console.log('CSV_IMPORT_QUEUE_URL:', QUEUE_URL);
+const QUEUE_URL = process.env.SQS_CSV_IMPORT_QUEUE_URL;
+// console.log('CSV_IMPORT_QUEUE_URL:', QUEUE_URL);
 
 const sqsClient = new SQSClient({
     region: process.env.SQS_AWS_REGION,
@@ -30,8 +31,8 @@ async function pollMessages() {
             };
 
             const data = await sqsClient.send(new ReceiveMessageCommand(params));
-            console.log(`📬 Received ${data.Messages ? data.Messages.length : 0} messages from CSV SQS`);
-            console.log('data:', data?.Messages);
+            // console.log(`📬 Received ${data.Messages ? data.Messages.length : 0} messages from CSV SQS`);
+            // console.log('data:', data?.Messages);
 
             if (data.Messages) {
                 await Promise.all(
@@ -55,6 +56,31 @@ async function pollMessages() {
 
                             console.log(`🔍 Processing CSV Import Job ${message.MessageId} (${jobId})`);
 
+                            if (!jobId) {
+                                throw new Error('Missing jobId in message payload');
+                            }
+
+                            // const existingJob = await ImportJob.findOne({ jobId });
+                            // if (existingJob && existingJob.importStatus === 'completed') {
+                            //     console.log(`⚠️ Job ${jobId} already processed, skipping.`);
+                            //     return;
+                            // }
+
+                            // await ImportJob.updateOne(
+                            //     { jobId },
+                            //     {
+                            //         $setOnInsert: {
+                            //             jobId,
+                            //             subscriber: subscriberId,
+                            //             fileName: newFileName,
+                            //             importStatus: 'in_progress',
+                            //             totalRecords: users?.length || 0,
+                            //             description: 'CSV Import in progress'
+                            //         },
+                            //     },
+                            //     { upsert: true }
+                            // );
+
                             await createEmployeesBackgroundTask(
                                 users,
                                 emailsArray,
@@ -66,9 +92,13 @@ async function pollMessages() {
                                 context
                             );
 
+                            // await ImportJob.updateOne(
+                            //     { jobId },
+                            //     { $set: { importStatus: 'completed' } }
+                            // );
+
                             console.log(`✅ CSV Import Job ${message.MessageId} (${jobId}) processed successfully`);
 
-                            // Delete message after successful processing
                             await sqsClient.send(
                                 new DeleteMessageCommand({
                                     QueueUrl: QUEUE_URL,
@@ -79,7 +109,7 @@ async function pollMessages() {
                         } catch (err) {
                             console.error(`❌ CSV Import Job ${message.MessageId} failed:`, err);
                         } finally {
-                            await closeDb();
+                            // await closeDb();
                         }
                     })
                 );

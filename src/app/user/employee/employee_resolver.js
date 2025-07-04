@@ -3049,6 +3049,8 @@ module.exports.mutations = {
                             users: batchUsers,
                             emailsArray: batchEmails,
                             empIdsArray: batchEmpIds,
+                            MessageGroupId: 'csv-import', // Required for FIFO queues
+                            MessageDeduplicationId: `${jobId}-${i}-${Date.now()}`, // Ensure
                             subscriberId,
                             userId,
                             userInfo,
