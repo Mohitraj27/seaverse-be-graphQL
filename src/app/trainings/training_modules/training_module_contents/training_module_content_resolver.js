@@ -329,7 +329,11 @@ module.exports.queries = {
             courseNames: courseNames
         }
 
-    }
+    },
+    getPresignedUrl: async ({ fileName, fileType }, context) => {
+        const { subscriberId } = AuthUser(context);
+        return await TrainingModuleContentHelper.getPresignedUrlHelper(fileName, fileType, subscriberId);
+    },
 };
 
 module.exports.mutations = {
