@@ -1243,6 +1243,7 @@ module.exports.queries = {
                 pipeline.push({
                     $sort: {
                         firstName: 1,
+                        userId: 1
                     }
                 });
             }

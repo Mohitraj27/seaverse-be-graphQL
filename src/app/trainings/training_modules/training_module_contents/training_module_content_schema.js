@@ -194,11 +194,18 @@ module.exports = {
             index: Int
         }
 
+        type PresignedUrlResponse {
+            url: String!
+            key: String!
+        }
+
     `,
     queries: `
         getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: [TrainingModuleContentType], useStatus: useStatusInput): TrainingModuleContentList
         getTrainingModuleContent(id: ID!): TrainingModuleContent
         getFeaturedInCourses(id: ID!): featuredInCourses
+        getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
+
     `,
     mutations: `
         uploadTrainingModuleContentSorm(input: TrainingModuleContentInput!,scorm: Upload!, thumbnail: Upload): TrainingModuleContent!
