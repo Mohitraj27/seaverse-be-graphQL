@@ -445,8 +445,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
-                                overallTrainingProgress: "$_id",
-                                attemptCount: "$attemptCount"
+                                overallTrainingProgress: "$_id"
                             },
                             pipeline: [
                                 {
@@ -466,12 +465,6 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
-                                                    ]
-                                                },
-                                                {
-                                                    $eq: [
-                                                        "$attemptCount",
-                                                        "$$attemptCount"
                                                     ]
                                                 }
                                             ]
@@ -962,7 +955,6 @@ module.exports.queries = {
                                 moduleId: "$contentData.moduleId",
                                 overallTrainingProgress: "$_id",
                                 contentIds: "$contentData.contentIds",
-                                attemptCount: "$attemptCount",
                             },
                             pipeline: [
                                 {
@@ -976,12 +968,6 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
-                                                    ]
-                                                },
-                                                {
-                                                    $eq: [
-                                                        "$attemptCount",
-                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {

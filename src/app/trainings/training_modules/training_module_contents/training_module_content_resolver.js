@@ -605,9 +605,9 @@ module.exports.mutations = {
             isUpdated: { $ne: true },
             ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {}),
         };
-        if(currentStatus){
+        if (currentStatus) {
             filter.contentStatus = currentStatus;
-        }   
+        }
 
         const contents = await TrainingModuleContent.find(filter);
 
@@ -683,7 +683,7 @@ module.exports.mutations = {
         };
     },
 
-    deleteTrainingModuleContentByIDs: async ({ ids , currentStatus }, context) => {
+    deleteTrainingModuleContentByIDs: async ({ ids, currentStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
         const successfullyDeleted = [];
@@ -701,7 +701,7 @@ module.exports.mutations = {
                 const contents = await TrainingModuleContent.find({
                     subscriber: subscriberId,
                     contentStatus: currentStatus,
-                    isDeleted: { $ne: true }, 
+                    isDeleted: { $ne: true },
                 });
                 if (contents.length === 0) {
                     return {
@@ -826,9 +826,9 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = videos ? await videos : null;
+            const videoFile =  null;
             const audioFile = audio ? await audio : null;
-            const fileFile = file ? await file : null;
+            // const fileFile = file ? await file : null;
             const subtitlesFile = subtitles ? await subtitles : null;
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip', 'srt', 'vtt'];
@@ -850,17 +850,17 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
             }
 
-            if (videoFile && !validateFileFormat(videoFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
-            }
+            // if (videoFile && !validateFileFormat(videoFile)) {
+            //     throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+            // }
 
             if (audioFile && !validateFileFormat(audioFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
             }
 
-            if (fileFile && !validateFileFormat(fileFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
+            // if (fileFile && !validateFileFormat(fileFile)) {
+            //     throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+            // }
 
             if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
@@ -886,15 +886,15 @@ module.exports.mutations = {
             }
 
             if (videos?.length) {
-                const videoUrls = await Promise.all(videos.map(async (v) => {
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: v,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
-                    return videoUrl;
-                }));
+                // const videoUrls = await Promise.all(videos.map(async (v) => {
+                //     const videoUrl = await UploadHelper.uploadVideo({
+                //         data: v,
+                //         folderName: `video-content`,
+                //         fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
+                //         uploadType: UploadHelper.uploadType.trainingContentVideo,
+                //     });
+                //     return videoUrl;
+                // }));
 
                 const subtitleUrls = await Promise.all((subtitles || []).map(async (s, i) => {
                     const subtitleUrl = await UploadHelper.uploadSubtitle({
@@ -906,7 +906,7 @@ module.exports.mutations = {
                     return subtitleUrl;
                 }));
 
-                const vData = videoUrls.map((v, i) => {
+                const vData = videos.map((v, i) => {
                     const meta = videoMetas?.[i] || {};
                     const subtitleRefs = meta.subtitles || [];
 
@@ -957,35 +957,33 @@ module.exports.mutations = {
 
             if (file) {
 
-                const uploadedFile = await file;
-                const updatedPptToPdf = await uploadPpt(uploadedFile);
+                // const uploadedFile = await file;
+                // const updatedPptToPdf = await uploadPpt(uploadedFile);
 
-                let pdfFileUrl;
-                if (updatedPptToPdf?.pdfBuffer) {
-                    pdfFileUrl = await UploadHelper.uploadDocument({
-                        data: updatedPptToPdf.pdfBuffer,
-                        folderName: 'file-content',
-                        fileName: `converted_${Date.now()}_${updatedPptToPdf.originalName}`,
-                        uploadType: UploadHelper.uploadType.trainingContentFile,
-                    });
+                // let pdfFileUrl;
+                // if (updatedPptToPdf?.pdfBuffer) {
+                //     pdfFileUrl = await UploadHelper.uploadDocument({
+                //         data: updatedPptToPdf.pdfBuffer,
+                //         folderName: 'file-content',
+                //         fileName: `converted_${Date.now()}_${updatedPptToPdf.originalName}`,
+                //         uploadType: UploadHelper.uploadType.trainingContentFile,
+                //     });
 
-                    if (pdfFileUrl) {
-                        input.files = [{ url: pdfFileUrl }];
-                        input.contentType = 'PDF'
-                        contentTypeNotification = 'Document';
-                    }
-                } else {
-                    const fileUrl = await UploadHelper.uploadDocument({
-                        data: file,
-                        folderName: `file-content`,
-                        fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentFile,
-                    });
-                    input.files = [{ url: fileUrl }];
-                    contentTypeNotification = 'Document';
-                }
-
-
+                //     if (pdfFileUrl) {
+                //         input.files = [{ url: pdfFileUrl }];
+                //         input.contentType = 'PDF'
+                //         contentTypeNotification = 'Document';
+                //     }
+                // } else {
+                //     const fileUrl = await UploadHelper.uploadDocument({
+                //         data: file,
+                //         folderName: `file-content`,
+                //         fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+                //         uploadType: UploadHelper.uploadType.trainingContentFile,
+                //     });
+                // }
+                input.files = [{ url: file }];
+                contentTypeNotification = 'Document';
             }
 
             const contentData = {
@@ -1214,9 +1212,9 @@ module.exports.mutations = {
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
-        const videoFiles = videos ? await videos : null;
+        const videoFiles = videos ?  videos : null;
         const audioFile = audio ? await audio : null;
-        const fileFile = file ? await file : null;
+        const fileFile = file ?  file : null;
 
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
@@ -1342,15 +1340,15 @@ module.exports.mutations = {
                         return null;
                     }
 
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: videoFile,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
+                    // const videoUrl = await UploadHelper.uploadVideo({
+                    //     data: videoFile,
+                    //     folderName: `video-content`,
+                    //     fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
+                    //     uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    // });
 
                     return {
-                        url: videoUrl,
+                        url: videoFile,
                         meta: videoMeta
                     };
                 })

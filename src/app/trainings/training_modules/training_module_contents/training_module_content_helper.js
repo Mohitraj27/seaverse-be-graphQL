@@ -244,7 +244,7 @@ module.exports = {
     
             const command = new PutObjectCommand({
                 Bucket: process.env.S3_BUCKET,
-                Key: fileType === "video" ? videoFileKey : pptPdfFileKey,
+                Key: fileType?.split("/")?.[0] === "video" ? videoFileKey : pptPdfFileKey,
                 ContentType: fileType,
             });
     
