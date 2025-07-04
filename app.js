@@ -1,8 +1,7 @@
 require("dotenv").config();
 
-// require('./src/app/training-registrations/course_enrollment_worker');
-// require('./src/app/user/employee/csv_import_worker');
-const redis = require('./src/util/redis_helper'); 
+// require('./src/app//workers/course_enrollment_worker');
+// require('./src/app/workers/csv_import_worker');
 
 const { ExpressServer, ApolloServer, HttpsHelper, HttpHelper, FileHelper } = require("./src/tools");
 const { FormatError, VerifyToken, FirebaseHelper, IpInfo } = require("./src/util");
@@ -130,21 +129,48 @@ const elasticConnect = async () => {
         console.error("Elasticsearch connection failed:", error);
     }
 };
- elasticConnect();
-setInterval(async () => {
-    try {
-        const pong = await redis.ping();
-        console.log(`✅ Redis ping: ${pong}`);
-    } catch (err) {
-        console.error('❌ Redis ping failed:', err);
-    }
-}, 5000000);
+elasticConnect();
+// setInterval(async () => {
+//     console.log('Checking Redis connection...');
+//     if (!redis.status || redis.status !== 'ready') {
+//         console.error('❌ Redis is not ready');
+//         return;
+//     }
+//     try {
+//         const pong = await redis.ping();
+//         console.log(`✅ Redis ping: ${pong}`);
+//     } catch (err) {
+//         console.error('❌ Redis ping failed:', err);
+//     }
+// }, 2000);
+
+
+// ExpressServer.get('/redis-health-check', async (req, res) => {
+//     try {
+//         if (!redis.status || redis.status !== 'ready') {
+//             console.error('❌ Redis is not ready');
+//             res.status(500).send('Redis is not ready');
+//             return;
+//         }
+//         const pong = await redis.ping();
+//         console.log(`✅ Redis ping: ${pong}`);
+//         res.status(200).send(`Redis is healthy: ${pong}`);
+//     } catch (err) {
+//         console.error('❌ Redis ping failed:', err);
+//         res.status(500).send('Redis ping failed');
+//     }
+// });
+
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 
 ExpressServer.use("/api", RestResolver);
 
 ExpressServer.get('/health-check', (req, res) => {
     res.status(200).send('App is up and running');
+});
+
+ExpressServer.get('/', (req, res) => {
+    res.status(200).send('Welcome to Squadra API V2');
 });
 
 // connectToMongo(process.env.MONGO_DB);

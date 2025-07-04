@@ -479,10 +479,11 @@ module.exports.mutations = {
                         });
                         if (input?.consents?.some(consent => consent.status === false)) {
                             const decryptedUserEmail = decrypt(existingUser?.email);
+                            const decryptedUserFirstName = decrypt(existingUser?.firstName);
                             await AwsHelper.sendEmail({
                                 receiverEmail: decryptedUserEmail,
                                 subject: `Your Sign In Was Not Complete`,
-                                htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
+                                htmlContent: consentsforLearnerInitalLogin({ firstName: decryptedUserFirstName }),
                             });
                             const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
                             const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
@@ -495,7 +496,7 @@ module.exports.mutations = {
                             await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
                                 receiverEmail: user?.email,
                                 subject: `Alert: Learner Rejected Terms and Conditions`,
-                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email }),
+                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: decrypt(user?.firstName), learnerfirstName: decryptedUserFirstName, learnerEmail: decryptedUserEmail }),
                             })));
                         }
                         await existingUser.save({ session });
