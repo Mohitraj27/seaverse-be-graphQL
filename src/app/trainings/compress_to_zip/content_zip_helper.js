@@ -149,24 +149,37 @@ const fileDownloader = async (contentMap) => {
 // Helper function to create the zip file
 const createZipFile = async (contentMap, outputPath) => {
     const tempCleanups = [];
+    const metadata = {};
 
     return new Promise(async (resolve, reject) => {
-        const archive = archiver('zip', {
-            zlib: { level: 5 } // Balanced compression
+        const archive = archiver("zip", {
+            zlib: { level: 5 },
         });
 
-        const metadata = {};
         const fileWriteStream = fs.createWriteStream(outputPath);
 
-        // Set up event handlers
-        fileWriteStream.on('error', (error) => {
-            console.error('Write stream error:', error);
-            reject(error);
+        // Error handling
+        fileWriteStream.on("error", err => {
+            console.error("Write stream error:", err);
+            reject(err);
         });
 
-        fileWriteStream.on('close', () => {
-            console.log(`Zip file created: ${archive.pointer()} total bytes`);
+        archive.on("error", err => {
+            console.error("Archive error:", err);
+            reject(err);
+        });
 
+        archive.on("warning", err => {
+            if (err.code === "ENOENT") {
+                console.warn("Archive warning:", err);
+            } else {
+                reject(err);
+            }
+        });
+
+        // Cleanup after archive finishes writing
+        archive.on("end", () => {
+            console.log("Archive stream ended.");
             for (const { path, cleanupCallback } of tempCleanups) {
                 try {
                     cleanupCallback();
@@ -178,61 +191,53 @@ const createZipFile = async (contentMap, outputPath) => {
             resolve();
         });
 
-        archive.on('error', (err) => {
-            console.error('Archive error:', err);
-            reject(err);
-        });
-
-        archive.on('warning', (err) => {
-            if (err.code === 'ENOENT') {
-                console.warn('Archive warning:', err);
-            } else {
-                reject(err);
-            }
-        });
-
-        // Pipe archive data to the file
+        // Start piping archive output to file
         archive.pipe(fileWriteStream);
 
-        // Process files with concurrency control
         const CONCURRENT_DOWNLOADS = 3;
         const entries = Array.from(contentMap.entries());
 
         for (let i = 0; i < entries.length; i += CONCURRENT_DOWNLOADS) {
             const batch = entries.slice(i, i + CONCURRENT_DOWNLOADS);
 
-            await Promise.all(batch.map(async ([contentId, fileUrl]) => {
-                try {
-                    const updatedUrl = await AwsHelper.fetchFile(fileUrl);
-                    const fileName = fileUrl.split('/').pop();
+            await Promise.all(
+                batch.map(async ([contentId, fileUrl]) => {
+                    try {
+                        const updatedUrl = await AwsHelper.fetchFile(fileUrl);
+                        const fileName = fileUrl.split("/").pop();
 
-                    console.log(`Downloading: ${fileName}`);
+                        console.log(`Downloading: ${fileName}`);
+                        const { path, contentType, cleanupCallback } = await downloadWithRetry(
+                            updatedUrl
+                        );
+                        tempCleanups.push({ path, cleanupCallback });
 
-                    console.log('\n\n we downloading---')
-                    const { path, contentType, cleanupCallback } = await downloadWithRetry(updatedUrl);
-                    tempCleanups.push({ path, cleanupCallback });
-                    let streamToZip = fs.createReadStream(path);
-                    console.log("response content-type:", contentType);
+                        // Create base stream
+                        let inputStream = fs.createReadStream(path);
+                        if (VIDEO_MIME_TYPES.includes(contentType)) {
+                            console.log(`Compressing video: ${fileName}`);
+                            inputStream = compressVideoStream(path, { maxResolution: 720 });
+                        }
 
-                    if (VIDEO_MIME_TYPES.includes(contentType)) {
-                        console.log(`Compressing video: ${fileName}`);
-                        streamToZip = compressVideoStream(path, { maxResolution: 720 });
-                    }  
-                    // Append stream to archive
-                    archive.append(streamToZip, { name: fileName });
-                    metadata[contentId] = fileName;
+                        // Create passthrough stream and append it to archive
+                        const passThrough = new PassThrough();
+                        archive.append(passThrough, { name: fileName });
 
-                } catch (error) {
-                    console.error(`Error processing file ${fileUrl}:`, error.message);
-                    // Continue with other files
-                }
-            }));
+                        // Wait for full piping to complete before continuing
+                        await pipeline(inputStream, passThrough);
+
+                        metadata[contentId] = fileName;
+                    } catch (error) {
+                        console.error(`Error processing file ${fileUrl}:`, error.message);
+                    }
+                })
+            );
         }
 
-        // Add metadata file
-        archive.append(JSON.stringify(metadata, null, 2), { name: 'metadata.json' });
+        // Add metadata to archive
+        archive.append(JSON.stringify(metadata, null, 2), { name: "metadata.json" });
 
-        // Finalize the archive (no more files will be appended)
+        // Finalize the archive
         await archive.finalize();
     });
 };
@@ -240,6 +245,7 @@ const createZipFile = async (contentMap, outputPath) => {
 // Helper function to download with retry
 const downloadWithRetry = async (url, maxRetries = 3) => {
     for (let i = 0; i < maxRetries; i++) {
+        console.log(`Attempt ${i + 1} to download: ${url}`);
         try {
             const response = await axios.get(url, {
                 responseType: 'stream',
@@ -252,7 +258,7 @@ const downloadWithRetry = async (url, maxRetries = 3) => {
 
             const tmpFile = tmp.fileSync({ postfix: '.mp4' });
             await pipeline(response.data, fs.createWriteStream(tmpFile.name));
-
+            console.log(`\nDownloaded file to temporary location: ${tmpFile.name}`);
             return {
                 path: tmpFile.name,
                 cleanupCallback: tmpFile.removeCallback, // in case you want to delete later
