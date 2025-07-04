@@ -15,7 +15,9 @@
 	"author": "Armino",
 	"license": "ISC",
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.842.0",
 		"@aws-sdk/client-sqs": "^3.839.0",
+		"@aws-sdk/s3-request-presigner": "^3.842.0",
 		"@elastic/elasticsearch": "^9.0.2",
 		"@opensearch-project/opensearch": "^3.5.1",
 		"@rusticisoftware/scormcloud-api-v2-client-javascript": "^4.0.0",
