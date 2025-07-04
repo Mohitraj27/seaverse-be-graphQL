@@ -1823,7 +1823,6 @@ module.exports.queries = {
                             firstName: currentUserData.firstName,
                             buttonLink: `${process.env.APP_URL}/login`,
                         });
-                        console.log('this is htmlContnet', htmlContent);
                         html = htmlContent;
                         await SendEmail({
                             receiverEmail: currentUserData?.email,
@@ -1858,15 +1857,14 @@ module.exports.queries = {
                             return;
                         }
                         const htmlContent = sendEmailToLearner({
-                            firstName: currentUserData.firstName,
-                            email: currentUserData.email,
+                            firstName: decrypt(currentUserData.firstName),
+                            email: decrypt(currentUserData.email),
                             temp_password: generatePassword,
                             buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
                         });
-                        console.log('this is htmlContent', htmlContent);
                         html = htmlContent;
                         await SendEmail({
-                            receiverEmail: currentUserData?.email,
+                            receiverEmail: decrypt(currentUserData?.email),
                             subject: "Registration Invitation",
                             htmlContent: html,
                         });
