@@ -1107,7 +1107,7 @@ module.exports.queries = {
                 learningPlan: { $in: [id] },
                 isDeleted: { $ne: true },
             };
-           
+
             const searchCondition = [];
             if (search?.trim()) {
                 const encryptedSearch = encrypt(search.trim()?.toLowerCase());
@@ -1122,7 +1122,7 @@ module.exports.queries = {
                 });
             }
 
-            const pipeline = [
+            const basePipeline = [
                 {
                     $match: queryConditions,
                 },
@@ -1164,9 +1164,6 @@ module.exports.queries = {
                     },
                 },
                 {
-                    $sort: { "_id": 1 }
-                },
-                {
                     $project: {
                         _id: 0,
                         userId: "$user._id",
@@ -1183,8 +1180,8 @@ module.exports.queries = {
                             $cond: {
                                 if: { $type: "$user.lastLoginAt" },
                                 then: { $toLong: "$user.lastLoginAt" },
-                                else: 0
-                            }
+                                else: 0,
+                            },
                         },
                         status: {
                             $switch: {
@@ -1206,12 +1203,14 @@ module.exports.queries = {
             ];
 
             if (status?.length > 0) {
-                pipeline.push({
+                basePipeline.push({
                     $match: {
-                        status: { $in: status }
-                    }
+                        status: { $in: status },
+                    },
                 });
             }
+
+            const dataPipeline = [...basePipeline];
 
             if (sortInput?.sortField) {
                 const sortFieldMap = {
@@ -1223,54 +1222,67 @@ module.exports.queries = {
                 };
 
                 const field = sortFieldMap[sortInput.sortField];
+                const sortOrder = sortInput.sortOrder ?? 1;
+
                 if (field) {
-                    const sortOrder = sortInput.sortOrder ?? 1;
-                    pipeline.push({
+                    dataPipeline.push({
                         $sort: {
                             [field]: sortOrder,
-                            userId: 1, 
+                            userId: 1,
                         },
                     });
                 } else {
-                    pipeline.push({
+                    dataPipeline.push({
                         $sort: {
                             firstName: 1,
-                            userId: 1
-                        }
+                            userId: 1,
+                        },
                     });
                 }
             } else {
-                pipeline.push({
+                dataPipeline.push({
                     $sort: {
                         firstName: 1,
-                        userId: 1
-                    }
+                        userId: 1,
+                    },
                 });
             }
 
-            pipeline.push({ $skip: skip });
-            pipeline.push({ $limit: limit });
-
-            pipeline.push({
+            dataPipeline.push({ $skip: skip });
+            dataPipeline.push({ $limit: limit });
+            dataPipeline.push({
                 $project: {
-                    lastLoginAtNumeric: 0 
-                }
+                    lastLoginAtNumeric: 0,
+                },
             });
 
-            const detailedPlan = await OverallTrainingProgress.aggregate(pipeline);
-            const decryptedResult = detailedPlan.map(user => {
-                return {
-                    ...user,
-                    firstName: decrypt(user.firstName),
-                    lastName: user.lastName ? decrypt(user.lastName) : "",
-                    email: decrypt(user.email),
-                };
-            });
+            const countPipeline = [...basePipeline, { $count: "totalCount" }];
 
-            return decryptedResult;
+            const [paginatedUsers, countResult] = await Promise.all([
+                OverallTrainingProgress.aggregate(dataPipeline),
+                OverallTrainingProgress.aggregate(countPipeline),
+            ]);
+
+            const totalCount = countResult[0]?.totalCount || 0;
+
+            const decryptedResult = paginatedUsers.map((user) => ({
+                ...user,
+                firstName: decrypt(user.firstName),
+                lastName: user.lastName ? decrypt(user.lastName) : "",
+                email: decrypt(user.email),
+            }));
+
+            return {
+                users: decryptedResult,
+                totalCount,
+            };
         } catch (error) {
-            console.log(error);
-            throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
+            console.error(error);
+            throw CustomError(
+                "FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN",
+                error.message
+            );
         }
     },
+      
 };
