@@ -1,13 +1,12 @@
 const singleLearnerEnrollmentReportQuery = queryStages => {
     const {
         matchUsers,
-        deteledUsersStage,
         matchUsersFromTrainingProgresses,
         matchStage,
         sortingStage,
         pageLimit,
     } = queryStages;
-
+    const  deteledUsersStage = queryStages.deletedUsersStage ?? [];
     const pipeline = [
         {
             $lookup: {
