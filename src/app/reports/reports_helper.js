@@ -9,6 +9,8 @@ const aws_helper = require("../../util/aws_helper");
 const NotificationType = require("../notifications/notification_type.json");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const { Notification } = require("../notifications/notification_model");
+const { ObjectId } = require('mongodb');
+
 
 const generateFileNameTimestamp = async () => {
     const now = new Date();
@@ -62,24 +64,6 @@ const convertUnderscoreSeperatedStringToCamelCase = async (str) => {
         })
         .join('');
 }
-/* 
-const formatDate = (date) => {
-    if (date) {
-        const formattedDate = new Date(date);
-        return formattedDate.toLocaleString('en-GB', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-            timeZone: 'UTC',
-        });
-    }
-    return null;
-};
-*/
 
 const formatDate = (date) => {
     if (date) {
@@ -144,19 +128,6 @@ const generateSortingStage = async (fieldMapping, lowercaseFields = [], defaultF
 
     return sortingStage;
 }
-
-
-/* const convertMinutesToHMS = (minutes) => {
-    if (minutes == null || isNaN(minutes)) {
-        console.log(`type of minutes is ${typeof(minutes)}`);
-        return '00:00:00'; 
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.floor(minutes % 60); 
-    const remainingSeconds = Math.round((minutes % 1) * 60); 
-
-    return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-}; */
 
 const convertMinutesToHMS = (minutes) => {
     if (typeof (minutes) === 'string' && parseInt(minutes) !== NaN) {
@@ -478,6 +449,229 @@ const sendNotificationOnBULK = async notificationData => {
 
 }
 
+
+function buildLearnerAggregationPipelineFilterStages(input = {}) {
+    const matchStage = [];
+    const matchUsers = [];
+    const matchUsersFromTrainingProgresses = [];
+    const sortingStage = [];
+    let deletedUsersStage = [];
+    const pageLimit = [];
+
+    // Default values
+    const filterInput = input.filter || {};
+    const learnerIds = Array.isArray(input.learnerIds)
+        ? input.learnerIds
+        : input.learnerIds
+        ? [input.learnerIds]
+        : [];
+
+    // 1. Title filter
+    if (filterInput?.title) {
+        matchStage.push({
+            $match: {
+                "trainingInfo.title.value": {
+                    $regex: filterInput.title,
+                    $options: "i",
+                },
+            },
+        });
+    }
+
+    // 2. Course ID filter
+    if (filterInput?.courseIds?.length > 0) {
+        matchStage.push({
+            $match: {
+                training: {
+                    $in: Array.isArray(filterInput.courseIds)
+                        ? filterInput.courseIds
+                        : [filterInput.courseIds],
+                },
+            },
+        });
+    }
+
+    // 3. Status filter
+    if (filterInput.courseStatuses !== undefined) {
+        const statusFilter = Array.isArray(filterInput.courseStatuses)
+            ? { $in: filterInput.courseStatuses }
+            : filterInput.courseStatuses;
+
+        matchStage.push({ $match: { status: statusFilter } });
+    }
+
+    // 4. Date range filter
+    if (filterInput.dateRange) {
+        const { startDate, endDate } = filterInput.dateRange;
+        if (!startDate && !endDate)
+            throw Error("Both startDate and endDate cannot be missing when dateRange is provided.");
+
+        const dateFilter = {};
+        if (startDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            dateFilter["$gte"] = start;
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter["$lte"] = end;
+        }
+
+        matchStage.push({ $match: { createdAt: dateFilter } });
+    }
+
+    // 5. isRegistered
+    if (filterInput?.isRegistered !== undefined) {
+        matchStage.push({
+            $match: { "userInfo.isRegistered": filterInput.isRegistered },
+        });
+    }
+
+    // 6. Vessel types
+    if (Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
+        matchStage.push({
+            $match: { "vesselInfo.typeOfVessel": { $in: filterInput.vesselTypes } },
+        });
+    }
+
+    // 7. Vessel IDs
+    if (Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
+        matchStage.push({
+            $match: { "vesselInfo._id": { $in: filterInput.vesselIds } },
+        });
+    }
+
+    // 8. Designations
+    if (Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
+        matchStage.push({
+            $match: { "designationInfo._id": { $in: filterInput.designations } },
+        });
+    }
+
+    // 9. Vessel status
+    if (Array.isArray(filterInput.vesselStatus) && filterInput.vesselStatus.length > 0) {
+        matchStage.push({
+            $match: { "userInfo.vesselStatus": { $in: filterInput.vesselStatus } },
+        });
+    }
+
+    // 10. Deleted users handling
+    if (input?.filterInput?.includeDeletedUsers) {
+        deletedUsersStage = [
+            {
+                $lookup: {
+                    from: "deletedusers",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "deletedUserInfo",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$deletedUserInfo",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $addFields: {
+                    userInfo: {
+                        $mergeObjects: ["$userInfo", "$deletedUserInfo"],
+                    },
+                },
+            },
+        ];
+    } else {
+        deletedUsersStage = [
+            {
+                $match: {
+                    $and: [
+                        { "userInfo.isDeleted": { $ne: true } },
+                        { "employeeInfo.isDeleted": { $ne: true } },
+                    ],
+                },
+            },
+        ];
+    }
+
+    // 11. Sorting
+    const fieldMapping = {
+        COURSE_NAME: { $arrayElemAt: ["$courseName", 0] },
+        COURSE_STATUS: "$status",
+        LAST_SEEN: "updatedAt",
+    };
+    const sortOrder = input?.sortInput?.sortOrder ?? 1;
+    const field = input?.sortInput?.field ?? "COURSE_NAME";
+    const fieldPath = fieldMapping[field];
+
+    if (field === "COURSE_STATUS" || field === "COURSE_NAME") {
+        sortingStage.push({
+            $addFields: {
+                [`lowercase${field}`]: { $toLower: fieldPath },
+            },
+        });
+        sortingStage.push({
+            $sort: { [`lowercase${field}`]: sortOrder },
+        });
+    } else if (fieldPath) {
+        sortingStage.push({
+            $sort: { [fieldPath]: sortOrder },
+        });
+    } else {
+        sortingStage.push({
+            $addFields: {
+                lowercaseCourseName: {
+                    $toLower: { $arrayElemAt: ["$courseName", 0] },
+                },
+            },
+        });
+        sortingStage.push({ $sort: { lowercaseCourseName: 1 } });
+    }
+
+    // 12. Pagination
+    const skip = input?.pageInput?.skip ?? 0;
+    const limit = input?.pageInput?.limit ?? 200;
+    if (limit > 0 && !input?.export) {
+        pageLimit.push({ $skip: skip }, { $limit: limit });
+    }
+
+    // 13. Learner filtering
+    const objectIds = learnerIds
+        .filter(Boolean)
+        .map(id => {
+            try {
+                return new ObjectId(id);
+            } catch (e) {
+                console.error(`Invalid ObjectId: ${id}`, e);
+                return null;
+            }
+        })
+        .filter(Boolean);
+
+    if (objectIds.length > 0) {
+        matchUsers.push({ $match: { user: { $in: objectIds } } });
+        matchUsersFromTrainingProgresses.push({
+            $match: {
+                user: { $in: objectIds },
+                status: "COMPLETED",
+            },
+        });
+    } else {
+        matchUsersFromTrainingProgresses.push({ $match: { status: "COMPLETED" } });
+    }
+
+    // Final return
+    return {
+        matchStage,
+        deletedUsersStage,
+        matchUsers,
+        matchUsersFromTrainingProgresses,
+        sortingStage,
+        pageLimit,
+    };
+}
+
+
 module.exports = {
     generateFileNameTimestamp,
     getAppliedFilters,
@@ -485,5 +679,27 @@ module.exports = {
     formatDate,
     generateSortingStage,
     convertMinutesToHMS,
-    customReportGenBackgroundProcess
+    customReportGenBackgroundProcess,
+    buildLearnerAggregationPipelineFilterStages
 }
+
+
+
+/* 
+const formatDate = (date) => {
+    if (date) {
+        const formattedDate = new Date(date);
+        return formattedDate.toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'UTC',
+        });
+    }
+    return null;
+};
+*/
