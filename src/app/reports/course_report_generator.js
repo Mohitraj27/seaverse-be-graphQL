@@ -17,6 +17,8 @@ const { ObjectId } = require("../../tools");
 const performCourseReportGeneration = async ({ input, subscriberId, userId, userInfo }) => {
     if (!subscriberId) throw new Error("Forbidden: subscriberId is missing."); // Use standard Error here
 
+    console.log("Child process------------>", input);
+
     try {
        input = input || {};
        
@@ -130,6 +132,8 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                    }
        
                }
+
+               console.log("matchStage---------->", matchStage);
        
                const skip = input?.pageInput?.skip ? input.pageInput.skip : 0;
                const limit = input?.pageInput?.limit ? input.pageInput.limit : 20;
@@ -381,6 +385,8 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                        ]
        
                    );
+
+                   console.log("data----------->", data);   
                    if (data.length > 0) {
        
                        const coursesData = data.map(item => ({
@@ -400,6 +406,8 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                            quizPercentage: item.quizPercentage,
                            isPassed: item.isPassed,
                        }));
+
+                       console.log("coursesData----------->", coursesData);
        
                        let s3PresignedUrl = "";
        
@@ -446,6 +454,8 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
        
                                return parsedItem;
                            });
+
+                           console.log("parsedData----------->", parsedData);
                            const workbook = XLSX.utils.book_new();
                            const worksheet = XLSX.utils.json_to_sheet(parsedData);
                            XLSX.utils.book_append_sheet(workbook, worksheet, `${input?.reportType}`);
@@ -457,8 +467,10 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                                fileName: `COURSE-ENROLMENT-REPORT-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`,
                                uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
                            });
+                           console.log("excelFilePath----------->", excelFilePath);
                            if (excelFilePath) {
                                s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
+                               console.log("s3PresignedUrl----------->", s3PresignedUrl);
                                const notificationData = {
                                    subscriber: subscriberId,
                                    titleValue: `Enrollment Report Exported Successfully`,
@@ -479,6 +491,8 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                                    createdBy: userInfo._id,
                                    icon: notificationiconEnum.SUCCESS
                                }
+
+                               console.log("notificationData----------->", notificationData);
 
                                  process.send({
                                      type: "REPORT_EXPORT_SUCCESS",
