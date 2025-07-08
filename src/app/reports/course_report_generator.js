@@ -88,7 +88,7 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                    if (filterInput.vesselType && Array.isArray(filterInput.vesselType) && filterInput.vesselType.length > 0) {
                        matchStage.push({
                            $match: {
-                               'vesselTypeInfo._id': { $in: filterInput.vesselType },
+                               'vesselTypeInfo._id': { $in: filterInput.vesselType.map(id => ObjectId(id)) },
                            },
                        });
                    }
@@ -96,14 +96,14 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                    if (filterInput.vesselName && Array.isArray(filterInput.vesselName) && filterInput.vesselName.length > 0) {
                        matchStage.push({
                            $match: {
-                               'usersVesselInfo._id': { $in: filterInput.vesselName },
+                               'usersVesselInfo._id': { $in: filterInput.vesselName.map(id => ObjectId(id)) },
                            },
                        });
                    }
                    if (filterInput.designation && Array.isArray(filterInput.designation) && filterInput.designation.length > 0) {
                        matchStage.push({
                            $match: {
-                               'designationInfo._id': { $in: filterInput.designation },
+                               'designationInfo._id': { $in: filterInput.designation.map(id => ObjectId(id)) },
                            },
                        });
                    }
@@ -117,14 +117,14 @@ const performCourseReportGeneration = async ({ input, subscriberId, userId, user
                    if (filterInput.learnerIds && Array.isArray(filterInput.learnerIds) && filterInput.learnerIds.length > 0) {
                        matchStage.push({
                            $match: {
-                               user: { $in: filterInput.learnerIds },
+                               user: { $in: filterInput.learnerIds.map(id => ObjectId(id)) },
                            },
                        });
                    }
                    if (filterInput.idsToExport && Array.isArray(filterInput.idsToExport) && filterInput.idsToExport.length > 0) {
                        matchIdsToBeExported.push({
                            $match: {
-                               _id: { $in: filterInput?.idsToExport },
+                               _id: { $in: filterInput?.idsToExport.map(id => ObjectId(id)) },
                            },
                        });
                    }

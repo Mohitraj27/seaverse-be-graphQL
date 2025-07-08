@@ -43,7 +43,7 @@ const performLearnerReportGeneration = async (payload) => {
                 matchStage.push({
                     $match: {
                         "training": {
-                            $in: Array.isArray(filterInput?.courseIds) ? filterInput?.courseIds : [filterInput?.courseIds],
+                            $in: Array.isArray(filterInput?.courseIds) ? filterInput?.courseIds.map(id => ObjectId(id)) : [filterInput?.courseIds.map(id => ObjectId(id))],
                         }
                     },
                 });
@@ -103,7 +103,7 @@ const performLearnerReportGeneration = async (payload) => {
             if (filterInput.vesselTypes && Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
                 matchStage.push({
                     $match: {
-                        'vesselInfo.typeOfVessel': { $in: filterInput.vesselTypes },
+                        'vesselInfo.typeOfVessel': { $in: filterInput.vesselTypes.map(id => ObjectId(id)) },
                     },
                 });
             }
@@ -111,7 +111,7 @@ const performLearnerReportGeneration = async (payload) => {
             if (filterInput.vesselIds && Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
                 matchStage.push({
                     $match: {
-                        'vesselInfo._id': { $in: filterInput.vesselIds },
+                        'vesselInfo._id': { $in: filterInput.vesselIds.map(id => ObjectId(id)) },
                     },
                 });
             }
@@ -119,7 +119,7 @@ const performLearnerReportGeneration = async (payload) => {
             if (filterInput.designations && Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
                 matchStage.push({
                     $match: {
-                        'designationInfo._id': { $in: filterInput.designations },
+                        'designationInfo._id': { $in: filterInput.designations.map(id => ObjectId(id)) },
                     },
                 });
             }
