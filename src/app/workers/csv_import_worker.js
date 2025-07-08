@@ -25,7 +25,7 @@ async function pollMessages() {
         try {
             const params = {
                 QueueUrl: QUEUE_URL,
-                MaxNumberOfMessages: 5,
+                MaxNumberOfMessages: 10,
                 WaitTimeSeconds: 10,
                 VisibilityTimeout: 60,
             };

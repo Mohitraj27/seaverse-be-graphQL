@@ -35,7 +35,7 @@ const { decrypt } = require("../../util/encryption_helper");
 // const { JOB_NAMES } = require("../queues/queue.enum");
 
 
-const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { SQSClient, SendMessageCommand, SendMessageBatchCommand } = require('@aws-sdk/client-sqs');
 
 const sqsClient = new SQSClient({
     region: process.env.SQS_AWS_REGION,
@@ -320,153 +320,17 @@ const createLearningPlanHelper = async (input, context) => {
                     learningPlan: newLearningPlan._id
                 }
 
-                console.log(enrollData, "enrollData for job");
+                // console.log(enrollData, "enrollData for job");
 
 
-                async function publishCourseEnrollmentJob(jobData) {
-                    try {
-                        if (!jobData || !jobData.jobId) {
-                            throw new Error('Invalid job data: missing jobId');
-                        }
+               
 
-                        const params = {
-                            QueueUrl: COURSE_ENROLLMENT_QUEUE_URL,
-                            MessageBody: JSON.stringify(jobData),
-                        };
-
-                        // // 👉 If FIFO queue:
-                        // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                        //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
-                        //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
-                        // }
-
-                        const data = await sqsClient.send(new SendMessageCommand(params));
-
-                        console.log(`📋 Job sent to SQS: ${data.MessageId}`);
-                        return { id: data.MessageId };
-                    } catch (error) {
-                        console.error('❌ Failed to send job to SQS:', error);
-                        throw error;
-                    }
-                }
-
-
-
-                async function publishEnrollmentInBatches(enrollData, jobId, context) {
-                    // Input validation
-                    if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
-                        console.warn('⚠️ No users found for enrollment');
-                        return { success: false, reason: 'No users found' };
-                    }
-
-                    if (!enrollData.trainings || !Array.isArray(enrollData.trainings) || enrollData.trainings.length === 0) {
-                        console.warn('⚠️ No trainings found for enrollment');
-                        return { success: false, reason: 'No trainings found' };
-                    }
-
-                    const users = enrollData.users;
-                    const batchSize = 1;
-                    const totalUsers = users.length;
-                    const batchCount = Math.ceil(totalUsers / batchSize);
-
-                    const results = {
-                        totalBatches: batchCount,
-                        successfulBatches: 0,
-                        failedBatches: 0,
-                        jobs: []
-                    };
-
-                    console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
-                    console.log(`📚 Courses to enroll: ${enrollData.trainings.length}`);
-
-                    // Check Redis connection before processing
-                    // try {
-                    //     await courseEnrollmentQueue.client.ping();
-                    //     console.log('✅ Redis connection verified');
-                    // } catch (error) {
-                    //     console.error('❌ Redis connection failed:', error);
-                    //     throw new Error('Redis connection failed');
-                    // }
-
-                    // Process batches with retry logic
-                    for (let i = 0; i < batchCount; i++) {
-                        const start = i * batchSize;
-                        const end = Math.min(start + batchSize, totalUsers);
-                        const batchedUsers = users.slice(start, end);
-
-                        const batchedEnrollData = {
-                            ...enrollData,
-                            users: batchedUsers,
-                            batchInfo: {
-                                batchNumber: i + 1,
-                                totalBatches: batchCount,
-                                batchSize: batchedUsers.length
-                            }
-                        };
-
-                        console.log(`\n📦 Processing batch ${i + 1}/${batchCount}`);
-                        console.log(`👥 Users in batch: ${batchedUsers.length}`);
-
-                        let retryCount = 0;
-                        const maxRetries = 3;
-                        let batchPublished = false;
-
-                        while (retryCount < maxRetries && !batchPublished) {
-                            try {
-                                const job = await publishCourseEnrollmentJob({
-                                    jobId: `${jobId}-batch-${i + 1}`,
-                                    batchedEnrollData,
-                                    context,
-                                    timestamp: new Date().toISOString(),
-                                    attempt: retryCount + 1
-                                });
-
-                                results.jobs.push({
-                                    jobId: job.id,
-                                    batch: i + 1,
-                                    userCount: batchedUsers.length
-                                });
-
-                                console.log(`✅ Batch ${i + 1}/${batchCount} sent successfully`);
-                                results.successfulBatches++;
-                                batchPublished = true;
-
-                            } catch (err) {
-                                retryCount++;
-                                console.error(`❌ Failed to publish batch ${i + 1} (attempt ${retryCount}/${maxRetries}):`, err.message);
-
-                                if (retryCount >= maxRetries) {
-                                    console.error(`❌ Batch ${i + 1} failed after ${maxRetries} attempts`);
-                                    results.failedBatches++;
-
-                                    // Decide whether to continue or fail fast
-                                    // Option 1: Continue with remaining batches
-                                    // break; // Uncomment to stop on first failure
-
-                                    // Option 2: Log and continue
-                                    console.warn(`⚠️ Continuing with remaining batches despite failure`);
-                                } else {
-                                    // Wait before retry
-                                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-                                }
-                            }
-                        }
-
-                        // Add small delay between batches to prevent overwhelming the queue
-                        if (i < batchCount - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                    }
-
-                    console.log('\n📊 Batch publishing summary:');
-                    console.log(`✅ Successful: ${results.successfulBatches}/${results.totalBatches}`);
-                    console.log(`❌ Failed: ${results.failedBatches}/${results.totalBatches}`);
-
-                    return results;
-                }
-
-
-
+                
+                
+                
+                
+                
+                // ✅ Main publisher
                 await publishEnrollmentInBatches(enrollData, jobId, context);
 
 
@@ -479,6 +343,91 @@ const createLearningPlanHelper = async (input, context) => {
         throw Error(error.message);
     }
 };
+
+async function publishEnrollmentInBatches(enrollData, jobId, context) {
+    if (!enrollData?.users?.length) {
+        console.warn('⚠️ No users found');
+        return { success: false, reason: 'No users found' };
+    }
+    if (!enrollData?.trainings?.length) {
+        console.warn('⚠️ No trainings found');
+        return { success: false, reason: 'No trainings found' };
+    }
+
+    const users = enrollData.users;
+    const batchSize = 10; // max for SendMessageBatchCommand
+    const totalUsers = users.length;
+
+    // ✅ ✅ ✅ This is where you add it:
+    const messageBatchSize = 500;
+    const allMessages = [];
+
+    for (let i = 0; i < users.length; i += messageBatchSize) {
+        const chunk = users.slice(i, i + messageBatchSize);
+        allMessages.push({
+            id: `msg-${i / messageBatchSize + 1}`,
+            body: {
+                jobId: `${jobId}-batch-${i / messageBatchSize + 1}`,
+                batchedEnrollData: {
+                    ...enrollData,
+                    users: chunk,
+                    batchInfo: {
+                        batchNumber: i / messageBatchSize + 1,
+                        totalBatches: Math.ceil(users.length / messageBatchSize),
+                        batchSize: chunk.length
+                    }
+                },
+                context,
+                timestamp: new Date().toISOString(),
+            },
+        });
+    }
+
+    // Split into SQS batches of 10
+    const batches = [];
+    for (let i = 0; i < allMessages.length; i += batchSize) {
+        batches.push(allMessages.slice(i, i + batchSize));
+    }
+
+    console.log(`🚀 Total users: ${totalUsers}`);
+    console.log(`📦 Total SQS batches: ${batches.length}`);
+
+    // Process batches in parallel with concurrency limit
+    const CONCURRENCY = 5;
+    const results = [];
+
+    async function processBatch(batch) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const params = {
+                    QueueUrl: process.env.SQS_QUEUE_URL,
+                    Entries: batch.map(item => ({
+                        Id: item.id,
+                        MessageBody: JSON.stringify(item.body)
+                    })),
+                };
+                const result = await sqsClient.send(new SendMessageBatchCommand(params));
+                console.log(`✅ Batch sent: ${batch.map(b => b.id).join(', ')}`);
+                results.push(result);
+                break; // success, exit retry loop
+            } catch (err) {
+                console.error(`❌ Batch failed (attempt ${attempt}):`, err);
+                if (attempt === 3) throw err;
+                await new Promise(r => setTimeout(r, attempt * 1000)); // backoff
+            }
+        }
+    }
+
+    let index = 0;
+    while (index < batches.length) {
+        const chunk = batches.slice(index, index + CONCURRENCY);
+        await Promise.all(chunk.map(processBatch));
+        index += CONCURRENCY;
+    }
+
+    console.log(`✅ All batches done`);
+    return { success: true, totalMessages: allMessages.length, totalBatches: batches.length };
+}
 
 const clearFieldsBasedOnConditions = async (input, errorList) => {
     if (input.audienceSelection === audienceSelection.MANUAL) {
@@ -669,72 +618,7 @@ const updateLearningPlanHelper = async (id, input, context) => {
                         learningPlan: existingLearningPlan._id
                     }
 
-                    async function publishCourseEnrollmentJob(jobData) {
-                        try {
-                            if (!jobData || !jobData.jobId) {
-                                throw new Error('Invalid job data: missing jobId');
-                            }
-
-                            const params = {
-                                QueueUrl: COURSE_ENROLLMENT_QUEUE_URL,
-                                MessageBody: JSON.stringify(jobData),
-                            };
-
-                            // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                            //     params.MessageGroupId = 'course-enrollment'; 
-                            //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`;
-                            // }
-
-                            const data = await sqsClient.send(new SendMessageCommand(params));
-
-                            console.log(`📋 Job sent to SQS: ${data.MessageId}`);
-                            return { id: data.MessageId };
-                        } catch (error) {
-                            console.error('❌ Failed to send job to SQS:', error);
-                            throw error;
-                        }
-                    }
-
-                    async function publishEnrollmentInBatches(enrollData, jobId, context) {
-                        if (!enrollData || !Array.isArray(enrollData.users) || enrollData.users.length === 0) {
-                            console.warn('⚠️ No users found for enrollment');
-                            return;
-                        }
-
-                        const users = enrollData.users;
-                        const batchSize = 1;
-                        const totalUsers = users.length;
-                        const batchCount = Math.ceil(totalUsers / batchSize);
-
-                        console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
-
-                        for (let i = 0; i < batchCount; i++) {
-                            const start = i * batchSize;
-                            const end = Math.min(start + batchSize, totalUsers);
-                            const batchedUsers = users.slice(start, end);
-
-                            const batchedEnrollData = {
-                                ...enrollData,
-                                users: batchedUsers
-                            };
-
-                            try {
-                                await publishCourseEnrollmentJob({
-                                    jobId,
-                                    batchedEnrollData,
-                                    context,
-                                    timestamp: new Date().toISOString()
-                                });
-
-                                console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchedUsers.length} users`);
-                            } catch (err) {
-                                console.error(`❌ Failed to publish batch ${i + 1}:`, err);
-                                throw err; // you may choose to continue instead of breaking entire loop
-                            }
-                        }
-                    }
-
-
+                    
                     await publishEnrollmentInBatches(enrollData, jobId, context);
 
 

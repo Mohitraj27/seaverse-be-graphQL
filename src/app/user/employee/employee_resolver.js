@@ -3004,11 +3004,11 @@ module.exports.mutations = {
                                     };
             
                                     // 👉 If FIFO queue:
-                                    if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                                        params.MessageGroupId = 'csv-import'; // Required for FIFO
-                                        params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
-                                    }
-            
+                                    // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                                    //     params.MessageGroupId = 'csv-import'; // Required for FIFO
+                                    //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                                    // }
+                                       console.log(`📤 Sending job to SQS: ${JSON.stringify(params)}`);
                                     const data = await sqsClient.send(new SendMessageCommand(params));
             
                                     console.log(`📋 Job sent to SQS: ${data.MessageId}`);
@@ -3055,8 +3055,8 @@ module.exports.mutations = {
                             users: batchUsers,
                             emailsArray: batchEmails,
                             empIdsArray: batchEmpIds,
-                            MessageGroupId: 'csv-import', // Required for FIFO queues
-                            MessageDeduplicationId: `${jobId}-${i}-${Date.now()}`, // Ensure
+                            // MessageGroupId: 'csv-import', // Required for FIFO queues
+                            // MessageDeduplicationId: `${jobId}-${i}-${Date.now()}`, // Ensure
                             subscriberId,
                             userId,
                             userInfo,
