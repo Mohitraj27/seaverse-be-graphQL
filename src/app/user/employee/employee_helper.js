@@ -4283,7 +4283,7 @@ module.exports = {
 
             if (decryptedPasswordEmailList.length > 0) {
 
-                await sendBulkEmails(decryptedPasswordEmailList);
+                // await sendBulkEmails(decryptedPasswordEmailList);
 
             }
 
