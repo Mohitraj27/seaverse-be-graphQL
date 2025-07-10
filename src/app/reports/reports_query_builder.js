@@ -1192,9 +1192,9 @@ const customQuizReportQuery = (matchStage = []) => {
                 localField: "_id",
                 foreignField: "overallTrainingProgress",
                 as: "quizEvaluations",
-                let: { attemptCount: "$attemptCount", status: "$status" },
+                // let: { attemptCount: "$attemptCount", status: "$status" },
                 pipeline: [
-                    { $match: { $expr: { $eq: ["$attemptCount", "$$attemptCount"] } } },
+                    // { $match: { $expr: { $eq: ["$attemptCount", "$$attemptCount"] } } },
                     {
                         $lookup: {
                             from: "trainingmodules",
