@@ -20,6 +20,7 @@ module.exports = {
             email: String
             phone: Phone
             avatar: String
+            avatarUrl: String
             role: Role
             subRoles: [SubRole]
             languagePreference: Language
