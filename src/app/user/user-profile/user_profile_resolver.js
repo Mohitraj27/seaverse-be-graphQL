@@ -20,7 +20,7 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
+const { mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString, deleteProfilePictureHelper } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 
@@ -53,6 +53,7 @@ module.exports.queries = {
             if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
 
             if (existingUser.avatar) {
+                existingUser.avatarUrl = existingUser.avatar;
                 existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
             }
             let employeeData = {};
@@ -69,9 +70,9 @@ module.exports.queries = {
 
             existingUser.employee = employeeData || null;
 
-            for(let key in existingUser) {
-                if(key==="firstName" || key==="lastName" || key==="email" || key==="civilIdOrPassport") {
-                    existingUser[key]=decrypt(existingUser[key]);
+            for (let key in existingUser) {
+                if (key === "firstName" || key === "lastName" || key === "email" || key === "civilIdOrPassport") {
+                    existingUser[key] = decrypt(existingUser[key]);
                 }
             }
             return existingUser;
@@ -408,6 +409,17 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
+    deleteProfilePicture: async ({ url }, context) => {
+        const { userId } = AuthUser(context);
+        try {
+            const result = await deleteProfilePictureHelper(url, userId);
+            if (result) {
+                return "Profile picture deleted successfully.";
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
     changePassword: async ({ input }, context) => {
         const { role, userPermissions, subscriberId, isOrganizationManager, userInfo } =
             AuthUser(context);
@@ -472,21 +484,21 @@ module.exports.mutations = {
 
             try {
                 await updateByQueryToElasticSearch(
-                "users", 
-                `
+                    "users",
+                    `
                     ctx._source.password = params.password;
                     ctx._source.isResetPasswordDialog = params.isResetPasswordDialog;
                 `,
-                {
-                    term: {
-                    userId: existingUser._id.toString() 
+                    {
+                        term: {
+                            userId: existingUser._id.toString()
+                        }
+                    },
+                    {
+                        password: existingUser.password,
+                        isResetPasswordDialog: true
                     }
-                },
-                {
-                    password: existingUser.password,
-                    isResetPasswordDialog: true
-                }
-            );
+                );
             } catch (error) {
                 throw CustomError(ErrorName.SERVER_ERROR, error.message);
             }
@@ -507,7 +519,7 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-            const existingUser = await User.findOne({ email:encrypt(email) });
+            const existingUser = await User.findOne({ email: encrypt(email) });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
@@ -622,20 +634,20 @@ module.exports.mutations = {
             const updateUser = await user.save();
 
             try {
-                 await updateByQueryToElasticSearch(
-                "users", 
-                `
+                await updateByQueryToElasticSearch(
+                    "users",
+                    `
                     ctx._source.isResetPasswordDialog = true;
                 `,
-                {
-                    match: {
-                    userId: user._id.toString(), 
+                    {
+                        match: {
+                            userId: user._id.toString(),
+                        }
+                    },
+                    {
+                        password: user.password
                     }
-                },
-                {
-                    password: user.password
-                }
-            );
+                );
             } catch (error) {
                 throw CustomError(ErrorName.FAILED);
             }
@@ -683,7 +695,7 @@ module.exports.mutations = {
                 }
             ]);
 
-            if ((userData.length === 1)&& (userData[0]._id.toString() === userId.toString())) {
+            if ((userData.length === 1) && (userData[0]._id.toString() === userId.toString())) {
                 throw CustomError(
                     ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
                     "You cannot delete yourself because you are the only admin left in the system."
@@ -705,27 +717,27 @@ module.exports.mutations = {
             });
 
             try {
-             await updateByQueryToElasticSearch(
-                "users", 
-                `
+                await updateByQueryToElasticSearch(
+                    "users",
+                    `
                     ctx._source.deleteRequest = params.deleteRequest;
                     ctx._source.deleteRequestDate = params.deleteRequestDate;
                     ctx._source.reasonForDelete = params.reasonForDelete;
                 `,
-                {
-                    match: {
-                    userId: userId,
+                    {
+                        match: {
+                            userId: userId,
+                        },
                     },
-                },
-                {
-                    deleteRequest: true,
-                    deleteRequestDate: Date.now(),
-                    reasonForDelete: reasonForDelete,
-                }
-            );   
+                    {
+                        deleteRequest: true,
+                        deleteRequestDate: Date.now(),
+                        reasonForDelete: reasonForDelete,
+                    }
+                );
             } catch (error) {
                 throw CustomError(ErrorName.FAILED, error.message);
-                
+
             }
 
             if (updateUser) {
@@ -790,5 +802,5 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    
+
 };
