@@ -250,7 +250,7 @@ module.exports = {
     
             const url = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
 
-            return { url, key: fileType === "video" ? videoFileKey : pptPdfFileKey };
+            return { url, key: fileType?.split("/")?.[0] === "video" ? videoFileKey : pptPdfFileKey };
         } catch (err) {
             console.error(err);
             throw  CustomError(ErrorName.INTERNAL_SERVER_ERROR, "Failed to generate presigned URL");
