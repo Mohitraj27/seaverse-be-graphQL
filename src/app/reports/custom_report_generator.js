@@ -183,7 +183,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                             const timeSpendInContent = content?.timeSpendInContent
                                 ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent)
                                 : "00:00:00";
-                            if (learner.contentType === "QUIZ") {
+                            if (content.contentType === "QUIZ") {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
