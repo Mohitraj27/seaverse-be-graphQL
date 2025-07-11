@@ -16,8 +16,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.enrollmentworker
-    environment:
-      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     networks:
       - app-network
@@ -27,8 +25,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.csvworker
-    environment:
-      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # CSV Worker
+  video-compression:
+    build:
+      context: .
+      dockerfile: Dockerfile.videocompression
     restart: unless-stopped
     networks:
       - app-network

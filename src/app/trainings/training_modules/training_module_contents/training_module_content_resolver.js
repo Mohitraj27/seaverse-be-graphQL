@@ -31,6 +31,17 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+
+const sqsClient = new SQSClient({
+    region: process.env.SQS_AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
+    },
+});
 
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
@@ -826,7 +837,7 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile =  null;
+            const videoFile = null;
             const audioFile = audio ? await audio : null;
             // const fileFile = file ? await file : null;
             const subtitlesFile = subtitles ? await subtitles : null;
@@ -866,13 +877,6 @@ module.exports.mutations = {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
             }
 
-            // if (input.duration) {
-            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            //     if (!durationStyleChecked) {
-            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            //     }
-            //     input.duration = Math.round(TrainingModuleContentHelper.convertDurationToMinutes(input.duration));
-            // }
             let contentTypeNotification = '';
             if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
@@ -905,6 +909,9 @@ module.exports.mutations = {
                     });
                     return subtitleUrl;
                 }));
+
+                console.log('videos');
+                console.log(videos);
 
                 const vData = videos.map((v, i) => {
                     const meta = videoMetas?.[i] || {};
@@ -992,6 +999,9 @@ module.exports.mutations = {
                 updatedBy: userId,
             };
 
+            console.log('contentData');
+            console.log(contentData);
+
             const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedContent = new TrainingModuleContent({
                     ...contentData,
@@ -1023,6 +1033,78 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+
+            // If video is present, compress it and replace the original video URL using SQS
+            console.log('savedContent');
+            console.log(savedContent);
+
+            if (savedContent.videos && savedContent.videos.length > 0) {
+                const videoUrls = savedContent?.videos.map(video => video.url);
+
+                if (videoUrls && videoUrls.length > 0) {
+
+                    const jobId = uuidv4();
+
+                    async function compressVideoJob(jobData) {
+                        try {
+                            if (!jobData || !jobData.jobId) {
+                                throw new Error('Invalid job data: missing jobId');
+                            }
+
+                            const params = {
+                                QueueUrl: process.env.SQS_VIDEO_COMPRESSION_QUEUE_URL,
+                                MessageBody: JSON.stringify(jobData),
+                            };
+
+                            // // 👉 If FIFO queue:
+                            // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                            //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
+                            //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                            // }
+
+                            const data = await sqsClient.send(new SendMessageCommand(params));
+
+                            console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                            return { id: data.MessageId };
+                        } catch (error) {
+                            console.error('❌ Failed to send job to SQS:', error);
+                            throw error;
+                        }
+                    }
+
+
+
+                    async function publishVideoCompression(videoUrls, jobId, context) {
+                        // Input validation
+                        if (!videoUrls || videoUrls.length === 0) {
+                            console.warn('⚠️ No video URL found!');
+                            return { success: false, reason: 'No videos found' };
+                        }
+
+
+                        console.log(`🚀 Publishing ${videoUrls.length} videos to compress`);
+
+                        const job = await compressVideoJob({
+                            jobId: jobId,
+                            savedContent,
+                            context,
+                            timestamp: new Date().toISOString()
+                        });
+
+
+                        return job;
+                    }
+
+
+
+                    await publishVideoCompression(videoUrls, jobId, context);
+
+                }
+
+            }
+
+
+
             /* await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New  Content Created`,
@@ -1039,6 +1121,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); */
+
             return savedContent;
         } catch (error) {
             console.error("Error in createTrainingModuleContent:", error);
@@ -1212,9 +1295,9 @@ module.exports.mutations = {
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
-        const videoFiles = videos ?  videos : null;
+        const videoFiles = videos ? videos : null;
         const audioFile = audio ? await audio : null;
-        const fileFile = file ?  file : null;
+        const fileFile = file ? file : null;
 
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
