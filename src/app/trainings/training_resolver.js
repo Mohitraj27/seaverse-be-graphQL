@@ -140,7 +140,7 @@ module.exports.queries = {
         }));
 
         return {
-            totalCount: trainings.length,
+            totalCount: totalCount,
             trainings: decryptedTrainings,
         };
     },
