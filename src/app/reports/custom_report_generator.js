@@ -227,6 +227,8 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
             };
 
             dataToExport = flattenAllLearnersData(data);
+
+            console.log("dataToExport--------->", dataToExport);
         }
 
         let s3PresignedUrl = "";
