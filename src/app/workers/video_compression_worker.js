@@ -62,6 +62,7 @@ async function pollMessages() {
                                     console.log(`🔄 Processing video: ${video.url}`);
                                     const url = video?.url;
                                     const fetchedFile = await AwsHelper.fetchFile(url);
+                                    console.log(`📡 Fetched video: ${fetchedFile}`);
                                     const fileName = url.split('/').pop();
 
 
@@ -80,6 +81,7 @@ async function pollMessages() {
                                     if (uploadedFile) {
 
                                         console.log(uploadedFile);
+                                        console.log(`✅ Compressed video uploaded: ${uploadedFile}`);
 
                                         // Update compressed video URL in savedContent
                                         const videoToUpdate = savedContent.videos.find(v => v.url === url);
