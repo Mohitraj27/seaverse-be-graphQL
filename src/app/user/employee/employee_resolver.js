@@ -3800,7 +3800,7 @@ module.exports.mutations = {
 
             const resetPasswordHtml = roleUpdateNotifyLearner(usersToUpdate);
             await AwsHelper.sendEmail({
-                receiverEmail: usersToUpdate[0].email,
+                receiverEmail: decrypt(usersToUpdate[0].email),
                 subject: "Your Role Updated",
                 htmlContent: resetPasswordHtml,
             });
@@ -3811,7 +3811,7 @@ module.exports.mutations = {
             });
 
             await SendEmail({
-                receiverEmail: userInfo?.email,
+                receiverEmail: decrypt(userInfo?.email),
                 subject: "User Role Updated",
                 htmlContent: emailContentForAdmin,
             });
