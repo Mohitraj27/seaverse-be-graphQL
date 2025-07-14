@@ -440,7 +440,7 @@ async function compressVideoToFile(inputPath, options = {}) {
             '-crf', '24',
             ...(maxResolution ? ['-vf', `scale=-2:${maxResolution}`] : []),
             '-pix_fmt', 'yuv420p',
-            '-movflags', 'frag_keyframe+empty_moov',
+            '-movflags', '+faststart',
             '-f', 'mp4',
             outputPath
         ];
