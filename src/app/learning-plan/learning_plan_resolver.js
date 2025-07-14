@@ -1123,6 +1123,52 @@ module.exports.queries = {
                 });
             }
 
+            let startDate, endDate;
+            if (lastActivity) {
+                const today = Moment();
+                const endOfToday = today.clone().endOf("day").toDate();
+                switch (lastActivity) {
+                    case "TODAY":
+                        startDate = today.clone().startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "YESTERDAY":
+                        startDate = today.clone().subtract(1, "day").startOf("day").toDate();
+                        endDate = today.clone().subtract(1, "day").endOf("day").toDate();
+                        break;
+                    case "LAST_7_DAYS":
+                        startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_30_DAYS":
+                        startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_3_MONTHS":
+                        startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_6_MONTHS":
+                        startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_YEAR":
+                        startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    default:
+                        break;
+                }
+
+                if (startDate && endDate) {
+                    searchCondition.push({
+                        $match: {
+                            "usersList.lastLoginAt": { $gte: startDate, $lte: endDate },
+                        },
+                    });
+                }
+            }
+
             const basePipeline = [
                 {
                     $match: queryConditions,
