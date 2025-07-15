@@ -41,75 +41,82 @@ module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
 
-        const fetchResult = async (userId, population) => {
-            const existingUser = await User.findById(userId)
-                .lean()
-                .select("-consents")
-                .populate({
-                    path: "subRoles",
-                    match: { isActive: true, isDeleted: { $ne: true } },
-                })
-                .populate(population);
-            if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
+        try {
 
-            if (existingUser.avatar) {
-                existingUser.avatarUrl = existingUser.avatar;
-                existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
-            }
-            let employeeData = {};
-            employeeData = await Employee.findOne({ user: userId }).lean().populate({
-                path: "empDesignation",
-                select: "_id name",
-            });
-            if (employeeData && employeeData.empDesignation) {
-                employeeData.designation = employeeData.empDesignation.name;
-            } else if (role === Role.ADMIN) {
-                employeeData = {};
-                employeeData.designation = 'MANAGER';
-            }
+            const fetchResult = async (userId, population) => {
+                const existingUser = await User.findById(userId)
+                    .lean()
+                    .select("-consents")
+                    .populate({
+                        path: "subRoles",
+                        match: { isActive: true, isDeleted: { $ne: true } },
+                    })
+                    .populate(population);
+                if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
 
-            existingUser.employee = employeeData || null;
-
-            for (let key in existingUser) {
-                if (key === "firstName" || key === "lastName" || key === "email" || key === "civilIdOrPassport") {
-                    existingUser[key] = decrypt(existingUser[key]);
+                if (existingUser.avatar) {
+                    existingUser.avatarUrl = existingUser.avatar;
+                    existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
                 }
+                let employeeData = {};
+                employeeData = await Employee.findOne({ user: userId }).lean().populate({
+                    path: "empDesignation",
+                    select: "_id name",
+                });
+                if (employeeData && employeeData.empDesignation) {
+                    employeeData.designation = employeeData.empDesignation.name;
+                } else if (role === Role.ADMIN) {
+                    employeeData = {};
+                    employeeData.designation = 'MANAGER';
+                }
+
+                existingUser.employee = employeeData || null;
+
+                for (let key in existingUser) {
+                    if (key === "firstName" || key === "lastName" || key === "email" || key === "civilIdOrPassport") {
+                        existingUser[key] = decrypt(existingUser[key]);
+                    }
+                }
+                return existingUser;
+            };
+            const fetchMenuItems = (userInfo) => {
+
+                if (role === 'ADMIN') {
+                    return [
+                        {
+                            role_name: 'ADMIN',
+                            platform: 'ADMIN',
+                        },
+                        {
+                            role_name: 'LEARNER',
+                            platform: 'LEARNER',
+                        },
+                    ];
+                } else {
+                    return [
+                        ...userInfo.subRoles.map(subRole => ({
+                            role_name: subRole.name,
+                            platform: subRole.primaryRole,
+                        })),
+                        {
+                            role_name: 'LEARNER',
+                            platform: 'LEARNER',
+                        },
+                    ];
+
+                }
+            };
+
+            if (isAuthenticated) {
+                return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
             }
-            return existingUser;
-        };
-        const fetchMenuItems = (userInfo) => {
 
-            if (role === 'ADMIN') {
-                return [
-                    {
-                        role_name: 'ADMIN',
-                        platform: 'ADMIN',
-                    },
-                    {
-                        role_name: 'LEARNER',
-                        platform: 'LEARNER',
-                    },
-                ];
-            } else {
-                return [
-                    ...userInfo.subRoles.map(subRole => ({
-                        role_name: subRole.name,
-                        platform: subRole.primaryRole,
-                    })),
-                    {
-                        role_name: 'LEARNER',
-                        platform: 'LEARNER',
-                    },
-                ];
+            throw CustomError(ErrorName.FORBIDDEN);
 
-            }
-        };
-
-        if (isAuthenticated) {
-            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
+        } catch (error) {
+            console.log(error);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
-
-        throw CustomError(ErrorName.FORBIDDEN);
     },
     getProfile: async ({ id }, context) => {
         const { isAuthenticated, role, userId } = AuthUser(context, false);
