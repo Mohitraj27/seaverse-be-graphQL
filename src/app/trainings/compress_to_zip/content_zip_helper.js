@@ -13,6 +13,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const { pipeline } = require('stream/promises');
 const tmp = require('tmp');
 const VIDEO_MIME_TYPES = ['video/mp4'];
+const { spawn } = require('child_process');
 
 const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
@@ -214,10 +215,10 @@ const createZipFile = async (contentMap, outputPath) => {
 
                         // Create base stream
                         let inputStream = fs.createReadStream(path);
-                        if (VIDEO_MIME_TYPES.includes(contentType)) {
-                            console.log(`Compressing video: ${fileName}`);
-                            inputStream = compressVideoStream(path, { maxResolution: 720 });
-                        }
+                        // if (VIDEO_MIME_TYPES.includes(contentType)) {
+                        //     console.log(`Compressing video: ${fileName}`);
+                        //     inputStream = compressVideoStream(path, { maxResolution: 720 });
+                        // }
 
                         // Create passthrough stream and append it to archive
                         const passThrough = new PassThrough();
@@ -336,6 +337,7 @@ const getTheContent = async (contents, userLanguages = []) => {
 
     return zipUrl || null;
 }
+
 /**
  * Compresses a video stream using FFmpeg and returns a compressed stream.
  * If FFmpeg fails, returns the original stream.
@@ -346,41 +348,118 @@ const getTheContent = async (contents, userLanguages = []) => {
  * @param {number} [options.maxResolution=720] - Maximum output height
  * @returns {ReadableStream} - Compressed video stream (or original stream on failure)
  */
- function compressVideoStream(filePath, options = {}) {
+
+// function compressVideoStream(filePath, options = {}) {
+//     const { maxResolution = 720 } = options;
+//     const outputStream = new PassThrough();
+
+//     console.log(`[FFMPEG] Compressing video: ${filePath}`);
+
+//     ffmpeg(filePath)
+//         .inputOptions([
+//             '-probesize', '5000000',
+//             '-analyzeduration', '10000000'
+//         ])
+//         .videoCodec('libx264')
+//         .audioCodec('aac')
+//         .outputOptions([
+//             '-preset', 'veryfast', // changed from 'fast'
+//             '-crf', '24',          // changed from '28'
+//             ...(maxResolution ? ['-vf', `scale=-2:${maxResolution}`] : []),
+//             '-pix_fmt', 'yuv420p',
+//             '-movflags', 'frag_keyframe+empty_moov'
+//         ])
+//         .format('mp4')
+//         .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
+//         .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
+//         .on('error', (err, stdout, stderr) => {
+//             console.error('[FFMPEG] Error:', err.message);
+//             console.error('[FFMPEG] Stderr:', stderr);
+//             outputStream.emit('error', err);
+//         })
+//         .on('end', () => {
+//             console.log('[FFMPEG] Compression finished');
+//             outputStream.end();
+//         })
+//         .pipe(outputStream, { end: true });
+
+//     return outputStream;
+// }
+// function compressVideoStream(filePath, options = {}) {
+//     const { maxResolution = 720 } = options;
+//     const outputStream = new PassThrough();
+
+//     console.log(`[FFMPEG] Compressing video: ${filePath}`);
+
+//     const compressionPromise = new Promise((resolve, reject) => {
+//         ffmpeg(filePath)
+//             .inputOptions([
+//                 '-probesize', '5000000',
+//                 '-analyzeduration', '10000000'
+//             ])
+//             .videoCodec('libx264')
+//             .audioCodec('aac')
+//             .outputOptions([
+//                 '-preset', 'veryfast',
+//                 '-crf', '24',
+//                 ...(maxResolution ? [`-vf`, `scale=-2:${maxResolution}`] : []),
+//                 '-pix_fmt', 'yuv420p',
+//                 '-movflags', 'frag_keyframe+empty_moov'
+//             ])
+//             .format('mp4')
+//             .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
+//             .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
+//             .on('error', (err, stdout, stderr) => {
+//                 console.error('[FFMPEG] Error:', err.message);
+//                 console.error('[FFMPEG] Stderr:', stderr);
+//                 reject(err);
+//             })
+//             .on('end', () => {
+//                 console.log('[FFMPEG] Compression finished');
+//                 resolve();
+//             })
+//             .pipe(outputStream, { end: true });
+//     });
+
+//     return { outputStream, compressionPromise };
+// }
+
+async function compressVideoToFile(inputPath, options = {}) {
+    console.log(`[FFMPEG] Compressing video InputPath: ${inputPath}`);
     const { maxResolution = 720 } = options;
-    const outputStream = new PassThrough();
+    const outputPath = path.join(os.tmpdir(), `compressed_${Date.now()}.mp4`);
 
-    ffmpeg(filePath)
-        .inputOptions([
+    return new Promise((resolve, reject) => {
+        const ffmpegArgs = [
             '-probesize', '5000000',
-            '-analyzeduration', '10000000'
-        ])
-        .videoCodec('libx264')
-        .audioCodec('aac')
-        .outputOptions([
-            '-preset', 'fast',
-            '-crf', '28',
-            `-vf`, `scale=-2:${maxResolution}`,
+            '-analyzeduration', '10000000',
+            '-i', inputPath,
+            '-vcodec', 'libx264',
+            '-acodec', 'aac',
+            '-preset', 'veryfast',
+            '-crf', '24',
+            ...(maxResolution ? ['-vf', `scale=-2:${maxResolution}`] : []),
             '-pix_fmt', 'yuv420p',
-            '-movflags', 'frag_keyframe+empty_moov'
-        ])
-        .format('mp4')
-        .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
-        .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
-        .on('error', (err, stdout, stderr) => {
-            console.error('[FFMPEG] Error:', err.message);
-            console.error('[FFMPEG] Stderr:', stderr);
-            outputStream.emit('error', err);
-        })
-        .on('end', () => {
-            console.log('[FFMPEG] Compression finished');
-            outputStream.end();
-        })
-        .pipe(outputStream, { end: true });
+            '-movflags', '+faststart',
+            '-f', 'mp4',
+            outputPath
+        ];
 
-    return outputStream;
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+
+        ffmpeg.stderr.on('data', (data) => {
+            console.log('[FFMPEG]', data.toString());
+        });
+
+        ffmpeg.on('error', (err) => reject(err));
+        ffmpeg.on('close', (code) => {
+            if (code === 0) resolve(outputPath);
+            else reject(new Error(`FFmpeg exited with code ${code}`));
+        });
+    });
 }
 
 module.exports = {
-    getTheContent
+    getTheContent,
+    compressVideoToFile
 }

@@ -6,6 +6,7 @@ const streamifier = require('streamifier');
 const path = require("path");
 const fs = require('fs');
 const os = require('os');
+const { Readable } = require('stream');
 
 const fileType = {
     excel: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -99,9 +100,18 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.lessonZip) return `${rootFolder}/lessons/${folder}/${filename}`;
 };
 
+const isReadableStream = (value) => {
+    return value instanceof Readable || (
+        value &&
+        typeof value.pipe === 'function' &&
+        typeof value._read === 'function'
+    );
+};
+
 const isPromise = data => data !== undefined && data instanceof Promise;
 
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
+    console.log('reached here uploadFile');
     if (isPromise(fileData)) {
         const { filename: fileNameCurrent, mimetype, createReadStream } = await fileData;
         if (
@@ -224,6 +234,7 @@ const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) 
 
 module.exports = {
     uploadType,
+    fileType,
     uploadJsonObject,
     uploadZip: async ({ data, folderName, fileName, uploadType }) => {
         if (typeof data === "object" && typeof data.pipe === "function") {
@@ -239,6 +250,10 @@ module.exports = {
         } else if (typeof data === "string") return data;
     },
     uploadVideo: async ({ data, folderName, fileName, uploadType }) => {
+        console.log('typeof data');
+        console.log(typeof data);
+        console.log('isPromise(data)');
+        console.log(isPromise(data));
         if (isPromise(data)) {
             const filePath = await uploadFile({
                 fileData: data,
@@ -249,6 +264,16 @@ module.exports = {
             });
 
             if (filePath) return filePath;
+        } else if (isReadableStream(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName,
+                fileName,
+                uploadType,
+                acceptedTypes: fileType.videos,
+            });
+
+            return filePath;
         } else if (typeof data === "string") return data;
     },
     uploadSubtitle: async ({ data, folderName, fileName, uploadType }) => {

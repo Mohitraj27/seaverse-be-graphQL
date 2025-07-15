@@ -12,6 +12,8 @@ const Export = require("../user/exportUser/exportUser_model");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const { connectDb, closeDb } = require("../../util/child_process_db_helper");
 const { customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
+const { Types } = require('mongoose'); // If you're using Mongoose
+const ObjectId = Types.ObjectId;
 
 const performCustomReportGeneration = async ({ input, subscriberId, userId, userInfo }) => {
     if (!subscriberId) throw new Error("Forbidden: subscriberId is missing."); // Use standard Error here
@@ -33,21 +35,21 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 if (input.courseIds && Array.isArray(input.courseIds) && input.courseIds.length > 0) {
                     matchStage.push({
                         $match: {
-                            training: { $in: input.courseIds },
+                            training: { $in: input.courseIds.map(id => ObjectId(id)) },
                         },
                     });
                 }
                 if (input.vesselName && Array.isArray(input.vesselName) && input.vesselName.length > 0) {
                     matchStage.push({
                         $match: {
-                            'userInfo.currentVessel': { $in: input?.vesselName },
+                            'userInfo.currentVessel': { $in: input?.vesselName.map(id => ObjectId(id)) },
                         },
                     });
                 }
                 if (input.vesselType && Array.isArray(input.vesselType) && input.vesselType.length > 0) {
                     matchStage.push({
                         $match: {
-                            'vesselTypeInfo._id': { $in: input?.vesselType },
+                            'vesselTypeInfo._id': { $in: input?.vesselType.map(id => ObjectId(id)) },
                         },
                     });
                 }
@@ -68,7 +70,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 if (input.designation && Array.isArray(input.designation) && input.designation.length > 0) {
                     matchStage.push({
                         "$match": {
-                            "employeeInfo.empDesignation": { "$in": input.designation }
+                            "employeeInfo.empDesignation": { "$in": input.designation.map(id => ObjectId(id)) }
                         }
                     });
                 }
@@ -181,7 +183,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                             const timeSpendInContent = content?.timeSpendInContent
                                 ? ReportsHelper.convertMinutesToHMS(content?.timeSpendInContent)
                                 : "00:00:00";
-                            if (learner.contentType === "QUIZ") {
+                            if (content.contentType === "QUIZ") {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,

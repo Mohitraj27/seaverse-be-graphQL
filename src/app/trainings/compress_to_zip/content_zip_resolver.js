@@ -78,7 +78,7 @@ module.exports.mutations = {
             if (trainingContentIds.length > 0) {
                 getContent = await getTheContent(trainingContents, userLanguages);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-
+                
                 const trainingContents = trainingModuleContentsFromTrainingContent.map(item => item.trainingContent);
                 getContent = await getTheContent(trainingContents, userLanguages);
             }
