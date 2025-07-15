@@ -81,7 +81,7 @@ async function pollMessages() {
                                     if (uploadedFile) {
 
                                         console.log(uploadedFile);
-                                        console.log(`✅ Compressed video uploaded: ${uploadedFile}`);
+                                        console.log(`✅ Compressed video uploaded`);
 
                                         // Update compressed video URL in savedContent
                                         const videoToUpdate = savedContent.videos.find(v => v.url === url);
