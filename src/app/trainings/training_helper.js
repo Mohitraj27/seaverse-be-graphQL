@@ -851,7 +851,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         overallId: "$_id",
                         moduleId: "$contentData.moduleId",
                         contentId: "$contentData.contentIds",
-                        attemptCount: "$attemptCount"
+                        // attemptCount: "$attemptCount"
                     },
                     pipeline: [
                         {
@@ -861,7 +861,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                                         { $eq: ["$overallTrainingProgress", "$$overallId"] },
                                         { $eq: ["$trainingModule", "$$moduleId"] },
                                         { $eq: ["$trainingModuleContent", "$$contentId"] },
-                                        { $eq: ["$attemptCount", "$$attemptCount"] }
+                                        // { $eq: ["$attemptCount", "$$attemptCount"] }
                                     ]
                                 }
                             }

@@ -425,6 +425,7 @@ const getTheContent = async (contents, userLanguages = []) => {
 // }
 
 async function compressVideoToFile(inputPath, options = {}) {
+    console.log(`[FFMPEG] Compressing video InputPath: ${inputPath}`);
     const { maxResolution = 720 } = options;
     const outputPath = path.join(os.tmpdir(), `compressed_${Date.now()}.mp4`);
 
