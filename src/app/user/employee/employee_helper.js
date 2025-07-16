@@ -78,6 +78,7 @@ const { decrypt, encrypt } = require('../../../util/encryption_helper');
 const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/elastic_helper');
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
+const { ImportJob } = require("./import_job_model");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -455,14 +456,14 @@ async function enrollUsers(enrollDataArray, context) {
                 for (let i = 0; i < uniqueEnrollments.length; i += BATCH_SIZE) {
                     const batch = uniqueEnrollments.slice(i, i + BATCH_SIZE);
 
-                   
+
 
                     insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
                 const results = await Promise.all(insertPromises);
 
-             
+
 
                 for (const result of results) {
                     allEnrollments.push(...result); // result is an array of inserted docs
@@ -2618,7 +2619,7 @@ function mapCSVRowToUser(row) {
 }
 
 const sendBulkEmails = async (passwordEmailList) => {
-  
+
     try {
 
         SqliteEmailHelper.insertEmails(passwordEmailList);
@@ -2938,6 +2939,7 @@ module.exports = {
     filterLearningPlans,
     enrollUsers,
     // moveExpiredDeletedUsers,
+    sendNotificationOnBULK,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
@@ -3603,7 +3605,7 @@ module.exports = {
         };
     },
 
-    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV, context) => {
+    createEmployeesBackgroundTask: async (users, emailsArray, empIdsArray, subscriberId, userId, newFileName, saveCSV, jobId, context) => {
 
         const existingDesignations = await Designation.find({ isDeleted: false }).lean();
         const adminUser = await User.findById(userId);
@@ -4290,90 +4292,103 @@ module.exports = {
 
         });
 
-        if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
-
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
-
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: userCount,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers.length} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
+            await ImportJob.findOneAndUpdate(
+                { jobId: jobId },
+                {
+                    $inc: {
+                        "processedBatches.insertedCount": insertedUsers.length,
+                        "processedBatches.updatedCount": updatedUsersByEmail.length + updatedUsersById.length
+                    },
+                },
+                { new: true }
+            )
         }
 
-        if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
+        // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
-                // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: 0,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
-            })
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        }
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: userCount,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers.length} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-        if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
+        // if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
 
-            await sendNotificationOnBULK({
-                subscriber: subscriberId,
-                action: "Bulk Import Success",
-                createdBy: adminUser?._id,
-                uploadedBy: adminUser?._id,
-                isError: false,
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
-                notificationType: 'BULK_IMPORT_SUCCESS',
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                creatorId: userInfo._id,
-            })
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
+        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
 
-            const createImportLog = await ImportLog.create({
-                subscriber: subscriberId,
-                usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
-                uploadedBy: userId,
-                fileName: newFileName,
-                filePath: { url: saveCSV },
-                importStatus: "SUCCESS",
-                description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
-            })
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: 0,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+        //     })
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // }
 
-            if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+        // if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
 
-        }
+        //     await sendNotificationOnBULK({
+        //         subscriber: subscriberId,
+        //         action: "Bulk Import Success",
+        //         createdBy: adminUser?._id,
+        //         uploadedBy: adminUser?._id,
+        //         isError: false,
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
+        //         notificationType: 'BULK_IMPORT_SUCCESS',
+        //         status: "SUCCESS",
+        //         icon: notificationiconEnum.SUCCESS,
+        //         creatorId: userInfo._id,
+        //     })
+
+        //     const createImportLog = await ImportLog.create({
+        //         subscriber: subscriberId,
+        //         usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
+        //         uploadedBy: userId,
+        //         fileName: newFileName,
+        //         filePath: { url: saveCSV },
+        //         importStatus: "SUCCESS",
+        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
+        //     })
+
+        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+        // }
 
     },
 

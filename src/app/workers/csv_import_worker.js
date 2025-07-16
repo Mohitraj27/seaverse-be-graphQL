@@ -60,27 +60,6 @@ async function pollMessages() {
                                 throw new Error('Missing jobId in message payload');
                             }
 
-                            // const existingJob = await ImportJob.findOne({ jobId });
-                            // if (existingJob && existingJob.importStatus === 'completed') {
-                            //     console.log(`⚠️ Job ${jobId} already processed, skipping.`);
-                            //     return;
-                            // }
-
-                            // await ImportJob.updateOne(
-                            //     { jobId },
-                            //     {
-                            //         $setOnInsert: {
-                            //             jobId,
-                            //             subscriber: subscriberId,
-                            //             fileName: newFileName,
-                            //             importStatus: 'in_progress',
-                            //             totalRecords: users?.length || 0,
-                            //             description: 'CSV Import in progress'
-                            //         },
-                            //     },
-                            //     { upsert: true }
-                            // );
-
                             await createEmployeesBackgroundTask(
                                 users,
                                 emailsArray,
@@ -89,13 +68,9 @@ async function pollMessages() {
                                 userId,
                                 newFileName,
                                 saveCSV,
+                                jobId,
                                 context
                             );
-
-                            // await ImportJob.updateOne(
-                            //     { jobId },
-                            //     { $set: { importStatus: 'completed' } }
-                            // );
 
                             console.log(`✅ CSV Import Job ${message.MessageId} (${jobId}) processed successfully`);
 

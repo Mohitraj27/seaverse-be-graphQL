@@ -94,7 +94,7 @@ const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
- const sqsClient = new SQSClient({
+const sqsClient = new SQSClient({
     region: process.env.SQS_AWS_REGION,
     credentials: {
         accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
@@ -2034,7 +2034,7 @@ module.exports.queries = {
             let requestStatusFilter;
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
-                const firstNameSearch=encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
+                const firstNameSearch = encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
                 const lastNameSearch = encrypt(nameParts?.slice(1)?.join(" ")) || '';
                 const fullNameSearch =
                     nameParts.length > 1
@@ -2978,51 +2978,42 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
-            // const empIdsArray = Array.from(empIds);
-            // const emailsArray = Array.from(emails);
-
-
-            // Create a job ID for tracking
-            // const jobId = uuidv4();
-
-            // // Store job metadata in database
-          
-
-            // async function publishCsvImportJob(jobData) {
-            //     await csvImportQueue.add(JOB_NAMES.IMPORT_CSV, jobData);
-            // }
-
             async function publishCsvImportJob(jobData) {
-                                try {
-                                    if (!jobData || !jobData.jobId) {
-                                        throw new Error('Invalid job data: missing jobId');
-                                    }
-            
-                                    const params = {
-                                        QueueUrl: CSV_IMPORT_QUEUE_URL,
-                                        MessageBody: JSON.stringify(jobData),
-                                    };
-            
-                                    // 👉 If FIFO queue:
-                                    // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                                    //     params.MessageGroupId = 'csv-import'; // Required for FIFO
-                                    //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
-                                    // }
-                                       console.log(`📤 Sending job to SQS: ${JSON.stringify(params)}`);
-                                    const data = await sqsClient.send(new SendMessageCommand(params));
-            
-                                    console.log(`📋 Job sent to SQS: ${data.MessageId}`);
-                                    return { id: data.MessageId };
-                                } catch (error) {
-                                    console.error('❌ Failed to send job to SQS:', error);
-                                    throw error;
-                                }
-                            }
+                try {
+                    if (!jobData || !jobData.jobId) {
+                        throw new Error('Invalid job data: missing jobId');
+                    }
+
+                    const params = {
+                        QueueUrl: CSV_IMPORT_QUEUE_URL,
+                        MessageBody: JSON.stringify(jobData),
+                    };
+
+                    // 👉 If FIFO queue:
+                    // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                    //     params.MessageGroupId = 'csv-import'; // Required for FIFO
+                    //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                    // }
+                    
+                    const data = await sqsClient.send(new SendMessageCommand(params));
+
+                    console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                    return { id: data.MessageId };
+                } catch (error) {
+                    console.error('❌ Failed to send job to SQS:', error);
+                    throw error;
+                }
+            }
 
             async function publishCsvImportInBatches(users, emails, empIds, subscriberId, userId, userInfo, newFileName, saveCSV, context) {
                 const empIdsArray = Array.from(empIds);
                 const emailsArray = Array.from(emails);
                 const jobId = uuidv4();
+
+
+                const batchSize = 200;
+                const totalUsers = users.length;
+                const batchCount = Math.ceil(totalUsers / batchSize);
 
                 await ImportJob.create({
                     jobId,
@@ -3032,12 +3023,13 @@ module.exports.mutations = {
                     filePath: { url: saveCSV },
                     importStatus: "PROCESSING",
                     totalRecords: users.length,
+                    expectedBatches: batchCount,
+                    processedBatches: {
+                        insertedCount: 0,
+                        updatedCount: 0
+                    },
                     description: "Processing CSV import"
                 });
-
-                const batchSize = 200;
-                const totalUsers = users.length;
-                const batchCount = Math.ceil(totalUsers / batchSize);
 
                 console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
 
@@ -3072,6 +3064,101 @@ module.exports.mutations = {
                         throw err;
                     }
                 }
+
+                const fetchJob = await ImportJob.findOne({ jobId: jobId });
+                const insertedCount = fetchJob?.processedBatches?.insertedCount || 0;
+                const updatedCount = fetchJob?.processedBatches?.updatedCount || 0;
+
+                console.log(fetchJob, "fetchJob");
+                console.log('insertedCount');
+                console.log(insertedCount);
+
+                console.log('updatedCount');
+                console.log(updatedCount);
+
+                // if (insertedCount > 0 && updatedCount === 0) {
+
+                //     await EmployeeHelper.sendNotificationOnBULK({
+                //         subscriber: subscriberId,
+                //         action: "Bulk Import Success",
+                //         createdBy: userId,
+                //         uploadedBy: userId,
+                //         isError: false,
+                //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                //         notificationType: 'BULK_IMPORT_SUCCESS',
+                //         status: "SUCCESS",
+                //         icon: notificationiconEnum.SUCCESS,
+                //         creatorId: userId,
+                //     })
+
+                //     const createImportLog = await ImportLog.create({
+                //         subscriber: subscriberId,
+                //         usersCount: insertedCount,
+                //         uploadedBy: userId,
+                //         fileName: newFileName,
+                //         filePath: { url: saveCSV },
+                //         importStatus: "SUCCESS",
+                //         description: `Successfully created ${insertedUsers.length} user(s)`
+                //     })
+                //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+                // }
+
+                // if ((updatedCount > 0) && insertedCount === 0) {
+
+                //     await EmployeeHelper.sendNotificationOnBULK({
+                //         subscriber: subscriberId,
+                //         action: "Bulk Import Success",
+                //         createdBy: userId,
+                //         uploadedBy: userId,
+                //         isError: false,
+                //         description: `${updatedCount ?? 0} user${updatedCount === 1 ? '' : 's'} have been updated successfully`,
+                //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                //         notificationType: 'BULK_IMPORT_SUCCESS',
+                //         status: "SUCCESS",
+                //         icon: notificationiconEnum.SUCCESS,
+                //         creatorId: userId,
+                //     })
+
+                //     const createImportLog = await ImportLog.create({
+                //         subscriber: subscriberId,
+                //         usersCount: 0,
+                //         uploadedBy: userId,
+                //         fileName: newFileName,
+                //         filePath: { url: saveCSV },
+                //         importStatus: "SUCCESS",
+                //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
+                //     })
+                //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+                // }
+
+                // if ((insertedCount > 0) || (updatedCount > 0)) {
+
+                //     await EmployeeHelper.sendNotificationOnBULK({
+                //         subscriber: subscriberId,
+                //         action: "Bulk Import Success",
+                //         createdBy: userId,
+                //         uploadedBy: userId,
+                //         isError: false,
+                //         description: `Successfully created ${insertedCount} user(s) and updated ${updatedCount} user(s)`,
+                //         notificationType: 'BULK_IMPORT_SUCCESS',
+                //         status: "SUCCESS",
+                //         icon: notificationiconEnum.SUCCESS,
+                //         creatorId: userId,
+                //     })
+
+                //     const createImportLog = await ImportLog.create({
+                //         subscriber: subscriberId,
+                //         usersCount: `${insertedCount}`,
+                //         uploadedBy: userId,
+                //         fileName: newFileName,
+                //         filePath: { url: saveCSV },
+                //         importStatus: "SUCCESS",
+                //         description: `Successfully created ${insertedCount} user(s) and updated ${updatedCount} user(s)`
+                //     })
+
+                //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                // }
 
                 return jobId;
             }

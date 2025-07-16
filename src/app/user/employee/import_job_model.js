@@ -23,7 +23,15 @@ const importJobSchema = new Schema(
         },
         description: {
             type: String
-        }
+        },
+        expectedBatches: {
+            type: Number,
+            default: 0,
+        },
+        processedBatches: {
+            insertedCount: { type: Number, default: 0 },
+            updatedCount: { type: Number, default: 0 }
+        },
     },
     { timestamps: true }
 );
