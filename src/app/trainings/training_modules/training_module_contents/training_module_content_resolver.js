@@ -971,27 +971,27 @@ module.exports.mutations = {
 
                 const fetchedFile = await AwsHelper.fetchFile(file);
 
-                
-                const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
-                
 
-                
+                const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
+
+
+
                 const outputDir = path.join(os.tmpdir(), 'converted_pdfs');
 
                 const response = await axios.get(fetchedFile, { responseType: 'arraybuffer' });
                 fs.writeFileSync(tempPptPath, response.data);
-                
+
 
                 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
-               
+
                 const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
 
                 try {
                     const { stdout, stderr } = await execPromise(command);
                     if (stderr) console.warn('Conversion stderr:', stderr);
 
-                    fs.unlinkSync(tempPptPath); 
+                    fs.unlinkSync(tempPptPath);
 
                     const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
                     const pdfFilePath = path.join(outputDir, pdfFileName);
@@ -1013,7 +1013,7 @@ module.exports.mutations = {
                     fs.unlinkSync(pdfFilePath);
 
                     if (uploadedUrl) {
-                       
+
                         input.files = [{ url: uploadedUrl }];
                     }
 
@@ -1036,7 +1036,7 @@ module.exports.mutations = {
             const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedContent = new TrainingModuleContent({
                     ...contentData,
-                    contentType: "PDF",
+                    contentType: input.contentType === "PPT" ? "PDF" : input.contentType,
                     subscriber: subscriberId,
                     UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
                 })
@@ -1349,7 +1349,7 @@ module.exports.mutations = {
         let updateData = {
             title: input.title,
             description: input.description,
-            contentType: input.contentType,
+            contentType: input.contentType === "PPT" ? "PDF" : input.contentType,
             contentStatus: input.contentStatus,
             duration: input.duration,
             displayPosition: input.displayPosition,
@@ -1613,7 +1613,7 @@ module.exports.mutations = {
 
                 const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
                 const pdfFilePath = path.join(outputDir, pdfFileName);
-                console.log(outputDir,pdfFileName,"pdfFilePath")
+                console.log(outputDir, pdfFileName, "pdfFilePath")
 
                 if (!fs.existsSync(pdfFilePath)) {
                     throw CustomError(ErrorName.FAILED, 'PDF not found after conversion');
@@ -1634,11 +1634,11 @@ module.exports.mutations = {
                 fs.unlinkSync(pdfFilePath);
 
                 if (uploadedUrl) {
-                   
+
                     // input.files = [{ url: uploadedUrl }];
 
                     updateData.files = [{ url: uploadedUrl }];
-                    updateData.contentType="PDF";
+                    updateData.contentType = "PDF";
                     updateData.images = [];
                     updateData.audios = [];
                     updateData.videos = [];
@@ -1655,7 +1655,7 @@ module.exports.mutations = {
             contentTypeNotification = 'Document';
         }
 
-       
+
 
 
         // if (file) {
