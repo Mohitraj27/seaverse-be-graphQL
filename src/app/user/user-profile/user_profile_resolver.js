@@ -312,7 +312,7 @@ module.exports.queries = {
         const resetPasswordHtml = resetPasswordRequest(user, token);
         // const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
-            receiverEmail: user.email,
+            receiverEmail: decrypt(user.email),
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
