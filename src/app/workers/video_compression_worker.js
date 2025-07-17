@@ -73,7 +73,7 @@ async function pollMessages() {
                                     const uploadedFile = await upload_helper.uploadVideo({
                                         data: fileStream,
                                         folderName: `video-content`,
-                                        fileName: `${fileName}_compressed`,
+                                        fileName: `${fileName}_compressed.mp4`,
                                         uploadType: upload_helper.uploadType.trainingContentVideo,
                                         acceptedTypes: upload_helper.fileType.videos,
                                     });
@@ -81,7 +81,7 @@ async function pollMessages() {
                                     if (uploadedFile) {
 
                                         console.log(uploadedFile);
-                                        console.log(`✅ Compressed video uploaded: ${uploadedFile}`);
+                                        console.log(`✅ Compressed video uploaded`);
 
                                         // Update compressed video URL in savedContent
                                         const videoToUpdate = savedContent.videos.find(v => v.url === url);

@@ -309,10 +309,13 @@ module.exports.queries = {
         await user.save();
 
         let errors = [];
-        const resetPasswordHtml = resetPasswordRequest(user, token);
+        const decryptedUser = {
+            firstName: decrypt(user.firstName),
+        }
+        const resetPasswordHtml = resetPasswordRequest(decryptedUser, token);
         // const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
-            receiverEmail: user.email,
+            receiverEmail: decrypt(user.email),
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
