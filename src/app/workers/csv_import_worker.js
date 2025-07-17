@@ -4,6 +4,9 @@ const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } = require('@aws
 const { connectDb, closeDb } = require('../../util/child_process_db_helper');
 const { createEmployeesBackgroundTask } = require('../user/employee/employee_helper');
 const { ImportJob } = require('../user/employee/import_job_model');
+const EmployeeHelper = require("../user/employee/employee_helper");
+const { ImportLog } = require('../user/import-log/import_log_model');
+const notificationiconEnum = require("../notifications/notification_icon.json");
 
 const QUEUE_URL = process.env.SQS_CSV_IMPORT_QUEUE_URL;
 // console.log('CSV_IMPORT_QUEUE_URL:', QUEUE_URL);
@@ -71,6 +74,108 @@ async function pollMessages() {
                                 jobId,
                                 context
                             );
+
+                            const fetchJob = await ImportJob.findOne({ jobId: jobId });
+                            const insertedCount = fetchJob?.processedBatches?.insertedCount || 0;
+                            const updatedCount = fetchJob?.processedBatches?.updatedCount || 0;
+                            const totalRecords = fetchJob?.totalRecords || 0;
+
+                            console.log(fetchJob, "fetchJob");
+                            console.log('insertedCount');
+                            console.log(insertedCount);
+
+                            console.log('updatedCount');
+                            console.log(updatedCount);
+
+                            if (insertedCount + updatedCount === totalRecords) {
+
+                                if (insertedCount > 0 && updatedCount === 0) {
+
+                                    await EmployeeHelper.sendNotificationOnBULK({
+                                        subscriber: subscriberId,
+                                        action: "Bulk Import Success",
+                                        createdBy: userId,
+                                        uploadedBy: userId,
+                                        isError: false,
+                                        description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                                        notificationType: 'BULK_IMPORT_SUCCESS',
+                                        status: "SUCCESS",
+                                        icon: notificationiconEnum.SUCCESS,
+                                        creatorId: userId,
+                                    })
+
+                                    const createImportLog = await ImportLog.create({
+                                        subscriber: subscriberId,
+                                        usersCount: insertedCount,
+                                        uploadedBy: userId,
+                                        fileName: newFileName,
+                                        filePath: { url: saveCSV },
+                                        importStatus: "SUCCESS",
+                                        description: `Successfully created ${insertedUsers.length} user(s)`
+                                    })
+                                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                                }
+
+                                if ((updatedCount > 0) && insertedCount === 0) {
+
+                                    await EmployeeHelper.sendNotificationOnBULK({
+                                        subscriber: subscriberId,
+                                        action: "Bulk Import Success",
+                                        createdBy: userId,
+                                        uploadedBy: userId,
+                                        isError: false,
+                                        description: `${updatedCount ?? 0} user${updatedCount === 1 ? '' : 's'} have been updated successfully`,
+                                        // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
+                                        notificationType: 'BULK_IMPORT_SUCCESS',
+                                        status: "SUCCESS",
+                                        icon: notificationiconEnum.SUCCESS,
+                                        creatorId: userId,
+                                    })
+
+                                    const createImportLog = await ImportLog.create({
+                                        subscriber: subscriberId,
+                                        usersCount: 0,
+                                        uploadedBy: userId,
+                                        fileName: newFileName,
+                                        filePath: { url: saveCSV },
+                                        importStatus: "SUCCESS",
+                                        description: `Successfully updated ${updatedCount ?? 0} user(s)`
+                                    })
+                                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                                }
+
+                                if ((insertedCount > 0) || (updatedCount > 0)) {
+
+                                    await EmployeeHelper.sendNotificationOnBULK({
+                                        subscriber: subscriberId,
+                                        action: "Bulk Import Success",
+                                        createdBy: userId,
+                                        uploadedBy: userId,
+                                        isError: false,
+                                        description: `Successfully created ${insertedCount} user(s) and updated ${updatedCount} user(s)`,
+                                        notificationType: 'BULK_IMPORT_SUCCESS',
+                                        status: "SUCCESS",
+                                        icon: notificationiconEnum.SUCCESS,
+                                        creatorId: userId,
+                                    })
+
+                                    const createImportLog = await ImportLog.create({
+                                        subscriber: subscriberId,
+                                        usersCount: `${insertedCount}`,
+                                        uploadedBy: userId,
+                                        fileName: newFileName,
+                                        filePath: { url: saveCSV },
+                                        importStatus: "SUCCESS",
+                                        description: `Successfully created ${insertedCount} user(s) and updated ${updatedCount} user(s)`
+                                    })
+
+                                    if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
+
+                                }
+
+                            }
 
                             console.log(`✅ CSV Import Job ${message.MessageId} (${jobId}) processed successfully`);
 
