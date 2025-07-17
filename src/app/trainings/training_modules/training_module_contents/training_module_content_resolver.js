@@ -30,7 +30,12 @@ const { decrypt } = require("../../../../util/encryption_helper");
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
 const { v4: uuidv4 } = require('uuid');
 
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
@@ -962,34 +967,61 @@ module.exports.mutations = {
                 contentTypeNotification = 'Image';
             }
 
-            if (file) {
+            if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
 
-                // const uploadedFile = await file;
-                // const updatedPptToPdf = await uploadPpt(uploadedFile);
+                const fetchedFile = await AwsHelper.fetchFile(file);
 
-                // let pdfFileUrl;
-                // if (updatedPptToPdf?.pdfBuffer) {
-                //     pdfFileUrl = await UploadHelper.uploadDocument({
-                //         data: updatedPptToPdf.pdfBuffer,
-                //         folderName: 'file-content',
-                //         fileName: `converted_${Date.now()}_${updatedPptToPdf.originalName}`,
-                //         uploadType: UploadHelper.uploadType.trainingContentFile,
-                //     });
+                
+                const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
+                
 
-                //     if (pdfFileUrl) {
-                //         input.files = [{ url: pdfFileUrl }];
-                //         input.contentType = 'PDF'
-                //         contentTypeNotification = 'Document';
-                //     }
-                // } else {
-                //     const fileUrl = await UploadHelper.uploadDocument({
-                //         data: file,
-                //         folderName: `file-content`,
-                //         fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                //         uploadType: UploadHelper.uploadType.trainingContentFile,
-                //     });
-                // }
-                input.files = [{ url: file }];
+                
+                const outputDir = path.join(os.tmpdir(), 'converted_pdfs');
+
+                const response = await axios.get(fetchedFile, { responseType: 'arraybuffer' });
+                fs.writeFileSync(tempPptPath, response.data);
+                
+
+                if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+
+               
+                const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+
+                try {
+                    const { stdout, stderr } = await execPromise(command);
+                    if (stderr) console.warn('Conversion stderr:', stderr);
+
+                    fs.unlinkSync(tempPptPath); 
+
+                    const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
+                    const pdfFilePath = path.join(outputDir, pdfFileName);
+
+                    if (!fs.existsSync(pdfFilePath)) {
+                        throw CustomError(ErrorName.FAILED, 'PDF not found after conversion');
+                    }
+                    let cleanPdfFileName = pdfFileName.replace(/\.pdf\.pdf$/, '.pdf');
+                    console.log('Converted PDF file name:', cleanPdfFileName);
+                    // Step 3: Upload PDF to S3
+                    const fileBuffer = fs.readFileSync(pdfFilePath);
+                    let uploadedUrl = await UploadHelper.uploadDocument({
+                        data: fileBuffer,
+                        folderName: 'file-content',
+                        fileName: `file_${Date.now()}_${cleanPdfFileName}`,
+                        uploadType: UploadHelper.uploadType.trainingContentFile,
+                    });
+
+                    fs.unlinkSync(pdfFilePath);
+
+                    if (uploadedUrl) {
+                       
+                        input.files = [{ url: uploadedUrl }];
+                    }
+
+                } catch (error) {
+                    console.error('❌ Conversion or upload error:', error.message || error);
+                    throw CustomError(ErrorName.FAILED, 'Failed to convert PPT to PDF or upload the file');
+                }
+
                 contentTypeNotification = 'Document';
             }
 
@@ -999,12 +1031,12 @@ module.exports.mutations = {
                 updatedBy: userId,
             };
 
-            console.log('contentData');
-            console.log(contentData);
+
 
             const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedContent = new TrainingModuleContent({
                     ...contentData,
+                    contentType: "PDF",
                     subscriber: subscriberId,
                     UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
                 })
@@ -1286,10 +1318,6 @@ module.exports.mutations = {
         }
 
 
-
-
-
-
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
         const scormFile = scorm ? await scorm : null;
@@ -1557,21 +1585,94 @@ module.exports.mutations = {
             isMediaUpdated = true;
         }
 
-        if (file) {
-            const fileUrl = await UploadHelper.uploadDocument({
-                data: file,
-                folderName: `file-content-${existingContent._id}`,
-                fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                uploadType: UploadHelper.uploadType.trainingContentFile,
-            });
-            updateData.files = [{ url: fileUrl }];
-            updateData.images = [];
-            updateData.audios = [];
-            updateData.videos = [];
-            updateData.scorm = null;
-            isUpdated = true;
-            isMediaUpdated = true;
+        if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
+
+            const fetchedFile = await AwsHelper.fetchFile(file);
+
+
+            const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
+
+
+
+            const outputDir = path.join(os.tmpdir(), 'converted_pdfs');
+
+            const response = await axios.get(fetchedFile, { responseType: 'arraybuffer' });
+            fs.writeFileSync(tempPptPath, response.data);
+
+
+            if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+
+
+            const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+
+            try {
+                const { stdout, stderr } = await execPromise(command);
+                if (stderr) console.warn('Conversion stderr:', stderr);
+
+                fs.unlinkSync(tempPptPath);
+
+                const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
+                const pdfFilePath = path.join(outputDir, pdfFileName);
+                console.log(outputDir,pdfFileName,"pdfFilePath")
+
+                if (!fs.existsSync(pdfFilePath)) {
+                    throw CustomError(ErrorName.FAILED, 'PDF not found after conversion');
+                }
+
+                // Step 3: Upload PDF to S3
+                let cleanPdfFileName = pdfFileName.replace(/\.pdf\.pdf$/, '.pdf');
+
+
+                const fileBuffer = fs.readFileSync(pdfFilePath);
+                let uploadedUrl = await UploadHelper.uploadDocument({
+                    data: fileBuffer,
+                    folderName: 'file-content',
+                    fileName: `file_${Date.now()}_${cleanPdfFileName}`,
+                    uploadType: UploadHelper.uploadType.trainingContentFile,
+                });
+
+                fs.unlinkSync(pdfFilePath);
+
+                if (uploadedUrl) {
+                   
+                    // input.files = [{ url: uploadedUrl }];
+
+                    updateData.files = [{ url: uploadedUrl }];
+                    updateData.contentType="PDF";
+                    updateData.images = [];
+                    updateData.audios = [];
+                    updateData.videos = [];
+                    updateData.scorm = null;
+                    isUpdated = true;
+                    isMediaUpdated = true;
+                }
+
+            } catch (error) {
+                console.error('❌ Conversion or upload error:', error.message || error);
+                throw CustomError(ErrorName.FAILED, 'Failed to convert PPT to PDF or upload the file');
+            }
+
+            contentTypeNotification = 'Document';
         }
+
+       
+
+
+        // if (file) {
+        //     const fileUrl = await UploadHelper.uploadDocument({
+        //         data: file,
+        //         folderName: `file-content-${existingContent._id}`,
+        //         fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+        //         uploadType: UploadHelper.uploadType.trainingContentFile,
+        //     });
+        //     updateData.files = [{ url: fileUrl }];
+        //     updateData.images = [];
+        //     updateData.audios = [];
+        //     updateData.videos = [];
+        //     updateData.scorm = null;
+        //     isUpdated = true;
+        //     isMediaUpdated = true;
+        // }
 
         if (scorm) {
             const courseInfo = await ScromHelper.uploadToScormCloud(scorm);
