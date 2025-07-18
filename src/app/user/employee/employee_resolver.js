@@ -94,7 +94,7 @@ const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
- const sqsClient = new SQSClient({
+const sqsClient = new SQSClient({
     region: process.env.SQS_AWS_REGION,
     credentials: {
         accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
@@ -2034,7 +2034,7 @@ module.exports.queries = {
             let requestStatusFilter;
             if (searchInput) {
                 const nameParts = searchInput.split(" ").filter(Boolean);
-                const firstNameSearch=encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
+                const firstNameSearch = encrypt(nameParts?.[0]?.trim()?.toLowerCase()) || '';
                 const lastNameSearch = encrypt(nameParts?.slice(1)?.join(" ")) || '';
                 const fullNameSearch =
                     nameParts.length > 1
@@ -2978,51 +2978,42 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FAILED, `${nonEmptyArray}`);
             }
 
-            // const empIdsArray = Array.from(empIds);
-            // const emailsArray = Array.from(emails);
-
-
-            // Create a job ID for tracking
-            // const jobId = uuidv4();
-
-            // // Store job metadata in database
-          
-
-            // async function publishCsvImportJob(jobData) {
-            //     await csvImportQueue.add(JOB_NAMES.IMPORT_CSV, jobData);
-            // }
-
             async function publishCsvImportJob(jobData) {
-                                try {
-                                    if (!jobData || !jobData.jobId) {
-                                        throw new Error('Invalid job data: missing jobId');
-                                    }
-            
-                                    const params = {
-                                        QueueUrl: CSV_IMPORT_QUEUE_URL,
-                                        MessageBody: JSON.stringify(jobData),
-                                    };
-            
-                                    // 👉 If FIFO queue:
-                                    // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
-                                    //     params.MessageGroupId = 'csv-import'; // Required for FIFO
-                                    //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
-                                    // }
-                                       console.log(`📤 Sending job to SQS: ${JSON.stringify(params)}`);
-                                    const data = await sqsClient.send(new SendMessageCommand(params));
-            
-                                    console.log(`📋 Job sent to SQS: ${data.MessageId}`);
-                                    return { id: data.MessageId };
-                                } catch (error) {
-                                    console.error('❌ Failed to send job to SQS:', error);
-                                    throw error;
-                                }
-                            }
+                try {
+                    if (!jobData || !jobData.jobId) {
+                        throw new Error('Invalid job data: missing jobId');
+                    }
+
+                    const params = {
+                        QueueUrl: CSV_IMPORT_QUEUE_URL,
+                        MessageBody: JSON.stringify(jobData),
+                    };
+
+                    // 👉 If FIFO queue:
+                    // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                    //     params.MessageGroupId = 'csv-import'; // Required for FIFO
+                    //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                    // }
+                    
+                    const data = await sqsClient.send(new SendMessageCommand(params));
+
+                    console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                    return { id: data.MessageId };
+                } catch (error) {
+                    console.error('❌ Failed to send job to SQS:', error);
+                    throw error;
+                }
+            }
 
             async function publishCsvImportInBatches(users, emails, empIds, subscriberId, userId, userInfo, newFileName, saveCSV, context) {
                 const empIdsArray = Array.from(empIds);
                 const emailsArray = Array.from(emails);
                 const jobId = uuidv4();
+
+
+                const batchSize = 200;
+                const totalUsers = users.length;
+                const batchCount = Math.ceil(totalUsers / batchSize);
 
                 await ImportJob.create({
                     jobId,
@@ -3032,12 +3023,13 @@ module.exports.mutations = {
                     filePath: { url: saveCSV },
                     importStatus: "PROCESSING",
                     totalRecords: users.length,
+                    expectedBatches: batchCount,
+                    processedBatches: {
+                        insertedCount: 0,
+                        updatedCount: 0
+                    },
                     description: "Processing CSV import"
                 });
-
-                const batchSize = 200;
-                const totalUsers = users.length;
-                const batchCount = Math.ceil(totalUsers / batchSize);
 
                 console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
 

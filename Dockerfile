@@ -2,8 +2,8 @@ FROM node:18.20.2
 
 WORKDIR /usr/src/app
 
-RUN apt-get update && \
-    apt-get install -y ffmpeg
+# RUN apt-get update && \
+#     apt-get install -y ffmpeg
 
 COPY package*.json ./
 
