@@ -32,6 +32,10 @@ const importJobSchema = new Schema(
             insertedCount: { type: Number, default: 0 },
             updatedCount: { type: Number, default: 0 }
         },
+        progressCompleted: {
+            type: Boolean,
+            default: false,
+        }
     },
     { timestamps: true }
 );
