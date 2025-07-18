@@ -85,6 +85,7 @@ module.exports = {
         }
     },
     sendMulticastNotification: ({ tokens, title, body, content, webLink }) => {
+        console.log("send multicast notification to firebase----------->", "tokens", tokens,"title", title,"body", body,"content", content,"webLink", webLink);
         try {
             const message = {
                 tokens: tokens || [],
@@ -147,6 +148,9 @@ module.exports = {
         }
     },
     sendNotifications: async ({ userIds, title, body, content, webLink }) => {
+
+        console.log("came to send notification to firebase----------->")
+        console.log("userIds:", userIds, "title:", title, "body:", body, "content:", content, "webLink:", webLink);
 
         const usersWithTokens = await User.find({ _id: { $in: userIds }, isPushNotification: { $ne: false } }, { firebaseTokens: 1 });
         const tokens = usersWithTokens.reduce((acc, user) => {
