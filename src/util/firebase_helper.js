@@ -61,11 +61,17 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
 };
 
 module.exports = {
-    init: () => {
+   init: () => {
+    if (!FirebaseAdmin.apps.length) {
         FirebaseAdmin.initializeApp({
             credential: FirebaseAdmin.credential.cert(firebaseConfig),
         });
-    },
+        console.log("✅ Firebase initialized");
+    } else {
+        console.log("ℹ️ Firebase already initialized");
+    }
+},
+
     sendNotification: ({token, topic, title, body, content, webLink }) => {
         try {
             const baseMessage = generateFirebaseMessageInput({ title, body, content, webLink });
