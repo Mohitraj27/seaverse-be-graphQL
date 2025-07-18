@@ -146,7 +146,7 @@ async function pollMessages() {
 
                                 }
 
-                                if ((insertedCount > 0) || (updatedCount > 0)) {
+                                if ((insertedCount > 0) && (updatedCount > 0)) {
 
                                     await EmployeeHelper.sendNotificationOnBULK({
                                         subscriber: subscriberId,
