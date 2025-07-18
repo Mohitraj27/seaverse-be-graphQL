@@ -924,7 +924,7 @@ module.exports.mutations = {
 
                     const mappedSubtitles = subtitleRefs.map(ref => {
                         const subtitleUrl = subtitleUrls[ref.index];
-                        return subtitleUrl ? { lang: ref.lang, url: subtitleUrl } : null;
+                        return subtitleUrl ? { lang: ref.lang.replace(/\.srt$/, ""), url: subtitleUrl } : null;
                     }).filter(Boolean);
 
                     return {
