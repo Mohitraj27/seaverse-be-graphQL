@@ -79,6 +79,7 @@ async function pollMessages() {
                             const insertedCount = fetchJob?.processedBatches?.insertedCount || 0;
                             const updatedCount = fetchJob?.processedBatches?.updatedCount || 0;
                             const totalRecords = fetchJob?.totalRecords || 0;
+                            const progressCompleted = fetchJob?.progressCompleted;
 
                             console.log(fetchJob, "fetchJob");
                             console.log('insertedCount');
@@ -87,7 +88,7 @@ async function pollMessages() {
                             console.log('updatedCount');
                             console.log(updatedCount);
 
-                            if (insertedCount + updatedCount === totalRecords) {
+                            if ((insertedCount + updatedCount === totalRecords) && progressCompleted) {
 
                                 if (insertedCount > 0 && updatedCount === 0) {
 

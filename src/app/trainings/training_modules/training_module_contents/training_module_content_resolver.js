@@ -985,7 +985,7 @@ module.exports.mutations = {
                 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
 
-                const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+                const command = `libreoffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
 
                 try {
                     const { stdout, stderr } = await execPromise(command);
@@ -1603,7 +1603,7 @@ module.exports.mutations = {
             if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
 
-            const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+            const command = `libreoffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
 
             try {
                 const { stdout, stderr } = await execPromise(command);

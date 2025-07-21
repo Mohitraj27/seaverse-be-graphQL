@@ -4293,16 +4293,46 @@ module.exports = {
         });
 
         if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
+            // await ImportJob.findOneAndUpdate(
+            //     { jobId: jobId },
+            //     {
+            //         $inc: {
+            //             "processedBatches.insertedCount": insertedUsers.length,
+            //             "processedBatches.updatedCount": updatedUsersByEmail.length + updatedUsersById.length
+            //         },
+            //     },
+            //     { new: true }
+            // )
+
+            const areCountsEqual =
+                insertedUsers.length === (updatedUsersByEmail.length + updatedUsersById.length);
+            console.log("areCountsEqual------------>", areCountsEqual);
+
+            const updateObj = [
+                {
+                    $set: {
+                        "processedBatches.insertedCount": {
+                            $add: ["$processedBatches.insertedCount", insertedUsers.length]
+                        },
+                        "processedBatches.updatedCount": {
+                            $add: [
+                                "$processedBatches.updatedCount",
+                                updatedUsersByEmail.length + updatedUsersById.length
+                            ]
+                        },
+                        ...(areCountsEqual && {
+                            progressCompleted: { $not: ["$progressCompleted"] }
+                        })
+                    }
+                }
+            ];
+
             await ImportJob.findOneAndUpdate(
                 { jobId: jobId },
-                {
-                    $inc: {
-                        "processedBatches.insertedCount": insertedUsers.length,
-                        "processedBatches.updatedCount": updatedUsersByEmail.length + updatedUsersById.length
-                    },
-                },
+                updateObj,
                 { new: true }
-            )
+            );
+
         }
 
         // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
