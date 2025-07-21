@@ -230,6 +230,7 @@ module.exports = {
         subscriberSignUp(input: SignUpInput!): AuthUser!
         signUp(input: SignUpInput!): SignUpRes!
         signIn(input: SignInInput!, role: Role): AuthUser!
+        lastLoginAt(firebaseToken: String): String!
         generateRefreshToken(token: String!): refreshTokenRes!
         signOut(input: SignOutInput): String!
         appSignUp(input: AppSignUpInput!): downloadResponse!
