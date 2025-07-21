@@ -9,20 +9,7 @@ const AwsHelper = require("../../../util/aws_helper");
 const { getTheContent } = require("./content_zip_helper");
 const { TrainingModuleContent } = require("../training_modules/training_module_contents/training_module_content_model");
 const { User } = require("../../user/user_model");
-const validateInputData = async (input, userId) => {
-    if (!userId) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
 
-    if (!input.training || !input.trainingModule) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training and training module is required");
-
-    const existingTraining = await Training.findById(input.training);
-
-    if (!existingTraining) throw CustomError(ErrorName.COURSE_NOT_FOUND, "Course not found");
-
-    const existingTrainingModule = await TrainingModule.find({ _id: input?.trainingModule, training: input?.training });
-
-    if (!existingTrainingModule) throw CustomError(ErrorName.LESSON_NOT_FOUND, "Lesson not found");
-
-}
 module.exports.queries = {
 
 }
@@ -32,7 +19,9 @@ module.exports.mutations = {
         const { userId } = AuthUser(context);
 
         try {
-            await validateInputData(input, userId);
+
+            if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
+
             const trainingModuleContentsFromContentData = await OverallTrainingProgress.findOne({ user: userId, training: input.training });
 
             let syncContentErrors = [];
@@ -49,25 +38,35 @@ module.exports.mutations = {
             let trainingContentIds = [];
 
             trainingModuleContentsFromContentData?.contentData.map((content) => {
-
-                if (content.moduleId.toString() === input.trainingModule.toString()) {
-                    trainingContentIds.push(...content.contentIds);
-                }
-
+                trainingContentIds.push({ trainingContent: content.contentIds, trainingModule: content.trainingModule });
             });
 
             let trainingModuleContentsFromTrainingContent = [];
 
-            let trainingContents = [];
+            // let trainingContents = [];
+            const trainingContentsAndModules = [];
             if (trainingContentIds.length > 0) {
-                trainingContents = await TrainingModuleContent.find({ _id: { $in: trainingContentIds } });
+
+                const contentIdsOnly = trainingContentIds.map(item => item.trainingContent);
+                const trainingContents = await TrainingModuleContent.find({ _id: { $in: contentIdsOnly } });
+
+                trainingContentIds.map((item) => {
+                    const trainingModuleContent = trainingContents.find(content => content._id.toString() === item.trainingContent.toString());
+                    if (trainingModuleContent) {
+                        trainingContentsAndModules.push({
+                            trainingModule: item.trainingModule,
+                            trainingContent: trainingModuleContent
+                        });
+                    }
+                });
+
             }
 
             if (trainingContentIds.length == 0) {
 
                 trainingModuleContentsFromTrainingContent = await TrainingContentBridge.find({
                     training: input.training,
-                    trainingModule: input.trainingModule,
+                    // trainingModule: input.trainingModule,
                     isDeleted: false
                 }).populate('trainingContent').lean();
 
@@ -76,27 +75,39 @@ module.exports.mutations = {
             const userLanguages = user?.contentlanguages || [];
             let getContent;
             if (trainingContentIds.length > 0) {
-                getContent = await getTheContent(trainingContents, userLanguages);
+                getContent = await getTheContent(trainingContentsAndModules, userLanguages);
             } else if (trainingModuleContentsFromTrainingContent.length > 0) {
-                
-                const trainingContents = trainingModuleContentsFromTrainingContent.map(item => item.trainingContent);
-                getContent = await getTheContent(trainingContents, userLanguages);
-            }
 
-            if (getContent.length == 0) {
-                return {
-                    status: "01",
-                    zipUrl: null
-                }
+                const groupedData = Object.values(
+                    trainingModuleContentsFromTrainingContent.reduce((acc, item) => {
+
+                        const moduleId = item.trainingModule.toString();
+                        const contentId = item?.trainingContent || [];
+
+                        if (!acc[moduleId]) {
+                            acc[moduleId] = {
+                                trainingModule: moduleId,
+                                trainingContent: []
+                            };
+                        }
+
+                        acc[moduleId].trainingContent.push(contentId);
+
+                        return acc;
+                    }, {})
+                );
+
+                getContent = await getTheContent(groupedData, userLanguages);
+
             }
 
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
 
-            const zip = await AwsHelper.fetchFile(getContent);
+            const metadata = await AwsHelper.fetchFile(getContent);
 
             return {
                 status: "01",
-                zipUrl: zip
+                zipUrl: metadata
             }
 
         } catch (error) {
